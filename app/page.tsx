@@ -109,7 +109,7 @@ export default function Home() {
                       Platform
                     </p>
                     <p className="mt-2 text-sm leading-6 text-slate-700">
-                      Designed for AURORA SystemsTM internal operations.
+                      Designed for AURORA Systems TM internal operations.
                     </p>
                   </div>
                 </div>
@@ -147,7 +147,7 @@ export default function Home() {
                       RELAY is the internal request workflow for
                       {" "}
                       <span className="font-semibold text-slate-900">
-                        AURORA SystemsTM
+                        AURORA Systems TM
                       </span>
                       .
                     </p>
