@@ -6,6 +6,7 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type HomepageUpdate = {
@@ -15,6 +16,11 @@ type HomepageUpdate = {
   request_details: string | null;
   status: string | null;
   updated_at: string | null;
+};
+
+type HomepageTicket = HomepageUpdate & {
+  assigned_to: string | null;
+  requester_name: string | null;
 };
 
 const mockUpdates: HomepageUpdate[] = [
@@ -49,6 +55,14 @@ export default function Home() {
   const [updates, setUpdates] = useState<HomepageUpdate[]>(mockUpdates);
   const [updatesMode, setUpdatesMode] = useState<"live" | "mock">("mock");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [searchTickets, setSearchTickets] = useState<HomepageTicket[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResult, setSearchResult] = useState<{
+    title: string;
+    detail: string;
+    status?: string | null;
+  } | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -60,27 +74,42 @@ export default function Home() {
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { user, role } = await getCurrentUserWithRole(supabase);
 
       if (!isMounted || !user) {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("tickets")
-        .select("id, job_number, request_summary, request_details, status, updated_at")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false })
-        .limit(5);
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle();
 
-      if (!isMounted || error || !data || data.length === 0) {
+      const query = supabase
+        .from("tickets")
+        .select(
+          "id, job_number, request_summary, request_details, status, updated_at, assigned_to, requester_name",
+        )
+        .order("updated_at", { ascending: false })
+        .limit(role === "admin" ? 8 : 5);
+
+      const { data, error } =
+        role === "admin" ? await query : await query.eq("user_id", user.id);
+
+      if (!isMounted) {
         return;
       }
 
-      setUpdates(data as HomepageUpdate[]);
-      setUpdatesMode("live");
+      setIsLoggedIn(true);
+      setDisplayName(resolveDisplayName(profile?.full_name, user.email));
+
+      if (!error && data && data.length > 0) {
+        const tickets = data as HomepageTicket[];
+        setUpdates(tickets);
+        setSearchTickets(tickets);
+        setUpdatesMode("live");
+      }
     }
 
     loadHomepageUpdates();
@@ -115,6 +144,11 @@ export default function Home() {
       isMounted = false;
     };
   }, []);
+
+  function handleQuickSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSearchResult(resolveQuickSearch(searchQuery, searchTickets));
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
@@ -166,6 +200,11 @@ export default function Home() {
                   </div>
 
                   <div className="space-y-4">
+                    {isLoggedIn && displayName ? (
+                      <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-500">
+                        Hello, {displayName}
+                      </p>
+                    ) : null}
                     <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">
                       AURORA Systems TM
                     </p>
@@ -202,6 +241,51 @@ export default function Home() {
                     </Link>
                   ) : null}
                 </div>
+
+                <form
+                  onSubmit={handleQuickSearch}
+                  className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-5"
+                >
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Quick Search
+                    </p>
+                    <p className="text-sm leading-6 text-slate-500">
+                      Ask about a job number or search request status instantly.
+                    </p>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                    <input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Try: Is job 1191 done?"
+                      className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
+                    />
+                    <button
+                      type="submit"
+                      className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Search
+                    </button>
+                  </div>
+                  {searchResult ? (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {searchResult.title}
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-slate-600">
+                            {searchResult.detail}
+                          </p>
+                        </div>
+                        {searchResult.status ? (
+                          <StatusPill status={searchResult.status} />
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </form>
               </div>
 
               <aside className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6 sm:p-7">
@@ -308,4 +392,83 @@ function formatRelativeTime(value: string | null) {
 
   const days = Math.round(hours / 24);
   return `${days}d ago`;
+}
+
+function resolveDisplayName(fullName?: string | null, email?: string | null) {
+  if (fullName?.trim()) {
+    return fullName.trim();
+  }
+
+  if (email?.includes("@")) {
+    return email.split("@")[0];
+  }
+
+  return "User";
+}
+
+function resolveQuickSearch(query: string, tickets: HomepageTicket[]) {
+  const normalized = query.trim().toLowerCase();
+
+  if (!normalized) {
+    return {
+      title: "Quick Search",
+      detail: "Enter a job number or ask about the status of a request.",
+      status: null,
+    };
+  }
+
+  const jobNumberMatch = query.match(/[A-Za-z0-9-]{3,}/);
+  const matchedTicket = tickets.find((ticket) => {
+    const jobNumber = ticket.job_number?.toLowerCase();
+    const summary = (ticket.request_summary || ticket.request_details || "").toLowerCase();
+
+    if (jobNumberMatch && jobNumber === jobNumberMatch[0].toLowerCase()) {
+      return true;
+    }
+
+    return summary.includes(normalized);
+  });
+
+  if (!matchedTicket) {
+    return {
+      title: "No matching request found",
+      detail: "Try a job number or a clearer request phrase.",
+      status: null,
+    };
+  }
+
+  const summary =
+    matchedTicket.request_summary || matchedTicket.request_details || "No request summary recorded.";
+  const status = matchedTicket.status ?? "PENDING";
+  const updated = formatRelativeTime(matchedTicket.updated_at);
+
+  if (normalized.includes("done") || normalized.includes("complete")) {
+    return {
+      title: `Job ${matchedTicket.job_number || matchedTicket.id}`,
+      detail:
+        status === "COMPLETED"
+          ? `${summary} is completed. Last updated ${updated}.`
+          : `${summary} is not completed. Current status is ${status}. Last updated ${updated}.`,
+      status,
+    };
+  }
+
+  if (
+    normalized.includes("status") ||
+    normalized.includes("ready") ||
+    normalized.includes("ordered") ||
+    normalized.includes("query")
+  ) {
+    return {
+      title: `Job ${matchedTicket.job_number || matchedTicket.id}`,
+      detail: `${summary}. Current status is ${status}. Last updated ${updated}.`,
+      status,
+    };
+  }
+
+  return {
+    title: `Job ${matchedTicket.job_number || matchedTicket.id}`,
+    detail: `${summary}. Assigned to ${matchedTicket.assigned_to || "Stores queue"}. Current status is ${status}.`,
+    status,
+  };
 }

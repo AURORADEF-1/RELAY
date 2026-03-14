@@ -40,6 +40,8 @@ type Ticket = {
   status: TicketStatus | null;
   assigned_to: string | null;
   notes: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export default function AdminPage() {
@@ -102,7 +104,7 @@ export default function AdminPage() {
       const { data, error } = await supabase
         .from("tickets")
         .select(
-          "id, requester_name, department, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes",
+          "id, requester_name, department, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
         )
         .order("updated_at", { ascending: false });
 
@@ -148,6 +150,53 @@ export default function AdminPage() {
 
     return tickets.filter((ticket) => ticket.status === statusFilter);
   }, [statusFilter, tickets]);
+
+  const dashboardMetrics = useMemo(() => {
+    const activeTickets = tickets.filter((ticket) => ticket.status !== "COMPLETED");
+    const completedTickets = tickets.filter((ticket) => ticket.status === "COMPLETED");
+    const unassignedCount = activeTickets.filter((ticket) => !ticket.assigned_to?.trim()).length;
+
+    const operatorWorkload = Object.entries(
+      activeTickets.reduce<Record<string, { total: number; pending: number; ready: number }>>(
+        (accumulator, ticket) => {
+          const operator = ticket.assigned_to?.trim() || "Unassigned";
+          const current = accumulator[operator] ?? {
+            total: 0,
+            pending: 0,
+            ready: 0,
+          };
+
+          current.total += 1;
+
+          if (ticket.status === "PENDING" || ticket.status === "QUERY") {
+            current.pending += 1;
+          }
+
+          if (ticket.status === "READY") {
+            current.ready += 1;
+          }
+
+          accumulator[operator] = current;
+          return accumulator;
+        },
+        {},
+      ),
+    )
+      .map(([operator, metrics]) => ({ operator, ...metrics }))
+      .sort((left, right) => right.total - left.total);
+
+    const averageLeadHours = getAverageLeadHours(completedTickets);
+    const longestOpenHours = getLongestOpenHours(activeTickets);
+
+    return {
+      activeCount: activeTickets.length,
+      completedCount: completedTickets.length,
+      unassignedCount,
+      averageLeadHours,
+      longestOpenHours,
+      operatorWorkload,
+    };
+  }, [tickets]);
 
   const selectedChatTicket =
     filteredTickets.find((ticket) => ticket.id === selectedChatTicketId) ??
@@ -535,6 +584,129 @@ export default function AdminPage() {
                   </p>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+              <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Operator Load
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      Current assigned workload, ready jobs, and queue pressure.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-right">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Active Jobs
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-950">
+                      {dashboardMetrics.activeCount}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  {dashboardMetrics.operatorWorkload.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
+                      No operator assignments yet.
+                    </div>
+                  ) : (
+                    dashboardMetrics.operatorWorkload.map((operator) => (
+                      <article
+                        key={operator.operator}
+                        className="rounded-2xl border border-slate-200 bg-white p-4"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {operator.operator}
+                            </p>
+                            <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                              {operator.pending} queued · {operator.ready} ready
+                            </p>
+                          </div>
+                          <p className="text-xl font-semibold text-slate-950">
+                            {operator.total}
+                          </p>
+                        </div>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-slate-900"
+                            style={{
+                              width: `${Math.max(
+                                12,
+                                (operator.total /
+                                  Math.max(
+                                    1,
+                                    dashboardMetrics.operatorWorkload[0]?.total ?? 1,
+                                  )) *
+                                  100,
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  KPI Snapshot
+                </p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <KpiCard
+                    label="Unassigned"
+                    value={String(dashboardMetrics.unassignedCount)}
+                    helper="Jobs still waiting for operator allocation"
+                  />
+                  <KpiCard
+                    label="Completed"
+                    value={String(dashboardMetrics.completedCount)}
+                    helper="Archived and admin-visible only"
+                  />
+                  <KpiCard
+                    label="Avg Lead Time"
+                    value={formatHoursValue(dashboardMetrics.averageLeadHours)}
+                    helper="Average created-to-completed duration"
+                  />
+                  <KpiCard
+                    label="Longest Open"
+                    value={formatHoursValue(dashboardMetrics.longestOpenHours)}
+                    helper="Oldest currently active job"
+                  />
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Status Distribution
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {statuses.slice(1).map((status) => {
+                      const count = tickets.filter((ticket) => ticket.status === status).length;
+                      const width = (count / Math.max(1, tickets.length)) * 100;
+
+                      return (
+                        <div key={status}>
+                          <div className="flex items-center justify-between text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                            <span>{status}</span>
+                            <span>{count}</span>
+                          </div>
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full bg-slate-900"
+                              style={{ width: `${Math.max(count > 0 ? 8 : 0, width)}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
             </div>
 
             {errorMessage ? (
@@ -930,4 +1102,74 @@ function StatusSelect({
       ))}
     </select>
   );
+}
+
+function KpiCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{helper}</p>
+    </div>
+  );
+}
+
+function getAverageLeadHours(tickets: Ticket[]) {
+  const durations = tickets
+    .map((ticket) => getDurationHours(ticket.created_at, ticket.updated_at))
+    .filter((value): value is number => value !== null);
+
+  if (durations.length === 0) {
+    return null;
+  }
+
+  return durations.reduce((sum, value) => sum + value, 0) / durations.length;
+}
+
+function getLongestOpenHours(tickets: Ticket[]) {
+  const durations = tickets
+    .map((ticket) => getDurationHours(ticket.created_at, new Date().toISOString()))
+    .filter((value): value is number => value !== null);
+
+  if (durations.length === 0) {
+    return null;
+  }
+
+  return Math.max(...durations);
+}
+
+function getDurationHours(start?: string | null, end?: string | null) {
+  if (!start || !end) {
+    return null;
+  }
+
+  const duration = new Date(end).getTime() - new Date(start).getTime();
+
+  if (Number.isNaN(duration) || duration < 0) {
+    return null;
+  }
+
+  return duration / 1000 / 60 / 60;
+}
+
+function formatHoursValue(value: number | null) {
+  if (value === null) {
+    return "-";
+  }
+
+  if (value < 24) {
+    return `${value.toFixed(1)}h`;
+  }
+
+  return `${(value / 24).toFixed(1)}d`;
 }

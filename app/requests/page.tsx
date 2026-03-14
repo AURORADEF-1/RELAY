@@ -13,6 +13,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 type Ticket = {
   id: string;
   machine_reference: string | null;
+  job_number: string | null;
   request_summary: string | null;
   request_details: string | null;
   status: string | null;
@@ -62,9 +63,10 @@ export default function RequestsPage() {
       const { data, error } = await supabase
         .from("tickets")
         .select(
-          "id, machine_reference, request_summary, request_details, status, updated_at",
+          "id, machine_reference, job_number, request_summary, request_details, status, updated_at",
         )
         .eq("user_id", user.id)
+        .neq("status", "COMPLETED")
         .order("updated_at", { ascending: false });
 
       if (!isMounted) {
@@ -135,8 +137,8 @@ export default function RequestsPage() {
                 <NotificationBadge count={requesterUnreadCount} />
               </h1>
               <p className="text-base leading-8 text-slate-600">
-                Track active and completed parts requests with clear status
-                visibility across the RELAY workflow.
+                Track active parts requests. Completed jobs are archived and remain
+                visible to admin only.
               </p>
             </div>
 
@@ -169,7 +171,7 @@ export default function RequestsPage() {
                 <thead className="bg-slate-50">
                   <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     <th className="px-6 py-4">Ticket ID</th>
-                    <th className="px-6 py-4">Machine Reference</th>
+                    <th className="px-6 py-4">Job Number</th>
                     <th className="px-6 py-4">Request Summary</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4">Updated</th>
@@ -206,7 +208,12 @@ export default function RequestsPage() {
                           </Link>
                         </td>
                         <td className="px-6 py-5 text-sm text-slate-600">
-                          {ticket.machine_reference ?? "-"}
+                          <div className="space-y-1">
+                            <p>{ticket.job_number ?? "-"}</p>
+                            <p className="text-xs text-slate-500">
+                              {ticket.machine_reference ?? "-"}
+                            </p>
+                          </div>
                         </td>
                         <td className="px-6 py-5 text-sm leading-7 text-slate-600">
                           {ticket.request_summary ?? ticket.request_details ?? "-"}
@@ -250,7 +257,7 @@ export default function RequestsPage() {
                           </Link>
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
-                          {ticket.machine_reference ?? "-"}
+                          Job {ticket.job_number ?? "-"}
                         </p>
                       </div>
                       <StatusBadge status={ticket.status ?? "PENDING"} />
