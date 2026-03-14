@@ -26,7 +26,10 @@ type TicketChatPanelProps = {
   mode?: "requester" | "operator";
   isSending?: boolean;
   isAiLoading?: boolean;
-  onSendMessage?: (payload: { messageText: string; files: File[] }) => Promise<void>;
+  notice?: { type: "success" | "error"; message: string } | null;
+  onSendMessage?: (
+    payload: { messageText: string; files: File[] },
+  ) => Promise<boolean>;
   onAskAi?: (question: string) => Promise<void>;
 };
 
@@ -46,6 +49,7 @@ export function TicketChatPanel({
   mode = "requester",
   isSending = false,
   isAiLoading = false,
+  notice = null,
   onSendMessage,
   onAskAi,
 }: TicketChatPanelProps) {
@@ -71,14 +75,16 @@ export function TicketChatPanel({
       return;
     }
 
-    await onSendMessage({
+    const wasSuccessful = await onSendMessage({
       messageText: draftMessage,
       files: queuedImages,
     });
 
-    setDraftMessage("");
-    setQueuedImages([]);
-    setUploadResetKey((current) => current + 1);
+    if (wasSuccessful) {
+      setDraftMessage("");
+      setQueuedImages([]);
+      setUploadResetKey((current) => current + 1);
+    }
   }
 
   async function handleAskAi() {
@@ -214,6 +220,18 @@ export function TicketChatPanel({
                 onFilesChange={setQueuedImages}
               />
             </div>
+
+            {notice ? (
+              <div
+                className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                  notice.type === "success"
+                    ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border border-rose-200 bg-rose-50 text-rose-700"
+                }`}
+              >
+                {notice.message}
+              </div>
+            ) : null}
 
             <div className="mt-4 flex flex-wrap gap-3">
               <button

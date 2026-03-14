@@ -21,7 +21,6 @@ export type TicketMessageRecord = {
   sender_user_id: string | null;
   sender_role: "requester" | "parts" | "admin" | "ai";
   message_text: string | null;
-  attachment_id: string | null;
   attachment_url: string | null;
   attachment_type: string | null;
   is_ai_message: boolean | null;
@@ -136,21 +135,27 @@ export async function createTicketMessage({
   attachments?: TicketAttachmentRecord[];
 }) {
   const trimmedText = messageText.trim();
+  const createdMessages: TicketMessageRecord[] = [];
 
   if (attachments.length === 0) {
-    const { error } = await supabase.from("ticket_messages").insert({
-      ticket_id: ticketId,
-      sender_user_id: senderUserId,
-      sender_role: senderRole,
-      message_text: trimmedText || null,
-      is_ai_message: false,
-    });
+    const { data, error } = await supabase
+      .from("ticket_messages")
+      .insert({
+        ticket_id: ticketId,
+        sender_user_id: senderUserId,
+        sender_role: senderRole,
+        message_text: trimmedText || null,
+        is_ai_message: false,
+      })
+      .select("*")
+      .single();
 
     if (error) {
       throw new Error(error.message);
     }
 
-    return;
+    createdMessages.push(data as TicketMessageRecord);
+    return createdMessages;
   }
 
   for (const [index, attachment] of attachments.entries()) {
@@ -161,12 +166,11 @@ export async function createTicketMessage({
         sender_user_id: senderUserId,
         sender_role: senderRole,
         message_text: index === 0 ? trimmedText || null : null,
-        attachment_id: attachment.id,
         attachment_url: attachment.file_url,
         attachment_type: attachment.mime_type,
         is_ai_message: false,
       })
-      .select("id")
+      .select("*")
       .single();
 
     if (error) {
@@ -181,7 +185,11 @@ export async function createTicketMessage({
     if (linkError) {
       throw new Error(linkError.message);
     }
+
+    createdMessages.push(data as TicketMessageRecord);
   }
+
+  return createdMessages;
 }
 
 function buildStoragePath(

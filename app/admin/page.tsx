@@ -48,6 +48,10 @@ export default function AdminPage() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [isChatSending, setIsChatSending] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [chatNotice, setChatNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
 
@@ -281,20 +285,30 @@ export default function AdminPage() {
     setUpdatingTicketId(null);
   }
 
+  async function reloadSelectedChatMessages(supabase: NonNullable<ReturnType<typeof getSupabaseClient>>, activeTicketId: string) {
+    const messages = await fetchTicketMessages(supabase, activeTicketId);
+    setChatMessages(messages);
+  }
+
   async function handleSendChatMessage(payload: { messageText: string; files: File[] }) {
     if (!selectedChatTicket) {
-      return;
+      return false;
     }
 
     const supabase = getSupabaseClient();
 
     if (!supabase) {
       setErrorMessage("Supabase environment variables are not configured.");
-      return;
+      setChatNotice({
+        type: "error",
+        message: "Supabase environment variables are not configured.",
+      });
+      return false;
     }
 
     setIsChatSending(true);
     setErrorMessage("");
+    setChatNotice(null);
 
     try {
       const attachments =
@@ -308,7 +322,7 @@ export default function AdminPage() {
             })
           : [];
 
-      await createTicketMessage({
+      const createdMessages = await createTicketMessage({
         supabase,
         ticketId: selectedChatTicket.id,
         senderUserId: currentUserId,
@@ -317,12 +331,25 @@ export default function AdminPage() {
         attachments,
       });
 
-      const messages = await fetchTicketMessages(supabase, selectedChatTicket.id);
-      setChatMessages(messages);
+      setChatMessages((current) => [...current, ...createdMessages]);
+      setChatNotice({
+        type: "success",
+        message: "Reply sent successfully.",
+      });
+      await reloadSelectedChatMessages(supabase, selectedChatTicket.id);
+      return true;
     } catch (chatError) {
+      console.error("Admin ticket chat send failed", chatError);
+      const message =
+        chatError instanceof Error ? chatError.message : "Failed to send chat reply.";
       setErrorMessage(
-        chatError instanceof Error ? chatError.message : "Failed to send chat reply.",
+        message,
       );
+      setChatNotice({
+        type: "error",
+        message,
+      });
+      return false;
     } finally {
       setIsChatSending(false);
     }
@@ -382,7 +409,6 @@ export default function AdminPage() {
           sender_user_id: null,
           sender_role: "ai",
           message_text: payload.message ?? null,
-          attachment_id: null,
           attachment_url: null,
           attachment_type: null,
           is_ai_message: true,
@@ -524,10 +550,11 @@ export default function AdminPage() {
                       selectedChatTicket.request_summary ||
                       "Awaiting Stores update."
                     }
-                    assignedTo={selectedChatTicket.assigned_to}
+                  assignedTo={selectedChatTicket.assigned_to}
                   messages={mapMessagesToChat(chatMessages, selectedChatTicket)}
                   isSending={isChatSending}
                   isAiLoading={isAiLoading}
+                  notice={chatNotice}
                   onSendMessage={handleSendChatMessage}
                   onAskAi={handleAskAi}
                 />

@@ -57,6 +57,10 @@ export default function TicketDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [chatNotice, setChatNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -148,20 +152,35 @@ export default function TicketDetailPage() {
     };
   }, [ticketId]);
 
+  async function reloadTicketConversation(supabase: NonNullable<ReturnType<typeof getSupabaseClient>>, activeTicketId: string) {
+    const [attachmentData, messageData] = await Promise.all([
+      fetchTicketAttachments(supabase, activeTicketId),
+      fetchTicketMessages(supabase, activeTicketId),
+    ]);
+
+    setAttachments(attachmentData);
+    setMessages(messageData);
+  }
+
   async function handleSendMessage(payload: { messageText: string; files: File[] }) {
     if (!ticket) {
-      return;
+      return false;
     }
 
     const supabase = getSupabaseClient();
 
     if (!supabase) {
       setErrorMessage("Supabase environment variables are not configured.");
-      return;
+      setChatNotice({
+        type: "error",
+        message: "Supabase environment variables are not configured.",
+      });
+      return false;
     }
 
     setIsSending(true);
     setErrorMessage("");
+    setChatNotice(null);
 
     try {
       const uploadedAttachments =
@@ -175,7 +194,7 @@ export default function TicketDetailPage() {
             })
           : [];
 
-      await createTicketMessage({
+      const createdMessages = await createTicketMessage({
         supabase,
         ticketId: ticket.id,
         senderUserId: currentUserId,
@@ -184,17 +203,26 @@ export default function TicketDetailPage() {
         attachments: uploadedAttachments,
       });
 
-      const [attachmentData, messageData] = await Promise.all([
-        fetchTicketAttachments(supabase, ticket.id),
-        fetchTicketMessages(supabase, ticket.id),
-      ]);
-
-      setAttachments(attachmentData);
-      setMessages(messageData);
+      setMessages((current) => [...current, ...createdMessages]);
+      setAttachments((current) => [...uploadedAttachments, ...current]);
+      setChatNotice({
+        type: "success",
+        message: "Message sent successfully.",
+      });
+      await reloadTicketConversation(supabase, ticket.id);
+      return true;
     } catch (sendError) {
+      console.error("Ticket chat send failed", sendError);
+      const message =
+        sendError instanceof Error ? sendError.message : "Failed to send message.";
       setErrorMessage(
-        sendError instanceof Error ? sendError.message : "Failed to send message.",
+        message,
       );
+      setChatNotice({
+        type: "error",
+        message,
+      });
+      return false;
     } finally {
       setIsSending(false);
     }
@@ -257,7 +285,6 @@ export default function TicketDetailPage() {
           sender_user_id: null,
           sender_role: "ai",
           message_text: payload.message ?? null,
-          attachment_id: null,
           attachment_url: null,
           attachment_type: null,
           is_ai_message: true,
@@ -432,6 +459,7 @@ export default function TicketDetailPage() {
                   messages={mapMessagesToChat(messages, ticket)}
                   isSending={isSending}
                   isAiLoading={isAiLoading}
+                  notice={chatNotice}
                   onSendMessage={handleSendMessage}
                   onAskAi={handleAskAi}
                 />
