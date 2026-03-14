@@ -48,6 +48,7 @@ export default function Home() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
   const [updates, setUpdates] = useState<HomepageUpdate[]>(mockUpdates);
   const [updatesMode, setUpdatesMode] = useState<"live" | "mock">("mock");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -89,15 +90,46 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSessionState() {
+      const supabase = getSupabaseClient();
+
+      if (!supabase) {
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (isMounted) {
+        setIsLoggedIn(Boolean(session));
+      }
+    }
+
+    loadSessionState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-6xl">
         <nav className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
           <RelayLogo />
           <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
-            <Link href="/login" className="rounded-full px-4 py-2 transition hover:bg-slate-100">
-              Login
-            </Link>
+            {!isLoggedIn ? (
+              <Link
+                href="/login"
+                className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+              >
+                Login
+              </Link>
+            ) : null}
             <Link
               href="/submit"
               className="rounded-full px-4 py-2 transition hover:bg-slate-100"
@@ -210,7 +242,7 @@ export default function Home() {
 
 function AuroraHeroMark() {
   return (
-    <div className="relative isolate overflow-hidden rounded-[2rem] border border-slate-300 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.85)]">
+    <div className="relative isolate overflow-hidden rounded-[2rem] border border-slate-300 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.85)] lg:min-h-[22rem]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=1400&q=80"
@@ -219,14 +251,11 @@ function AuroraHeroMark() {
       />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_26%,rgba(59,130,246,0.3),transparent_24%),linear-gradient(180deg,rgba(2,6,23,0.12)_0%,rgba(2,6,23,0.48)_40%,rgba(2,6,23,0.84)_100%)]" />
       <div className="absolute inset-3 rounded-[1.5rem] border border-white/10" />
-      <div className="relative flex aspect-square flex-col items-start justify-end gap-3 p-6 sm:p-8">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-200/90">
-          Night Systems Mark
-        </p>
-        <p className="max-w-[10rem] text-4xl font-semibold leading-[0.95] tracking-[-0.08em] text-white drop-shadow-[0_10px_30px_rgba(15,23,42,0.85)] sm:max-w-[14rem] sm:text-6xl">
+      <div className="relative flex min-h-[17rem] flex-col items-start justify-end gap-2 p-6 sm:min-h-[19rem] sm:p-8 lg:min-h-[22rem] lg:p-10">
+        <p className="max-w-[10rem] text-4xl font-semibold leading-[0.95] tracking-[-0.08em] text-white drop-shadow-[0_10px_30px_rgba(15,23,42,0.85)] sm:max-w-[14rem] sm:text-6xl lg:max-w-none lg:text-7xl">
           AURORA
         </p>
-        <p className="text-lg font-semibold uppercase tracking-[0.18em] text-sky-100/90 sm:text-xl">
+        <p className="text-lg font-semibold uppercase tracking-[0.18em] text-sky-100/90 sm:text-xl lg:text-2xl">
           Systems
         </p>
       </div>
