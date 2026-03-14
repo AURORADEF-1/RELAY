@@ -5,14 +5,13 @@ export const RELAY_MEDIA_BUCKET = "relay-ticket-media";
 export type TicketAttachmentRecord = {
   id: string;
   ticket_id: string;
-  uploaded_by_user_id: string | null;
-  attachment_kind: "ticket" | "chat";
-  storage_bucket: string | null;
-  storage_path: string | null;
+  uploaded_by: string | null;
   file_name: string | null;
+  file_path: string | null;
+  file_url: string | null;
   mime_type: string | null;
-  file_size_bytes: number | null;
-  public_url: string | null;
+  attachment_context: "ticket" | "chat";
+  message_id: string | null;
   created_at: string | null;
 };
 
@@ -41,6 +40,7 @@ export async function uploadTicketAttachments({
   userId: string | null;
   files: File[];
   attachmentKind: "ticket" | "chat";
+  messageId?: string | null;
 }) {
   const uploaded: TicketAttachmentRecord[] = [];
 
@@ -65,14 +65,13 @@ export async function uploadTicketAttachments({
       .from("ticket_attachments")
       .insert({
         ticket_id: ticketId,
-        uploaded_by_user_id: userId,
-        attachment_kind: attachmentKind,
-        storage_bucket: RELAY_MEDIA_BUCKET,
-        storage_path: storagePath,
+        uploaded_by: userId,
         file_name: file.name,
+        file_path: storagePath,
+        file_url: publicUrl,
         mime_type: file.type || null,
-        file_size_bytes: file.size,
-        public_url: publicUrl,
+        attachment_context: attachmentKind,
+        message_id: null,
       })
       .select("*")
       .single();
@@ -155,19 +154,32 @@ export async function createTicketMessage({
   }
 
   for (const [index, attachment] of attachments.entries()) {
-    const { error } = await supabase.from("ticket_messages").insert({
-      ticket_id: ticketId,
-      sender_user_id: senderUserId,
-      sender_role: senderRole,
-      message_text: index === 0 ? trimmedText || null : null,
-      attachment_id: attachment.id,
-      attachment_url: attachment.public_url,
-      attachment_type: attachment.mime_type,
-      is_ai_message: false,
-    });
+    const { data, error } = await supabase
+      .from("ticket_messages")
+      .insert({
+        ticket_id: ticketId,
+        sender_user_id: senderUserId,
+        sender_role: senderRole,
+        message_text: index === 0 ? trimmedText || null : null,
+        attachment_id: attachment.id,
+        attachment_url: attachment.file_url,
+        attachment_type: attachment.mime_type,
+        is_ai_message: false,
+      })
+      .select("id")
+      .single();
 
     if (error) {
       throw new Error(error.message);
+    }
+
+    const { error: linkError } = await supabase
+      .from("ticket_attachments")
+      .update({ message_id: data.id })
+      .eq("id", attachment.id);
+
+    if (linkError) {
+      throw new Error(linkError.message);
     }
   }
 }

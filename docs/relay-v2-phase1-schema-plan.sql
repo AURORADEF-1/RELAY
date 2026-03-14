@@ -16,14 +16,13 @@ create table if not exists public.user_profiles (
 create table if not exists public.ticket_attachments (
   id uuid primary key default gen_random_uuid(),
   ticket_id text not null references public.tickets (id) on delete cascade,
-  uploaded_by_user_id uuid references auth.users (id) on delete set null,
-  attachment_kind text not null default 'ticket' check (attachment_kind in ('ticket', 'chat')),
-  storage_bucket text not null default 'relay-ticket-media',
-  storage_path text not null,
+  uploaded_by uuid references auth.users (id) on delete set null,
   file_name text not null,
+  file_path text not null,
+  file_url text,
   mime_type text,
-  file_size_bytes bigint,
-  public_url text,
+  attachment_context text not null default 'ticket' check (attachment_context in ('ticket', 'chat')),
+  message_id uuid references public.ticket_messages (id) on delete set null,
   created_at timestamptz not null default now()
 );
 

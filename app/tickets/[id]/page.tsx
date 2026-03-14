@@ -412,9 +412,9 @@ export default function TicketDetailPage() {
                   attachments={attachments.map((attachment) => ({
                     id: attachment.id,
                     name: attachment.file_name ?? "Attachment",
-                    url: attachment.public_url ?? "",
+                    url: attachment.file_url ?? "",
                     caption:
-                      attachment.attachment_kind === "chat"
+                      attachment.attachment_context === "chat"
                         ? "Image shared in the ticket conversation"
                         : "Image uploaded with the parts request",
                   }))}
