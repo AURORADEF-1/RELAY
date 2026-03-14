@@ -610,7 +610,7 @@ export default function AdminPage() {
                     <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                       <th className="px-6 py-4">Ticket</th>
                       <th className="px-6 py-4">Requester</th>
-                      <th className="px-6 py-4">Machine Reference</th>
+                      <th className="px-6 py-4">Job Number</th>
                       <th className="px-6 py-4">Request Summary</th>
                       <th className="px-6 py-4">Status</th>
                       <th className="px-6 py-4">Assigned To</th>
@@ -658,9 +658,9 @@ export default function AdminPage() {
                           </td>
                           <td className="px-6 py-5 text-sm text-slate-600">
                             <div className="space-y-1">
-                              <p>{ticket.machine_reference ?? "-"}</p>
+                              <p>{ticket.job_number ?? "-"}</p>
                               <p className="text-xs text-slate-500">
-                                Job {ticket.job_number ?? "-"}
+                                {ticket.machine_reference ?? "-"}
                               </p>
                             </div>
                           </td>
@@ -762,10 +762,10 @@ export default function AdminPage() {
                       <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                         <div>
                           <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Machine Reference
+                            Job Number
                           </dt>
                           <dd className="mt-1 text-sm text-slate-700">
-                            {ticket.machine_reference ?? "-"}
+                            {ticket.job_number ?? "-"}
                           </dd>
                         </div>
                         <div>
