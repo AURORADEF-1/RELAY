@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminOnlyLink } from "@/components/admin-only-link";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 
@@ -32,12 +33,12 @@ export default function Home() {
             >
               My Requests
             </Link>
-            <Link
+            <AdminOnlyLink
               href="/admin"
               className="rounded-full px-4 py-2 transition hover:bg-slate-100"
             >
               Admin Dashboard
-            </Link>
+            </AdminOnlyLink>
             <LogoutButton />
           </div>
         </nav>
@@ -78,12 +79,12 @@ export default function Home() {
                   >
                     View My Requests
                   </Link>
-                  <Link
+                  <AdminOnlyLink
                     href="/admin"
                     className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
                   >
                     Admin Dashboard
-                  </Link>
+                  </AdminOnlyLink>
                 </div>
 
                 <div className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-5 sm:grid-cols-3">

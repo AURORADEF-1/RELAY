@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { LogoutButton } from "@/components/logout-button";
@@ -18,6 +19,7 @@ import {
   uploadTicketAttachments,
 } from "@/lib/relay-ticketing";
 import type { RelayAiContext } from "@/lib/relay-ai";
+import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const statuses = ["ALL", "PENDING", "QUERY", "ORDERED", "READY", "COMPLETED"] as const;
@@ -38,6 +40,7 @@ type Ticket = {
 };
 
 export default function AdminPage() {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<Status>("ALL");
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { assigned_to: string; notes: string }>>(
@@ -74,15 +77,23 @@ export default function AdminPage() {
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { user, role } = await getCurrentUserWithRole(supabase);
 
       if (!isMounted) {
         return;
       }
 
-      setCurrentUserId(user?.id ?? null);
+      if (!user) {
+        router.replace("/login?next=/admin");
+        return;
+      }
+
+      if (role !== "admin") {
+        router.replace("/");
+        return;
+      }
+
+      setCurrentUserId(user.id);
 
       const { data, error } = await supabase
         .from("tickets")
@@ -124,7 +135,7 @@ export default function AdminPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [router]);
 
   const filteredTickets = useMemo(() => {
     if (statusFilter === "ALL") {
@@ -469,7 +480,7 @@ export default function AdminPage() {
           <LogoutButton />
         </nav>
 
-        <AuthGuard>
+        <AuthGuard requiredRole="admin">
           <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.25)] sm:p-10">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl space-y-5">

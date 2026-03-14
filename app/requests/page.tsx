@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AdminOnlyLink } from "@/components/admin-only-link";
 import { AuthGuard } from "@/components/auth-guard";
 import { LogoutButton } from "@/components/logout-button";
 import { StatusBadge } from "@/components/status-badge";
@@ -99,12 +100,12 @@ export default function RequestsPage() {
             >
               Submit Ticket
             </Link>
-            <Link
+            <AdminOnlyLink
               href="/admin"
               className="rounded-full px-4 py-2 hover:bg-white"
             >
               Admin
-            </Link>
+            </AdminOnlyLink>
             <Link
               href="/login"
               className="rounded-full px-4 py-2 hover:bg-white"

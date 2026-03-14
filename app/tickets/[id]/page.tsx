@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AdminOnlyLink } from "@/components/admin-only-link";
 import { AuthGuard } from "@/components/auth-guard";
 import { TicketAttachmentGallery } from "@/components/ticket-attachment-gallery";
 import {
@@ -314,12 +315,12 @@ export default function TicketDetailPage() {
             >
               My Requests
             </Link>
-            <Link
+            <AdminOnlyLink
               href="/admin"
               className="rounded-full px-4 py-2 hover:bg-white"
             >
               Admin
-            </Link>
+            </AdminOnlyLink>
           </div>
           <LogoutButton />
         </nav>

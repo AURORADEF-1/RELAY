@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 
-export function AuthGuard({ children }: { children: React.ReactNode }) {
+export function AuthGuard({
+  children,
+  requiredRole,
+}: {
+  children: React.ReactNode;
+  requiredRole?: "admin";
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [isChecking, setIsChecking] = useState(true);
@@ -39,6 +46,33 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      if (requiredRole) {
+        try {
+          const { role } = await getCurrentUserWithRole(supabase);
+
+          if (!isMounted) {
+            return;
+          }
+
+          if (role !== requiredRole) {
+            router.replace("/");
+            return;
+          }
+        } catch (error) {
+          if (!isMounted) {
+            return;
+          }
+
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Failed to verify access.",
+          );
+          setIsChecking(false);
+          return;
+        }
+      }
+
       setIsChecking(false);
     }
 
@@ -47,7 +81,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [pathname, router]);
+  }, [pathname, requiredRole, router]);
 
   if (errorMessage) {
     return (
