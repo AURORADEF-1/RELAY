@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { LogoutButton } from "@/components/logout-button";
 
 type FormValues = {
   requesterName: string;
@@ -99,43 +100,55 @@ export default function SubmitPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <nav className="flex flex-wrap gap-3 text-sm font-medium text-slate-600">
-          <Link href="/" className="rounded-full px-3 py-1 hover:bg-white">
-            Home
-          </Link>
-          <Link
-            href="/requests"
-            className="rounded-full px-3 py-1 hover:bg-white"
-          >
-            My Requests
-          </Link>
-          <Link href="/admin" className="rounded-full px-3 py-1 hover:bg-white">
-            Admin
-          </Link>
+    <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900 sm:py-12">
+      <div className="mx-auto max-w-5xl space-y-8">
+        <nav className="flex flex-wrap items-center justify-between gap-4 text-sm font-medium text-slate-600">
+          <div className="flex flex-wrap gap-3">
+            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">
+              Home
+            </Link>
+            <Link
+              href="/requests"
+              className="rounded-full px-4 py-2 hover:bg-white"
+            >
+              My Requests
+            </Link>
+            <Link
+              href="/admin"
+              className="rounded-full px-4 py-2 hover:bg-white"
+            >
+              Admin
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-full px-4 py-2 hover:bg-white"
+            >
+              Login
+            </Link>
+          </div>
+          <LogoutButton />
         </nav>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.25)] sm:p-10">
-          <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-4">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+        <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.25)] sm:p-10">
+          <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="space-y-5">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
                 RELAY
               </p>
-              <h1 className="text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
                 Ticket Submission
               </h1>
-              <p className="text-sm leading-7 text-slate-600 sm:text-base">
+              <p className="text-base leading-8 text-slate-600">
                 Submit an MLP parts request with the basic information needed to
                 start triage. New requests will default to{" "}
                 <span className="font-semibold text-amber-700">PENDING</span>{" "}
                 when backend handling is connected.
               </p>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-sm font-medium text-slate-700">
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                <p className="text-sm font-semibold text-slate-700">
                   Submission notes
                 </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
+                <p className="mt-2 text-sm leading-7 text-slate-500">
                   This form currently validates in the browser only. No data is
                   persisted yet.
                 </p>
@@ -145,7 +158,7 @@ export default function SubmitPage() {
             <form
               onSubmit={handleSubmit}
               noValidate
-              className="space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-6"
+              className="space-y-6 rounded-3xl border border-slate-200 bg-slate-50 p-6"
             >
               <div className="grid gap-5 sm:grid-cols-2">
                 <FormField
@@ -188,7 +201,7 @@ export default function SubmitPage() {
               />
 
               {successMessage ? (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                   {successMessage}
                 </div>
               ) : null}
@@ -197,7 +210,7 @@ export default function SubmitPage() {
                 <p className="text-xs text-slate-500">All fields are required.</p>
                 <button
                   type="submit"
-                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   Submit Request
                 </button>
@@ -236,7 +249,7 @@ function FormField({
   }`;
 
   return (
-    <label className="block text-sm font-medium text-slate-700">
+    <label className="block text-sm font-semibold text-slate-700">
       {label}
       {multiline ? (
         <textarea
