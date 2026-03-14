@@ -8,6 +8,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
+import { ticketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Ticket = {
@@ -19,8 +20,6 @@ type Ticket = {
   status: string | null;
   updated_at: string | null;
 };
-
-const statusOrder = ["PENDING", "QUERY", "ORDERED", "READY", "COMPLETED"] as const;
 
 export default function RequestsPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
@@ -107,13 +106,21 @@ export default function RequestsPage() {
               Submit Ticket
             </Link>
             {isAdmin ? (
-              <Link
-                href="/admin"
-                className="rounded-full px-4 py-2 hover:bg-white"
-              >
-                Admin
-                <NotificationBadge count={adminBadgeCount} />
-              </Link>
+              <>
+                <Link
+                  href="/control"
+                  className="rounded-full px-4 py-2 hover:bg-white"
+                >
+                  Workshop Control
+                </Link>
+                <Link
+                  href="/admin"
+                  className="rounded-full px-4 py-2 hover:bg-white"
+                >
+                  Admin
+                  <NotificationBadge count={adminBadgeCount} />
+                </Link>
+              </>
             ) : null}
             <Link
               href="/login"
@@ -142,8 +149,8 @@ export default function RequestsPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              {statusOrder.map((status) => (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
+              {ticketStatuses.map((status) => (
                 <div
                   key={status}
                   className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-4 py-3 text-center"

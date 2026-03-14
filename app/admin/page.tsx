@@ -23,11 +23,13 @@ import {
 } from "@/lib/relay-ticketing";
 import type { RelayAiContext } from "@/lib/relay-ai";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import {
+  ticketStatusOptions,
+  ticketStatuses,
+  type TicketStatus,
+  type TicketStatusFilter,
+} from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
-
-const statuses = ["ALL", "PENDING", "QUERY", "ORDERED", "READY", "COMPLETED"] as const;
-type Status = (typeof statuses)[number];
-type TicketStatus = Exclude<Status, "ALL">;
 
 type Ticket = {
   id: string;
@@ -47,7 +49,7 @@ type Ticket = {
 export default function AdminPage() {
   const router = useRouter();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
-  const [statusFilter, setStatusFilter] = useState<Status>("ALL");
+  const [statusFilter, setStatusFilter] = useState<TicketStatusFilter>("ALL");
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { assigned_to: string; notes: string }>>(
     {},
@@ -168,7 +170,12 @@ export default function AdminPage() {
 
           current.total += 1;
 
-          if (ticket.status === "PENDING" || ticket.status === "QUERY") {
+          if (
+            ticket.status === "PENDING" ||
+            ticket.status === "ESTIMATE" ||
+            ticket.status === "QUOTE" ||
+            ticket.status === "QUERY"
+          ) {
             current.pending += 1;
           }
 
@@ -525,11 +532,8 @@ export default function AdminPage() {
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
-            <Link
-              href="/login"
-              className="rounded-full px-4 py-2 hover:bg-white"
-            >
-              Login
+            <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
+              Workshop Control
             </Link>
             <LogoutButton />
           </div>
@@ -558,10 +562,12 @@ export default function AdminPage() {
                 </label>
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value as Status)}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as TicketStatusFilter)
+                  }
                   className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
                 >
-                  {statuses.map((status) => (
+                  {ticketStatusOptions.map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>
@@ -570,8 +576,8 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-              {statuses.slice(1).map((status) => (
+            <div className="mt-8 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
+              {ticketStatuses.map((status) => (
                 <div
                   key={status}
                   className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-4 py-3"
@@ -685,7 +691,7 @@ export default function AdminPage() {
                     Status Distribution
                   </p>
                   <div className="mt-4 space-y-3">
-                    {statuses.slice(1).map((status) => {
+                    {ticketStatuses.map((status) => {
                       const count = tickets.filter((ticket) => ticket.status === status).length;
                       const width = (count / Math.max(1, tickets.length)) * 100;
 
@@ -1095,7 +1101,7 @@ function StatusSelect({
       }
       className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {statuses.slice(1).map((status) => (
+      {ticketStatuses.map((status) => (
         <option key={status} value={status}>
           {status}
         </option>

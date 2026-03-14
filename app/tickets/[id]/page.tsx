@@ -321,13 +321,21 @@ export default function TicketDetailPage() {
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
             {isAdmin ? (
-              <Link
-                href="/admin"
-                className="rounded-full px-4 py-2 hover:bg-white"
-              >
-                Admin
-                <NotificationBadge count={adminBadgeCount} />
-              </Link>
+              <>
+                <Link
+                  href="/control"
+                  className="rounded-full px-4 py-2 hover:bg-white"
+                >
+                  Workshop Control
+                </Link>
+                <Link
+                  href="/admin"
+                  className="rounded-full px-4 py-2 hover:bg-white"
+                >
+                  Admin
+                  <NotificationBadge count={adminBadgeCount} />
+                </Link>
+              </>
             ) : null}
             <LogoutButton />
           </div>

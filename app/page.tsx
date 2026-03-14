@@ -178,13 +178,21 @@ export default function Home() {
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
             {isAdmin ? (
-              <Link
-                href="/admin"
-                className="rounded-full px-4 py-2 transition hover:bg-slate-100"
-              >
-                Admin Dashboard
-                <NotificationBadge count={adminBadgeCount} />
-              </Link>
+              <>
+                <Link
+                  href="/control"
+                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+                >
+                  Workshop Control
+                </Link>
+                <Link
+                  href="/admin"
+                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+                >
+                  Admin Dashboard
+                  <NotificationBadge count={adminBadgeCount} />
+                </Link>
+              </>
             ) : null}
             <LogoutButton />
           </div>
@@ -229,13 +237,21 @@ export default function Home() {
                     <NotificationBadge count={requesterUnreadCount} />
                   </Link>
                   {isAdmin ? (
-                    <Link
-                      href="/admin"
-                      className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
-                    >
-                      Admin Dashboard
-                      <NotificationBadge count={adminBadgeCount} />
-                    </Link>
+                    <>
+                      <Link
+                        href="/control"
+                        className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                      >
+                        Workshop Control
+                      </Link>
+                      <Link
+                        href="/admin"
+                        className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                      >
+                        Admin Dashboard
+                        <NotificationBadge count={adminBadgeCount} />
+                      </Link>
+                    </>
                   ) : null}
                 </div>
 
@@ -356,6 +372,10 @@ function getStatusTone(status: string) {
   switch (status) {
     case "QUERY":
       return "border-orange-200 bg-orange-50 text-orange-900";
+    case "ESTIMATE":
+      return "border-violet-200 bg-violet-50 text-violet-900";
+    case "QUOTE":
+      return "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900";
     case "ORDERED":
       return "border-sky-200 bg-sky-50 text-sky-900";
     case "READY":
