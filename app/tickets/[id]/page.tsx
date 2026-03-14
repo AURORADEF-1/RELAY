@@ -439,7 +439,7 @@ export default function TicketDetailPage() {
                   attachments={attachments.map((attachment) => ({
                     id: attachment.id,
                     name: attachment.file_name ?? "Attachment",
-                    url: attachment.file_url ?? "",
+                    url: attachment.signed_url ?? null,
                     caption:
                       attachment.attachment_context === "chat"
                         ? "Image shared in the ticket conversation"
@@ -456,7 +456,7 @@ export default function TicketDetailPage() {
                     "No recent chat summary available."
                   }
                   assignedTo={ticket.assigned_to}
-                  messages={mapMessagesToChat(messages, ticket)}
+                  messages={mapMessagesToChat(messages, ticket, attachments)}
                   isSending={isSending}
                   isAiLoading={isAiLoading}
                   notice={chatNotice}
@@ -476,17 +476,27 @@ export default function TicketDetailPage() {
   );
 }
 
-function mapMessagesToChat(messages: TicketMessageRecord[], ticket: TicketRecord): ChatMessage[] {
-  return messages.map((message) => ({
-    id: message.id,
-    senderName: resolveSenderName(message, ticket),
-    senderRole: message.sender_role,
-    messageText: message.message_text ?? undefined,
-    attachmentUrl: message.attachment_url ?? undefined,
-    attachmentName: message.attachment_type ?? undefined,
-    createdAt: message.created_at ?? new Date().toISOString(),
-    isAiMessage: message.is_ai_message ?? false,
-  }));
+function mapMessagesToChat(
+  messages: TicketMessageRecord[],
+  ticket: TicketRecord,
+  attachments: TicketAttachmentRecord[],
+): ChatMessage[] {
+  return messages.map((message) => {
+    const attachment = attachments.find(
+      (candidate) => candidate.message_id === message.id,
+    );
+
+    return {
+      id: message.id,
+      senderName: resolveSenderName(message, ticket),
+      senderRole: message.sender_role,
+      messageText: message.message_text ?? undefined,
+      attachmentUrl: attachment?.signed_url ?? undefined,
+      attachmentName: attachment?.file_name ?? undefined,
+      createdAt: message.created_at ?? new Date().toISOString(),
+      isAiMessage: message.is_ai_message ?? false,
+    };
+  });
 }
 
 function resolveSenderName(message: TicketMessageRecord, ticket: TicketRecord) {

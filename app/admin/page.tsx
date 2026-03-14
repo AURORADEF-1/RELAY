@@ -11,7 +11,9 @@ import {
 } from "@/components/ticket-chat-panel";
 import {
   createTicketMessage,
+  fetchTicketAttachments,
   fetchTicketMessages,
+  type TicketAttachmentRecord,
   type TicketMessageRecord,
   uploadTicketAttachments,
 } from "@/lib/relay-ticketing";
@@ -42,6 +44,7 @@ export default function AdminPage() {
     {},
   );
   const [selectedChatTicketId, setSelectedChatTicketId] = useState<string | null>(null);
+  const [chatAttachments, setChatAttachments] = useState<TicketAttachmentRecord[]>([]);
   const [chatMessages, setChatMessages] = useState<TicketMessageRecord[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -142,6 +145,7 @@ export default function AdminPage() {
 
     async function loadTicketMessages() {
       if (!selectedChatTicket) {
+        setChatAttachments([]);
         setChatMessages([]);
         return;
       }
@@ -158,9 +162,13 @@ export default function AdminPage() {
       setIsChatLoading(true);
 
       try {
-        const messages = await fetchTicketMessages(supabase, selectedChatTicket.id);
+        const [attachments, messages] = await Promise.all([
+          fetchTicketAttachments(supabase, selectedChatTicket.id),
+          fetchTicketMessages(supabase, selectedChatTicket.id),
+        ]);
 
         if (isMounted) {
+          setChatAttachments(attachments);
           setChatMessages(messages);
         }
       } catch (chatError) {
@@ -285,8 +293,15 @@ export default function AdminPage() {
     setUpdatingTicketId(null);
   }
 
-  async function reloadSelectedChatMessages(supabase: NonNullable<ReturnType<typeof getSupabaseClient>>, activeTicketId: string) {
-    const messages = await fetchTicketMessages(supabase, activeTicketId);
+  async function reloadSelectedChatMessages(
+    supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
+    activeTicketId: string,
+  ) {
+    const [attachments, messages] = await Promise.all([
+      fetchTicketAttachments(supabase, activeTicketId),
+      fetchTicketMessages(supabase, activeTicketId),
+    ]);
+    setChatAttachments(attachments);
     setChatMessages(messages);
   }
 
@@ -545,13 +560,17 @@ export default function AdminPage() {
                     mode="operator"
                     ticketId={selectedChatTicket.id}
                     ticketStatus={selectedChatTicket.status ?? "PENDING"}
-                    latestUpdate={
+                  latestUpdate={
                       selectedChatTicket.notes ||
                       selectedChatTicket.request_summary ||
                       "Awaiting Stores update."
                     }
                   assignedTo={selectedChatTicket.assigned_to}
-                  messages={mapMessagesToChat(chatMessages, selectedChatTicket)}
+                  messages={mapMessagesToChat(
+                    chatMessages,
+                    selectedChatTicket,
+                    chatAttachments,
+                  )}
                   isSending={isChatSending}
                   isAiLoading={isAiLoading}
                   notice={chatNotice}
@@ -821,17 +840,27 @@ export default function AdminPage() {
   );
 }
 
-function mapMessagesToChat(messages: TicketMessageRecord[], ticket: Ticket): ChatMessage[] {
-  return messages.map((message) => ({
-    id: message.id,
-    senderName: resolveSenderName(message, ticket),
-    senderRole: message.sender_role,
-    messageText: message.message_text ?? undefined,
-    attachmentUrl: message.attachment_url ?? undefined,
-    attachmentName: message.attachment_type ?? undefined,
-    createdAt: message.created_at ?? new Date().toISOString(),
-    isAiMessage: message.is_ai_message ?? false,
-  }));
+function mapMessagesToChat(
+  messages: TicketMessageRecord[],
+  ticket: Ticket,
+  attachments: TicketAttachmentRecord[],
+): ChatMessage[] {
+  return messages.map((message) => {
+    const attachment = attachments.find(
+      (candidate) => candidate.message_id === message.id,
+    );
+
+    return {
+      id: message.id,
+      senderName: resolveSenderName(message, ticket),
+      senderRole: message.sender_role,
+      messageText: message.message_text ?? undefined,
+      attachmentUrl: attachment?.signed_url ?? undefined,
+      attachmentName: attachment?.file_name ?? undefined,
+      createdAt: message.created_at ?? new Date().toISOString(),
+      isAiMessage: message.is_ai_message ?? false,
+    };
+  });
 }
 
 function resolveSenderName(message: TicketMessageRecord, ticket: Ticket) {

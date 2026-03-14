@@ -2,7 +2,7 @@ type TicketAttachmentGalleryProps = {
   attachments: Array<{
     id: string;
     name: string;
-    url: string;
+    url?: string | null;
     caption?: string;
   }>;
   title?: string;
@@ -34,12 +34,20 @@ export function TicketAttachmentGallery({
               key={attachment.id}
               className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={attachment.url}
-                alt={attachment.name}
-                className="h-44 w-full object-cover"
-              />
+              {attachment.url ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={attachment.url}
+                    alt={attachment.name}
+                    className="h-44 w-full object-cover"
+                  />
+                </>
+              ) : (
+                <div className="flex h-44 items-center justify-center bg-slate-100 px-6 text-center text-sm text-slate-500">
+                  Preview unavailable for this attachment.
+                </div>
+              )}
               <div className="space-y-1 p-4">
                 <p className="text-sm font-semibold text-slate-900">
                   {attachment.name}

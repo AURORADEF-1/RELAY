@@ -168,14 +168,22 @@ export function TicketChatPanel({
                     </p>
                   ) : null}
 
-                  {message.attachmentUrl ? (
+                  {message.attachmentUrl || message.attachmentName ? (
                     <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={message.attachmentUrl}
-                        alt={message.attachmentName ?? "Chat attachment"}
-                        className="h-48 w-full object-cover"
-                      />
+                      {message.attachmentUrl ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={message.attachmentUrl}
+                            alt={message.attachmentName ?? "Chat attachment"}
+                            className="h-48 w-full object-cover"
+                          />
+                        </>
+                      ) : (
+                        <div className="flex h-48 items-center justify-center bg-slate-100 px-6 text-center text-sm text-slate-500">
+                          Preview unavailable for this attachment.
+                        </div>
+                      )}
                       <p className="px-4 py-3 text-sm font-medium text-slate-600">
                         {message.attachmentName ?? "Attachment"}
                       </p>

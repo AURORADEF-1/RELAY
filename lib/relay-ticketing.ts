@@ -9,6 +9,7 @@ export type TicketAttachmentRecord = {
   file_name: string | null;
   file_path: string | null;
   file_url: string | null;
+  signed_url?: string | null;
   mime_type: string | null;
   attachment_context: "ticket" | "chat";
   message_id: string | null;
@@ -99,7 +100,10 @@ export async function fetchTicketAttachments(
     throw new Error(error.message);
   }
 
-  return (data ?? []) as TicketAttachmentRecord[];
+  return hydrateTicketAttachmentsWithSignedUrls(
+    supabase,
+    (data ?? []) as TicketAttachmentRecord[],
+  );
 }
 
 export async function fetchTicketMessages(
@@ -200,4 +204,39 @@ function buildStoragePath(
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
   const timestamp = Date.now();
   return `tickets/${ticketId}/${attachmentKind}/${timestamp}-${safeName}`;
+}
+
+async function hydrateTicketAttachmentsWithSignedUrls(
+  supabase: SupabaseClient,
+  attachments: TicketAttachmentRecord[],
+) {
+  return Promise.all(
+    attachments.map(async (attachment) => ({
+      ...attachment,
+      signed_url: await createSignedAttachmentUrl(supabase, attachment.file_path),
+    })),
+  );
+}
+
+async function createSignedAttachmentUrl(
+  supabase: SupabaseClient,
+  filePath: string | null,
+) {
+  if (!filePath) {
+    return null;
+  }
+
+  const { data, error } = await supabase.storage
+    .from(RELAY_MEDIA_BUCKET)
+    .createSignedUrl(filePath, 60 * 60);
+
+  if (error) {
+    console.error("Failed to create signed attachment URL", {
+      filePath,
+      message: error.message,
+    });
+    return null;
+  }
+
+  return data.signedUrl;
 }
