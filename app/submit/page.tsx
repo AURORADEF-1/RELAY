@@ -9,7 +9,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
 type FormValues = {
   requesterName: string;
@@ -117,80 +117,81 @@ export default function SubmitPage() {
 
     setIsSubmitting(true);
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      setErrorMessage("Sign in to submit a ticket.");
-      setIsSubmitting(false);
-      return;
-    }
-
-    const ticketId = await generateTicketId(supabase);
-
-    const { data: ticket, error: insertError } = await supabase
-      .from("tickets")
-      .insert({
-        id: ticketId,
-        user_id: user.id,
-        requester_name: values.requesterName,
-        department: values.department,
-        machine_reference: values.machineReference,
-        job_number: values.jobNumber,
-        request_details: values.requestDetails,
-        request_summary: values.requestDetails,
-        status: "PENDING",
-      })
-      .select("id")
-      .single();
-
-    if (insertError) {
-      setErrorMessage(insertError.message);
-      setIsSubmitting(false);
-      return;
-    }
-
-    await supabase.from("ticket_updates").insert({
-      ticket_id: ticket.id,
-      status: "PENDING",
-      comment: "Ticket created.",
-    });
-
-    if (queuedPhotos.length > 0) {
-      try {
-        const uploadedPhotos = await uploadTicketAttachments({
-          supabase,
-          ticketId: ticket.id,
-          userId: user.id,
-          files: queuedPhotos,
-          attachmentKind: "ticket",
-        });
-
-        setPhotoStatusMessage({
-          type: "success",
-          message: `${uploadedPhotos.length} request photo${
-            uploadedPhotos.length === 1 ? "" : "s"
-          } uploaded successfully.`,
-        });
-      } catch (attachmentError) {
-        const message =
-          attachmentError instanceof Error
-            ? attachmentError.message
-            : "Ticket created, but photo upload failed.";
-        setPhotoStatusMessage({
-          type: "error",
-          message: `Ticket created, but photo upload failed: ${message}`,
-        });
+      if (userError || !user) {
+        setErrorMessage("Sign in to submit a ticket.");
+        return;
       }
-    }
 
-    setSuccessMessage("Ticket submitted successfully. Status is now PENDING.");
-    setValues(initialValues);
-    setErrors({});
-    setQueuedPhotos([]);
-    setIsSubmitting(false);
+      const ticket = await createTicketWithRetry(supabase, {
+        userId: user.id,
+        requesterName: values.requesterName,
+        department: values.department,
+        machineReference: values.machineReference,
+        jobNumber: values.jobNumber,
+        requestDetails: values.requestDetails,
+      });
+
+      const { error: ticketUpdateError } = await supabase
+        .from("ticket_updates")
+        .insert({
+          ticket_id: ticket.id,
+          status: "PENDING",
+          comment: "Ticket created.",
+        });
+
+      if (ticketUpdateError) {
+        setErrorMessage(
+          `Ticket ${ticket.id} was created, but the initial status log failed: ${ticketUpdateError.message}`,
+        );
+      }
+
+      if (queuedPhotos.length > 0) {
+        try {
+          const uploadedPhotos = await uploadTicketAttachments({
+            supabase,
+            ticketId: ticket.id,
+            userId: user.id,
+            files: queuedPhotos,
+            attachmentKind: "ticket",
+          });
+
+          setPhotoStatusMessage({
+            type: "success",
+            message: `${uploadedPhotos.length} request photo${
+              uploadedPhotos.length === 1 ? "" : "s"
+            } uploaded successfully.`,
+          });
+        } catch (attachmentError) {
+          const message =
+            attachmentError instanceof Error
+              ? attachmentError.message
+              : "Ticket created, but photo upload failed.";
+          setPhotoStatusMessage({
+            type: "error",
+            message: `Ticket ${ticket.id} was created, but photo upload failed: ${message}`,
+          });
+        }
+      }
+
+      setSuccessMessage(`Ticket ${ticket.id} submitted successfully. Status is now PENDING.`);
+      setValues(initialValues);
+      setErrors({});
+      setQueuedPhotos([]);
+    } catch (submitError) {
+      setErrorMessage(
+        submitError instanceof Error
+          ? submitError.message
+          : "Failed to submit the request.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -436,21 +437,52 @@ const TICKET_ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const TICKET_ID_LENGTH = 5;
 const TICKET_ID_ATTEMPTS = 8;
 
-async function generateTicketId(supabase: SupabaseClient) {
+async function createTicketWithRetry(
+  supabase: SupabaseClient,
+  {
+    userId,
+    requesterName,
+    department,
+    machineReference,
+    jobNumber,
+    requestDetails,
+  }: {
+    userId: string;
+    requesterName: string;
+    department: string;
+    machineReference: string;
+    jobNumber: string;
+    requestDetails: string;
+  },
+) {
   for (let attempt = 0; attempt < TICKET_ID_ATTEMPTS; attempt += 1) {
-    const candidate = createTicketIdCandidate();
+    const ticketId = createTicketIdCandidate();
     const { data, error } = await supabase
       .from("tickets")
+      .insert({
+        id: ticketId,
+        user_id: userId,
+        requester_name: requesterName,
+        department,
+        machine_reference: machineReference,
+        job_number: jobNumber,
+        request_details: requestDetails,
+        request_summary: requestDetails,
+        status: "PENDING",
+      })
       .select("id")
-      .eq("id", candidate)
-      .maybeSingle();
+      .single();
+
+    if (!error && data) {
+      return data;
+    }
+
+    if (isDuplicateTicketIdError(error)) {
+      continue;
+    }
 
     if (error) {
       throw new Error(error.message);
-    }
-
-    if (!data) {
-      return candidate;
     }
   }
 
@@ -463,4 +495,8 @@ function createTicketIdCandidate() {
   return Array.from(randomValues, (value) =>
     TICKET_ID_ALPHABET[value % TICKET_ID_ALPHABET.length],
   ).join("");
+}
+
+function isDuplicateTicketIdError(error: PostgrestError | null) {
+  return error?.code === "23505";
 }
