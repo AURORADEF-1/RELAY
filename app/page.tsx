@@ -210,19 +210,25 @@ export default function Home() {
 
 function AuroraHeroMark() {
   return (
-    <div className="relative isolate overflow-hidden rounded-[2rem] border border-slate-300 bg-[radial-gradient(circle_at_25%_20%,rgba(59,130,246,0.28),transparent_30%),radial-gradient(circle_at_75%_18%,rgba(148,163,184,0.18),transparent_24%),linear-gradient(180deg,#020617_0%,#0f172a_48%,#111827_100%)] p-6 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.85)]">
-      <div className="pointer-events-none absolute inset-0 opacity-80">
-        <span className="absolute left-[12%] top-[18%] h-1.5 w-1.5 rounded-full bg-white/90 shadow-[0_0_12px_rgba(255,255,255,0.9)]" />
-        <span className="absolute right-[16%] top-[20%] h-1 w-1 rounded-full bg-sky-200/90 shadow-[0_0_10px_rgba(125,211,252,0.8)]" />
-        <span className="absolute left-[22%] bottom-[24%] h-1 w-1 rounded-full bg-slate-200/90" />
-        <span className="absolute right-[24%] bottom-[18%] h-1.5 w-1.5 rounded-full bg-white/80" />
-        <span className="absolute left-[48%] top-[12%] h-1 w-1 rounded-full bg-white/80" />
-      </div>
+    <div className="relative isolate overflow-hidden rounded-[2rem] border border-slate-300 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.85)]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=1400&q=80"
+        alt="Deep space"
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_26%,rgba(59,130,246,0.3),transparent_24%),linear-gradient(180deg,rgba(2,6,23,0.12)_0%,rgba(2,6,23,0.48)_40%,rgba(2,6,23,0.84)_100%)]" />
       <div className="absolute inset-3 rounded-[1.5rem] border border-white/10" />
-      <div className="relative flex aspect-square items-center justify-center rounded-[1.5rem] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_58%)]">
-        <span className="text-[8rem] font-semibold leading-none tracking-[-0.12em] text-white drop-shadow-[0_0_28px_rgba(147,197,253,0.32)] sm:text-[10rem]">
-          A
-        </span>
+      <div className="relative flex aspect-square flex-col items-start justify-end gap-3 p-6 sm:p-8">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-200/90">
+          Night Systems Mark
+        </p>
+        <p className="max-w-[10rem] text-4xl font-semibold leading-[0.95] tracking-[-0.08em] text-white drop-shadow-[0_10px_30px_rgba(15,23,42,0.85)] sm:max-w-[14rem] sm:text-6xl">
+          AURORA
+        </p>
+        <p className="text-lg font-semibold uppercase tracking-[0.18em] text-sky-100/90 sm:text-xl">
+          Systems
+        </p>
       </div>
     </div>
   );
