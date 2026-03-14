@@ -27,6 +27,9 @@ export default function Home() {
             >
               My Requests
             </Link>
+            <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
+              Admin Dashboard
+            </Link>
           </div>
           <LogoutButton />
         </nav>
@@ -53,7 +56,7 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   <Link
                     href="/submit"
                     className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
@@ -65,6 +68,12 @@ export default function Home() {
                     className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                   >
                     View My Requests
+                  </Link>
+                  <Link
+                    href="/admin"
+                    className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                  >
+                    Admin Dashboard
                   </Link>
                 </div>
               </div>
