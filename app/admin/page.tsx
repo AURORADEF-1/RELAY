@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { LogoutButton } from "@/components/logout-button";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 
 const statuses = ["ALL", "PENDING", "QUERY", "ORDERED", "READY", "COMPLETED"] as const;
 type Status = (typeof statuses)[number];
@@ -47,6 +47,15 @@ export default function AdminPage() {
     async function loadTickets() {
       setIsLoading(true);
       setErrorMessage("");
+
+      const supabase = getSupabaseClient();
+
+      if (!supabase) {
+        setTickets([]);
+        setErrorMessage("Supabase environment variables are not configured.");
+        setIsLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from("tickets")
@@ -94,6 +103,14 @@ export default function AdminPage() {
 
     setUpdatingTicketId(ticketId);
     setErrorMessage("");
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      setUpdatingTicketId(null);
+      return;
+    }
 
     const { error: updateError } = await supabase
       .from("tickets")

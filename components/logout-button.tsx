@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -10,6 +10,15 @@ export function LogoutButton() {
 
   async function handleLogout() {
     setIsLoggingOut(true);
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      router.push("/login");
+      router.refresh();
+      setIsLoggingOut(false);
+      return;
+    }
+
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();

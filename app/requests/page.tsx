@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LogoutButton } from "@/components/logout-button";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 
 type Ticket = {
   id: string;
@@ -42,6 +42,15 @@ export default function RequestsPage() {
     async function loadTickets() {
       setIsLoading(true);
       setErrorMessage("");
+
+      const supabase = getSupabaseClient();
+
+      if (!supabase) {
+        setTickets([]);
+        setErrorMessage("Supabase environment variables are not configured.");
+        setIsLoading(false);
+        return;
+      }
 
       const {
         data: { user },
@@ -188,23 +197,23 @@ export default function RequestsPage() {
                     </tr>
                   ) : (
                     tickets.map((ticket) => (
-                    <tr key={ticket.id} className="align-top">
-                      <td className="px-6 py-5 text-sm font-semibold text-slate-900">
-                        {ticket.id}
-                      </td>
-                      <td className="px-6 py-5 text-sm text-slate-600">
-                        {ticket.machine_reference ?? "-"}
-                      </td>
-                      <td className="px-6 py-5 text-sm leading-7 text-slate-600">
-                        {ticket.request_summary ?? "-"}
-                      </td>
-                      <td className="px-6 py-5">
-                        <StatusBadge status={ticket.status ?? "PENDING"} />
-                      </td>
-                      <td className="px-6 py-5 text-sm text-slate-500">
-                        {formatDate(ticket.updated_at)}
-                      </td>
-                    </tr>
+                      <tr key={ticket.id} className="align-top">
+                        <td className="px-6 py-5 text-sm font-semibold text-slate-900">
+                          {ticket.id}
+                        </td>
+                        <td className="px-6 py-5 text-sm text-slate-600">
+                          {ticket.machine_reference ?? "-"}
+                        </td>
+                        <td className="px-6 py-5 text-sm leading-7 text-slate-600">
+                          {ticket.request_summary ?? "-"}
+                        </td>
+                        <td className="px-6 py-5">
+                          <StatusBadge status={ticket.status ?? "PENDING"} />
+                        </td>
+                        <td className="px-6 py-5 text-sm text-slate-500">
+                          {formatDate(ticket.updated_at)}
+                        </td>
+                      </tr>
                     ))
                   )}
                 </tbody>
