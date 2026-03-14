@@ -165,19 +165,16 @@ export default function Home() {
                     Internal Control Point
                   </div>
 
-                  <div className="grid gap-6 lg:grid-cols-[0.64fr_1fr] lg:items-center">
-                    <AuroraHeroMark />
-                    <div className="space-y-4">
-                      <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">
-                        AURORA Systems TM
-                      </p>
-                      <h1 className="text-5xl font-semibold tracking-[-0.07em] text-slate-950 sm:text-6xl lg:text-7xl">
-                        RELAY
-                      </h1>
-                      <p className="max-w-lg text-lg font-medium tracking-[-0.02em] text-slate-600">
-                        Parts requests, updates, and operator activity in one view.
-                      </p>
-                    </div>
+                  <div className="space-y-4">
+                    <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">
+                      AURORA Systems TM
+                    </p>
+                    <h1 className="text-6xl font-semibold tracking-[-0.09em] text-slate-950 sm:text-7xl lg:text-[6.5rem]">
+                      RELAY
+                    </h1>
+                    <p className="max-w-lg text-lg font-medium tracking-[-0.02em] text-slate-600">
+                      Parts requests, updates, and operator activity in one view.
+                    </p>
                   </div>
                 </div>
 
@@ -237,29 +234,6 @@ export default function Home() {
         </div>
       </div>
     </main>
-  );
-}
-
-function AuroraHeroMark() {
-  return (
-    <div className="relative isolate overflow-hidden rounded-[2rem] border border-slate-300 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.85)] lg:min-h-[22rem]">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=1400&q=80"
-        alt="Deep space"
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_26%,rgba(59,130,246,0.3),transparent_24%),linear-gradient(180deg,rgba(2,6,23,0.12)_0%,rgba(2,6,23,0.48)_40%,rgba(2,6,23,0.84)_100%)]" />
-      <div className="absolute inset-3 rounded-[1.5rem] border border-white/10" />
-      <div className="relative flex min-h-[17rem] flex-col items-start justify-end gap-2 p-6 sm:min-h-[19rem] sm:p-8 lg:min-h-[22rem] lg:p-10">
-        <p className="max-w-[10rem] text-4xl font-semibold leading-[0.95] tracking-[-0.08em] text-white drop-shadow-[0_10px_30px_rgba(15,23,42,0.85)] sm:max-w-[14rem] sm:text-6xl lg:max-w-none lg:text-7xl">
-          AURORA
-        </p>
-        <p className="text-lg font-semibold uppercase tracking-[0.18em] text-sky-100/90 sm:text-xl lg:text-2xl">
-          Systems
-        </p>
-      </div>
-    </div>
   );
 }
 
