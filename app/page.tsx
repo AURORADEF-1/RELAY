@@ -169,7 +169,7 @@ export default function Home() {
                     <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">
                       AURORA Systems TM
                     </p>
-                    <h1 className="text-6xl font-semibold tracking-[-0.09em] text-slate-950 sm:text-7xl lg:text-[6.5rem]">
+                    <h1 className="text-7xl font-semibold tracking-[-0.1em] text-slate-950 sm:text-8xl lg:text-[8rem]">
                       RELAY
                     </h1>
                     <p className="max-w-lg text-lg font-medium tracking-[-0.02em] text-slate-600">
