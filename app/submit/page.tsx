@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { FileUploadPanel } from "@/components/file-upload-panel";
 import { LogoutButton } from "@/components/logout-button";
+import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type FormValues = {
@@ -38,6 +40,7 @@ export default function SubmitPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [queuedPhotos, setQueuedPhotos] = useState<File[]>([]);
 
   useEffect(() => {
     if (!successMessage) {
@@ -144,11 +147,30 @@ export default function SubmitPage() {
       comment: "Ticket created.",
     });
 
+    if (queuedPhotos.length > 0) {
+      try {
+        await uploadTicketAttachments({
+          supabase,
+          ticketId: ticket.id,
+          userId: user.id,
+          files: queuedPhotos,
+          attachmentKind: "ticket",
+        });
+      } catch (attachmentError) {
+        setErrorMessage(
+          attachmentError instanceof Error
+            ? `Ticket created, but photo upload failed: ${attachmentError.message}`
+            : "Ticket created, but photo upload failed.",
+        );
+      }
+    }
+
     setSuccessMessage(
       "Ticket submitted successfully. Status is now PENDING.",
     );
     setValues(initialValues);
     setErrors({});
+    setQueuedPhotos([]);
     setIsSubmitting(false);
   }
 
@@ -224,6 +246,16 @@ export default function SubmitPage() {
                 <p className="mt-4 text-sm font-semibold leading-7 text-amber-800">
                   ⚠️ No Job Number = No Parts Issued
                 </p>
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-700">
+                    Photo support
+                  </p>
+                  <p className="mt-2 text-sm leading-7 text-slate-500">
+                    You can also attach photos of the damaged part, machine
+                    area, or identification plate. Images are linked to the
+                    request so Stores can identify the issue faster.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -271,6 +303,21 @@ export default function SubmitPage() {
                 onChange={handleChange}
                 multiline
               />
+
+              <FileUploadPanel
+                label="Upload photos"
+                helperText="Add one or more photos to help Stores identify the correct part or issue."
+                inputId="ticket-photo-upload"
+                buttonLabel="Add request photos"
+                emptyText="No request photos selected yet."
+                onFilesChange={setQueuedPhotos}
+              />
+
+              {queuedPhotos.length > 0 ? (
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {queuedPhotos.length} image{queuedPhotos.length > 1 ? "s" : ""} queued for this request
+                </p>
+              ) : null}
 
               {errorMessage ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

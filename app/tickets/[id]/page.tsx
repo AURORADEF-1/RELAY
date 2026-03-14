@@ -4,12 +4,27 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { TicketAttachmentGallery } from "@/components/ticket-attachment-gallery";
+import {
+  type ChatMessage,
+  TicketChatPanel,
+} from "@/components/ticket-chat-panel";
 import { LogoutButton } from "@/components/logout-button";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  createTicketMessage,
+  fetchTicketAttachments,
+  fetchTicketMessages,
+  type TicketAttachmentRecord,
+  type TicketMessageRecord,
+  uploadTicketAttachments,
+} from "@/lib/relay-ticketing";
+import type { RelayAiContext } from "@/lib/relay-ai";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type TicketRecord = {
   id: string;
+  user_id: string | null;
   requester_name: string | null;
   department: string | null;
   machine_reference: string | null;
@@ -36,7 +51,12 @@ export default function TicketDetailPage() {
   const ticketId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [ticket, setTicket] = useState<TicketRecord | null>(null);
   const [updates, setUpdates] = useState<TicketUpdate[]>([]);
+  const [attachments, setAttachments] = useState<TicketAttachmentRecord[]>([]);
+  const [messages, setMessages] = useState<TicketMessageRecord[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -50,6 +70,16 @@ export default function TicketDetailPage() {
         setIsLoading(false);
         return;
       }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setCurrentUserId(user?.id ?? null);
 
       const { data: ticketData, error: ticketError } = await supabase
         .from("tickets")
@@ -81,12 +111,33 @@ export default function TicketDetailPage() {
         setErrorMessage(updatesError.message);
         setTicket(ticketData as TicketRecord);
         setUpdates([]);
-        setIsLoading(false);
-        return;
+      } else {
+        setTicket(ticketData as TicketRecord);
+        setUpdates((updateData ?? []) as TicketUpdate[]);
       }
 
-      setTicket(ticketData as TicketRecord);
-      setUpdates((updateData ?? []) as TicketUpdate[]);
+      try {
+        const [attachmentData, messageData] = await Promise.all([
+          fetchTicketAttachments(supabase, ticketId),
+          fetchTicketMessages(supabase, ticketId),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setAttachments(attachmentData);
+        setMessages(messageData);
+      } catch (loadError) {
+        if (!isMounted) {
+          return;
+        }
+
+        setErrorMessage(
+          loadError instanceof Error ? loadError.message : "Failed to load ticket chat.",
+        );
+      }
+
       setIsLoading(false);
     }
 
@@ -96,6 +147,131 @@ export default function TicketDetailPage() {
       isMounted = false;
     };
   }, [ticketId]);
+
+  async function handleSendMessage(payload: { messageText: string; files: File[] }) {
+    if (!ticket) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setIsSending(true);
+    setErrorMessage("");
+
+    try {
+      const uploadedAttachments =
+        payload.files.length > 0
+          ? await uploadTicketAttachments({
+              supabase,
+              ticketId: ticket.id,
+              userId: currentUserId,
+              files: payload.files,
+              attachmentKind: "chat",
+            })
+          : [];
+
+      await createTicketMessage({
+        supabase,
+        ticketId: ticket.id,
+        senderUserId: currentUserId,
+        senderRole: "requester",
+        messageText: payload.messageText,
+        attachments: uploadedAttachments,
+      });
+
+      const [attachmentData, messageData] = await Promise.all([
+        fetchTicketAttachments(supabase, ticket.id),
+        fetchTicketMessages(supabase, ticket.id),
+      ]);
+
+      setAttachments(attachmentData);
+      setMessages(messageData);
+    } catch (sendError) {
+      setErrorMessage(
+        sendError instanceof Error ? sendError.message : "Failed to send message.",
+      );
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  async function handleAskAi(question: string) {
+    if (!ticket) {
+      return;
+    }
+
+    setIsAiLoading(true);
+    setErrorMessage("");
+
+    try {
+      const ticketContext: RelayAiContext = {
+        ticketId: ticket.id,
+        status: ticket.status ?? "PENDING",
+        assignedTo: ticket.assigned_to,
+        latestUpdate: updates[0]?.comment ?? updates[0]?.notes ?? ticket.notes,
+        requesterName: ticket.requester_name,
+        department: ticket.department,
+        machineReference: ticket.machine_reference,
+        jobNumber: ticket.job_number,
+        requestSummary: ticket.request_summary,
+        requestDetails: ticket.request_details,
+        history: updates.map((update) => ({
+          status: update.status,
+          comment: update.comment ?? update.notes,
+          createdAt: update.created_at,
+        })),
+        recentMessages: messages.slice(-6).map((message) => ({
+          senderRole: message.sender_role,
+          messageText: message.message_text,
+          createdAt: message.created_at,
+        })),
+      };
+
+      const response = await fetch(`/api/tickets/${ticket.id}/ai`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question,
+          ticketContext,
+        }),
+      });
+
+      const payload = (await response.json()) as { message?: string; error?: string };
+
+      if (!response.ok || !payload.message) {
+        throw new Error(payload.error || "AI request failed.");
+      }
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: `ai-${Date.now()}`,
+          ticket_id: ticket.id,
+          sender_user_id: null,
+          sender_role: "ai",
+          message_text: payload.message ?? null,
+          attachment_id: null,
+          attachment_url: null,
+          attachment_type: null,
+          is_ai_message: true,
+          created_at: new Date().toISOString(),
+        },
+      ]);
+    } catch (aiError) {
+      setErrorMessage(
+        aiError instanceof Error ? aiError.message : "Failed to get AI response.",
+      );
+    } finally {
+      setIsAiLoading(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900 sm:py-12">
@@ -157,78 +333,108 @@ export default function TicketDetailPage() {
                 Loading ticket...
               </div>
             ) : ticket ? (
-              <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.95fr]">
-                <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
+              <div className="mt-8 space-y-6">
+                <div className="grid gap-6 lg:grid-cols-[1fr_0.95fr]">
+                  <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Ticket ID
+                        </p>
+                        <p className="mt-2 text-2xl font-semibold text-slate-950">
+                          {ticket.id}
+                        </p>
+                      </div>
+                      <StatusBadge status={ticket.status ?? "PENDING"} />
+                    </div>
+
+                    <dl className="mt-6 grid gap-5 sm:grid-cols-2">
+                      <DetailItem label="Requester" value={ticket.requester_name} />
+                      <DetailItem label="Department" value={ticket.department} />
+                      <DetailItem label="Machine" value={ticket.machine_reference} />
+                      <DetailItem label="Job Number" value={ticket.job_number} />
+                      <DetailItem label="Assigned To" value={ticket.assigned_to} />
+                      <DetailItem
+                        label="Updated"
+                        value={formatDate(ticket.updated_at)}
+                      />
+                    </dl>
+
+                    <div className="mt-6 space-y-4">
+                      <DetailBlock
+                        label="Request Details"
+                        value={ticket.request_details ?? ticket.request_summary}
+                      />
+                      <DetailBlock label="Admin Notes" value={ticket.notes} />
+                    </div>
+                  </section>
+
+                  <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                    <div className="space-y-2">
                       <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Ticket ID
+                        Status History & Comments
                       </p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-950">
-                        {ticket.id}
+                      <p className="text-sm leading-6 text-slate-500">
+                        Activity from status changes and comment updates.
                       </p>
                     </div>
-                    <StatusBadge status={ticket.status ?? "PENDING"} />
-                  </div>
 
-                  <dl className="mt-6 grid gap-5 sm:grid-cols-2">
-                    <DetailItem label="Requester" value={ticket.requester_name} />
-                    <DetailItem label="Department" value={ticket.department} />
-                    <DetailItem label="Machine" value={ticket.machine_reference} />
-                    <DetailItem label="Job Number" value={ticket.job_number} />
-                    <DetailItem label="Assigned To" value={ticket.assigned_to} />
-                    <DetailItem
-                      label="Updated"
-                      value={formatDate(ticket.updated_at)}
-                    />
-                  </dl>
-
-                  <div className="mt-6 space-y-4">
-                    <DetailBlock
-                      label="Request Details"
-                      value={ticket.request_details ?? ticket.request_summary}
-                    />
-                    <DetailBlock label="Admin Notes" value={ticket.notes} />
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Status History & Comments
-                    </p>
-                    <p className="text-sm leading-6 text-slate-500">
-                      Activity from status changes and comment updates.
-                    </p>
-                  </div>
-
-                  <div className="mt-6 space-y-4">
-                    {updates.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
-                        No history entries found for this ticket yet.
-                      </div>
-                    ) : (
-                      updates.map((update, index) => (
-                        <article
-                          key={update.id ?? `${update.created_at}-${index}`}
-                          className="rounded-2xl border border-slate-200 bg-white p-5"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <StatusBadge
-                              status={update.status ?? ticket.status ?? "PENDING"}
-                            />
-                            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                              {formatDateTime(update.created_at)}
+                    <div className="mt-6 space-y-4">
+                      {updates.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
+                          No history entries found for this ticket yet.
+                        </div>
+                      ) : (
+                        updates.map((update, index) => (
+                          <article
+                            key={update.id ?? `${update.created_at}-${index}`}
+                            className="rounded-2xl border border-slate-200 bg-white p-5"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <StatusBadge
+                                status={update.status ?? ticket.status ?? "PENDING"}
+                              />
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                {formatDateTime(update.created_at)}
+                              </p>
+                            </div>
+                            <p className="mt-4 text-sm leading-7 text-slate-600">
+                              {update.comment ?? update.notes ?? "Status updated."}
                             </p>
-                          </div>
-                          <p className="mt-4 text-sm leading-7 text-slate-600">
-                            {update.comment ?? update.notes ?? "Status updated."}
-                          </p>
-                        </article>
-                      ))
-                    )}
-                  </div>
-                </section>
+                          </article>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                </div>
+
+                <TicketAttachmentGallery
+                  attachments={attachments.map((attachment) => ({
+                    id: attachment.id,
+                    name: attachment.file_name ?? "Attachment",
+                    url: attachment.public_url ?? "",
+                    caption:
+                      attachment.attachment_kind === "chat"
+                        ? "Image shared in the ticket conversation"
+                        : "Image uploaded with the parts request",
+                  }))}
+                />
+
+                <TicketChatPanel
+                  ticketId={ticket.id}
+                  ticketStatus={ticket.status ?? "PENDING"}
+                  latestUpdate={
+                    updates[0]?.comment ??
+                    updates[0]?.notes ??
+                    "No recent chat summary available."
+                  }
+                  assignedTo={ticket.assigned_to}
+                  messages={mapMessagesToChat(messages, ticket)}
+                  isSending={isSending}
+                  isAiLoading={isAiLoading}
+                  onSendMessage={handleSendMessage}
+                  onAskAi={handleAskAi}
+                />
               </div>
             ) : (
               <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
@@ -240,6 +446,35 @@ export default function TicketDetailPage() {
       </div>
     </main>
   );
+}
+
+function mapMessagesToChat(messages: TicketMessageRecord[], ticket: TicketRecord): ChatMessage[] {
+  return messages.map((message) => ({
+    id: message.id,
+    senderName: resolveSenderName(message, ticket),
+    senderRole: message.sender_role,
+    messageText: message.message_text ?? undefined,
+    attachmentUrl: message.attachment_url ?? undefined,
+    attachmentName: message.attachment_type ?? undefined,
+    createdAt: message.created_at ?? new Date().toISOString(),
+    isAiMessage: message.is_ai_message ?? false,
+  }));
+}
+
+function resolveSenderName(message: TicketMessageRecord, ticket: TicketRecord) {
+  if (message.is_ai_message || message.sender_role === "ai") {
+    return "RELAY Assistant";
+  }
+
+  if (message.sender_role === "requester") {
+    return ticket.requester_name ?? "Requester";
+  }
+
+  if (message.sender_role === "admin") {
+    return "Administrator";
+  }
+
+  return ticket.assigned_to || "Stores Operator";
 }
 
 function DetailItem({
