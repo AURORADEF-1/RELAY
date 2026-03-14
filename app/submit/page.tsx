@@ -9,7 +9,6 @@ import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
-import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
 type FormValues = {
   requesterName: string;
@@ -128,14 +127,20 @@ export default function SubmitPage() {
         return;
       }
 
-      const ticket = await createTicketWithRetry(supabase, {
-        userId: user.id,
-        requesterName: values.requesterName,
-        department: values.department,
-        machineReference: values.machineReference,
-        jobNumber: values.jobNumber,
-        requestDetails: values.requestDetails,
+      const ticketPayload = buildTicketInsertPayload({
+        authenticatedUserId: user.id,
+        values,
       });
+
+      const { data: ticket, error: insertError } = await supabase
+        .from("tickets")
+        .insert(ticketPayload)
+        .select("id")
+        .single();
+
+      if (insertError || !ticket) {
+        throw new Error(insertError?.message || "Failed to create ticket.");
+      }
 
       const { error: ticketUpdateError } = await supabase
         .from("ticket_updates")
@@ -179,7 +184,9 @@ export default function SubmitPage() {
         }
       }
 
-      setSuccessMessage(`Ticket ${ticket.id} submitted successfully. Status is now PENDING.`);
+      setSuccessMessage(
+        `Ticket ${String(ticket.id).slice(0, 8)} submitted successfully. Status is now PENDING.`,
+      );
       setValues(initialValues);
       setErrors({});
       setQueuedPhotos([]);
@@ -433,70 +440,41 @@ function FormField({
   );
 }
 
-const TICKET_ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const TICKET_ID_LENGTH = 5;
-const TICKET_ID_ATTEMPTS = 8;
-
-async function createTicketWithRetry(
-  supabase: SupabaseClient,
+function buildTicketInsertPayload(
   {
-    userId,
-    requesterName,
-    department,
-    machineReference,
-    jobNumber,
-    requestDetails,
+    authenticatedUserId,
+    values,
   }: {
-    userId: string;
-    requesterName: string;
-    department: string;
-    machineReference: string;
-    jobNumber: string;
-    requestDetails: string;
+    authenticatedUserId: string;
+    values: FormValues;
   },
 ) {
-  for (let attempt = 0; attempt < TICKET_ID_ATTEMPTS; attempt += 1) {
-    const ticketId = createTicketIdCandidate();
-    const { data, error } = await supabase
-      .from("tickets")
-      .insert({
-        id: ticketId,
-        user_id: userId,
-        requester_name: requesterName,
-        department,
-        machine_reference: machineReference,
-        job_number: jobNumber,
-        request_details: requestDetails,
-        request_summary: requestDetails,
-        status: "PENDING",
-      })
-      .select("id")
-      .single();
+  const userId = authenticatedUserId.trim();
 
-    if (!error && data) {
-      return data;
-    }
-
-    if (isDuplicateTicketIdError(error)) {
-      continue;
-    }
-
-    if (error) {
-      throw new Error(error.message);
-    }
+  if (!isUuid(userId)) {
+    throw new Error("Authenticated user ID is invalid.");
   }
 
-  throw new Error("Could not generate a unique ticket ID. Please try again.");
+  const requesterName = values.requesterName.trim();
+  const department = values.department.trim();
+  const machineReference = values.machineReference.trim();
+  const jobNumber = values.jobNumber.trim();
+  const requestDetails = values.requestDetails.trim();
+
+  return {
+    user_id: userId,
+    requester_name: requesterName,
+    department,
+    machine_reference: machineReference,
+    job_number: jobNumber,
+    request_details: requestDetails,
+    request_summary: requestDetails,
+    status: "PENDING" as const,
+  };
 }
 
-function createTicketIdCandidate() {
-  const randomValues = crypto.getRandomValues(new Uint32Array(TICKET_ID_LENGTH));
-
-  return Array.from(randomValues, (value) =>
-    TICKET_ID_ALPHABET[value % TICKET_ID_ALPHABET.length],
-  ).join("");
-}
-
-function isDuplicateTicketIdError(error: PostgrestError | null) {
-  return error?.code === "23505";
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }
