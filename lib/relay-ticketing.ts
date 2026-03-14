@@ -20,7 +20,7 @@ export type TicketMessageRecord = {
   id: string;
   ticket_id: string;
   sender_user_id: string | null;
-  sender_role: "requester" | "parts" | "admin" | "ai";
+  sender_role: "requester" | "operator" | "admin" | "ai" | "parts";
   message_text: string | null;
   attachment_url: string | null;
   attachment_type: string | null;
@@ -120,7 +120,10 @@ export async function fetchTicketMessages(
     throw new Error(error.message);
   }
 
-  return (data ?? []) as TicketMessageRecord[];
+  return ((data ?? []) as TicketMessageRecord[]).map((message) => ({
+    ...message,
+    sender_role: message.sender_role === "parts" ? "operator" : message.sender_role,
+  }));
 }
 
 export async function createTicketMessage({
@@ -134,7 +137,7 @@ export async function createTicketMessage({
   supabase: SupabaseClient;
   ticketId: string;
   senderUserId: string | null;
-  senderRole: "requester" | "parts" | "admin";
+  senderRole: "requester" | "operator" | "admin";
   messageText: string;
   attachments?: TicketAttachmentRecord[];
 }) {

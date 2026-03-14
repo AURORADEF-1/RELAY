@@ -489,7 +489,8 @@ function mapMessagesToChat(
     return {
       id: message.id,
       senderName: resolveSenderName(message, ticket),
-      senderRole: message.sender_role,
+      senderRole:
+        message.sender_role === "parts" ? "operator" : message.sender_role,
       messageText: message.message_text ?? undefined,
       attachmentUrl: attachment?.signed_url ?? undefined,
       attachmentName: attachment?.file_name ?? undefined,
@@ -510,6 +511,10 @@ function resolveSenderName(message: TicketMessageRecord, ticket: TicketRecord) {
 
   if (message.sender_role === "admin") {
     return "Administrator";
+  }
+
+  if (message.sender_role === "operator") {
+    return ticket.assigned_to || "Stores Operator";
   }
 
   return ticket.assigned_to || "Stores Operator";

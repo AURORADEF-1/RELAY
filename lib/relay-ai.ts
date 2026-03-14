@@ -21,6 +21,48 @@ export type RelayAiContext = {
   }>;
 };
 
+export function buildRelayAiInstructions() {
+  return [
+    "You are RELAY Assistant for MLP, an internal parts request workflow app.",
+    "Answer using only the selected ticket context provided in the user message.",
+    "Do not invent status, ordering, readiness, assignment, dates, or stock details.",
+    "If the answer is not supported by the provided ticket data, say so clearly.",
+    "Keep answers concise and operational.",
+    "When helpful, include the current status, latest update, and assigned operator.",
+    "If the user asks for history, summarise the request history from the provided context only.",
+    'End with a short escalation offer such as "Would you like me to notify an operator?" or "Would you like to chat with Stores?"',
+  ].join(" ");
+}
+
+export function buildRelayAiInput(
+  question: string,
+  context: RelayAiContext,
+) {
+  return [
+    "Selected ticket context:",
+    JSON.stringify(
+      {
+        ticketId: context.ticketId,
+        status: context.status,
+        assignedTo: context.assignedTo ?? null,
+        latestUpdate: context.latestUpdate ?? null,
+        requesterName: context.requesterName ?? null,
+        department: context.department ?? null,
+        machineReference: context.machineReference ?? null,
+        jobNumber: context.jobNumber ?? null,
+        requestSummary: context.requestSummary ?? null,
+        requestDetails: context.requestDetails ?? null,
+        history: context.history,
+        recentMessages: context.recentMessages,
+      },
+      null,
+      2,
+    ),
+    "",
+    `User question: ${question.trim()}`,
+  ].join("\n");
+}
+
 export function buildRelayAiPlaceholderResponse(
   question: string,
   context: RelayAiContext,
@@ -73,4 +115,38 @@ export function buildRelayAiPlaceholderResponse(
   }
 
   return `${answer} Would you like me to notify an operator or continue the chat with Stores?`;
+}
+
+export function extractRelayAiResponseText(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const candidate = payload as {
+    output_text?: unknown;
+    output?: Array<{
+      type?: unknown;
+      content?: Array<{
+        type?: unknown;
+        text?: unknown;
+      }>;
+    }>;
+  };
+
+  if (typeof candidate.output_text === "string" && candidate.output_text.trim()) {
+    return candidate.output_text.trim();
+  }
+
+  const outputText = candidate.output
+    ?.flatMap((item) => item.content ?? [])
+    .filter(
+      (item): item is { type: "output_text"; text: string } =>
+        item.type === "output_text" && typeof item.text === "string",
+    )
+    .map((item) => item.text.trim())
+    .filter((item) => item.length > 0)
+    .join("\n")
+    .trim();
+
+  return outputText || null;
 }

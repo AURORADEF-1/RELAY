@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { FileUploadPanel } from "@/components/file-upload-panel";
 import { StatusBadge } from "@/components/status-badge";
 
-export type ChatRole = "requester" | "parts" | "admin" | "ai";
+export type ChatRole = "requester" | "operator" | "admin" | "ai";
 
 export type ChatMessage = {
   id: string;
@@ -35,7 +35,7 @@ type TicketChatPanelProps = {
 
 const senderTone: Record<ChatRole, string> = {
   requester: "border-slate-200 bg-white",
-  parts: "border-sky-200 bg-sky-50",
+  operator: "border-sky-200 bg-sky-50",
   admin: "border-emerald-200 bg-emerald-50",
   ai: "border-amber-200 bg-amber-50",
 };
