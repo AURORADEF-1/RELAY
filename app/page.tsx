@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const statuses = [
   { label: "PENDING", tone: "bg-amber-100 text-amber-800 ring-amber-200" },
   { label: "QUERY", tone: "bg-orange-100 text-orange-800 ring-orange-200" },
@@ -32,18 +34,18 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row">
-                <a
-                  href="#"
+                <Link
+                  href="/submit"
                   className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   Submit Ticket
-                </a>
-                <a
-                  href="#"
+                </Link>
+                <Link
+                  href="/requests"
                   className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   View My Requests
-                </a>
+                </Link>
               </div>
             </div>
 
