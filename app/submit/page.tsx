@@ -8,6 +8,7 @@ import { FileUploadPanel } from "@/components/file-upload-panel";
 import { LogoutButton } from "@/components/logout-button";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type FormValues = {
   requesterName: string;
@@ -39,6 +40,10 @@ export default function SubmitPage() {
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState("");
+  const [photoStatusMessage, setPhotoStatusMessage] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [queuedPhotos, setQueuedPhotos] = useState<File[]>([]);
@@ -92,6 +97,7 @@ export default function SubmitPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage("");
+    setPhotoStatusMessage(null);
 
     const nextErrors = validateForm();
     setErrors(nextErrors);
@@ -121,9 +127,12 @@ export default function SubmitPage() {
       return;
     }
 
+    const ticketId = await generateTicketId(supabase);
+
     const { data: ticket, error: insertError } = await supabase
       .from("tickets")
       .insert({
+        id: ticketId,
         user_id: user.id,
         requester_name: values.requesterName,
         department: values.department,
@@ -150,25 +159,33 @@ export default function SubmitPage() {
 
     if (queuedPhotos.length > 0) {
       try {
-        await uploadTicketAttachments({
+        const uploadedPhotos = await uploadTicketAttachments({
           supabase,
           ticketId: ticket.id,
           userId: user.id,
           files: queuedPhotos,
           attachmentKind: "ticket",
         });
+
+        setPhotoStatusMessage({
+          type: "success",
+          message: `${uploadedPhotos.length} request photo${
+            uploadedPhotos.length === 1 ? "" : "s"
+          } uploaded successfully.`,
+        });
       } catch (attachmentError) {
-        setErrorMessage(
+        const message =
           attachmentError instanceof Error
-            ? `Ticket created, but photo upload failed: ${attachmentError.message}`
-            : "Ticket created, but photo upload failed.",
-        );
+            ? attachmentError.message
+            : "Ticket created, but photo upload failed.";
+        setPhotoStatusMessage({
+          type: "error",
+          message: `Ticket created, but photo upload failed: ${message}`,
+        });
       }
     }
 
-    setSuccessMessage(
-      "Ticket submitted successfully. Status is now PENDING.",
-    );
+    setSuccessMessage("Ticket submitted successfully. Status is now PENDING.");
     setValues(initialValues);
     setErrors({});
     setQueuedPhotos([]);
@@ -326,6 +343,18 @@ export default function SubmitPage() {
                 </div>
               ) : null}
 
+              {photoStatusMessage ? (
+                <div
+                  className={`rounded-2xl px-4 py-3 text-sm ${
+                    photoStatusMessage.type === "success"
+                      ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border border-rose-200 bg-rose-50 text-rose-700"
+                  }`}
+                >
+                  {photoStatusMessage.message}
+                </div>
+              ) : null}
+
               {successMessage ? (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                   {successMessage}
@@ -399,4 +428,37 @@ function FormField({
       {error ? <span className="mt-2 block text-sm text-rose-600">{error}</span> : null}
     </label>
   );
+}
+
+const TICKET_ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const TICKET_ID_LENGTH = 5;
+const TICKET_ID_ATTEMPTS = 8;
+
+async function generateTicketId(supabase: SupabaseClient) {
+  for (let attempt = 0; attempt < TICKET_ID_ATTEMPTS; attempt += 1) {
+    const candidate = createTicketIdCandidate();
+    const { data, error } = await supabase
+      .from("tickets")
+      .select("id")
+      .eq("id", candidate)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data) {
+      return candidate;
+    }
+  }
+
+  throw new Error("Could not generate a unique ticket ID. Please try again.");
+}
+
+function createTicketIdCandidate() {
+  const randomValues = crypto.getRandomValues(new Uint32Array(TICKET_ID_LENGTH));
+
+  return Array.from(randomValues, (value) =>
+    TICKET_ID_ALPHABET[value % TICKET_ID_ALPHABET.length],
+  ).join("");
 }

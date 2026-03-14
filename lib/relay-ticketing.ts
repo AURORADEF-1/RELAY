@@ -1,6 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const RELAY_MEDIA_BUCKET = "relay-ticket-media";
+const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
 
 export type TicketAttachmentRecord = {
   id: string;
@@ -42,10 +50,21 @@ export async function uploadTicketAttachments({
   attachmentKind: "ticket" | "chat";
   messageId?: string | null;
 }) {
+  if (!userId) {
+    throw new Error("You must be signed in to upload ticket images.");
+  }
+
   const uploaded: TicketAttachmentRecord[] = [];
 
   for (const file of files) {
-    const storagePath = buildStoragePath(ticketId, attachmentKind, file.name);
+    validateAttachmentFile(file);
+
+    const storagePath = buildStoragePath({
+      userId,
+      ticketId,
+      attachmentKind,
+      fileName: file.name,
+    });
     const { error: uploadError } = await supabase.storage
       .from(RELAY_MEDIA_BUCKET)
       .upload(storagePath, file, {
@@ -200,13 +219,34 @@ export async function createTicketMessage({
 }
 
 function buildStoragePath(
-  ticketId: string,
-  attachmentKind: "ticket" | "chat",
-  fileName: string,
+  {
+    userId,
+    ticketId,
+    attachmentKind,
+    fileName,
+  }: {
+    userId: string;
+    ticketId: string;
+    attachmentKind: "ticket" | "chat";
+    fileName: string;
+  },
 ) {
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const timestamp = Date.now();
-  return `tickets/${ticketId}/${attachmentKind}/${timestamp}-${safeName}`;
+  return attachmentKind === "ticket"
+    ? `${userId}/${ticketId}/${safeName}`
+    : `${userId}/${ticketId}/chat-${Date.now()}-${safeName}`;
+}
+
+function validateAttachmentFile(file: File) {
+  if (!ALLOWED_ATTACHMENT_MIME_TYPES.has(file.type)) {
+    throw new Error(
+      "Unsupported image format. Please upload JPG, PNG, WEBP, or HEIC images.",
+    );
+  }
+
+  if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+    throw new Error("Image is too large. Please upload files up to 10 MB.");
+  }
 }
 
 async function hydrateTicketAttachmentsWithSignedUrls(
