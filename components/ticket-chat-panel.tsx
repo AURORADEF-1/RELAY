@@ -19,6 +19,7 @@ export type ChatMessage = {
 
 type TicketChatPanelProps = {
   ticketId: string;
+  ticketLabel?: string | null;
   ticketStatus: string;
   latestUpdate: string;
   assignedTo?: string | null;
@@ -42,6 +43,7 @@ const senderTone: Record<ChatRole, string> = {
 
 export function TicketChatPanel({
   ticketId,
+  ticketLabel,
   ticketStatus,
   latestUpdate,
   assignedTo,
@@ -97,6 +99,8 @@ export function TicketChatPanel({
     setDraftMessage("");
   }
 
+  const conversationLabel = ticketLabel?.trim() || ticketId;
+
   return (
     <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -108,8 +112,8 @@ export function TicketChatPanel({
             Request Conversation
           </h2>
           <p className="text-sm leading-6 text-slate-500">
-            This conversation is linked to ticket{" "}
-            <span className="font-semibold text-slate-700">{ticketId}</span>.
+            This conversation is linked to job number{" "}
+            <span className="font-semibold text-slate-700">{conversationLabel}</span>.
           </p>
         </div>
 
@@ -200,8 +204,8 @@ export function TicketChatPanel({
                 {mode === "operator" ? "Reply as Stores / Operator" : "Message about this request"}
               </p>
               <p className="text-sm leading-6 text-slate-500">
-                Messages, photos, and AI responses will stay linked to ticket{" "}
-                <span className="font-semibold text-slate-700">{ticketId}</span>.
+                Messages, photos, and AI responses will stay linked to job number{" "}
+                <span className="font-semibold text-slate-700">{conversationLabel}</span>.
               </p>
             </div>
 

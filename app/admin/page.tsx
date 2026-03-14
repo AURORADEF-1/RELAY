@@ -577,8 +577,9 @@ export default function AdminPage() {
                   <TicketChatPanel
                     mode="operator"
                     ticketId={selectedChatTicket.id}
+                    ticketLabel={selectedChatTicket.job_number}
                     ticketStatus={selectedChatTicket.status ?? "PENDING"}
-                  latestUpdate={
+                    latestUpdate={
                       selectedChatTicket.notes ||
                       selectedChatTicket.request_summary ||
                       "Awaiting Stores update."

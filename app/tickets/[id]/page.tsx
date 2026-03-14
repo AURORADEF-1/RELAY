@@ -458,6 +458,7 @@ export default function TicketDetailPage() {
 
                 <TicketChatPanel
                   ticketId={ticket.id}
+                  ticketLabel={ticket.job_number}
                   ticketStatus={ticket.status ?? "PENDING"}
                   latestUpdate={
                     updates[0]?.comment ??
