@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AdminOnlyLink } from "@/components/admin-only-link";
 import { AuthGuard } from "@/components/auth-guard";
 import { FileUploadPanel } from "@/components/file-upload-panel";
+import { NotificationBadge } from "@/components/notification-badge";
+import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
@@ -37,6 +38,7 @@ const fieldLabels: Record<keyof FormValues, string> = {
 };
 
 export default function SubmitPage() {
+  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState("");
@@ -215,13 +217,17 @@ export default function SubmitPage() {
               className="rounded-full px-4 py-2 hover:bg-white"
             >
               My Requests
+              <NotificationBadge count={requesterUnreadCount} />
             </Link>
-            <AdminOnlyLink
-              href="/admin"
-              className="rounded-full px-4 py-2 hover:bg-white"
-            >
-              Admin
-            </AdminOnlyLink>
+            {isAdmin ? (
+              <Link
+                href="/admin"
+                className="rounded-full px-4 py-2 hover:bg-white"
+              >
+                Admin
+                <NotificationBadge count={adminBadgeCount} />
+              </Link>
+            ) : null}
             <Link
               href="/login"
               className="rounded-full px-4 py-2 hover:bg-white"

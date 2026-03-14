@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { NotificationBadge } from "@/components/notification-badge";
+import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
@@ -42,6 +44,7 @@ type Ticket = {
 
 export default function AdminPage() {
   const router = useRouter();
+  const { requesterUnreadCount, adminBadgeCount } = useNotifications();
   const [statusFilter, setStatusFilter] = useState<Status>("ALL");
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { assigned_to: string; notes: string }>>(
@@ -471,6 +474,7 @@ export default function AdminPage() {
               className="rounded-full px-4 py-2 hover:bg-white"
             >
               My Requests
+              <NotificationBadge count={requesterUnreadCount} />
             </Link>
             <Link
               href="/login"
@@ -489,8 +493,9 @@ export default function AdminPage() {
                 <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
                   Internal Operations
                 </div>
-                <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
                   Internal Parts Dashboard
+                  <NotificationBadge count={adminBadgeCount} />
                 </h1>
                 <p className="text-base leading-8 text-slate-600">
                   Review all request activity, filter the queue by status, and

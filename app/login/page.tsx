@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { NotificationBadge } from "@/components/notification-badge";
+import { useNotifications } from "@/components/notification-provider";
 import { RelayLogo } from "@/components/relay-logo";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { requesterUnreadCount } = useNotifications();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -87,6 +90,7 @@ export default function LoginPage() {
               className="rounded-full px-4 py-2 hover:bg-white"
             >
               My Requests
+              <NotificationBadge count={requesterUnreadCount} />
             </Link>
           </div>
         </nav>

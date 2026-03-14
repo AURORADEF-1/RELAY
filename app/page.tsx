@@ -1,17 +1,94 @@
+"use client";
+
 import Link from "next/link";
-import { AdminOnlyLink } from "@/components/admin-only-link";
+import { useEffect, useState } from "react";
+import { NotificationBadge } from "@/components/notification-badge";
+import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { getSupabaseClient } from "@/lib/supabase";
 
-const statuses = [
-  { label: "PENDING", tone: "border-amber-200 bg-amber-50 text-amber-900", dot: "bg-amber-500" },
-  { label: "QUERY", tone: "border-orange-200 bg-orange-50 text-orange-900", dot: "bg-orange-500" },
-  { label: "ORDERED", tone: "border-sky-200 bg-sky-50 text-sky-900", dot: "bg-sky-500" },
-  { label: "READY", tone: "border-emerald-200 bg-emerald-50 text-emerald-900", dot: "bg-emerald-500" },
-  { label: "COMPLETED", tone: "border-slate-200 bg-slate-100 text-slate-800", dot: "bg-slate-500" },
+type HomepageUpdate = {
+  id: string;
+  job_number: string | null;
+  request_summary: string | null;
+  request_details: string | null;
+  status: string | null;
+  updated_at: string | null;
+};
+
+const mockUpdates: HomepageUpdate[] = [
+  {
+    id: "mock-1",
+    job_number: "1191",
+    request_summary: "Engine harness",
+    request_details: null,
+    status: "ORDERED",
+    updated_at: new Date(Date.now() - 1000 * 60 * 24).toISOString(),
+  },
+  {
+    id: "mock-2",
+    job_number: "2044",
+    request_summary: "Hydraulic fitting set",
+    request_details: null,
+    status: "READY",
+    updated_at: new Date(Date.now() - 1000 * 60 * 58).toISOString(),
+  },
+  {
+    id: "mock-3",
+    job_number: "3187",
+    request_summary: "Cooling fan assembly",
+    request_details: null,
+    status: "QUERY",
+    updated_at: new Date(Date.now() - 1000 * 60 * 132).toISOString(),
+  },
 ];
 
 export default function Home() {
+  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const [updates, setUpdates] = useState<HomepageUpdate[]>(mockUpdates);
+  const [updatesMode, setUpdatesMode] = useState<"live" | "mock">("mock");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadHomepageUpdates() {
+      const supabase = getSupabaseClient();
+
+      if (!supabase) {
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!isMounted || !user) {
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("id, job_number, request_summary, request_details, status, updated_at")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(5);
+
+      if (!isMounted || error || !data || data.length === 0) {
+        return;
+      }
+
+      setUpdates(data as HomepageUpdate[]);
+      setUpdatesMode("live");
+    }
+
+    loadHomepageUpdates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-6xl">
@@ -32,38 +109,44 @@ export default function Home() {
               className="rounded-full px-4 py-2 transition hover:bg-slate-100"
             >
               My Requests
+              <NotificationBadge count={requesterUnreadCount} />
             </Link>
-            <AdminOnlyLink
-              href="/admin"
-              className="rounded-full px-4 py-2 transition hover:bg-slate-100"
-            >
-              Admin Dashboard
-            </AdminOnlyLink>
+            {isAdmin ? (
+              <Link
+                href="/admin"
+                className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+              >
+                Admin Dashboard
+                <NotificationBadge count={adminBadgeCount} />
+              </Link>
+            ) : null}
             <LogoutButton />
           </div>
         </nav>
 
         <div className="flex min-h-[calc(100vh-9rem)] items-center">
           <section className="w-full overflow-hidden rounded-[2rem] border border-white/80 bg-white/90 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur">
-            <div className="grid gap-10 px-8 py-10 sm:px-10 sm:py-12 lg:grid-cols-[1.2fr_0.8fr] lg:px-12 lg:py-14">
-              <div className="flex flex-col justify-between gap-10">
-                <div className="space-y-7">
+            <div className="grid gap-8 px-8 py-10 sm:px-10 sm:py-12 lg:grid-cols-[1.08fr_0.92fr] lg:px-12 lg:py-14">
+              <div className="flex flex-col justify-between gap-8">
+                <div className="space-y-8">
                   <div className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold tracking-[0.24em] text-slate-600">
-                    MLP Operations Platform
+                    Internal Control Point
                   </div>
-                  <div className="space-y-5">
-                    <RelayLogo compact className="lg:hidden" />
-                    <h1 className="text-5xl font-semibold tracking-[-0.06em] text-slate-950 sm:text-6xl lg:text-7xl">
-                      RELAY
-                    </h1>
-                    <p className="text-lg font-medium tracking-[-0.02em] text-slate-600 sm:text-[1.35rem]">
-                      MLP Parts Request Workflow
-                    </p>
+
+                  <div className="grid gap-6 lg:grid-cols-[0.64fr_1fr] lg:items-center">
+                    <AuroraHeroMark />
+                    <div className="space-y-4">
+                      <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">
+                        AURORA Systems TM
+                      </p>
+                      <h1 className="text-5xl font-semibold tracking-[-0.07em] text-slate-950 sm:text-6xl lg:text-7xl">
+                        RELAY
+                      </h1>
+                      <p className="max-w-lg text-lg font-medium tracking-[-0.02em] text-slate-600">
+                        Parts requests, updates, and operator activity in one view.
+                      </p>
+                    </div>
                   </div>
-                  <p className="max-w-xl text-base leading-8 text-slate-500">
-                    Submit and track parts requests through a clear workflow built
-                    for fast coordination between requesters and fulfillment teams.
-                  </p>
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -78,79 +161,42 @@ export default function Home() {
                     className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                   >
                     View My Requests
+                    <NotificationBadge count={requesterUnreadCount} />
                   </Link>
-                  <AdminOnlyLink
-                    href="/admin"
-                    className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
-                  >
-                    Admin Dashboard
-                  </AdminOnlyLink>
-                </div>
-
-                <div className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-5 sm:grid-cols-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Routing
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      Ticket-linked workflow from request to fulfillment.
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Visibility
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      Clear status tracking across Stores and workshop teams.
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Platform
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      Designed for AURORA Systems TM internal operations.
-                    </p>
-                  </div>
+                  {isAdmin ? (
+                    <Link
+                      href="/admin"
+                      className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                    >
+                      Admin Dashboard
+                      <NotificationBadge count={adminBadgeCount} />
+                    </Link>
+                  ) : null}
                 </div>
               </div>
 
               <aside className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6 sm:p-7">
-                <div className="space-y-7">
-                  <div className="hidden lg:block">
-                    <RelayLogo />
+                <div className="space-y-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Recent Updates
+                      </p>
+                      <p className="text-sm leading-6 text-slate-500">
+                        {updatesMode === "live"
+                          ? "Latest activity from your requests."
+                          : "Recent request activity snapshot."}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      {updatesMode}
+                    </span>
                   </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-slate-900">
-                      Status Legend
-                    </p>
-                    <p className="text-sm leading-6 text-slate-500">
-                      Current workflow states for all submitted requests.
-                    </p>
-                  </div>
-                  <div className="grid gap-3">
-                    {statuses.map((status) => (
-                      <span
-                        key={status.label}
-                        className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold tracking-[0.14em] ${status.tone}`}
-                      >
-                        <span className={`h-2.5 w-2.5 rounded-full ${status.dot}`} />
-                        {status.label}
-                      </span>
+
+                  <div className="space-y-3">
+                    {updates.map((update) => (
+                      <RequestUpdateItem key={update.id} update={update} />
                     ))}
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Brand
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      RELAY is the internal request workflow for
-                      {" "}
-                      <span className="font-semibold text-slate-900">
-                        AURORA Systems TM
-                      </span>
-                      .
-                    </p>
                   </div>
                 </div>
               </aside>
@@ -160,4 +206,97 @@ export default function Home() {
       </div>
     </main>
   );
+}
+
+function AuroraHeroMark() {
+  return (
+    <div className="relative isolate overflow-hidden rounded-[2rem] border border-slate-300 bg-[radial-gradient(circle_at_25%_20%,rgba(59,130,246,0.28),transparent_30%),radial-gradient(circle_at_75%_18%,rgba(148,163,184,0.18),transparent_24%),linear-gradient(180deg,#020617_0%,#0f172a_48%,#111827_100%)] p-6 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.85)]">
+      <div className="pointer-events-none absolute inset-0 opacity-80">
+        <span className="absolute left-[12%] top-[18%] h-1.5 w-1.5 rounded-full bg-white/90 shadow-[0_0_12px_rgba(255,255,255,0.9)]" />
+        <span className="absolute right-[16%] top-[20%] h-1 w-1 rounded-full bg-sky-200/90 shadow-[0_0_10px_rgba(125,211,252,0.8)]" />
+        <span className="absolute left-[22%] bottom-[24%] h-1 w-1 rounded-full bg-slate-200/90" />
+        <span className="absolute right-[24%] bottom-[18%] h-1.5 w-1.5 rounded-full bg-white/80" />
+        <span className="absolute left-[48%] top-[12%] h-1 w-1 rounded-full bg-white/80" />
+      </div>
+      <div className="absolute inset-3 rounded-[1.5rem] border border-white/10" />
+      <div className="relative flex aspect-square items-center justify-center rounded-[1.5rem] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_58%)]">
+        <span className="text-[8rem] font-semibold leading-none tracking-[-0.12em] text-white drop-shadow-[0_0_28px_rgba(147,197,253,0.32)] sm:text-[10rem]">
+          A
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function RequestUpdateItem({ update }: { update: HomepageUpdate }) {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-[0_18px_40px_-36px_rgba(15,23,42,0.55)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Job {update.job_number || "Not set"}
+          </p>
+          <p className="text-sm font-semibold text-slate-900">
+            {update.request_summary || update.request_details || "Request update"}
+          </p>
+        </div>
+        <StatusPill status={update.status ?? "PENDING"} />
+      </div>
+      <p className="mt-3 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+        Updated {formatRelativeTime(update.updated_at)}
+      </p>
+    </article>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const tone = getStatusTone(status);
+
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${tone}`}
+    >
+      <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+      {status}
+    </span>
+  );
+}
+
+function getStatusTone(status: string) {
+  switch (status) {
+    case "QUERY":
+      return "border-orange-200 bg-orange-50 text-orange-900";
+    case "ORDERED":
+      return "border-sky-200 bg-sky-50 text-sky-900";
+    case "READY":
+      return "border-emerald-200 bg-emerald-50 text-emerald-900";
+    case "COMPLETED":
+      return "border-slate-200 bg-slate-100 text-slate-800";
+    default:
+      return "border-amber-200 bg-amber-50 text-amber-900";
+  }
+}
+
+function formatRelativeTime(value: string | null) {
+  if (!value) {
+    return "recently";
+  }
+
+  const minutes = Math.max(
+    1,
+    Math.round((Date.now() - new Date(value).getTime()) / 1000 / 60),
+  );
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.round(minutes / 60);
+
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
 }

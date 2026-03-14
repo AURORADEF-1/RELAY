@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AdminOnlyLink } from "@/components/admin-only-link";
 import { AuthGuard } from "@/components/auth-guard";
+import { NotificationBadge } from "@/components/notification-badge";
+import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
@@ -21,6 +22,7 @@ type Ticket = {
 const statusOrder = ["PENDING", "QUERY", "ORDERED", "READY", "COMPLETED"] as const;
 
 export default function RequestsPage() {
+  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -102,12 +104,15 @@ export default function RequestsPage() {
             >
               Submit Ticket
             </Link>
-            <AdminOnlyLink
-              href="/admin"
-              className="rounded-full px-4 py-2 hover:bg-white"
-            >
-              Admin
-            </AdminOnlyLink>
+            {isAdmin ? (
+              <Link
+                href="/admin"
+                className="rounded-full px-4 py-2 hover:bg-white"
+              >
+                Admin
+                <NotificationBadge count={adminBadgeCount} />
+              </Link>
+            ) : null}
             <Link
               href="/login"
               className="rounded-full px-4 py-2 hover:bg-white"
@@ -127,6 +132,7 @@ export default function RequestsPage() {
               </div>
               <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
                 My Requests
+                <NotificationBadge count={requesterUnreadCount} />
               </h1>
               <p className="text-base leading-8 text-slate-600">
                 Track active and completed parts requests with clear status

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AdminOnlyLink } from "@/components/admin-only-link";
 import { AuthGuard } from "@/components/auth-guard";
+import { NotificationBadge } from "@/components/notification-badge";
+import { useNotifications } from "@/components/notification-provider";
 import { TicketAttachmentGallery } from "@/components/ticket-attachment-gallery";
 import {
   type ChatMessage,
@@ -49,6 +50,7 @@ type TicketUpdate = {
 };
 
 export default function TicketDetailPage() {
+  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
   const params = useParams<{ id: string }>();
   const ticketId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [ticket, setTicket] = useState<TicketRecord | null>(null);
@@ -316,13 +318,17 @@ export default function TicketDetailPage() {
               className="rounded-full px-4 py-2 hover:bg-white"
             >
               My Requests
+              <NotificationBadge count={requesterUnreadCount} />
             </Link>
-            <AdminOnlyLink
-              href="/admin"
-              className="rounded-full px-4 py-2 hover:bg-white"
-            >
-              Admin
-            </AdminOnlyLink>
+            {isAdmin ? (
+              <Link
+                href="/admin"
+                className="rounded-full px-4 py-2 hover:bg-white"
+              >
+                Admin
+                <NotificationBadge count={adminBadgeCount} />
+              </Link>
+            ) : null}
             <LogoutButton />
           </div>
         </nav>
