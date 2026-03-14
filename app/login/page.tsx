@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export default function LoginPage() {
@@ -11,6 +11,38 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [nextPath, setNextPath] = useState("/requests");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkExistingSession() {
+      const supabase = getSupabaseClient();
+      const nextValue = new URLSearchParams(window.location.search).get("next");
+
+      if (nextValue) {
+        setNextPath(nextValue);
+      }
+
+      if (!supabase) {
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (isMounted && session) {
+        router.replace(nextValue || "/requests");
+      }
+    }
+
+    checkExistingSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,7 +68,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/requests");
+    router.push(nextPath);
     router.refresh();
   }
 

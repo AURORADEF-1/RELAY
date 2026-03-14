@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AuthGuard } from "@/components/auth-guard";
 import { LogoutButton } from "@/components/logout-button";
+import { getSupabaseClient } from "@/lib/supabase";
 
 type FormValues = {
   requesterName: string;
@@ -34,6 +36,8 @@ export default function SubmitPage() {
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!successMessage) {
@@ -81,8 +85,9 @@ export default function SubmitPage() {
     return nextErrors;
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setErrorMessage("");
 
     const nextErrors = validateForm();
     setErrors(nextErrors);
@@ -92,11 +97,59 @@ export default function SubmitPage() {
       return;
     }
 
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setErrorMessage("Sign in to submit a ticket.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const { data: ticket, error: insertError } = await supabase
+      .from("tickets")
+      .insert({
+        user_id: user.id,
+        requester_name: values.requesterName,
+        department: values.department,
+        machine_reference: values.machineReference,
+        job_number: values.jobNumber,
+        request_details: values.requestDetails,
+        request_summary: values.requestDetails,
+        status: "PENDING",
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      setErrorMessage(insertError.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    await supabase.from("ticket_updates").insert({
+      ticket_id: ticket.id,
+      status: "PENDING",
+      comment: "Ticket created.",
+    });
+
     setSuccessMessage(
-      "Request captured locally. Status will start as PENDING once backend handling is added.",
+      "Ticket submitted successfully. Status is now PENDING.",
     );
     setValues(initialValues);
     setErrors({});
+    setIsSubmitting(false);
   }
 
   return (
@@ -129,8 +182,9 @@ export default function SubmitPage() {
           <LogoutButton />
         </nav>
 
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.25)] sm:p-10">
-          <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+        <AuthGuard>
+          <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.25)] sm:p-10">
+            <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
             <div className="space-y-5">
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
                 RELAY
@@ -149,8 +203,8 @@ export default function SubmitPage() {
                   Submission notes
                 </p>
                 <p className="mt-2 text-sm leading-7 text-slate-500">
-                  This form currently validates in the browser only. No data is
-                  persisted yet.
+                  Tickets are created in Supabase and start in the PENDING
+                  status flow.
                 </p>
               </div>
             </div>
@@ -200,6 +254,12 @@ export default function SubmitPage() {
                 multiline
               />
 
+              {errorMessage ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {errorMessage}
+                </div>
+              ) : null}
+
               {successMessage ? (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                   {successMessage}
@@ -210,14 +270,16 @@ export default function SubmitPage() {
                 <p className="text-xs text-slate-500">All fields are required.</p>
                 <button
                   type="submit"
-                  className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  disabled={isSubmitting}
+                  className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Submit Request
+                  {isSubmitting ? "Submitting..." : "Submit Request"}
                 </button>
               </div>
             </form>
-          </div>
-        </section>
+            </div>
+          </section>
+        </AuthGuard>
       </div>
     </main>
   );

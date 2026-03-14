@@ -2,34 +2,21 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AuthGuard } from "@/components/auth-guard";
 import { LogoutButton } from "@/components/logout-button";
+import { StatusBadge } from "@/components/status-badge";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Ticket = {
   id: string;
   machine_reference: string | null;
   request_summary: string | null;
+  request_details: string | null;
   status: string | null;
   updated_at: string | null;
 };
 
 const statusOrder = ["PENDING", "QUERY", "ORDERED", "READY", "COMPLETED"] as const;
-
-const statusTones: Record<string, string> = {
-  PENDING: "border-amber-200 bg-amber-50 text-amber-900",
-  QUERY: "border-orange-200 bg-orange-50 text-orange-900",
-  ORDERED: "border-sky-200 bg-sky-50 text-sky-900",
-  READY: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  COMPLETED: "border-slate-200 bg-slate-100 text-slate-800",
-};
-
-const statusDots: Record<string, string> = {
-  PENDING: "bg-amber-500",
-  QUERY: "bg-orange-500",
-  ORDERED: "bg-sky-500",
-  READY: "bg-emerald-500",
-  COMPLETED: "bg-slate-500",
-};
 
 export default function RequestsPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -70,7 +57,9 @@ export default function RequestsPage() {
 
       const { data, error } = await supabase
         .from("tickets")
-        .select("id, machine_reference, request_summary, status, updated_at")
+        .select(
+          "id, machine_reference, request_summary, request_details, status, updated_at",
+        )
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
 
@@ -126,7 +115,8 @@ export default function RequestsPage() {
           <LogoutButton />
         </nav>
 
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.25)] sm:p-10">
+        <AuthGuard>
+          <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.25)] sm:p-10">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl space-y-5">
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
@@ -199,13 +189,18 @@ export default function RequestsPage() {
                     tickets.map((ticket) => (
                       <tr key={ticket.id} className="align-top">
                         <td className="px-6 py-5 text-sm font-semibold text-slate-900">
-                          {ticket.id}
+                          <Link
+                            href={`/tickets/${ticket.id}`}
+                            className="transition hover:text-slate-600"
+                          >
+                            {ticket.id}
+                          </Link>
                         </td>
                         <td className="px-6 py-5 text-sm text-slate-600">
                           {ticket.machine_reference ?? "-"}
                         </td>
                         <td className="px-6 py-5 text-sm leading-7 text-slate-600">
-                          {ticket.request_summary ?? "-"}
+                          {ticket.request_summary ?? ticket.request_details ?? "-"}
                         </td>
                         <td className="px-6 py-5">
                           <StatusBadge status={ticket.status ?? "PENDING"} />
@@ -238,7 +233,12 @@ export default function RequestsPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">
-                          {ticket.id}
+                          <Link
+                            href={`/tickets/${ticket.id}`}
+                            className="transition hover:text-slate-600"
+                          >
+                            {ticket.id}
+                          </Link>
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
                           {ticket.machine_reference ?? "-"}
@@ -247,7 +247,7 @@ export default function RequestsPage() {
                       <StatusBadge status={ticket.status ?? "PENDING"} />
                     </div>
                     <p className="mt-4 text-sm leading-7 text-slate-600">
-                      {ticket.request_summary ?? "-"}
+                      {ticket.request_summary ?? ticket.request_details ?? "-"}
                     </p>
                     <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
                       Updated {formatDate(ticket.updated_at)}
@@ -257,22 +257,10 @@ export default function RequestsPage() {
               )}
             </div>
           </div>
-        </section>
+          </section>
+        </AuthGuard>
       </div>
     </main>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-semibold tracking-[0.14em] ${
-        statusTones[status] ?? "border-slate-200 bg-slate-100 text-slate-800"
-      }`}
-    >
-      <span className={`h-2.5 w-2.5 rounded-full ${statusDots[status] ?? "bg-slate-500"}`} />
-      {status}
-    </span>
   );
 }
 

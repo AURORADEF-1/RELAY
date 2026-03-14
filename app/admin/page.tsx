@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { AuthGuard } from "@/components/auth-guard";
 import { LogoutButton } from "@/components/logout-button";
+import { StatusBadge } from "@/components/status-badge";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const statuses = ["ALL", "PENDING", "QUERY", "ORDERED", "READY", "COMPLETED"] as const;
@@ -12,31 +14,22 @@ type TicketStatus = Exclude<Status, "ALL">;
 type Ticket = {
   id: string;
   requester_name: string | null;
+  department: string | null;
   machine_reference: string | null;
+  job_number: string | null;
   request_summary: string | null;
+  request_details: string | null;
   status: TicketStatus | null;
   assigned_to: string | null;
-};
-
-const statusTones: Record<TicketStatus, string> = {
-  PENDING: "border-amber-200 bg-amber-50 text-amber-900",
-  QUERY: "border-orange-200 bg-orange-50 text-orange-900",
-  ORDERED: "border-sky-200 bg-sky-50 text-sky-900",
-  READY: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  COMPLETED: "border-slate-200 bg-slate-100 text-slate-800",
-};
-
-const statusDots: Record<TicketStatus, string> = {
-  PENDING: "bg-amber-500",
-  QUERY: "bg-orange-500",
-  ORDERED: "bg-sky-500",
-  READY: "bg-emerald-500",
-  COMPLETED: "bg-slate-500",
+  notes: string | null;
 };
 
 export default function AdminPage() {
   const [statusFilter, setStatusFilter] = useState<Status>("ALL");
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, { assigned_to: string; notes: string }>>(
+    {},
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
@@ -60,7 +53,7 @@ export default function AdminPage() {
       const { data, error } = await supabase
         .from("tickets")
         .select(
-          "id, requester_name, machine_reference, request_summary, status, assigned_to",
+          "id, requester_name, department, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes",
         )
         .order("updated_at", { ascending: false });
 
@@ -75,7 +68,19 @@ export default function AdminPage() {
         return;
       }
 
-      setTickets((data ?? []) as Ticket[]);
+      const nextTickets = (data ?? []) as Ticket[];
+      setTickets(nextTickets);
+      setDrafts(
+        Object.fromEntries(
+          nextTickets.map((ticket) => [
+            ticket.id,
+            {
+              assigned_to: ticket.assigned_to ?? "",
+              notes: ticket.notes ?? "",
+            },
+          ]),
+        ),
+      );
       setIsLoading(false);
     }
 
@@ -141,6 +146,59 @@ export default function AdminPage() {
     setUpdatingTicketId(null);
   }
 
+  async function handleTicketSave(ticketId: string) {
+    const supabase = getSupabaseClient();
+    const draft = drafts[ticketId];
+
+    if (!supabase || !draft) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setUpdatingTicketId(ticketId);
+    setErrorMessage("");
+
+    const { error: updateError } = await supabase
+      .from("tickets")
+      .update({
+        assigned_to: draft.assigned_to || null,
+        notes: draft.notes || null,
+      })
+      .eq("id", ticketId);
+
+    if (updateError) {
+      setErrorMessage(updateError.message);
+      setUpdatingTicketId(null);
+      return;
+    }
+
+    if (draft.notes.trim()) {
+      const { error: insertError } = await supabase.from("ticket_updates").insert({
+        ticket_id: ticketId,
+        comment: draft.notes.trim(),
+      });
+
+      if (insertError) {
+        setErrorMessage(insertError.message);
+        setUpdatingTicketId(null);
+        return;
+      }
+    }
+
+    setTickets((current) =>
+      current.map((ticket) =>
+        ticket.id === ticketId
+          ? {
+              ...ticket,
+              assigned_to: draft.assigned_to || null,
+              notes: draft.notes || null,
+            }
+          : ticket,
+      ),
+    );
+    setUpdatingTicketId(null);
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900 sm:py-12">
       <div className="mx-auto max-w-7xl space-y-8">
@@ -171,7 +229,8 @@ export default function AdminPage() {
           <LogoutButton />
         </nav>
 
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.25)] sm:p-10">
+        <AuthGuard>
+          <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.25)] sm:p-10">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl space-y-5">
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
@@ -237,14 +296,15 @@ export default function AdminPage() {
                     <th className="px-6 py-4">Request Summary</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4">Assigned To</th>
-                    <th className="px-6 py-4">Update Status</th>
+                    <th className="px-6 py-4">Notes</th>
+                    <th className="px-6 py-4">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
                   {isLoading ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         className="px-6 py-10 text-center text-sm text-slate-500"
                       >
                         Loading tickets...
@@ -253,7 +313,7 @@ export default function AdminPage() {
                   ) : filteredTickets.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         className="px-6 py-10 text-center text-sm text-slate-500"
                       >
                         No tickets match the current status filter.
@@ -263,30 +323,84 @@ export default function AdminPage() {
                     filteredTickets.map((ticket) => (
                       <tr key={ticket.id} className="align-top">
                         <td className="px-6 py-5 text-sm font-semibold text-slate-900">
-                          {ticket.id}
+                          <Link
+                            href={`/tickets/${ticket.id}`}
+                            className="transition hover:text-slate-600"
+                          >
+                            {ticket.id}
+                          </Link>
                         </td>
                         <td className="px-6 py-5 text-sm text-slate-600">
-                          {ticket.requester_name ?? "-"}
+                          <div className="space-y-1">
+                            <p>{ticket.requester_name ?? "-"}</p>
+                            <p className="text-xs text-slate-500">
+                              {ticket.department ?? "-"}
+                            </p>
+                          </div>
                         </td>
                         <td className="px-6 py-5 text-sm text-slate-600">
-                          {ticket.machine_reference ?? "-"}
+                          <div className="space-y-1">
+                            <p>{ticket.machine_reference ?? "-"}</p>
+                            <p className="text-xs text-slate-500">
+                              Job {ticket.job_number ?? "-"}
+                            </p>
+                          </div>
                         </td>
                         <td className="px-6 py-5 text-sm leading-7 text-slate-600">
-                          {ticket.request_summary ?? "-"}
+                          {ticket.request_summary ?? ticket.request_details ?? "-"}
                         </td>
                         <td className="px-6 py-5">
                           <StatusBadge status={ticket.status ?? "PENDING"} />
                         </td>
-                        <td className="px-6 py-5 text-sm text-slate-600">
-                          {ticket.assigned_to ?? "-"}
+                        <td className="px-6 py-5">
+                          <input
+                            type="text"
+                            value={drafts[ticket.id]?.assigned_to ?? ""}
+                            onChange={(event) =>
+                              setDrafts((current) => ({
+                                ...current,
+                                [ticket.id]: {
+                                  assigned_to: event.target.value,
+                                  notes: current[ticket.id]?.notes ?? "",
+                                },
+                              }))
+                            }
+                            className="w-40 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                          />
                         </td>
                         <td className="px-6 py-5">
+                          <textarea
+                            rows={3}
+                            value={drafts[ticket.id]?.notes ?? ""}
+                            onChange={(event) =>
+                              setDrafts((current) => ({
+                                ...current,
+                                [ticket.id]: {
+                                  assigned_to: current[ticket.id]?.assigned_to ?? "",
+                                  notes: event.target.value,
+                                },
+                              }))
+                            }
+                            className="w-56 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                          />
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="space-y-3">
                           <StatusSelect
                             ticketId={ticket.id}
                             value={ticket.status ?? "PENDING"}
                             onChange={handleStatusChange}
                             disabled={updatingTicketId === ticket.id}
                           />
+                            <button
+                              type="button"
+                              onClick={() => handleTicketSave(ticket.id)}
+                              disabled={updatingTicketId === ticket.id}
+                              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Save
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -313,7 +427,12 @@ export default function AdminPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">
-                          {ticket.id}
+                          <Link
+                            href={`/tickets/${ticket.id}`}
+                            className="transition hover:text-slate-600"
+                          >
+                            {ticket.id}
+                          </Link>
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
                           {ticket.requester_name ?? "-"}
@@ -335,8 +454,21 @@ export default function AdminPage() {
                         <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                           Assigned To
                         </dt>
-                        <dd className="mt-1 text-sm text-slate-700">
-                          {ticket.assigned_to ?? "-"}
+                        <dd className="mt-2">
+                          <input
+                            type="text"
+                            value={drafts[ticket.id]?.assigned_to ?? ""}
+                            onChange={(event) =>
+                              setDrafts((current) => ({
+                                ...current,
+                                [ticket.id]: {
+                                  assigned_to: event.target.value,
+                                  notes: current[ticket.id]?.notes ?? "",
+                                },
+                              }))
+                            }
+                            className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                          />
                         </dd>
                       </div>
                     </dl>
@@ -346,21 +478,49 @@ export default function AdminPage() {
                         Request Summary
                       </p>
                       <p className="mt-1 text-sm leading-7 text-slate-600">
-                        {ticket.request_summary ?? "-"}
+                        {ticket.request_summary ?? ticket.request_details ?? "-"}
                       </p>
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Notes
+                      </p>
+                      <textarea
+                        rows={4}
+                        value={drafts[ticket.id]?.notes ?? ""}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [ticket.id]: {
+                              assigned_to: current[ticket.id]?.assigned_to ?? "",
+                              notes: event.target.value,
+                            },
+                          }))
+                        }
+                        className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                      />
                     </div>
 
                     <div className="mt-4">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Update Status
                       </p>
-                      <div className="mt-2 max-w-xs">
+                      <div className="mt-2 space-y-3">
                         <StatusSelect
                           ticketId={ticket.id}
                           value={ticket.status ?? "PENDING"}
                           onChange={handleStatusChange}
                           disabled={updatingTicketId === ticket.id}
                         />
+                        <button
+                          type="button"
+                          onClick={() => handleTicketSave(ticket.id)}
+                          disabled={updatingTicketId === ticket.id}
+                          className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Save Ticket
+                        </button>
                       </div>
                     </div>
                   </article>
@@ -368,22 +528,10 @@ export default function AdminPage() {
               )}
             </div>
           </div>
-        </section>
+          </section>
+        </AuthGuard>
       </div>
     </main>
-  );
-}
-
-function StatusBadge({ status }: { status: TicketStatus }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-semibold tracking-[0.14em] ${
-        statusTones[status]
-      }`}
-    >
-      <span className={`h-2.5 w-2.5 rounded-full ${statusDots[status]}`} />
-      {status}
-    </span>
   );
 }
 
