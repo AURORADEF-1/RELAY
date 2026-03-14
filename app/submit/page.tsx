@@ -190,21 +190,39 @@ export default function SubmitPage() {
                 RELAY
               </p>
               <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
-                Ticket Submission
+                Parts Request
               </h1>
               <p className="text-base leading-8 text-slate-600">
-                Submit an MLP parts request with the basic information needed to
-                start triage. New requests will default to{" "}
-                <span className="font-semibold text-amber-700">PENDING</span>{" "}
-                when backend handling is connected.
+                Use this form to request parts from Stores. Provide accurate
+                information so the request can be processed quickly.
               </p>
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
                 <p className="text-sm font-semibold text-slate-700">
-                  Submission notes
+                  How to Submit a Request
                 </p>
                 <p className="mt-2 text-sm leading-7 text-slate-500">
-                  Tickets are created in Supabase and start in the PENDING
-                  status flow.
+                  Before submitting a request include:
+                  <br />
+                  <br />
+                  • Your name
+                  <br />
+                  • Department or job location
+                  <br />
+                  • Machine reference (plant number or model)
+                  <br />
+                  • Job number
+                  <br />
+                  • Clear description of the parts required
+                  <br />
+                  <br />
+                  Incomplete requests may delay processing.
+                  <br />
+                  <br />
+                  All requests are logged in RELAY and assigned a status by
+                  Stores.
+                </p>
+                <p className="mt-4 text-sm font-semibold leading-7 text-amber-800">
+                  ⚠️ No Job Number = No Parts Issued
                 </p>
               </div>
             </div>
