@@ -31,6 +31,8 @@ import {
 } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
+const ADMIN_CHAT_READ_STORAGE_KEY = "relay-admin-chat-last-opened";
+
 type Ticket = {
   id: string;
   requester_name: string | null;
@@ -57,6 +59,13 @@ export default function AdminPage() {
   const [selectedChatTicketId, setSelectedChatTicketId] = useState<string | null>(null);
   const [chatAttachments, setChatAttachments] = useState<TicketAttachmentRecord[]>([]);
   const [chatMessages, setChatMessages] = useState<TicketMessageRecord[]>([]);
+  const [requesterMessagesByTicket, setRequesterMessagesByTicket] = useState<
+    Record<string, TicketMessageRecord[]>
+  >({});
+  const [readRequesterMessageByTicket, setReadRequesterMessageByTicket] = useState<
+    Record<string, string>
+  >({});
+  const [isChatCollapsed, setIsChatCollapsed] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -68,6 +77,20 @@ export default function AdminPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const storedState = window.sessionStorage.getItem(ADMIN_CHAT_READ_STORAGE_KEY);
+
+    if (!storedState) {
+      return;
+    }
+
+    try {
+      setReadRequesterMessageByTicket(JSON.parse(storedState) as Record<string, string>);
+    } catch {
+      window.sessionStorage.removeItem(ADMIN_CHAT_READ_STORAGE_KEY);
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -210,6 +233,84 @@ export default function AdminPage() {
     tickets.find((ticket) => ticket.id === selectedChatTicketId) ??
     filteredTickets[0] ??
     null;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadRequesterMessages() {
+      const ticketIds = tickets.map((ticket) => ticket.id);
+
+      if (ticketIds.length === 0) {
+        setRequesterMessagesByTicket({});
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+
+      if (!supabase) {
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("ticket_messages")
+        .select(
+          "id, ticket_id, sender_user_id, sender_role, message_text, attachment_url, attachment_type, is_ai_message, created_at",
+        )
+        .in("ticket_id", ticketIds)
+        .eq("sender_role", "requester")
+        .order("created_at", { ascending: false });
+
+      if (!isMounted || error) {
+        return;
+      }
+
+      const grouped = ((data ?? []) as TicketMessageRecord[]).reduce<
+        Record<string, TicketMessageRecord[]>
+      >((accumulator, message) => {
+        accumulator[message.ticket_id] = [...(accumulator[message.ticket_id] ?? []), message];
+        return accumulator;
+      }, {});
+
+      setRequesterMessagesByTicket(grouped);
+    }
+
+    loadRequesterMessages();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [tickets]);
+
+  useEffect(() => {
+    if (isChatCollapsed || !selectedChatTicket?.id) {
+      return;
+    }
+
+    const latestRequesterMessage =
+      requesterMessagesByTicket[selectedChatTicket.id]?.[0]?.created_at;
+
+    if (!latestRequesterMessage) {
+      return;
+    }
+
+    setReadRequesterMessageByTicket((current) => {
+      if (current[selectedChatTicket.id] === latestRequesterMessage) {
+        return current;
+      }
+
+      const nextState = {
+        ...current,
+        [selectedChatTicket.id]: latestRequesterMessage,
+      };
+
+      window.sessionStorage.setItem(
+        ADMIN_CHAT_READ_STORAGE_KEY,
+        JSON.stringify(nextState),
+      );
+
+      return nextState;
+    });
+  }, [isChatCollapsed, selectedChatTicket?.id, requesterMessagesByTicket]);
 
   useEffect(() => {
     let isMounted = true;
@@ -376,6 +477,76 @@ export default function AdminPage() {
     setChatMessages(messages);
   }
 
+  function markTicketChatRead(ticketId: string) {
+    const latestRequesterMessage = requesterMessagesByTicket[ticketId]?.[0]?.created_at;
+
+    if (!latestRequesterMessage) {
+      return;
+    }
+
+    setReadRequesterMessageByTicket((current) => {
+      const nextState = {
+        ...current,
+        [ticketId]: latestRequesterMessage,
+      };
+
+      window.sessionStorage.setItem(
+        ADMIN_CHAT_READ_STORAGE_KEY,
+        JSON.stringify(nextState),
+      );
+
+      return nextState;
+    });
+  }
+
+  const unreadRequesterCountsByTicket = useMemo(
+    () =>
+      Object.fromEntries(
+        tickets.map((ticket) => {
+          const requesterMessages = requesterMessagesByTicket[ticket.id] ?? [];
+          const lastReadAt = readRequesterMessageByTicket[ticket.id];
+
+          if (!lastReadAt) {
+            return [ticket.id, requesterMessages.length];
+          }
+
+          const lastReadTime = new Date(lastReadAt).getTime();
+          const unreadCount = requesterMessages.filter((message) => {
+            if (!message.created_at) {
+              return false;
+            }
+
+            return new Date(message.created_at).getTime() > lastReadTime;
+          }).length;
+
+          return [ticket.id, unreadCount];
+        }),
+      ) as Record<string, number>,
+    [tickets, requesterMessagesByTicket, readRequesterMessageByTicket],
+  );
+
+  const chatTickets = useMemo(() => {
+    return [...filteredTickets].sort((left, right) => {
+      const unreadDifference =
+        (unreadRequesterCountsByTicket[right.id] ?? 0) -
+        (unreadRequesterCountsByTicket[left.id] ?? 0);
+
+      if (unreadDifference !== 0) {
+        return unreadDifference;
+      }
+
+      return (
+        new Date(right.updated_at ?? 0).getTime() -
+        new Date(left.updated_at ?? 0).getTime()
+      );
+    });
+  }, [filteredTickets, unreadRequesterCountsByTicket]);
+
+  const totalUnreadChatCount = useMemo(
+    () => Object.values(unreadRequesterCountsByTicket).reduce((sum, count) => sum + count, 0),
+    [unreadRequesterCountsByTicket],
+  );
+
   async function handleSendChatMessage(payload: { messageText: string; files: File[] }) {
     if (!selectedChatTicket) {
       return false;
@@ -510,6 +681,12 @@ export default function AdminPage() {
     }
   }
 
+  function handleSelectChatTicket(ticketId: string) {
+    setSelectedChatTicketId(ticketId);
+    setIsChatCollapsed(false);
+    markTicketChatRead(ticketId);
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-7xl space-y-8">
@@ -573,22 +750,45 @@ export default function AdminPage() {
                     </option>
                   ))}
                 </select>
+                {statusFilter !== "ALL" ? (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("ALL")}
+                    className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    Show All
+                  </button>
+                ) : null}
               </div>
             </div>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
               {ticketStatuses.map((status) => (
-                <div
+                <button
                   key={status}
-                  className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-4 py-3"
+                  type="button"
+                  onClick={() => setStatusFilter(status)}
+                  className={`rounded-2xl border px-4 py-3 text-left transition ${
+                    statusFilter === status
+                      ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.65)]"
+                      : "border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] hover:border-slate-400 hover:bg-white"
+                  }`}
                 >
-                  <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-500">
+                  <p
+                    className={`text-[11px] font-semibold tracking-[0.18em] ${
+                      statusFilter === status ? "text-slate-300" : "text-slate-500"
+                    }`}
+                  >
                     {status}
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">
+                  <p
+                    className={`mt-1 text-2xl font-semibold ${
+                      statusFilter === status ? "text-white" : "text-slate-900"
+                    }`}
+                  >
                     {tickets.filter((ticket) => ticket.status === status).length}
                   </p>
-                </div>
+                </button>
               ))}
             </div>
 
@@ -728,62 +928,111 @@ export default function AdminPage() {
                     Ticket Chats
                   </p>
                   <p className="text-sm leading-6 text-slate-500">
-                    Operator overview of request-linked support threads. Select a
-                    ticket to open the conversation context.
+                    Request-linked support threads with unread requester message
+                    tracking for the parts team.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  {filteredTickets.slice(0, 6).map((ticket) => (
-                    <button
-                      key={ticket.id}
-                      type="button"
-                      onClick={() => setSelectedChatTicketId(ticket.id)}
-                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                        selectedChatTicket?.id === ticket.id
-                          ? "bg-slate-950 text-white"
-                          : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                      }`}
-                    >
-                      {ticket.id}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+                    Unread Requester Messages
+                    <NotificationBadge count={totalUnreadChatCount} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsChatCollapsed((current) => !current)}
+                    className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    {isChatCollapsed ? "Open Ticket Chats" : "Minimise Ticket Chats"}
+                  </button>
                 </div>
               </div>
 
-              {selectedChatTicket ? (
-                <div className="mt-6">
-                  <TicketChatPanel
-                    mode="operator"
-                    ticketId={selectedChatTicket.id}
-                    ticketLabel={selectedChatTicket.job_number}
-                    ticketStatus={selectedChatTicket.status ?? "PENDING"}
-                    latestUpdate={
-                      selectedChatTicket.notes ||
-                      selectedChatTicket.request_summary ||
-                      "Awaiting Stores update."
-                    }
-                  assignedTo={selectedChatTicket.assigned_to}
-                  messages={mapMessagesToChat(
-                    chatMessages,
-                    selectedChatTicket,
-                    chatAttachments,
-                  )}
-                  isSending={isChatSending}
-                  isAiLoading={isAiLoading}
-                  notice={chatNotice}
-                  onSendMessage={handleSendChatMessage}
-                  onAskAi={handleAskAi}
-                />
-                  {isChatLoading ? (
-                    <p className="mt-3 text-sm text-slate-500">
-                      Loading chat thread...
-                    </p>
-                  ) : null}
-                </div>
+              {isChatCollapsed ? (
+                <button
+                  type="button"
+                  onClick={() => setIsChatCollapsed(false)}
+                  className="mt-6 w-full rounded-3xl border border-slate-200 bg-white p-5 text-left transition hover:border-slate-300 hover:shadow-[0_18px_45px_-35px_rgba(15,23,42,0.45)]"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {totalUnreadChatCount > 0
+                          ? `${totalUnreadChatCount} unread requester message${totalUnreadChatCount === 1 ? "" : "s"}`
+                          : "No unread requester messages"}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">
+                        Open the panel to review ticket-linked conversations,
+                        respond to submitters, and clear unread items.
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[25rem]">
+                      {chatTickets.slice(0, 2).map((ticket) => (
+                        <ChatTicketSelectorCard
+                          key={ticket.id}
+                          ticket={ticket}
+                          unreadCount={unreadRequesterCountsByTicket[ticket.id] ?? 0}
+                          isActive={false}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </button>
               ) : (
-                <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
-                  Select a ticket to preview its chat thread.
-                </div>
+                <>
+                  <div className="mt-6 grid gap-3 lg:grid-cols-3">
+                    {chatTickets.slice(0, 6).map((ticket) => (
+                      <button
+                        key={ticket.id}
+                        type="button"
+                        onClick={() => handleSelectChatTicket(ticket.id)}
+                        className="text-left"
+                      >
+                        <ChatTicketSelectorCard
+                          ticket={ticket}
+                          unreadCount={unreadRequesterCountsByTicket[ticket.id] ?? 0}
+                          isActive={selectedChatTicket?.id === ticket.id}
+                        />
+                      </button>
+                    ))}
+                  </div>
+
+                  {selectedChatTicket ? (
+                    <div className="mt-6">
+                      <TicketChatPanel
+                        mode="operator"
+                        ticketId={selectedChatTicket.id}
+                        ticketLabel={selectedChatTicket.job_number}
+                        ticketStatus={selectedChatTicket.status ?? "PENDING"}
+                        latestUpdate={
+                          selectedChatTicket.notes ||
+                          selectedChatTicket.request_summary ||
+                          "Awaiting Stores update."
+                        }
+                        assignedTo={selectedChatTicket.assigned_to}
+                        messages={mapMessagesToChat(
+                          chatMessages,
+                          selectedChatTicket,
+                          chatAttachments,
+                        )}
+                        isSending={isChatSending}
+                        isAiLoading={isAiLoading}
+                        notice={chatNotice}
+                        onSendMessage={handleSendChatMessage}
+                        onAskAi={handleAskAi}
+                      />
+                      {isChatLoading ? (
+                        <p className="mt-3 text-sm text-slate-500">
+                          Loading chat thread...
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
+                      Select a ticket to preview its chat thread.
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -1061,6 +1310,67 @@ function mapMessagesToChat(
   });
 }
 
+function ChatTicketSelectorCard({
+  ticket,
+  unreadCount,
+  isActive,
+  compact = false,
+}: {
+  ticket: Ticket;
+  unreadCount: number;
+  isActive: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <article
+      className={`rounded-2xl border p-4 transition ${
+        isActive
+          ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.65)]"
+          : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-[0_18px_40px_-36px_rgba(15,23,42,0.45)]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p
+            className={`text-sm font-semibold ${
+              isActive ? "text-white" : "text-slate-900"
+            }`}
+          >
+            Job {ticket.job_number ?? "Not set"}
+          </p>
+          <p
+            className={`mt-1 text-sm ${
+              isActive ? "text-slate-300" : "text-slate-500"
+            }`}
+          >
+            {ticket.requester_name ?? "Requester"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 ? <NotificationBadge count={unreadCount} /> : null}
+          <StatusBadge status={ticket.status ?? "PENDING"} />
+        </div>
+      </div>
+      <p
+        className={`mt-3 text-sm leading-6 ${
+          isActive ? "text-slate-200" : "text-slate-600"
+        }`}
+      >
+        {truncateSummary(ticket.request_summary ?? ticket.request_details ?? "No request summary.")}
+      </p>
+      {!compact ? (
+        <p
+          className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+            isActive ? "text-slate-400" : "text-slate-400"
+          }`}
+        >
+          {ticket.machine_reference ?? "No machine ref"}
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
 function resolveSenderName(message: TicketMessageRecord, ticket: Ticket) {
   if (message.is_ai_message || message.sender_role === "ai") {
     return "RELAY Assistant";
@@ -1178,4 +1488,8 @@ function formatHoursValue(value: number | null) {
   }
 
   return `${(value / 24).toFixed(1)}d`;
+}
+
+function truncateSummary(value: string) {
+  return value.length > 88 ? `${value.slice(0, 85)}...` : value;
 }
