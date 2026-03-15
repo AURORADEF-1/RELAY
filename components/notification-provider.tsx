@@ -10,6 +10,8 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import type {
+  AuthChangeEvent,
+  Session,
   RealtimeChannel,
   RealtimePostgresInsertPayload,
   RealtimePostgresUpdatePayload,
@@ -22,12 +24,14 @@ type NotificationContextValue = {
   requesterUnreadCount: number;
   adminBadgeCount: number;
   isAdmin: boolean;
+  isAuthenticated: boolean;
 };
 
 const NotificationContext = createContext<NotificationContextValue>({
   requesterUnreadCount: 0,
   adminBadgeCount: 0,
   isAdmin: false,
+  isAuthenticated: false,
 });
 
 const REQUESTER_UNREAD_KEY = "relay-requester-unread-count";
@@ -48,6 +52,7 @@ export function NotificationProvider({
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [pendingTicketCount, setPendingTicketCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     pathnameRef.current = pathname;
@@ -104,17 +109,48 @@ export function NotificationProvider({
 
     let isMounted = true;
     let activeChannel: RealtimeChannel | null = null;
+    let authUnsubscribe: (() => void) | null = null;
+
+    async function clearNotificationState() {
+      requesterTicketIdsRef.current = new Set();
+      setIsAdmin(false);
+      setIsAuthenticated(false);
+      setPendingTicketCount(0);
+      setRequesterUnreadCount(0);
+      setAdminUnreadCount(0);
+
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(REQUESTER_UNREAD_KEY);
+        window.sessionStorage.removeItem(ADMIN_UNREAD_KEY);
+      }
+
+      if (activeChannel) {
+        await supabaseClient.removeChannel(activeChannel);
+        activeChannel = null;
+      }
+    }
 
     async function setupNotifications() {
       try {
+        if (activeChannel) {
+          await supabaseClient.removeChannel(activeChannel);
+          activeChannel = null;
+        }
+
         const { user, role } = await getCurrentUserWithRole(supabaseClient);
 
-        if (!isMounted || !user) {
+        if (!isMounted) {
+          return;
+        }
+
+        if (!user) {
+          await clearNotificationState();
           return;
         }
 
         const adminUser = role === "admin";
         setIsAdmin(adminUser);
+        setIsAuthenticated(true);
 
         if (adminUser) {
           await refreshPendingTicketCount(supabaseClient, setPendingTicketCount);
@@ -281,8 +317,27 @@ export function NotificationProvider({
 
     setupNotifications();
 
+    const {
+      data: { subscription },
+    } = supabaseClient.auth.onAuthStateChange(
+      (_event: AuthChangeEvent, session: Session | null) => {
+        if (!isMounted) {
+          return;
+        }
+
+        if (!session) {
+          void clearNotificationState();
+          return;
+        }
+
+        void setupNotifications();
+      },
+    );
+    authUnsubscribe = () => subscription.unsubscribe();
+
     return () => {
       isMounted = false;
+      authUnsubscribe?.();
       if (activeChannel) {
         void supabaseClient.removeChannel(activeChannel);
       }
@@ -294,8 +349,9 @@ export function NotificationProvider({
       requesterUnreadCount,
       adminBadgeCount: adminUnreadCount > 0 ? adminUnreadCount : pendingTicketCount,
       isAdmin,
+      isAuthenticated,
     }),
-    [adminUnreadCount, isAdmin, pendingTicketCount, requesterUnreadCount],
+    [adminUnreadCount, isAdmin, isAuthenticated, pendingTicketCount, requesterUnreadCount],
   );
 
   function isRequesterNotificationPage(ticketId?: string) {
