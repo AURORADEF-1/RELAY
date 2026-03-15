@@ -164,19 +164,23 @@ export default function Home() {
                 Login
               </Link>
             ) : null}
-            <Link
-              href="/submit"
-              className="rounded-full px-4 py-2 transition hover:bg-slate-100"
-            >
-              Submit Ticket
-            </Link>
-            <Link
-              href="/requests"
-              className="rounded-full px-4 py-2 transition hover:bg-slate-100"
-            >
-              My Requests
-              <NotificationBadge count={requesterUnreadCount} />
-            </Link>
+            {isLoggedIn ? (
+              <>
+                <Link
+                  href="/submit"
+                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+                >
+                  Submit Ticket
+                </Link>
+                <Link
+                  href="/requests"
+                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+                >
+                  My Requests
+                  <NotificationBadge count={requesterUnreadCount} />
+                </Link>
+              </>
+            ) : null}
             {isAdmin ? (
               <>
                 <Link
@@ -192,9 +196,15 @@ export default function Home() {
                   Admin Dashboard
                   <NotificationBadge count={adminBadgeCount} />
                 </Link>
+                <Link
+                  href="/completed"
+                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+                >
+                  Completed Jobs
+                </Link>
               </>
             ) : null}
-            <LogoutButton />
+            {isLoggedIn ? <LogoutButton /> : null}
           </div>
         </nav>
 
@@ -223,19 +233,30 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                  <Link
-                    href="/submit"
-                    className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
-                  >
-                    Submit Ticket
-                  </Link>
-                  <Link
-                    href="/requests"
-                    className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                  >
-                    View My Requests
-                    <NotificationBadge count={requesterUnreadCount} />
-                  </Link>
+                  {isLoggedIn ? (
+                    <>
+                      <Link
+                        href="/submit"
+                        className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        Submit Ticket
+                      </Link>
+                      <Link
+                        href="/requests"
+                        className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                      >
+                        View My Requests
+                        <NotificationBadge count={requesterUnreadCount} />
+                      </Link>
+                    </>
+                  ) : (
+                    <Link
+                      href="/login"
+                      className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Login
+                    </Link>
+                  )}
                   {isAdmin ? (
                     <>
                       <Link
@@ -250,6 +271,12 @@ export default function Home() {
                       >
                         Admin Dashboard
                         <NotificationBadge count={adminBadgeCount} />
+                      </Link>
+                      <Link
+                        href="/completed"
+                        className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                      >
+                        Completed Jobs
                       </Link>
                     </>
                   ) : null}
@@ -376,6 +403,8 @@ function getStatusTone(status: string) {
       return "border-violet-200 bg-violet-50 text-violet-900";
     case "QUOTE":
       return "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900";
+    case "IN_PROGRESS":
+      return "border-blue-200 bg-blue-50 text-blue-900";
     case "ORDERED":
       return "border-sky-200 bg-sky-50 text-sky-900";
     case "READY":

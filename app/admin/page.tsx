@@ -24,15 +24,16 @@ import {
 import type { RelayAiContext } from "@/lib/relay-ai";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import {
-  ticketStatusOptions,
-  ticketStatuses,
+  activeTicketStatusOptions,
+  activeTicketStatuses,
+  type ActiveTicketStatusFilter,
   type TicketStatus,
-  type TicketStatusFilter,
 } from "@/lib/statuses";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const ADMIN_CHAT_READ_STORAGE_KEY = "relay-admin-chat-last-opened";
+const ADMIN_DASHBOARD_VIEW_STORAGE_KEY = "relay-admin-dashboard-view-mode";
 
 type Ticket = {
   id: string;
@@ -52,7 +53,15 @@ type Ticket = {
 export default function AdminPage() {
   const router = useRouter();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
-  const [statusFilter, setStatusFilter] = useState<TicketStatusFilter>("ALL");
+  const [statusFilter, setStatusFilter] = useState<ActiveTicketStatusFilter>("ALL");
+  const [viewMode, setViewMode] = useState<"table" | "compact">(() => {
+    if (typeof window === "undefined") {
+      return "table";
+    }
+
+    const saved = window.sessionStorage.getItem(ADMIN_DASHBOARD_VIEW_STORAGE_KEY);
+    return saved === "compact" ? "compact" : "table";
+  });
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { assigned_to: string; notes: string }>>(
     {},
@@ -132,6 +141,7 @@ export default function AdminPage() {
         .select(
           "id, requester_name, department, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
         )
+        .neq("status", "COMPLETED")
         .order("updated_at", { ascending: false });
 
       if (!isMounted) {
@@ -178,8 +188,7 @@ export default function AdminPage() {
   }, [statusFilter, tickets]);
 
   const dashboardMetrics = useMemo(() => {
-    const activeTickets = tickets.filter((ticket) => ticket.status !== "COMPLETED");
-    const completedTickets = tickets.filter((ticket) => ticket.status === "COMPLETED");
+    const activeTickets = tickets;
     const unassignedCount = activeTickets.filter((ticket) => !ticket.assigned_to?.trim()).length;
 
     const operatorWorkload = Object.entries(
@@ -203,6 +212,10 @@ export default function AdminPage() {
             current.pending += 1;
           }
 
+          if (ticket.status === "IN_PROGRESS" || ticket.status === "ORDERED") {
+            current.pending += 0;
+          }
+
           if (ticket.status === "READY") {
             current.ready += 1;
           }
@@ -216,14 +229,11 @@ export default function AdminPage() {
       .map(([operator, metrics]) => ({ operator, ...metrics }))
       .sort((left, right) => right.total - left.total);
 
-    const averageLeadHours = getAverageLeadHours(completedTickets);
     const longestOpenHours = getLongestOpenHours(activeTickets);
 
     return {
       activeCount: activeTickets.length,
-      completedCount: completedTickets.length,
       unassignedCount,
-      averageLeadHours,
       longestOpenHours,
       operatorWorkload,
     };
@@ -406,10 +416,15 @@ export default function AdminPage() {
     }
 
     setTickets((current) =>
-      current.map((ticket) =>
-        ticket.id === ticketId ? { ...ticket, status: nextStatus } : ticket,
-      ),
+      nextStatus === "COMPLETED"
+        ? current.filter((ticket) => ticket.id !== ticketId)
+        : current.map((ticket) =>
+            ticket.id === ticketId ? { ...ticket, status: nextStatus } : ticket,
+          ),
     );
+    if (selectedChatTicketId === ticketId && nextStatus === "COMPLETED") {
+      setSelectedChatTicketId(null);
+    }
     setUpdatingTicketId(null);
   }
 
@@ -728,6 +743,9 @@ export default function AdminPage() {
             <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
               Workshop Control
             </Link>
+            <Link href="/completed" className="rounded-full px-4 py-2 hover:bg-white">
+              Completed Jobs
+            </Link>
             <LogoutButton />
           </div>
         </nav>
@@ -756,15 +774,30 @@ export default function AdminPage() {
                 <select
                   value={statusFilter}
                   onChange={(event) =>
-                    setStatusFilter(event.target.value as TicketStatusFilter)
+                    setStatusFilter(event.target.value as ActiveTicketStatusFilter)
                   }
                   className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
                 >
-                  {ticketStatusOptions.map((status) => (
+                  {activeTicketStatusOptions.map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>
                   ))}
+                </select>
+                <select
+                  value={viewMode}
+                  onChange={(event) => {
+                    const nextMode = event.target.value as "table" | "compact";
+                    setViewMode(nextMode);
+                    window.sessionStorage.setItem(
+                      ADMIN_DASHBOARD_VIEW_STORAGE_KEY,
+                      nextMode,
+                    );
+                  }}
+                  className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                >
+                  <option value="table">Table View</option>
+                  <option value="compact">Compact Summary</option>
                 </select>
                 {statusFilter !== "ALL" ? (
                   <button
@@ -779,7 +812,7 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
-              {ticketStatuses.map((status) => (
+              {activeTicketStatuses.map((status) => (
                 <button
                   key={status}
                   type="button"
@@ -886,16 +919,6 @@ export default function AdminPage() {
                     helper="Jobs still waiting for operator allocation"
                   />
                   <KpiCard
-                    label="Completed"
-                    value={String(dashboardMetrics.completedCount)}
-                    helper="Archived and admin-visible only"
-                  />
-                  <KpiCard
-                    label="Avg Lead Time"
-                    value={formatHoursValue(dashboardMetrics.averageLeadHours)}
-                    helper="Average created-to-completed duration"
-                  />
-                  <KpiCard
                     label="Longest Open"
                     value={formatHoursValue(dashboardMetrics.longestOpenHours)}
                     helper="Oldest currently active job"
@@ -907,7 +930,7 @@ export default function AdminPage() {
                     Status Distribution
                   </p>
                   <div className="mt-4 space-y-3">
-                    {ticketStatuses.map((status) => {
+                    {activeTicketStatuses.map((status) => {
                       const count = tickets.filter((ticket) => ticket.status === status).length;
                       const width = (count / Math.max(1, tickets.length)) * 100;
 
@@ -1059,7 +1082,8 @@ export default function AdminPage() {
               )}
             </div>
 
-            <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200">
+            {viewMode === "table" ? (
+              <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200">
               <div className="hidden overflow-x-auto xl:block">
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
@@ -1301,7 +1325,101 @@ export default function AdminPage() {
                   ))
                 )}
               </div>
-            </div>
+              </div>
+            ) : (
+              <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {isLoading ? (
+                  <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+                    Loading active jobs...
+                  </div>
+                ) : filteredTickets.length === 0 ? (
+                  <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+                    No active tickets match the current status filter.
+                  </div>
+                ) : (
+                  filteredTickets.map((ticket) => (
+                    <article
+                      key={ticket.id}
+                      className={`rounded-3xl border p-5 shadow-sm ${getCompactStatusCardTone(
+                        ticket.status ?? "PENDING",
+                      )}`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            <Link href={`/tickets/${ticket.id}`} className="transition hover:text-slate-600">
+                              {formatRequestTitle(ticket)}
+                            </Link>
+                          </p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {ticket.requester_name ?? "-"}
+                          </p>
+                        </div>
+                        <StatusBadge status={ticket.status ?? "PENDING"} />
+                      </div>
+                      <p className="mt-4 text-sm leading-7 text-slate-700">
+                        {ticket.request_summary ?? ticket.request_details ?? "-"}
+                      </p>
+                      <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Job Number</dt>
+                          <dd className="mt-1">{ticket.job_number ?? "-"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Machine Ref</dt>
+                          <dd className="mt-1">{ticket.machine_reference ?? "-"}</dd>
+                        </div>
+                      </dl>
+                      <div className="mt-4 grid gap-3">
+                        <input
+                          type="text"
+                          value={drafts[ticket.id]?.assigned_to ?? ""}
+                          onChange={(event) =>
+                            setDrafts((current) => ({
+                              ...current,
+                              [ticket.id]: {
+                                assigned_to: event.target.value,
+                                notes: current[ticket.id]?.notes ?? "",
+                              },
+                            }))
+                          }
+                          placeholder="Assigned user"
+                          className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                        />
+                        <textarea
+                          rows={3}
+                          value={drafts[ticket.id]?.notes ?? ""}
+                          onChange={(event) =>
+                            setDrafts((current) => ({
+                              ...current,
+                              [ticket.id]: {
+                                assigned_to: current[ticket.id]?.assigned_to ?? "",
+                                notes: event.target.value,
+                              },
+                            }))
+                          }
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                        />
+                        <StatusSelect
+                          ticketId={ticket.id}
+                          value={ticket.status ?? "PENDING"}
+                          onChange={handleStatusChange}
+                          disabled={updatingTicketId === ticket.id}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleTicketSave(ticket.id)}
+                          disabled={updatingTicketId === ticket.id}
+                          className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Save Ticket
+                        </button>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            )}
           </section>
         </AuthGuard>
       </div>
@@ -1434,11 +1552,12 @@ function StatusSelect({
       }
       className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {ticketStatuses.map((status) => (
+      {activeTicketStatuses.map((status) => (
         <option key={status} value={status}>
           {status}
         </option>
       ))}
+      <option value="COMPLETED">COMPLETED</option>
     </select>
   );
 }
@@ -1461,18 +1580,6 @@ function KpiCard({
       <p className="mt-2 text-sm leading-6 text-slate-500">{helper}</p>
     </div>
   );
-}
-
-function getAverageLeadHours(tickets: Ticket[]) {
-  const durations = tickets
-    .map((ticket) => getDurationHours(ticket.created_at, ticket.updated_at))
-    .filter((value): value is number => value !== null);
-
-  if (durations.length === 0) {
-    return null;
-  }
-
-  return durations.reduce((sum, value) => sum + value, 0) / durations.length;
 }
 
 function getLongestOpenHours(tickets: Ticket[]) {
@@ -1521,4 +1628,25 @@ function formatRequestTitle(ticket: Ticket) {
   const summary = ticket.request_summary ?? ticket.request_details ?? "No request summary";
   const jobLabel = ticket.job_number ? `Job ${ticket.job_number}` : "Job not set";
   return `${jobLabel} | ${truncateSummary(summary)}`;
+}
+
+function getCompactStatusCardTone(status: TicketStatus) {
+  switch (status) {
+    case "PENDING":
+      return "border-rose-200 bg-rose-50";
+    case "QUERY":
+      return "border-orange-200 bg-orange-50";
+    case "IN_PROGRESS":
+      return "border-blue-200 bg-blue-50";
+    case "ORDERED":
+      return "border-sky-200 bg-sky-50";
+    case "READY":
+      return "border-emerald-200 bg-emerald-50";
+    case "ESTIMATE":
+      return "border-violet-200 bg-violet-50";
+    case "QUOTE":
+      return "border-fuchsia-200 bg-fuchsia-50";
+    default:
+      return "border-slate-200 bg-white";
+  }
 }

@@ -12,9 +12,11 @@ import { triggerActionFeedback } from "@/lib/action-feedback";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
 
+const departmentOptions = ["Onsite", "Yard"] as const;
+
 type FormValues = {
   requesterName: string;
-  department: string;
+  department: (typeof departmentOptions)[number] | "";
   machineReference: string;
   jobNumber: string;
   requestDetails: string;
@@ -47,9 +49,21 @@ export default function SubmitPage() {
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const [locationStatusMessage, setLocationStatusMessage] = useState<{
+    type: "info" | "error" | "success";
+    message: string;
+  } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [queuedPhotos, setQueuedPhotos] = useState<File[]>([]);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationDraft, setLocationDraft] = useState<{
+    lat: number;
+    lng: number;
+    summary: string;
+    confirmed: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (!successMessage) {
@@ -64,7 +78,7 @@ export default function SubmitPage() {
   }, [successMessage]);
 
   function handleChange(
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) {
     const { name, value } = event.target;
     const fieldName = name as keyof FormValues;
@@ -83,6 +97,66 @@ export default function SubmitPage() {
       delete nextErrors[fieldName];
       return nextErrors;
     });
+
+    if (fieldName === "department") {
+      const nextDepartment = value as FormValues["department"];
+
+      if (nextDepartment === "Onsite") {
+        void requestOnsiteLocation();
+      } else {
+        setLocationDraft(null);
+        setLocationStatusMessage(null);
+      }
+    }
+  }
+
+  async function requestOnsiteLocation() {
+    if (!("geolocation" in navigator)) {
+      setLocationStatusMessage({
+        type: "error",
+        message: "Location is unavailable on this device. You can still submit the request manually.",
+      });
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationStatusMessage({
+      type: "info",
+      message: "Requesting current location for onsite submission...",
+    });
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const summary = `Onsite coordinates ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+        setLocationDraft({
+          lat,
+          lng,
+          summary,
+          confirmed: false,
+        });
+        setLocationStatusMessage({
+          type: "info",
+          message: "Location captured. Please confirm before submission.",
+        });
+        setIsLocating(false);
+      },
+      () => {
+        setLocationDraft(null);
+        setLocationStatusMessage({
+          type: "error",
+          message: "Location permission was denied or unavailable. You can still submit without location.",
+        });
+        setIsLocating(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 60000,
+      },
+    );
   }
 
   function validateForm() {
@@ -101,6 +175,9 @@ export default function SubmitPage() {
     event.preventDefault();
     setErrorMessage("");
     setPhotoStatusMessage(null);
+    setLocationStatusMessage((current) =>
+      current?.type === "success" ? current : current,
+    );
 
     const nextErrors = validateForm();
     setErrors(nextErrors);
@@ -187,6 +264,31 @@ export default function SubmitPage() {
         }
       }
 
+      if (values.department === "Onsite" && locationDraft?.confirmed) {
+        const { error: locationError } = await supabase
+          .from("tickets")
+          .update({
+            location_lat: locationDraft.lat,
+            location_lng: locationDraft.lng,
+            location_summary: locationDraft.summary,
+            location_confirmed: true,
+          })
+          .eq("id", ticket.id);
+
+        if (locationError) {
+          setLocationStatusMessage({
+            type: "error",
+            message:
+              "Location was captured but could not be stored because the ticket location fields are not configured yet.",
+          });
+        } else {
+          setLocationStatusMessage({
+            type: "success",
+            message: `Location attached: ${locationDraft.summary}`,
+          });
+        }
+      }
+
       setSuccessMessage(
         `Ticket ${String(ticket.id).slice(0, 8)} submitted successfully. Status is now PENDING.`,
       );
@@ -194,6 +296,7 @@ export default function SubmitPage() {
       setValues(initialValues);
       setErrors({});
       setQueuedPhotos([]);
+      setLocationDraft(null);
     } catch (submitError) {
       setErrorMessage(
         submitError instanceof Error
@@ -236,14 +339,14 @@ export default function SubmitPage() {
                   Admin
                   <NotificationBadge count={adminBadgeCount} />
                 </Link>
+                <Link
+                  href="/completed"
+                  className="rounded-full px-4 py-2 hover:bg-white"
+                >
+                  Completed Jobs
+                </Link>
               </>
             ) : null}
-            <Link
-              href="/login"
-              className="rounded-full px-4 py-2 hover:bg-white"
-            >
-              Login
-            </Link>
             <LogoutButton />
           </div>
         </nav>
@@ -262,34 +365,34 @@ export default function SubmitPage() {
                 Use this form to request parts from Stores. Provide accurate
                 information so the request can be processed quickly.
               </p>
-              <div className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
-                <p className="text-sm font-semibold text-slate-700">
-                  How to Submit a Request
-                </p>
-                <p className="mt-2 text-sm leading-7 text-slate-500">
-                  Before submitting a request include:
-                  <br />
-                  <br />
-                  • Your name
-                  <br />
-                  • Department or job location
-                  <br />
-                  • Machine reference (plant number or model)
-                  <br />
-                  • Job number
-                  <br />
-                  • Clear description of the parts required
-                  <br />
-                  <br />
-                  Incomplete requests may delay processing.
-                  <br />
-                  <br />
-                  All requests are logged in RELAY and assigned a status by
-                  Stores.
-                </p>
-                <p className="mt-4 text-sm font-semibold leading-7 text-amber-800">
-                  ⚠️ No Job Number = No Parts Issued
-                </p>
+              <div className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-4">
+                <button
+                  type="button"
+                  onClick={() => setIsHelpOpen((current) => !current)}
+                  className="flex w-full items-center justify-between gap-4 text-left"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">
+                      How to Submit a Request
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Keep this compact guide nearby while completing the form.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    {isHelpOpen ? "Hide" : "Show"}
+                  </span>
+                </button>
+                {isHelpOpen ? (
+                  <>
+                    <p className="mt-3 text-sm leading-7 text-slate-500">
+                      Before submitting include your name, location, machine reference, job number, and a clear description of the parts required.
+                    </p>
+                    <p className="mt-3 text-sm font-semibold leading-7 text-amber-800">
+                      ⚠️ No Job Number = No Parts Issued
+                    </p>
+                  </>
+                ) : null}
                 <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="text-sm font-semibold text-slate-700">
                     Photo support
@@ -316,12 +419,13 @@ export default function SubmitPage() {
                   error={errors.requesterName}
                   onChange={handleChange}
                 />
-                <FormField
+                <SelectField
                   label="Department"
                   name="department"
                   value={values.department}
                   error={errors.department}
                   onChange={handleChange}
+                  options={departmentOptions}
                 />
                 <FormField
                   label="Machine reference"
@@ -361,6 +465,82 @@ export default function SubmitPage() {
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                   {queuedPhotos.length} image{queuedPhotos.length > 1 ? "s" : ""} queued for this request
                 </p>
+              ) : null}
+
+              {values.department === "Onsite" ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">
+                        Onsite location
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Capture your current location and confirm it before submission.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void requestOnsiteLocation()}
+                      disabled={isLocating}
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isLocating ? "Locating..." : "Refresh Location"}
+                    </button>
+                  </div>
+
+                  {locationStatusMessage ? (
+                    <div
+                      className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                        locationStatusMessage.type === "error"
+                          ? "border border-rose-200 bg-rose-50 text-rose-700"
+                          : locationStatusMessage.type === "success"
+                            ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                            : "border border-slate-200 bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      {locationStatusMessage.message}
+                    </div>
+                  ) : null}
+
+                  {locationDraft ? (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-sm font-semibold text-slate-700">
+                        Detected location
+                      </p>
+                      <p className="mt-2 text-sm text-slate-600">{locationDraft.summary}</p>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLocationDraft((current) =>
+                              current ? { ...current, confirmed: true } : current,
+                            )
+                          }
+                          className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold transition ${
+                            locationDraft.confirmed
+                              ? "bg-emerald-600 text-white"
+                              : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                          }`}
+                        >
+                          {locationDraft.confirmed ? "Location Confirmed" : "Confirm Location"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLocationDraft(null);
+                            setLocationStatusMessage({
+                              type: "info",
+                              message: "Location capture removed. Submission will continue without geotagging.",
+                            });
+                          }}
+                          className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                        >
+                          Ignore Location
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
 
               {errorMessage ? (
@@ -413,7 +593,7 @@ type FormFieldProps = {
   error?: string;
   multiline?: boolean;
   onChange: (
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) => void;
 };
 
@@ -452,6 +632,46 @@ function FormField({
         />
       )}
       {error ? <span className="mt-2 block text-sm text-rose-600">{error}</span> : null}
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  name,
+  value,
+  error,
+  onChange,
+  options,
+}: {
+  label: string;
+  name: keyof FormValues;
+  value: string;
+  error?: string;
+  onChange: (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => void;
+  options: readonly string[];
+}) {
+  return (
+    <label className="block text-sm font-medium text-slate-700">
+      {label}
+      <select
+        name={name}
+        value={value}
+        onChange={onChange}
+        className={`mt-2 w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 ${
+          error ? "border-rose-300" : "border-slate-200"
+        }`}
+      >
+        <option value="">Select {label.toLowerCase()}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+      {error ? <p className="mt-2 text-sm text-rose-600">{error}</p> : null}
     </label>
   );
 }

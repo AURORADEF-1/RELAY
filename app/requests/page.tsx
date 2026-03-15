@@ -8,7 +8,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
-import { ticketStatuses } from "@/lib/statuses";
+import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Ticket = {
@@ -120,14 +120,14 @@ export default function RequestsPage() {
                   Admin
                   <NotificationBadge count={adminBadgeCount} />
                 </Link>
+                <Link
+                  href="/completed"
+                  className="rounded-full px-4 py-2 hover:bg-white"
+                >
+                  Completed Jobs
+                </Link>
               </>
             ) : null}
-            <Link
-              href="/login"
-              className="rounded-full px-4 py-2 hover:bg-white"
-            >
-              Login
-            </Link>
             <LogoutButton />
           </div>
         </nav>
@@ -150,7 +150,7 @@ export default function RequestsPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
-              {ticketStatuses.map((status) => (
+              {activeTicketStatuses.map((status) => (
                 <div
                   key={status}
                   className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-4 py-3 text-center"

@@ -11,10 +11,10 @@ import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import {
-  ticketStatusOptions,
-  ticketStatuses,
+  activeTicketStatusOptions,
+  activeTicketStatuses,
+  type ActiveTicketStatusFilter,
   type TicketStatus,
-  type TicketStatusFilter,
 } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -38,12 +38,16 @@ type TicketDraft = {
   notes: string;
 };
 
+type ViewMode = "table" | "compact";
+
+const CONTROL_VIEW_STORAGE_KEY = "relay-control-view-mode";
+
 export default function ControlPage() {
   const router = useRouter();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
   const [tickets, setTickets] = useState<ControlTicket[]>([]);
   const [drafts, setDrafts] = useState<Record<string, TicketDraft>>({});
-  const [statusFilter, setStatusFilter] = useState<TicketStatusFilter>("ALL");
+  const [statusFilter, setStatusFilter] = useState<ActiveTicketStatusFilter>("ALL");
   const [requesterFilter, setRequesterFilter] = useState("");
   const [machineFilter, setMachineFilter] = useState("");
   const [jobFilter, setJobFilter] = useState("");
@@ -55,6 +59,14 @@ export default function ControlPage() {
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window === "undefined") {
+      return "table";
+    }
+
+    const saved = window.sessionStorage.getItem(CONTROL_VIEW_STORAGE_KEY);
+    return saved === "compact" ? "compact" : "table";
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -94,6 +106,7 @@ export default function ControlPage() {
         .select(
           "id, requester_name, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
         )
+        .neq("status", "COMPLETED")
         .order("updated_at", { ascending: false });
 
       if (!isMounted) {
@@ -233,15 +246,17 @@ export default function ControlPage() {
     }
 
     setTickets((current) =>
-      current.map((currentTicket) =>
-        currentTicket.id === ticket.id
-          ? {
-              ...currentTicket,
-              ...ticketPatch,
-              updated_at: new Date().toISOString(),
-            }
-          : currentTicket,
-      ),
+      draft.status === "COMPLETED"
+        ? current.filter((currentTicket) => currentTicket.id !== ticket.id)
+        : current.map((currentTicket) =>
+            currentTicket.id === ticket.id
+              ? {
+                  ...currentTicket,
+                  ...ticketPatch,
+                  updated_at: new Date().toISOString(),
+                }
+              : currentTicket,
+          ),
     );
 
     setNotice({
@@ -267,10 +282,13 @@ export default function ControlPage() {
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
-            <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
-              Admin
-              <NotificationBadge count={adminBadgeCount} />
-            </Link>
+                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
+                  Admin
+                  <NotificationBadge count={adminBadgeCount} />
+                </Link>
+                <Link href="/completed" className="rounded-full px-4 py-2 hover:bg-white">
+                  Completed Jobs
+                </Link>
             <Link
               href="/control"
               className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800"
@@ -292,12 +310,11 @@ export default function ControlPage() {
                   Request Control Board
                 </h1>
                 <p className="text-base leading-8 text-slate-600">
-                  Date-ordered workshop view of every request with direct status,
-                  user assignment, and comments control.
+                  Date-ordered view of active requests with direct status, user assignment, and comments control.
                 </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 <FilterInput
                   label="Submitter"
                   value={requesterFilter}
@@ -329,22 +346,39 @@ export default function ControlPage() {
                   <select
                     value={statusFilter}
                     onChange={(event) =>
-                      setStatusFilter(event.target.value as TicketStatusFilter)
+                      setStatusFilter(event.target.value as ActiveTicketStatusFilter)
                     }
                     className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
                   >
-                    {ticketStatusOptions.map((status) => (
+                    {activeTicketStatusOptions.map((status) => (
                       <option key={status} value={status}>
                         {status}
                       </option>
                     ))}
                   </select>
                 </label>
+                <label className="space-y-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    View
+                  </span>
+                  <select
+                    value={viewMode}
+                    onChange={(event) => {
+                      const nextMode = event.target.value as ViewMode;
+                      setViewMode(nextMode);
+                      window.sessionStorage.setItem(CONTROL_VIEW_STORAGE_KEY, nextMode);
+                    }}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                  >
+                    <option value="table">Table View</option>
+                    <option value="compact">Compact Summary</option>
+                  </select>
+                </label>
               </div>
             </div>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
-              {ticketStatuses.map((status) => (
+              {activeTicketStatuses.map((status) => (
                 <div
                   key={status}
                   className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-4 py-3"
@@ -377,6 +411,7 @@ export default function ControlPage() {
               </div>
             ) : null}
 
+            {viewMode === "table" ? (
             <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.4)]">
               <div className="max-h-[70vh] overflow-auto">
                 <table className="min-w-[1100px] divide-y divide-slate-200">
@@ -468,11 +503,12 @@ export default function ControlPage() {
                                   }
                                   className="h-10 w-40 rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
                                 >
-                                  {ticketStatuses.map((status) => (
+                                  {activeTicketStatuses.map((status) => (
                                     <option key={status} value={status}>
                                       {status}
                                     </option>
                                   ))}
+                                  <option value="COMPLETED">COMPLETED</option>
                                 </select>
                               </div>
                             </td>
@@ -511,6 +547,118 @@ export default function ControlPage() {
                 </table>
               </div>
             </div>
+            ) : (
+              <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {isLoading ? (
+                  <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+                    Loading active jobs...
+                  </div>
+                ) : filteredTickets.length === 0 ? (
+                  <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+                    No active requests match the current filters.
+                  </div>
+                ) : (
+                  filteredTickets.map((ticket) => {
+                    const draft = drafts[ticket.id] ?? {
+                      status: ticket.status ?? "PENDING",
+                      assigned_to: ticket.assigned_to ?? "",
+                      notes: ticket.notes ?? "",
+                    };
+                    return (
+                      <article
+                        key={ticket.id}
+                        className={`rounded-3xl border p-5 shadow-sm ${getCompactStatusCardTone(
+                          draft.status,
+                        )}`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              <Link href={`/tickets/${ticket.id}`} className="transition hover:text-slate-600">
+                                Job {ticket.job_number ?? "-"}
+                              </Link>
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {ticket.request_summary ?? ticket.request_details ?? "-"}
+                            </p>
+                          </div>
+                          <StatusBadge status={draft.status} />
+                        </div>
+                        <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                          <div>
+                            <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Submitter</dt>
+                            <dd className="mt-1">{ticket.requester_name ?? "-"}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Machine Ref</dt>
+                            <dd className="mt-1">{ticket.machine_reference ?? "-"}</dd>
+                          </div>
+                        </dl>
+                        <div className="mt-4 grid gap-3">
+                          <input
+                            value={draft.assigned_to}
+                            onChange={(event) =>
+                              setDrafts((current) => ({
+                                ...current,
+                                [ticket.id]: {
+                                  ...draft,
+                                  assigned_to: event.target.value,
+                                },
+                              }))
+                            }
+                            placeholder="Assigned user"
+                            className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                          />
+                          <select
+                            value={draft.status}
+                            onChange={(event) =>
+                              setDrafts((current) => ({
+                                ...current,
+                                [ticket.id]: {
+                                  ...draft,
+                                  status: event.target.value as TicketStatus,
+                                },
+                              }))
+                            }
+                            className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                          >
+                            {activeTicketStatuses.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                            <option value="COMPLETED">COMPLETED</option>
+                          </select>
+                          <textarea
+                            value={draft.notes}
+                            onChange={(event) =>
+                              setDrafts((current) => ({
+                                ...current,
+                                [ticket.id]: {
+                                  ...draft,
+                                  notes: event.target.value,
+                                },
+                              }))
+                            }
+                            placeholder="Add comments"
+                            rows={3}
+                            className="rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSave(ticket)}
+                            disabled={savingTicketId === ticket.id}
+                            className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {savingTicketId === ticket.id ? "Saving..." : "Save"}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </section>
         </AuthGuard>
       </div>
@@ -556,4 +704,25 @@ function formatDate(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function getCompactStatusCardTone(status: TicketStatus) {
+  switch (status) {
+    case "PENDING":
+      return "border-rose-200 bg-rose-50";
+    case "QUERY":
+      return "border-orange-200 bg-orange-50";
+    case "IN_PROGRESS":
+      return "border-blue-200 bg-blue-50";
+    case "ORDERED":
+      return "border-sky-200 bg-sky-50";
+    case "READY":
+      return "border-emerald-200 bg-emerald-50";
+    case "ESTIMATE":
+      return "border-violet-200 bg-violet-50";
+    case "QUOTE":
+      return "border-fuchsia-200 bg-fuchsia-50";
+    default:
+      return "border-slate-200 bg-white";
+  }
 }
