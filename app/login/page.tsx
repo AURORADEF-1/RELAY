@@ -97,17 +97,23 @@ export default function LoginPage() {
 
         <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
           <div className="mx-auto max-w-md space-y-10">
-            <div className="space-y-5">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-                Secure Access
+            <div className="space-y-6 text-center">
+              <div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,0.3)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/aurora-logo.png"
+                  alt="Aurora Systems"
+                  className="h-full w-full object-contain p-3"
+                />
               </div>
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950">
-                Login
-              </h1>
-              <p className="text-base leading-8 text-slate-600">
-                Sign in with your RELAY account to view and manage parts
-                requests.
-              </p>
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  Aurora Systems
+                </p>
+                <h1 className="text-4xl font-semibold tracking-[-0.06em] text-slate-950">
+                  RELAY
+                </h1>
+              </div>
             </div>
 
             <form
