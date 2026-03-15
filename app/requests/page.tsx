@@ -19,6 +19,7 @@ type Ticket = {
   request_details: string | null;
   status: string | null;
   updated_at: string | null;
+  assigned_to?: string | null;
 };
 
 export default function RequestsPage() {
@@ -62,7 +63,7 @@ export default function RequestsPage() {
       const { data, error } = await supabase
         .from("tickets")
         .select(
-          "id, machine_reference, job_number, request_summary, request_details, status, updated_at",
+          "id, machine_reference, job_number, request_summary, request_details, status, updated_at, assigned_to",
         )
         .eq("user_id", user.id)
         .neq("status", "COMPLETED")
@@ -177,11 +178,11 @@ export default function RequestsPage() {
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50">
                   <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    <th className="px-6 py-4">Ticket ID</th>
                     <th className="px-6 py-4">Job Number</th>
-                    <th className="px-6 py-4">Request Summary</th>
+                    <th className="px-6 py-4">Parts Requested</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4">Updated</th>
+                    <th className="px-6 py-4">Handled By</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
@@ -206,30 +207,40 @@ export default function RequestsPage() {
                   ) : (
                     tickets.map((ticket) => (
                       <tr key={ticket.id} className="align-top">
-                        <td className="px-6 py-5 text-sm font-semibold text-slate-900">
-                          <Link
-                            href={`/tickets/${ticket.id}`}
-                            className="transition hover:text-slate-600"
-                          >
-                            {ticket.id}
-                          </Link>
-                        </td>
                         <td className="px-6 py-5 text-sm text-slate-600">
                           <div className="space-y-1">
-                            <p>{ticket.job_number ?? "-"}</p>
+                            <Link
+                              href={`/tickets/${ticket.id}`}
+                              className="text-base font-semibold text-slate-900 transition hover:text-slate-600"
+                            >
+                              {ticket.job_number ?? "No job number"}
+                            </Link>
                             <p className="text-xs text-slate-500">
-                              {ticket.machine_reference ?? "-"}
+                              Machine {ticket.machine_reference ?? "-"}
                             </p>
                           </div>
                         </td>
-                        <td className="px-6 py-5 text-sm leading-7 text-slate-600">
-                          {ticket.request_summary ?? ticket.request_details ?? "-"}
+                        <td className="px-6 py-5 text-sm text-slate-600">
+                          <div className="space-y-2">
+                          <Link
+                            href={`/tickets/${ticket.id}`}
+                            className="font-semibold text-slate-900 transition hover:text-slate-600"
+                          >
+                            {ticket.request_summary ?? ticket.request_details ?? "-"}
+                          </Link>
+                            <p className="text-xs uppercase tracking-wide text-slate-500">
+                              Request record only
+                            </p>
+                          </div>
                         </td>
                         <td className="px-6 py-5">
                           <StatusBadge status={ticket.status ?? "PENDING"} />
                         </td>
                         <td className="px-6 py-5 text-sm text-slate-500">
                           {formatDate(ticket.updated_at)}
+                        </td>
+                        <td className="px-6 py-5 text-sm text-slate-500">
+                          {ticket.assigned_to ?? "Stores queue"}
                         </td>
                       </tr>
                     ))
@@ -255,16 +266,19 @@ export default function RequestsPage() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">
+                        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Job Number
+                        </p>
+                        <p className="mt-2 text-lg font-semibold text-slate-900">
                           <Link
                             href={`/tickets/${ticket.id}`}
                             className="transition hover:text-slate-600"
                           >
-                            {ticket.id}
+                            {ticket.job_number ?? "No job number"}
                           </Link>
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
-                          Job {ticket.job_number ?? "-"}
+                          Machine {ticket.machine_reference ?? "-"}
                         </p>
                       </div>
                       <StatusBadge status={ticket.status ?? "PENDING"} />
@@ -272,9 +286,10 @@ export default function RequestsPage() {
                     <p className="mt-4 text-sm leading-7 text-slate-600">
                       {ticket.request_summary ?? ticket.request_details ?? "-"}
                     </p>
-                    <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Updated {formatDate(ticket.updated_at)}
-                    </p>
+                    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <span>Updated {formatDate(ticket.updated_at)}</span>
+                      <span>Handled by {ticket.assigned_to ?? "Stores queue"}</span>
+                    </div>
                   </article>
                 ))
               )}

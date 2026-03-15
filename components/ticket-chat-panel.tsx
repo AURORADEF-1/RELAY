@@ -32,6 +32,9 @@ type TicketChatPanelProps = {
     payload: { messageText: string; files: File[] },
   ) => Promise<boolean>;
   onAskAi?: (question: string) => Promise<void>;
+  operatorChatHref?: string | null;
+  operatorSmsHref?: string | null;
+  operatorCallHrefs?: { label: string; href: string }[];
 };
 
 const senderTone: Record<ChatRole, string> = {
@@ -54,6 +57,9 @@ export function TicketChatPanel({
   notice = null,
   onSendMessage,
   onAskAi,
+  operatorChatHref = null,
+  operatorSmsHref = null,
+  operatorCallHrefs = [],
 }: TicketChatPanelProps) {
   const [draftMessage, setDraftMessage] = useState("");
   const [queuedImages, setQueuedImages] = useState<File[]>([]);
@@ -304,18 +310,39 @@ export function TicketChatPanel({
               Escalate this ticket directly from the support thread.
             </p>
             <div className="mt-4 grid gap-3">
-              <button
-                type="button"
+              <a
+                href={operatorChatHref ?? undefined}
+                target="_blank"
+                rel="noreferrer"
+                aria-disabled={!operatorChatHref}
                 className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
               >
                 Chat with Operator
-              </button>
-              <button
-                type="button"
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
-              >
-                Call Operator
-              </button>
+              </a>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {operatorCallHrefs.map((callOption) => (
+                  <a
+                    key={callOption.href}
+                    href={callOption.href}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                  >
+                    {callOption.label}
+                  </a>
+                ))}
+              </div>
+              {!operatorChatHref ? (
+                <p className="text-xs leading-6 text-slate-500">
+                  Operator contact options will appear when request details are
+                  available on this ticket.
+                </p>
+              ) : operatorSmsHref ? (
+                <a
+                  href={operatorSmsHref}
+                  className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-700"
+                >
+                  SMS fallback
+                </a>
+              ) : null}
             </div>
           </div>
         </aside>

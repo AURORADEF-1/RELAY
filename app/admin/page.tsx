@@ -53,6 +53,9 @@ type Ticket = {
 export default function AdminPage() {
   const router = useRouter();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
+  const [resourceTab, setResourceTab] = useState<"operations" | "guide" | "faq">(
+    "operations",
+  );
   const [statusFilter, setStatusFilter] = useState<ActiveTicketStatusFilter>("ALL");
   const [viewMode, setViewMode] = useState<"table" | "compact">(() => {
     if (typeof window === "undefined") {
@@ -812,6 +815,99 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
+              <div className="sm:col-span-3 xl:col-span-7">
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-2">
+                  <div className="flex flex-wrap gap-2">
+                    <AdminResourceTab
+                      isActive={resourceTab === "operations"}
+                      label="Operations"
+                      onClick={() => setResourceTab("operations")}
+                    />
+                    <AdminResourceTab
+                      isActive={resourceTab === "guide"}
+                      label="User Guide"
+                      onClick={() => setResourceTab("guide")}
+                    />
+                    <AdminResourceTab
+                      isActive={resourceTab === "faq"}
+                      label="FAQ"
+                      onClick={() => setResourceTab("faq")}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {resourceTab === "guide" ? (
+              <div className="mt-6">
+                <AdminSupportPanel
+                  title="User Guide"
+                  description="Operational guidance for requesters and the internal parts team."
+                  items={[
+                    {
+                      heading: "How to submit a request",
+                      body:
+                        "Use Submit Ticket, choose Onsite or Yard, add the job number, machine reference, and a clear parts summary before sending.",
+                    },
+                    {
+                      heading: "How statuses work",
+                      body:
+                        "PENDING starts the queue, QUERY asks for clarification, IN_PROGRESS means Stores is actively working it, ORDERED means stock is on the way, READY means available for issue, and COMPLETED moves the job into archive.",
+                    },
+                    {
+                      heading: "How to assign and update tickets",
+                      body:
+                        "Use the Internal Parts Dashboard or Workshop Control to assign the request to a user, add notes, and move the status through the active workflow.",
+                    },
+                    {
+                      heading: "How chat with operator works",
+                      body:
+                        "Each ticket has a linked conversation thread. Requesters can message Stores with ticket context, and operators reply inside the same job-linked chat.",
+                    },
+                    {
+                      heading: "How completed jobs archive",
+                      body:
+                        "Once marked COMPLETED, the request is removed from the active boards and moved to Completed Jobs for admin-only review.",
+                    },
+                  ]}
+                />
+              </div>
+            ) : null}
+
+            {resourceTab === "faq" ? (
+              <div className="mt-6">
+                <AdminSupportPanel
+                  title="FAQ"
+                  description="Quick answers to common workflow questions."
+                  items={[
+                    {
+                      heading: "Why can’t I see my request?",
+                      body:
+                        "Requesters only see their own active jobs. Completed jobs move to archive and stay visible on the admin side only.",
+                    },
+                    {
+                      heading: "What does IN_PROGRESS mean?",
+                      body:
+                        "IN_PROGRESS means Stores or the assigned operator has received the request and is actively working it.",
+                    },
+                    {
+                      heading: "Why is a location required for Onsite?",
+                      body:
+                        "Onsite requests can capture location to help Stores and operators identify where the machine or job is based before issuing parts.",
+                    },
+                  ]}
+                />
+              </div>
+            ) : null}
+
+            {resourceTab === "operations" ? (
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Live operations mode is active below. Use the status cards, filters,
+                ticket chats, and queue tools to manage current workload.
+              </div>
+            ) : null}
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
               {activeTicketStatuses.map((status) => (
                 <button
                   key={status}
@@ -1449,6 +1545,62 @@ function mapMessagesToChat(
       isAiMessage: message.is_ai_message ?? false,
     };
   });
+}
+
+function AdminResourceTab({
+  isActive,
+  label,
+  onClick,
+}: {
+  isActive: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+        isActive
+          ? "bg-slate-950 text-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.65)]"
+          : "bg-white text-slate-600 hover:bg-slate-100"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function AdminSupportPanel({
+  title,
+  description,
+  items,
+}: {
+  title: string;
+  description: string;
+  items: { heading: string; body: string }[];
+}) {
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
+      <div className="space-y-2">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+          {title}
+        </p>
+        <p className="text-sm leading-6 text-slate-500">{description}</p>
+      </div>
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        {items.map((item) => (
+          <article
+            key={item.heading}
+            className="rounded-2xl border border-slate-200 bg-white p-5"
+          >
+            <p className="text-sm font-semibold text-slate-900">{item.heading}</p>
+            <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function ChatTicketSelectorCard({

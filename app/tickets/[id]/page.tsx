@@ -26,6 +26,11 @@ import {
 import type { RelayAiContext } from "@/lib/relay-ai";
 import { getSupabaseClient } from "@/lib/supabase";
 
+const OPERATOR_NUMBERS = [
+  { label: "Call Operator 1", number: "07955273861" },
+  { label: "Call Operator 2", number: "07425603839" },
+] as const;
+
 type TicketRecord = {
   id: string;
   user_id: string | null;
@@ -498,6 +503,9 @@ export default function TicketDetailPage() {
                   notice={chatNotice}
                   onSendMessage={handleSendMessage}
                   onAskAi={handleAskAi}
+                  operatorChatHref={buildOperatorChatHref(ticket)}
+                  operatorSmsHref={buildOperatorSmsHref(ticket)}
+                  operatorCallHrefs={buildOperatorCallHrefs()}
                 />
               </div>
             ) : (
@@ -554,6 +562,37 @@ function resolveSenderName(message: TicketMessageRecord, ticket: TicketRecord) {
   }
 
   return ticket.assigned_to || "Stores Operator";
+}
+
+function buildOperatorMessage(ticket: TicketRecord) {
+  const partsRequested =
+    ticket.request_summary?.trim() ||
+    ticket.request_details?.trim() ||
+    "No parts summary provided";
+  const jobReference = ticket.job_number?.trim() || ticket.id;
+
+  return [
+    "Hello, I am following up on:",
+    `Job Number: ${jobReference}`,
+    `Requester: ${ticket.requester_name?.trim() || "Unknown requester"}`,
+    `Parts Requested: ${partsRequested}`,
+  ].join("\n");
+}
+
+function buildOperatorChatHref(ticket: TicketRecord) {
+  const message = encodeURIComponent(buildOperatorMessage(ticket));
+  return `https://wa.me/447955273861?text=${message}`;
+}
+
+function buildOperatorCallHrefs() {
+  return OPERATOR_NUMBERS.map((option) => ({
+    label: option.label,
+    href: `tel:${option.number}`,
+  }));
+}
+
+function buildOperatorSmsHref(ticket: TicketRecord) {
+  return `sms:${OPERATOR_NUMBERS[0].number}?&body=${encodeURIComponent(buildOperatorMessage(ticket))}`;
 }
 
 function DetailItem({
