@@ -60,6 +60,7 @@ export default function AdminPage() {
   const [resourceTab, setResourceTab] = useState<"operations" | "guide" | "faq">(
     "operations",
   );
+  const [isKpiMinimized, setIsKpiMinimized] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ActiveTicketStatusFilter>("ALL");
   const [viewMode, setViewMode] = useState<"table" | "compact">(() => {
     if (typeof window === "undefined") {
@@ -753,9 +754,6 @@ export default function AdminPage() {
             <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
               Workshop Control
             </Link>
-            <Link href="/completed" className="rounded-full px-4 py-2 hover:bg-white">
-              Completed Jobs
-            </Link>
             <LogoutButton />
           </div>
         </nav>
@@ -765,10 +763,10 @@ export default function AdminPage() {
             <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl space-y-5">
                 <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-                  Internal Operations
+                  Parts Control
                 </div>
               <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
-                  Internal Parts Dashboard
+                  Parts Dashboard
                   <NotificationBadge count={adminBadgeCount} />
                 </h1>
                 <p className="text-base leading-8 text-slate-600">
@@ -781,6 +779,24 @@ export default function AdminPage() {
                 <label className="text-sm font-medium text-slate-600">
                   Filter by status
                 </label>
+                <details className="relative">
+                  <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
+                    Completed Jobs
+                  </summary>
+                  <div className="absolute right-0 top-[calc(100%+0.65rem)] z-40 w-64 rounded-3xl border border-slate-200 bg-white p-2 shadow-[0_26px_70px_-34px_rgba(15,23,42,0.45)]">
+                    <Link
+                      href="/completed"
+                      className="block rounded-2xl px-4 py-3 transition hover:bg-slate-50"
+                    >
+                      <p className="text-sm font-semibold text-slate-900">
+                        Open Completed Jobs
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        View the archived list of finished requests.
+                      </p>
+                    </Link>
+                  </div>
+                </details>
                 <select
                   value={statusFilter}
                   onChange={(event) =>
@@ -914,37 +930,52 @@ export default function AdminPage() {
               </div>
             ) : null}
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
-              {activeTicketStatuses.map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => setStatusFilter(status)}
-                  className={`rounded-2xl border px-4 py-3 text-left transition ${
-                    statusFilter === status
-                      ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.65)]"
-                      : "border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] hover:border-slate-400 hover:bg-white"
-                  }`}
-                >
-                  <p
-                    className={`text-[11px] font-semibold tracking-[0.18em] ${
-                      statusFilter === status ? "text-slate-300" : "text-slate-500"
-                    }`}
-                  >
-                    {status}
-                  </p>
-                  <p
-                    className={`mt-1 text-2xl font-semibold ${
-                      statusFilter === status ? "text-white" : "text-slate-900"
-                    }`}
-                  >
-                    {tickets.filter((ticket) => ticket.status === status).length}
-                  </p>
-                </button>
-              ))}
+            <div className="mt-8 flex items-center justify-between gap-4">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                KPI Overview
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsKpiMinimized((current) => !current)}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                {isKpiMinimized ? "Show KPIs" : "Minimise KPIs"}
+              </button>
             </div>
 
-            <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            {!isKpiMinimized ? (
+              <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
+                {activeTicketStatuses.map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setStatusFilter(status)}
+                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                      statusFilter === status
+                        ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.65)]"
+                        : "border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] hover:border-slate-400 hover:bg-white"
+                    }`}
+                  >
+                    <p
+                      className={`text-[11px] font-semibold tracking-[0.18em] ${
+                        statusFilter === status ? "text-slate-300" : "text-slate-500"
+                      }`}
+                    >
+                      {status}
+                    </p>
+                    <p
+                      className={`mt-1 text-2xl font-semibold ${
+                        statusFilter === status ? "text-white" : "text-slate-900"
+                      }`}
+                    >
+                      {tickets.filter((ticket) => ticket.status === status).length}
+                    </p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
               <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -1056,6 +1087,8 @@ export default function AdminPage() {
                 </div>
               </section>
             </div>
+              </>
+            ) : null}
 
             {errorMessage ? (
               <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
