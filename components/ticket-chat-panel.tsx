@@ -134,7 +134,7 @@ export function TicketChatPanel({
           </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Assigned To
+              Assigned User
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-700">
               {assignedTo || "Stores queue"}

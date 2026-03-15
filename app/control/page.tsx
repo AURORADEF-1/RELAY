@@ -47,7 +47,7 @@ export default function ControlPage() {
   const [requesterFilter, setRequesterFilter] = useState("");
   const [machineFilter, setMachineFilter] = useState("");
   const [jobFilter, setJobFilter] = useState("");
-  const [fitterFilter, setFitterFilter] = useState("");
+  const [userFilter, setUserFilter] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [savingTicketId, setSavingTicketId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -163,15 +163,15 @@ export default function ControlPage() {
       }
 
       if (
-        fitterFilter &&
-        !(ticket.assigned_to ?? "").toLowerCase().includes(fitterFilter.toLowerCase())
+        userFilter &&
+        !(ticket.assigned_to ?? "").toLowerCase().includes(userFilter.toLowerCase())
       ) {
         return false;
       }
 
       return true;
     });
-  }, [tickets, statusFilter, requesterFilter, machineFilter, jobFilter, fitterFilter]);
+  }, [tickets, statusFilter, requesterFilter, machineFilter, jobFilter, userFilter]);
 
   async function handleSave(ticket: ControlTicket) {
     const draft = drafts[ticket.id];
@@ -293,7 +293,7 @@ export default function ControlPage() {
                 </h1>
                 <p className="text-base leading-8 text-slate-600">
                   Date-ordered workshop view of every request with direct status,
-                  fitter, and comments control.
+                  user assignment, and comments control.
                 </p>
               </div>
 
@@ -317,10 +317,10 @@ export default function ControlPage() {
                   placeholder="Job number"
                 />
                 <FilterInput
-                  label="Fitter"
-                  value={fitterFilter}
-                  onChange={setFitterFilter}
-                  placeholder="Assigned fitter"
+                  label="User"
+                  value={userFilter}
+                  onChange={setUserFilter}
+                  placeholder="Assigned user"
                 />
                 <label className="space-y-2">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -387,7 +387,7 @@ export default function ControlPage() {
                       <th className="px-4 py-4">Job Number</th>
                       <th className="px-4 py-4">Machine Ref</th>
                       <th className="px-4 py-4">Part Requested</th>
-                      <th className="px-4 py-4">Fitter</th>
+                      <th className="px-4 py-4">User</th>
                       <th className="px-4 py-4">Status</th>
                       <th className="px-4 py-4">Comments</th>
                       <th className="px-4 py-4">Actions</th>
@@ -448,7 +448,7 @@ export default function ControlPage() {
                                     },
                                   }))
                                 }
-                                placeholder="Assign fitter"
+                                placeholder="Assign user"
                                 className="h-10 w-36 rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
                               />
                             </td>

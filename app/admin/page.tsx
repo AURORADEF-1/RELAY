@@ -797,7 +797,7 @@ export default function AdminPage() {
                       <th className="px-6 py-4">Job Number</th>
                       <th className="px-6 py-4">Request Summary</th>
                       <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Assigned To</th>
+                      <th className="px-6 py-4">Assigned User</th>
                       <th className="px-6 py-4">Notes</th>
                       <th className="px-6 py-4">Actions</th>
                     </tr>
@@ -954,7 +954,7 @@ export default function AdminPage() {
                         </div>
                         <div>
                           <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Assigned To
+                            Assigned User
                           </dt>
                           <dd className="mt-2">
                             <input

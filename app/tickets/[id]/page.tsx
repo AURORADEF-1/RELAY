@@ -397,7 +397,7 @@ export default function TicketDetailPage() {
                       <DetailItem label="Department" value={ticket.department} />
                       <DetailItem label="Machine" value={ticket.machine_reference} />
                       <DetailItem label="Job Number" value={ticket.job_number} />
-                      <DetailItem label="Assigned To" value={ticket.assigned_to} />
+                      <DetailItem label="Assigned User" value={ticket.assigned_to} />
                       <DetailItem
                         label="Updated"
                         value={formatDate(ticket.updated_at)}

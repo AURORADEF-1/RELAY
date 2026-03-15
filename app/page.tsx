@@ -485,7 +485,7 @@ function resolveQuickSearch(query: string, tickets: HomepageTicket[]) {
 
   return {
     title: `Job ${matchedTicket.job_number || matchedTicket.id}`,
-    detail: `${summary}. Assigned to ${matchedTicket.assigned_to || "Stores queue"}. Current status is ${status}.`,
+    detail: `${summary}. Handled by ${matchedTicket.assigned_to || "Stores queue"}. Current status is ${status}.`,
     status,
   };
 }
