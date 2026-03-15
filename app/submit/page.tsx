@@ -7,7 +7,6 @@ import { FileUploadPanel } from "@/components/file-upload-panel";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
-import { PartsControlDropdown } from "@/components/parts-control-dropdown";
 import { RelayLogo } from "@/components/relay-logo";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
@@ -319,7 +318,10 @@ export default function SubmitPage() {
                 >
                   Workshop Control
                 </Link>
-                <PartsControlDropdown badgeCount={adminBadgeCount} />
+                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
+                  Parts Control
+                  <NotificationBadge count={adminBadgeCount} />
+                </Link>
               </>
             ) : null}
             <LogoutButton />

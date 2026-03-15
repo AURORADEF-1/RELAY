@@ -7,7 +7,6 @@ import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
-import { PartsControlDropdown } from "@/components/parts-control-dropdown";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
@@ -292,7 +291,10 @@ export default function ControlPage() {
             >
               Workshop Control
             </Link>
-            <PartsControlDropdown badgeCount={adminBadgeCount} />
+            <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
+              Parts Control
+              <NotificationBadge count={adminBadgeCount} />
+            </Link>
             <LogoutButton />
           </div>
         </nav>

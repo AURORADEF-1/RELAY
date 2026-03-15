@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
-import { PartsControlDropdown } from "@/components/parts-control-dropdown";
 import { RelayLogo } from "@/components/relay-logo";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -196,7 +195,13 @@ export default function Home() {
                 >
                   Workshop Control
                 </Link>
-                <PartsControlDropdown badgeCount={adminBadgeCount} />
+                <Link
+                  href="/admin"
+                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+                >
+                  Parts Control
+                  <NotificationBadge count={adminBadgeCount} />
+                </Link>
               </>
             ) : null}
             {isLoggedIn ? <LogoutButton /> : null}
@@ -266,12 +271,6 @@ export default function Home() {
                       >
                         Parts Control
                         <NotificationBadge count={adminBadgeCount} />
-                      </Link>
-                      <Link
-                        href="/completed"
-                        className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
-                      >
-                        Completed Jobs
                       </Link>
                     </>
                   ) : null}

@@ -7,7 +7,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
-import { PartsControlDropdown } from "@/components/parts-control-dropdown";
+import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -58,9 +58,6 @@ type Ticket = {
 export default function AdminPage() {
   const router = useRouter();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
-  const [resourceTab, setResourceTab] = useState<"operations" | "guide" | "faq">(
-    "operations",
-  );
   const [isKpiMinimized, setIsKpiMinimized] = useState(false);
   const [assignedUserFilter, setAssignedUserFilter] = useState("");
   const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS">(
@@ -105,6 +102,23 @@ export default function AdminPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
+  const [resourceTab, setResourceTab] = useState<"operations" | "guide" | "faq">(
+    "operations",
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "guide" || tab === "faq") {
+      setResourceTab(tab);
+      return;
+    }
+
+    setResourceTab("operations");
+  }, []);
 
   useEffect(() => {
     const storedState = window.sessionStorage.getItem(ADMIN_CHAT_READ_STORAGE_KEY);
@@ -781,7 +795,13 @@ export default function AdminPage() {
             <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
               Workshop Control
             </Link>
-            <PartsControlDropdown badgeCount={adminBadgeCount} />
+            <Link
+              href="/admin"
+              className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800"
+            >
+              Parts Control
+              <NotificationBadge count={adminBadgeCount} />
+            </Link>
             <LogoutButton />
           </div>
         </nav>
@@ -884,28 +904,8 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
-              <div className="sm:col-span-3 xl:col-span-7">
-                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-2">
-                  <div className="flex flex-wrap gap-2">
-                    <AdminResourceTab
-                      isActive={resourceTab === "operations"}
-                      label="Operations"
-                      onClick={() => setResourceTab("operations")}
-                    />
-                    <AdminResourceTab
-                      isActive={resourceTab === "guide"}
-                      label="User Guide"
-                      onClick={() => setResourceTab("guide")}
-                    />
-                    <AdminResourceTab
-                      isActive={resourceTab === "faq"}
-                      label="FAQ"
-                      onClick={() => setResourceTab("faq")}
-                    />
-                  </div>
-                </div>
-              </div>
+            <div className="mt-8">
+              <PartsControlTabs activeTab={resourceTab} />
             </div>
 
             {resourceTab === "guide" ? (
@@ -1732,30 +1732,6 @@ function mapMessagesToChat(
       isAiMessage: message.is_ai_message ?? false,
     };
   });
-}
-
-function AdminResourceTab({
-  isActive,
-  label,
-  onClick,
-}: {
-  isActive: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-        isActive
-          ? "bg-slate-950 text-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.65)]"
-          : "bg-white text-slate-600 hover:bg-slate-100"
-      }`}
-    >
-      {label}
-    </button>
-  );
 }
 
 function AdminSupportPanel({

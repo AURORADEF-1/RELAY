@@ -7,7 +7,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
-import { PartsControlDropdown } from "@/components/parts-control-dropdown";
+import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
@@ -116,7 +116,10 @@ export default function CompletedPage() {
             <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
               Workshop Control
             </Link>
-            <PartsControlDropdown badgeCount={adminBadgeCount} />
+            <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
+              Parts Control
+              <NotificationBadge count={adminBadgeCount} />
+            </Link>
             <LogoutButton />
           </div>
         </nav>
@@ -135,8 +138,12 @@ export default function CompletedPage() {
               </p>
             </div>
 
+            <div className="mt-8">
+              <PartsControlTabs activeTab="completed" />
+            </div>
+
             {errorMessage ? (
-              <div className="mt-8 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {errorMessage}
               </div>
             ) : null}
