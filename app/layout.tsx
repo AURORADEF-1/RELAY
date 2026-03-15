@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LegalTermsGate } from "@/components/legal-terms-gate";
 import { NotificationProvider } from "@/components/notification-provider";
 import { StartupSplash } from "@/components/startup-splash";
 import "./globals.css";
@@ -18,7 +19,10 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <StartupSplash>
-          <NotificationProvider>{children}</NotificationProvider>
+          <NotificationProvider>
+            <LegalTermsGate />
+            {children}
+          </NotificationProvider>
         </StartupSplash>
       </body>
     </html>

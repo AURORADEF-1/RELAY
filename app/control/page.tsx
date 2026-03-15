@@ -275,6 +275,9 @@ export default function ControlPage() {
             <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">
               Home
             </Link>
+            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
+              Legal
+            </Link>
             <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white">
               Submit Ticket
             </Link>

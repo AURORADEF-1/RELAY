@@ -324,6 +324,9 @@ export default function TicketDetailPage() {
             <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">
               Home
             </Link>
+            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
+              Legal
+            </Link>
             <Link
               href="/requests"
               className="rounded-full px-4 py-2 hover:bg-white"

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RelayLogo } from "@/components/relay-logo";
@@ -77,6 +78,11 @@ export default function LoginPage() {
       <div className="mx-auto max-w-5xl space-y-8">
         <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
           <RelayLogo />
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
+              Legal
+            </Link>
+          </div>
         </nav>
 
         <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
