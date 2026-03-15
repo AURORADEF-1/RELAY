@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { NotificationBadge } from "@/components/notification-badge";
 
 export function PartsControlDropdown({
@@ -10,61 +11,84 @@ export function PartsControlDropdown({
   badgeCount?: number;
 }) {
   const pathname = usePathname();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const isActive = pathname === "/admin" || pathname === "/completed";
 
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, []);
+
   return (
-    <details className="relative">
-      <summary
-        className={`list-none cursor-pointer rounded-full px-4 py-2 transition ${
+    <div
+      ref={containerRef}
+      className="relative isolate shrink-0"
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+    >
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 transition ${
           isActive ? "bg-slate-950 text-white" : "hover:bg-white"
         }`}
       >
-        <span className="inline-flex items-center gap-2">
-          <span>Parts Control</span>
-          <NotificationBadge count={badgeCount} />
-        </span>
-      </summary>
+        <span>Parts Control</span>
+        <NotificationBadge count={badgeCount} />
+      </button>
 
-      <div className="absolute right-0 top-[calc(100%+0.6rem)] z-40 w-64 rounded-3xl border border-slate-200 bg-white p-2 shadow-[0_26px_70px_-34px_rgba(15,23,42,0.45)]">
-        <DropdownLink
-          href="/admin"
-          label="Parts Control"
-          helper="Open the live workflow dashboard"
-          isActive={pathname === "/admin"}
-        />
-        <DropdownLink
-          href="/completed"
-          label="Completed Jobs"
-          helper="Open the completed archive"
-          isActive={pathname === "/completed"}
-        />
-      </div>
-    </details>
+      {isOpen ? (
+        <div
+          role="menu"
+          className="absolute left-0 top-[calc(100%+0.55rem)] z-50 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.42)]"
+        >
+          <DropdownLink
+            href="/admin"
+            label="Parts Control"
+            isActive={pathname === "/admin"}
+          />
+          <DropdownLink
+            href="/completed"
+            label="Completed Jobs"
+            isActive={pathname === "/completed"}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 function DropdownLink({
   href,
   label,
-  helper,
   isActive,
 }: {
   href: string;
   label: string;
-  helper: string;
   isActive: boolean;
 }) {
   return (
     <Link
       href={href}
-      className={`block rounded-2xl px-4 py-3 transition ${
-        isActive ? "bg-slate-950 text-white" : "hover:bg-slate-50"
+      role="menuitem"
+      className={`block rounded-xl px-4 py-3 text-sm font-semibold transition ${
+        isActive
+          ? "bg-slate-950 text-white"
+          : "text-slate-700 hover:bg-slate-50"
       }`}
     >
-      <p className="text-sm font-semibold">{label}</p>
-      <p className={`mt-1 text-xs leading-5 ${isActive ? "text-slate-300" : "text-slate-500"}`}>
-        {helper}
-      </p>
+      {label}
     </Link>
   );
 }
