@@ -31,6 +31,10 @@ type TicketRecord = {
   user_id: string | null;
   requester_name: string | null;
   department: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_summary?: string | null;
+  location_confirmed?: boolean | null;
   machine_reference: string | null;
   job_number: string | null;
   request_details: string | null;
@@ -412,6 +416,12 @@ export default function TicketDetailPage() {
                       />
                     </dl>
 
+                    {isOnsiteTicket(ticket) ? (
+                      <div className="mt-6">
+                        <OnsiteLocationCard ticket={ticket} />
+                      </div>
+                    ) : null}
+
                     <div className="mt-6 space-y-4">
                       <DetailBlock
                         label="Request Details"
@@ -582,6 +592,47 @@ function DetailBlock({
   );
 }
 
+function OnsiteLocationCard({ ticket }: { ticket: TicketRecord }) {
+  const mapUrl = buildMapUrl(ticket);
+  const locationSummary = formatLocationSummary(ticket);
+
+  if (!locationSummary && !mapUrl) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Onsite Location
+          </p>
+          <p className="text-sm leading-7 text-slate-700">
+            {locationSummary || "Onsite request"}
+          </p>
+          {ticket.location_confirmed ? (
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+              Location confirmed
+            </p>
+          ) : null}
+        </div>
+        {mapUrl ? (
+          <a
+            href={mapUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+          >
+            {ticket.location_lat != null && ticket.location_lng != null
+              ? "Open in Maps"
+              : "View Onsite Location"}
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) {
     return "-";
@@ -606,4 +657,32 @@ function formatDateTime(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function isOnsiteTicket(ticket: TicketRecord) {
+  return ticket.department?.trim().toLowerCase() === "onsite";
+}
+
+function formatLocationSummary(ticket: TicketRecord) {
+  if (ticket.location_summary?.trim()) {
+    return ticket.location_summary.trim();
+  }
+
+  if (ticket.location_lat != null && ticket.location_lng != null) {
+    return `Coordinates: ${ticket.location_lat.toFixed(5)}, ${ticket.location_lng.toFixed(5)}`;
+  }
+
+  return null;
+}
+
+function buildMapUrl(ticket: TicketRecord) {
+  if (ticket.location_lat != null && ticket.location_lng != null) {
+    return `https://www.google.com/maps?q=${ticket.location_lat},${ticket.location_lng}`;
+  }
+
+  if (ticket.location_summary?.trim()) {
+    return `https://www.google.com/maps?q=${encodeURIComponent(ticket.location_summary.trim())}`;
+  }
+
+  return null;
 }
