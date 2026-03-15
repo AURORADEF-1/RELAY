@@ -210,6 +210,7 @@ export default function SubmitPage() {
       const ticketPayload = buildTicketInsertPayload({
         authenticatedUserId: user.id,
         values,
+        locationDraft,
       });
 
       const { data: ticket, error: insertError } = await supabase
@@ -265,28 +266,10 @@ export default function SubmitPage() {
       }
 
       if (values.department === "Onsite" && locationDraft?.confirmed) {
-        const { error: locationError } = await supabase
-          .from("tickets")
-          .update({
-            location_lat: locationDraft.lat,
-            location_lng: locationDraft.lng,
-            location_summary: locationDraft.summary,
-            location_confirmed: true,
-          })
-          .eq("id", ticket.id);
-
-        if (locationError) {
-          setLocationStatusMessage({
-            type: "error",
-            message:
-              "Location was captured but could not be stored because the ticket location fields are not configured yet.",
-          });
-        } else {
-          setLocationStatusMessage({
-            type: "success",
-            message: `Location attached: ${locationDraft.summary}`,
-          });
-        }
+        setLocationStatusMessage({
+          type: "success",
+          message: `Location attached: ${locationDraft.summary}`,
+        });
       }
 
       setSuccessMessage(
@@ -683,9 +666,16 @@ function buildTicketInsertPayload(
   {
     authenticatedUserId,
     values,
+    locationDraft,
   }: {
     authenticatedUserId: string;
     values: FormValues;
+    locationDraft: {
+      lat: number;
+      lng: number;
+      summary: string;
+      confirmed: boolean;
+    } | null;
   },
 ) {
   const userId = authenticatedUserId.trim();
@@ -709,6 +699,14 @@ function buildTicketInsertPayload(
     request_details: requestDetails,
     request_summary: requestDetails,
     status: "PENDING" as const,
+    ...(department === "Onsite" && locationDraft?.confirmed
+      ? {
+          location_lat: locationDraft.lat,
+          location_lng: locationDraft.lng,
+          location_summary: locationDraft.summary,
+          location_confirmed: true,
+        }
+      : {}),
   };
 }
 

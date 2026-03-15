@@ -39,6 +39,10 @@ type Ticket = {
   id: string;
   requester_name: string | null;
   department: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_summary?: string | null;
+  location_confirmed?: boolean | null;
   machine_reference: string | null;
   job_number: string | null;
   request_summary: string | null;
@@ -142,7 +146,7 @@ export default function AdminPage() {
       const { data, error } = await supabase
         .from("tickets")
         .select(
-          "id, requester_name, department, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
+          "id, requester_name, department, location_lat, location_lng, location_summary, location_confirmed, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
         )
         .neq("status", "COMPLETED")
         .order("updated_at", { ascending: false });
@@ -1230,9 +1234,12 @@ export default function AdminPage() {
                           <td className="px-6 py-5 text-sm text-slate-600">
                             <div className="space-y-1">
                               <p>{ticket.requester_name ?? "-"}</p>
-                              <p className="text-xs text-slate-500">
-                                {ticket.department ?? "-"}
-                              </p>
+                              <div className="text-xs text-slate-500">
+                                <p>{ticket.department ?? "-"}</p>
+                                {isOnsiteAdminTicket(ticket) ? (
+                                  <AdminLocationLink ticket={ticket} compact />
+                                ) : null}
+                              </div>
                             </div>
                           </td>
                           <td className="px-6 py-5 text-sm text-slate-600">
@@ -1370,6 +1377,12 @@ export default function AdminPage() {
                         </div>
                       </dl>
 
+                      {isOnsiteAdminTicket(ticket) ? (
+                        <div className="mt-4">
+                          <AdminLocationCard ticket={ticket} />
+                        </div>
+                      ) : null}
+
                       <div className="mt-4">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                           Request Summary
@@ -1469,6 +1482,11 @@ export default function AdminPage() {
                           <dd className="mt-1">{ticket.machine_reference ?? "-"}</dd>
                         </div>
                       </dl>
+                      {isOnsiteAdminTicket(ticket) ? (
+                        <div className="mt-4">
+                          <AdminLocationCard ticket={ticket} />
+                        </div>
+                      ) : null}
                       <div className="mt-4 grid gap-3">
                         <input
                           type="text"
@@ -1665,6 +1683,102 @@ function ChatTicketSelectorCard({
       ) : null}
     </article>
   );
+}
+
+function isOnsiteAdminTicket(ticket: Ticket) {
+  return ticket.department === "Onsite";
+}
+
+function AdminLocationCard({ ticket }: { ticket: Ticket }) {
+  const mapUrl = buildAdminMapUrl(ticket);
+  const summary = formatAdminLocationSummary(ticket);
+
+  if (!summary && !mapUrl) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        Onsite Location
+      </p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">
+        {summary || "Onsite location captured"}
+      </p>
+      {ticket.location_confirmed ? (
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+          Confirmed on submission
+        </p>
+      ) : null}
+      {mapUrl ? (
+        <a
+          href={mapUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+        >
+          View Onsite Location
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
+function AdminLocationLink({
+  ticket,
+  compact = false,
+}: {
+  ticket: Ticket;
+  compact?: boolean;
+}) {
+  const mapUrl = buildAdminMapUrl(ticket);
+
+  if (!mapUrl) {
+    return null;
+  }
+
+  return (
+    <a
+      href={mapUrl}
+      target="_blank"
+      rel="noreferrer"
+      className={`inline-flex font-semibold text-sky-700 transition hover:text-sky-900 ${
+        compact ? "mt-1 text-[11px]" : "text-sm"
+      }`}
+    >
+      Open in Maps
+    </a>
+  );
+}
+
+function formatAdminLocationSummary(ticket: Ticket) {
+  if (ticket.location_summary?.trim()) {
+    return ticket.location_summary.trim();
+  }
+
+  if (
+    typeof ticket.location_lat === "number" &&
+    typeof ticket.location_lng === "number"
+  ) {
+    return `${ticket.location_lat.toFixed(5)}, ${ticket.location_lng.toFixed(5)}`;
+  }
+
+  return null;
+}
+
+function buildAdminMapUrl(ticket: Ticket) {
+  if (
+    typeof ticket.location_lat === "number" &&
+    typeof ticket.location_lng === "number"
+  ) {
+    return `https://www.google.com/maps?q=${ticket.location_lat},${ticket.location_lng}`;
+  }
+
+  if (ticket.location_summary?.trim()) {
+    return `https://www.google.com/maps?q=${encodeURIComponent(ticket.location_summary.trim())}`;
+  }
+
+  return null;
 }
 
 function resolveSenderName(message: TicketMessageRecord, ticket: Ticket) {
