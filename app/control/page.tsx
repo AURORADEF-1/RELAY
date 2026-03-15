@@ -7,6 +7,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
+import { PartsControlDropdown } from "@/components/parts-control-dropdown";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
@@ -285,19 +286,13 @@ export default function ControlPage() {
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
-                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
-                  Admin
-                  <NotificationBadge count={adminBadgeCount} />
-                </Link>
-                <Link href="/completed" className="rounded-full px-4 py-2 hover:bg-white">
-                  Completed Jobs
-                </Link>
             <Link
               href="/control"
               className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800"
             >
               Workshop Control
             </Link>
+            <PartsControlDropdown badgeCount={adminBadgeCount} />
             <LogoutButton />
           </div>
         </nav>

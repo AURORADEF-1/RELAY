@@ -7,6 +7,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
+import { PartsControlDropdown } from "@/components/parts-control-dropdown";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -61,14 +62,23 @@ export default function AdminPage() {
     "operations",
   );
   const [isKpiMinimized, setIsKpiMinimized] = useState(false);
+  const [assignedUserFilter, setAssignedUserFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS">(
+    "ALL",
+  );
+  const [departmentFilter, setDepartmentFilter] = useState<"ALL" | "Onsite" | "Yard">("ALL");
   const [statusFilter, setStatusFilter] = useState<ActiveTicketStatusFilter>("ALL");
-  const [viewMode, setViewMode] = useState<"table" | "compact">(() => {
+  const [viewMode, setViewMode] = useState<"table" | "compact" | "dynamic">(() => {
     if (typeof window === "undefined") {
       return "table";
     }
 
     const saved = window.sessionStorage.getItem(ADMIN_DASHBOARD_VIEW_STORAGE_KEY);
-    return saved === "compact" ? "compact" : "table";
+    if (saved === "compact" || saved === "dynamic") {
+      return saved;
+    }
+
+    return "table";
   });
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { assigned_to: string; notes: string }>>(
@@ -188,12 +198,29 @@ export default function AdminPage() {
   }, [router]);
 
   const filteredTickets = useMemo(() => {
-    if (statusFilter === "ALL") {
-      return tickets;
-    }
+    return tickets.filter((ticket) => {
+      if (statusFilter !== "ALL" && ticket.status !== statusFilter) {
+        return false;
+      }
 
-    return tickets.filter((ticket) => ticket.status === statusFilter);
-  }, [statusFilter, tickets]);
+      if (
+        assignedUserFilter &&
+        !(ticket.assigned_to ?? "").toLowerCase().includes(assignedUserFilter.toLowerCase())
+      ) {
+        return false;
+      }
+
+      if (departmentFilter !== "ALL" && ticket.department !== departmentFilter) {
+        return false;
+      }
+
+      if (!matchesDateFilter(ticket.updated_at ?? ticket.created_at, dateFilter)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [assignedUserFilter, dateFilter, departmentFilter, statusFilter, tickets]);
 
   const dashboardMetrics = useMemo(() => {
     const activeTickets = tickets;
@@ -754,6 +781,7 @@ export default function AdminPage() {
             <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
               Workshop Control
             </Link>
+            <PartsControlDropdown badgeCount={adminBadgeCount} />
             <LogoutButton />
           </div>
         </nav>
@@ -766,37 +794,18 @@ export default function AdminPage() {
                   Parts Control
                 </div>
               <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
-                  Parts Dashboard
+                  Parts Control
                   <NotificationBadge count={adminBadgeCount} />
                 </h1>
                 <p className="text-base leading-8 text-slate-600">
-                  Review all request activity, filter the queue by status, and
-                  adjust workflow state directly from the dashboard.
+                  Monitor live request activity, manage workflow status, and control operational workload in real time.
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <label className="text-sm font-medium text-slate-600">
                   Filter by status
                 </label>
-                <details className="relative">
-                  <summary className="flex h-11 cursor-pointer list-none items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
-                    Completed Jobs
-                  </summary>
-                  <div className="absolute right-0 top-[calc(100%+0.65rem)] z-40 w-64 rounded-3xl border border-slate-200 bg-white p-2 shadow-[0_26px_70px_-34px_rgba(15,23,42,0.45)]">
-                    <Link
-                      href="/completed"
-                      className="block rounded-2xl px-4 py-3 transition hover:bg-slate-50"
-                    >
-                      <p className="text-sm font-semibold text-slate-900">
-                        Open Completed Jobs
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        View the archived list of finished requests.
-                      </p>
-                    </Link>
-                  </div>
-                </details>
                 <select
                   value={statusFilter}
                   onChange={(event) =>
@@ -810,10 +819,47 @@ export default function AdminPage() {
                     </option>
                   ))}
                 </select>
+                <input
+                  value={assignedUserFilter}
+                  onChange={(event) => setAssignedUserFilter(event.target.value)}
+                  placeholder="Filter by user"
+                  className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                />
+                <select
+                  value={departmentFilter}
+                  onChange={(event) =>
+                    setDepartmentFilter(
+                      event.target.value as "ALL" | "Onsite" | "Yard",
+                    )
+                  }
+                  className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                >
+                  <option value="ALL">All Departments</option>
+                  <option value="Onsite">Onsite</option>
+                  <option value="Yard">Yard</option>
+                </select>
+                <select
+                  value={dateFilter}
+                  onChange={(event) =>
+                    setDateFilter(
+                      event.target.value as
+                        | "ALL"
+                        | "TODAY"
+                        | "LAST_7_DAYS"
+                        | "LAST_30_DAYS",
+                    )
+                  }
+                  className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                >
+                  <option value="ALL">All Time</option>
+                  <option value="TODAY">Today</option>
+                  <option value="LAST_7_DAYS">Last 7 Days</option>
+                  <option value="LAST_30_DAYS">Last 30 Days</option>
+                </select>
                 <select
                   value={viewMode}
                   onChange={(event) => {
-                    const nextMode = event.target.value as "table" | "compact";
+                    const nextMode = event.target.value as "table" | "compact" | "dynamic";
                     setViewMode(nextMode);
                     window.sessionStorage.setItem(
                       ADMIN_DASHBOARD_VIEW_STORAGE_KEY,
@@ -824,6 +870,7 @@ export default function AdminPage() {
                 >
                   <option value="table">Table View</option>
                   <option value="compact">Compact Summary</option>
+                  <option value="dynamic">Dynamic View</option>
                 </select>
                 {statusFilter !== "ALL" ? (
                   <button
@@ -880,7 +927,7 @@ export default function AdminPage() {
                     {
                       heading: "How to assign and update tickets",
                       body:
-                        "Use the Internal Parts Dashboard or Workshop Control to assign the request to a user, add notes, and move the status through the active workflow.",
+                        "Use Parts Control or Workshop Control to assign the request to a user, add notes, and move the status through the active workflow.",
                     },
                     {
                       heading: "How chat with operator works",
@@ -925,8 +972,7 @@ export default function AdminPage() {
 
             {resourceTab === "operations" ? (
               <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Live operations mode is active below. Use the status cards, filters,
-                ticket chats, and queue tools to manage current workload.
+                Parts Control is active below. Use live workflow views, filters, chats, and queue tools to manage operational demand.
               </div>
             ) : null}
 
@@ -1471,6 +1517,93 @@ export default function AdminPage() {
                 )}
               </div>
               </div>
+            ) : viewMode === "dynamic" ? (
+              <div className="mt-8 grid gap-4 xl:grid-cols-3">
+                {activeTicketStatuses.map((status) => {
+                  const ticketsInLane = filteredTickets.filter(
+                    (ticket) => ticket.status === status,
+                  );
+
+                  return (
+                    <section
+                      key={status}
+                      className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            {status}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {ticketsInLane.length} active job
+                            {ticketsInLane.length === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                        <StatusBadge status={status} />
+                      </div>
+
+                      <div className="mt-4 space-y-3">
+                        {ticketsInLane.length === 0 ? (
+                          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+                            No jobs in this workflow lane.
+                          </div>
+                        ) : (
+                          ticketsInLane.map((ticket) => (
+                            <Link
+                              key={ticket.id}
+                              href={`/tickets/${ticket.id}`}
+                              className={`block rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_-32px_rgba(15,23,42,0.35)] ${getDynamicCardTone(
+                                ticket.status ?? "PENDING",
+                              )}`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    Job {ticket.job_number ?? "Not set"}
+                                  </p>
+                                  <p className="mt-1 text-sm text-slate-500">
+                                    {ticket.requester_name ?? "Requester"}
+                                  </p>
+                                </div>
+                                <StatusBadge status={ticket.status ?? "PENDING"} />
+                              </div>
+                              <p className="mt-4 text-sm leading-6 text-slate-700">
+                                {ticket.request_summary ?? ticket.request_details ?? "-"}
+                              </p>
+                              <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                                <div>
+                                  <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Machine Ref
+                                  </dt>
+                                  <dd className="mt-1">{ticket.machine_reference ?? "-"}</dd>
+                                </div>
+                                <div>
+                                  <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Department
+                                  </dt>
+                                  <dd className="mt-1">{ticket.department ?? "-"}</dd>
+                                </div>
+                                <div>
+                                  <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Assigned User
+                                  </dt>
+                                  <dd className="mt-1">{ticket.assigned_to ?? "Stores queue"}</dd>
+                                </div>
+                                <div>
+                                  <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Last Updated
+                                  </dt>
+                                  <dd className="mt-1">{formatDateTime(ticket.updated_at)}</dd>
+                                </div>
+                              </dl>
+                            </Link>
+                          ))
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
             ) : (
               <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {isLoading ? (
@@ -1922,6 +2055,34 @@ function formatHoursValue(value: number | null) {
   return `${(value / 24).toFixed(1)}d`;
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function isSameCalendarDay(value?: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  const target = new Date(value);
+  const today = new Date();
+
+  return (
+    target.getFullYear() === today.getFullYear() &&
+    target.getMonth() === today.getMonth() &&
+    target.getDate() === today.getDate()
+  );
+}
+
 function truncateSummary(value: string) {
   return value.length > 88 ? `${value.slice(0, 85)}...` : value;
 }
@@ -1951,4 +2112,61 @@ function getCompactStatusCardTone(status: TicketStatus) {
     default:
       return "border-slate-200 bg-white";
   }
+}
+
+function getDynamicCardTone(status: TicketStatus) {
+  switch (status) {
+    case "PENDING":
+      return "border-rose-200";
+    case "QUERY":
+      return "border-orange-200";
+    case "IN_PROGRESS":
+      return "border-blue-200";
+    case "ORDERED":
+      return "border-sky-200";
+    case "READY":
+      return "border-emerald-200";
+    case "ESTIMATE":
+      return "border-violet-200";
+    case "QUOTE":
+      return "border-fuchsia-200";
+    default:
+      return "border-slate-200";
+  }
+}
+
+function matchesDateFilter(
+  value: string | null | undefined,
+  filter: "ALL" | "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS",
+) {
+  if (filter === "ALL") {
+    return true;
+  }
+
+  if (!value) {
+    return false;
+  }
+
+  const target = new Date(value).getTime();
+
+  if (Number.isNaN(target)) {
+    return false;
+  }
+
+  const now = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+
+  if (filter === "TODAY") {
+    return isSameCalendarDay(value);
+  }
+
+  if (filter === "LAST_7_DAYS") {
+    return now - target <= oneDayMs * 7;
+  }
+
+  if (filter === "LAST_30_DAYS") {
+    return now - target <= oneDayMs * 30;
+  }
+
+  return true;
 }

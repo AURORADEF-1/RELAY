@@ -12,6 +12,7 @@ import {
   TicketChatPanel,
 } from "@/components/ticket-chat-panel";
 import { LogoutButton } from "@/components/logout-button";
+import { PartsControlDropdown } from "@/components/parts-control-dropdown";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { triggerActionFeedback } from "@/lib/action-feedback";
@@ -342,19 +343,7 @@ export default function TicketDetailPage() {
                 >
                   Workshop Control
                 </Link>
-                <Link
-                  href="/admin"
-                  className="rounded-full px-4 py-2 hover:bg-white"
-                >
-                  Admin
-                  <NotificationBadge count={adminBadgeCount} />
-                </Link>
-                <Link
-                  href="/completed"
-                  className="rounded-full px-4 py-2 hover:bg-white"
-                >
-                  Completed Jobs
-                </Link>
+                <PartsControlDropdown badgeCount={adminBadgeCount} />
               </>
             ) : null}
             <LogoutButton />

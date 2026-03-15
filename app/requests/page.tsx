@@ -6,6 +6,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
+import { PartsControlDropdown } from "@/components/parts-control-dropdown";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { activeTicketStatuses } from "@/lib/statuses";
@@ -117,19 +118,7 @@ export default function RequestsPage() {
                 >
                   Workshop Control
                 </Link>
-                <Link
-                  href="/admin"
-                  className="rounded-full px-4 py-2 hover:bg-white"
-                >
-                  Admin
-                  <NotificationBadge count={adminBadgeCount} />
-                </Link>
-                <Link
-                  href="/completed"
-                  className="rounded-full px-4 py-2 hover:bg-white"
-                >
-                  Completed Jobs
-                </Link>
+                <PartsControlDropdown badgeCount={adminBadgeCount} />
               </>
             ) : null}
             <LogoutButton />
