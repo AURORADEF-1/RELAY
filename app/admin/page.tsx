@@ -29,6 +29,7 @@ import {
   type TicketStatus,
   type TicketStatusFilter,
 } from "@/lib/statuses";
+import { triggerActionFeedback } from "@/lib/action-feedback";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const ADMIN_CHAT_READ_STORAGE_KEY = "relay-admin-chat-last-opened";
@@ -593,6 +594,7 @@ export default function AdminPage() {
         type: "success",
         message: "Reply sent successfully.",
       });
+      triggerActionFeedback();
       await reloadSelectedChatMessages(supabase, selectedChatTicket.id);
       return true;
     } catch (chatError) {
@@ -685,6 +687,20 @@ export default function AdminPage() {
     setSelectedChatTicketId(ticketId);
     setIsChatCollapsed(false);
     markTicketChatRead(ticketId);
+  }
+
+  function handleReadAllMessages() {
+    const nextState = Object.fromEntries(
+      Object.entries(requesterMessagesByTicket)
+        .filter(([, messages]) => messages[0]?.created_at)
+        .map(([ticketId, messages]) => [ticketId, messages[0]?.created_at as string]),
+    );
+
+    setReadRequesterMessageByTicket(nextState);
+    window.sessionStorage.setItem(
+      ADMIN_CHAT_READ_STORAGE_KEY,
+      JSON.stringify(nextState),
+    );
   }
 
   return (
@@ -939,6 +955,13 @@ export default function AdminPage() {
                   </div>
                   <button
                     type="button"
+                    onClick={handleReadAllMessages}
+                    className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    Read All Messages
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setIsChatCollapsed((current) => !current)}
                     className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                   >
@@ -1041,7 +1064,7 @@ export default function AdminPage() {
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      <th className="px-6 py-4">Ticket</th>
+                      <th className="px-6 py-4">Request</th>
                       <th className="px-6 py-4">Requester</th>
                       <th className="px-6 py-4">Job Number</th>
                       <th className="px-6 py-4">Request Summary</th>
@@ -1078,7 +1101,7 @@ export default function AdminPage() {
                               href={`/tickets/${ticket.id}`}
                               className="transition hover:text-slate-600"
                             >
-                              {ticket.id}
+                              {formatRequestTitle(ticket)}
                             </Link>
                           </td>
                           <td className="px-6 py-5 text-sm text-slate-600">
@@ -1182,7 +1205,7 @@ export default function AdminPage() {
                               href={`/tickets/${ticket.id}`}
                               className="transition hover:text-slate-600"
                             >
-                              {ticket.id}
+                              {formatRequestTitle(ticket)}
                             </Link>
                           </p>
                           <p className="mt-1 text-sm text-slate-500">
@@ -1492,4 +1515,10 @@ function formatHoursValue(value: number | null) {
 
 function truncateSummary(value: string) {
   return value.length > 88 ? `${value.slice(0, 85)}...` : value;
+}
+
+function formatRequestTitle(ticket: Ticket) {
+  const summary = ticket.request_summary ?? ticket.request_details ?? "No request summary";
+  const jobLabel = ticket.job_number ? `Job ${ticket.job_number}` : "Job not set";
+  return `${jobLabel} | ${truncateSummary(summary)}`;
 }

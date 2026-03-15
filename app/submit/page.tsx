@@ -8,6 +8,7 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { triggerActionFeedback } from "@/lib/action-feedback";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -189,6 +190,7 @@ export default function SubmitPage() {
       setSuccessMessage(
         `Ticket ${String(ticket.id).slice(0, 8)} submitted successfully. Status is now PENDING.`,
       );
+      triggerActionFeedback();
       setValues(initialValues);
       setErrors({});
       setQueuedPhotos([]);

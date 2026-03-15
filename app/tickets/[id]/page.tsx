@@ -14,6 +14,7 @@ import {
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
+import { triggerActionFeedback } from "@/lib/action-feedback";
 import {
   createTicketMessage,
   fetchTicketAttachments,
@@ -213,6 +214,7 @@ export default function TicketDetailPage() {
         type: "success",
         message: "Message sent successfully.",
       });
+      triggerActionFeedback();
       await reloadTicketConversation(supabase, ticket.id);
       return true;
     } catch (sendError) {

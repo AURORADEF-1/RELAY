@@ -44,7 +44,7 @@ select {
 }
 
 .relay-splash-logo {
-  width: min(16rem, 44vw);
+  width: min(32rem, 78vw);
   height: auto;
   filter: drop-shadow(0 8px 20px rgba(15, 23, 42, 0.08));
   animation: relay-splash-glow 1500ms ease-in-out forwards;
