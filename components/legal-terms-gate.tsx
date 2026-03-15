@@ -31,8 +31,9 @@ export function LegalTermsGate() {
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
-      <div className="w-full max-w-3xl rounded-[2rem] border border-white/80 bg-white p-6 shadow-[0_30px_80px_-28px_rgba(15,23,42,0.45)] sm:p-8">
-        <div className="space-y-5">
+      <div className="flex max-h-[calc(100vh-3rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_30px_80px_-28px_rgba(15,23,42,0.45)]">
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+          <div className="space-y-5">
           <div className="space-y-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
               Legal Notice
@@ -69,7 +70,9 @@ export function LegalTermsGate() {
               </div>
             </section>
           </div>
-
+          </div>
+        </div>
+        <div className="border-t border-slate-200 bg-white px-6 py-4 sm:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Link
               href="/legal"
