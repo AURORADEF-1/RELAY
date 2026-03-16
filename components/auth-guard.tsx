@@ -48,13 +48,13 @@ export function AuthGuard({
 
       if (requiredRole) {
         try {
-          const { role } = await getCurrentUserWithRole(supabase);
+          const { isAdmin } = await getCurrentUserWithRole(supabase);
 
           if (!isMounted) {
             return;
           }
 
-          if (role !== requiredRole) {
+          if (requiredRole === "admin" && !isAdmin) {
             router.replace("/");
             return;
           }

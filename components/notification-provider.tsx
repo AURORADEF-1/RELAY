@@ -137,7 +137,9 @@ export function NotificationProvider({
           activeChannel = null;
         }
 
-        const { user, role } = await getCurrentUserWithRole(supabaseClient);
+        const { user, isAdmin: adminUser } = await getCurrentUserWithRole(
+          supabaseClient,
+        );
 
         if (!isMounted) {
           return;
@@ -148,7 +150,6 @@ export function NotificationProvider({
           return;
         }
 
-        const adminUser = role === "admin";
         setIsAdmin(adminUser);
         setIsAuthenticated(true);
 

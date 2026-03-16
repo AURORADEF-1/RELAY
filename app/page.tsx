@@ -74,7 +74,7 @@ export default function Home() {
         return;
       }
 
-      const { user, role } = await getCurrentUserWithRole(supabase);
+      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
 
       if (!isMounted || !user) {
         return;
@@ -92,10 +92,10 @@ export default function Home() {
           "id, job_number, request_summary, request_details, status, updated_at, assigned_to, requester_name",
         )
         .order("updated_at", { ascending: false })
-        .limit(role === "admin" ? 8 : 5);
+        .limit(isAdmin ? 8 : 5);
 
       const { data, error } =
-        role === "admin" ? await query : await query.eq("user_id", user.id);
+        isAdmin ? await query : await query.eq("user_id", user.id);
 
       if (!isMounted) {
         return;

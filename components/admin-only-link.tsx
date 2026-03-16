@@ -32,10 +32,10 @@ export function AdminOnlyLink({
       }
 
       try {
-        const { role } = await getCurrentUserWithRole(supabase);
+        const { isAdmin } = await getCurrentUserWithRole(supabase);
 
         if (isMounted) {
-          setIsAdmin(role === "admin");
+          setIsAdmin(isAdmin);
         }
       } catch {
         if (isMounted) {

@@ -48,7 +48,7 @@ export default function CompletedPage() {
         return;
       }
 
-      const { user, role } = await getCurrentUserWithRole(supabase);
+      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
 
       if (!isMounted) {
         return;
@@ -59,7 +59,7 @@ export default function CompletedPage() {
         return;
       }
 
-      if (role !== "admin") {
+      if (!isAdmin) {
         router.replace("/");
         return;
       }

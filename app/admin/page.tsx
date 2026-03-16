@@ -150,7 +150,7 @@ export default function AdminPage() {
         return;
       }
 
-      const { user, role } = await getCurrentUserWithRole(supabase);
+      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
 
       if (!isMounted) {
         return;
@@ -161,7 +161,7 @@ export default function AdminPage() {
         return;
       }
 
-      if (role !== "admin") {
+      if (!isAdmin) {
         router.replace("/");
         return;
       }
