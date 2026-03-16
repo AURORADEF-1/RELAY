@@ -8,6 +8,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
+import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -44,30 +45,42 @@ export default function RequestsPage() {
         return;
       }
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      const { user, profile, accessLevel, isAdmin } = await getCurrentUserWithRole(
+        supabase,
+      );
 
       if (!isMounted) {
         return;
       }
 
-      if (userError || !user) {
+      if (!user) {
         setTickets([]);
         setErrorMessage("Sign in to view your requests.");
         setIsLoading(false);
         return;
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("tickets")
         .select(
           "id, machine_reference, job_number, request_summary, request_details, status, updated_at, assigned_to",
         )
-        .eq("user_id", user.id)
         .neq("status", "COMPLETED")
         .order("updated_at", { ascending: false });
+
+      if (!isAdmin) {
+        query = query.eq("user_id", user.id);
+      }
+
+      console.log("RELAY request query debug", {
+        email: user?.email,
+        profileRole: profile?.role,
+        profileUsername: profile?.username,
+        access: accessLevel,
+        mode: isAdmin ? "admin-all-requests" : "user-own-requests",
+      });
+
+      const { data, error } = await query;
 
       if (!isMounted) {
         return;
@@ -79,6 +92,12 @@ export default function RequestsPage() {
         setIsLoading(false);
         return;
       }
+
+      console.log("RELAY request query debug result", {
+        email: user?.email,
+        access: accessLevel,
+        rowCount: data?.length ?? 0,
+      });
 
       setTickets(data ?? []);
       setIsLoading(false);
