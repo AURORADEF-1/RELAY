@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -29,86 +29,76 @@ export default function RequestsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadTickets = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage("");
 
-    async function loadTickets() {
-      setIsLoading(true);
-      setErrorMessage("");
+    const supabase = getSupabaseClient();
 
-      const supabase = getSupabaseClient();
-
-      if (!supabase) {
-        setTickets([]);
-        setErrorMessage("Supabase environment variables are not configured.");
-        setIsLoading(false);
-        return;
-      }
-
-      const { user, profile, accessLevel, isAdmin } = await getCurrentUserWithRole(
-        supabase,
-      );
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (!user) {
-        setTickets([]);
-        setErrorMessage("Sign in to view your requests.");
-        setIsLoading(false);
-        return;
-      }
-
-      let query = supabase
-        .from("tickets")
-        .select(
-          "id, machine_reference, job_number, request_summary, request_details, status, updated_at, assigned_to",
-        )
-        .neq("status", "COMPLETED")
-        .order("updated_at", { ascending: false });
-
-      if (!isAdmin) {
-        query = query.eq("user_id", user.id);
-      }
-
-      console.log("RELAY request query debug", {
-        email: user?.email,
-        profileRole: profile?.role,
-        profileUsername: profile?.username,
-        access: accessLevel,
-        mode: isAdmin ? "admin-all-requests" : "user-own-requests",
-      });
-
-      const { data, error } = await query;
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (error) {
-        setTickets([]);
-        setErrorMessage(error.message);
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("RELAY request query debug result", {
-        email: user?.email,
-        access: accessLevel,
-        rowCount: data?.length ?? 0,
-      });
-
-      setTickets(data ?? []);
+    if (!supabase) {
+      setTickets([]);
+      setErrorMessage("Supabase environment variables are not configured.");
       setIsLoading(false);
+      return;
     }
 
-    loadTickets();
+    const { user, profile, accessLevel, isAdmin } = await getCurrentUserWithRole(
+      supabase,
+    );
 
-    return () => {
-      isMounted = false;
-    };
+    if (!user) {
+      setTickets([]);
+      setErrorMessage("Sign in to view your requests.");
+      setIsLoading(false);
+      return;
+    }
+
+    let query = supabase
+      .from("tickets")
+      .select(
+        "id, machine_reference, job_number, request_summary, request_details, status, updated_at, assigned_to",
+      )
+      .neq("status", "COMPLETED")
+      .order("updated_at", { ascending: false });
+
+    if (!isAdmin) {
+      query = query.eq("user_id", user.id);
+    }
+
+    console.log("RELAY request query debug", {
+      email: user?.email,
+      profileRole: profile?.role,
+      profileUsername: profile?.username,
+      access: accessLevel,
+      mode: isAdmin ? "admin-all-requests" : "user-own-requests",
+    });
+
+    const { data, error } = await query;
+
+    if (error) {
+      setTickets([]);
+      setErrorMessage(error.message);
+      setIsLoading(false);
+      return;
+    }
+
+    console.log("RELAY request query debug result", {
+      email: user?.email,
+      access: accessLevel,
+      rowCount: data?.length ?? 0,
+    });
+
+    setTickets(data ?? []);
+    setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadTickets();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadTickets]);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
@@ -178,6 +168,17 @@ export default function RequestsPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              type="button"
+              onClick={() => void loadTickets()}
+              disabled={isLoading}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoading ? "Refreshing..." : "Refresh"}
+            </button>
           </div>
 
           {errorMessage ? (

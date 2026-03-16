@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -31,68 +31,56 @@ export default function CompletedPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadTickets = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage("");
 
-    async function loadTickets() {
-      setIsLoading(true);
-      setErrorMessage("");
+    const supabase = getSupabaseClient();
 
-      const supabase = getSupabaseClient();
-
-      if (!supabase) {
-        if (isMounted) {
-          setErrorMessage("Supabase environment variables are not configured.");
-          setIsLoading(false);
-        }
-        return;
-      }
-
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (!user) {
-        router.replace("/login?next=/completed");
-        return;
-      }
-
-      if (!isAdmin) {
-        router.replace("/");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("tickets")
-        .select(
-          "id, requester_name, machine_reference, job_number, request_summary, request_details, assigned_to, updated_at",
-        )
-        .eq("status", "COMPLETED")
-        .order("updated_at", { ascending: false });
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (error) {
-        setErrorMessage(error.message);
-        setTickets([]);
-        setIsLoading(false);
-        return;
-      }
-
-      setTickets((data ?? []) as CompletedTicket[]);
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
       setIsLoading(false);
+      return;
     }
 
-    loadTickets();
+    const { user, isAdmin } = await getCurrentUserWithRole(supabase);
 
-    return () => {
-      isMounted = false;
-    };
+    if (!user) {
+      router.replace("/login?next=/completed");
+      return;
+    }
+
+    if (!isAdmin) {
+      router.replace("/");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("tickets")
+      .select(
+        "id, requester_name, machine_reference, job_number, request_summary, request_details, assigned_to, updated_at",
+      )
+      .eq("status", "COMPLETED")
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      setErrorMessage(error.message);
+      setTickets([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setTickets((data ?? []) as CompletedTicket[]);
+    setIsLoading(false);
   }, [router]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadTickets();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadTickets]);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
@@ -140,6 +128,17 @@ export default function CompletedPage() {
 
             <div className="mt-8">
               <PartsControlTabs activeTab="completed" />
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => void loadTickets()}
+                disabled={isLoading}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isLoading ? "Refreshing..." : "Refresh"}
+              </button>
             </div>
 
             {errorMessage ? (

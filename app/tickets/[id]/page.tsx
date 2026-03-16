@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -77,94 +77,75 @@ export default function TicketDetailPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadTicket = useCallback(async () => {
+    setIsLoading(true);
 
-    async function loadTicket() {
-      const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient();
 
-      if (!supabase) {
-        setErrorMessage("Supabase environment variables are not configured.");
-        setIsLoading(false);
-        return;
-      }
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!isMounted) {
-        return;
-      }
-
-      setCurrentUserId(user?.id ?? null);
-
-      const { data: ticketData, error: ticketError } = await supabase
-        .from("tickets")
-        .select("*")
-        .eq("id", ticketId)
-        .single();
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (ticketError) {
-        setErrorMessage(ticketError.message);
-        setIsLoading(false);
-        return;
-      }
-
-      const { data: updateData, error: updatesError } = await supabase
-        .from("ticket_updates")
-        .select("*")
-        .eq("ticket_id", ticketId)
-        .order("created_at", { ascending: false });
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (updatesError) {
-        setErrorMessage(updatesError.message);
-        setTicket(ticketData as TicketRecord);
-        setUpdates([]);
-      } else {
-        setTicket(ticketData as TicketRecord);
-        setUpdates((updateData ?? []) as TicketUpdate[]);
-      }
-
-      try {
-        const [attachmentData, messageData] = await Promise.all([
-          fetchTicketAttachments(supabase, ticketId),
-          fetchTicketMessages(supabase, ticketId),
-        ]);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setAttachments(attachmentData);
-        setMessages(messageData);
-      } catch (loadError) {
-        if (!isMounted) {
-          return;
-        }
-
-        setErrorMessage(
-          loadError instanceof Error ? loadError.message : "Failed to load ticket chat.",
-        );
-      }
-
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
       setIsLoading(false);
+      return;
     }
 
-    loadTicket();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    return () => {
-      isMounted = false;
-    };
+    setCurrentUserId(user?.id ?? null);
+
+    const { data: ticketData, error: ticketError } = await supabase
+      .from("tickets")
+      .select("*")
+      .eq("id", ticketId)
+      .single();
+
+    if (ticketError) {
+      setErrorMessage(ticketError.message);
+      setIsLoading(false);
+      return;
+    }
+
+    const { data: updateData, error: updatesError } = await supabase
+      .from("ticket_updates")
+      .select("*")
+      .eq("ticket_id", ticketId)
+      .order("created_at", { ascending: false });
+
+    if (updatesError) {
+      setErrorMessage(updatesError.message);
+      setTicket(ticketData as TicketRecord);
+      setUpdates([]);
+    } else {
+      setErrorMessage("");
+      setTicket(ticketData as TicketRecord);
+      setUpdates((updateData ?? []) as TicketUpdate[]);
+    }
+
+    try {
+      const [attachmentData, messageData] = await Promise.all([
+        fetchTicketAttachments(supabase, ticketId),
+        fetchTicketMessages(supabase, ticketId),
+      ]);
+
+      setAttachments(attachmentData);
+      setMessages(messageData);
+    } catch (loadError) {
+      setErrorMessage(
+        loadError instanceof Error ? loadError.message : "Failed to load ticket chat.",
+      );
+    }
+
+    setIsLoading(false);
   }, [ticketId]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadTicket();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadTicket]);
 
   async function reloadTicketConversation(supabase: NonNullable<ReturnType<typeof getSupabaseClient>>, activeTicketId: string) {
     const [attachmentData, messageData] = await Promise.all([
@@ -368,12 +349,22 @@ export default function TicketDetailPage() {
                 </p>
               </div>
               <div className="self-start">
-                <Link
-                  href="/requests"
-                  className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                >
-                  Back to Requests
-                </Link>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void loadTicket()}
+                    disabled={isLoading}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isLoading ? "Refreshing..." : "Refresh"}
+                  </button>
+                  <Link
+                    href="/requests"
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    Back to Requests
+                  </Link>
+                </div>
               </div>
             </div>
 

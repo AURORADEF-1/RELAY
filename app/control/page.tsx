@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -68,81 +68,69 @@ export default function ControlPage() {
     return saved === "compact" ? "compact" : "table";
   });
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadTickets = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage("");
 
-    async function loadTickets() {
-      setIsLoading(true);
-      setErrorMessage("");
+    const supabase = getSupabaseClient();
 
-      const supabase = getSupabaseClient();
-
-      if (!supabase) {
-        if (isMounted) {
-          setErrorMessage("Supabase environment variables are not configured.");
-          setIsLoading(false);
-        }
-        return;
-      }
-
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (!user) {
-        router.replace("/login?next=/control");
-        return;
-      }
-
-      if (!isAdmin) {
-        router.replace("/");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("tickets")
-        .select(
-          "id, requester_name, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
-        )
-        .neq("status", "COMPLETED")
-        .order("updated_at", { ascending: false });
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (error) {
-        setErrorMessage(error.message);
-        setTickets([]);
-        setIsLoading(false);
-        return;
-      }
-
-      const nextTickets = (data ?? []) as ControlTicket[];
-      setTickets(nextTickets);
-      setDrafts(
-        Object.fromEntries(
-          nextTickets.map((ticket) => [
-            ticket.id,
-            {
-              status: ticket.status ?? "PENDING",
-              assigned_to: ticket.assigned_to ?? "",
-              notes: ticket.notes ?? "",
-            },
-          ]),
-        ),
-      );
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
       setIsLoading(false);
+      return;
     }
 
-    loadTickets();
+    const { user, isAdmin } = await getCurrentUserWithRole(supabase);
 
-    return () => {
-      isMounted = false;
-    };
+    if (!user) {
+      router.replace("/login?next=/control");
+      return;
+    }
+
+    if (!isAdmin) {
+      router.replace("/");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("tickets")
+      .select(
+        "id, requester_name, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
+      )
+      .neq("status", "COMPLETED")
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      setErrorMessage(error.message);
+      setTickets([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const nextTickets = (data ?? []) as ControlTicket[];
+    setTickets(nextTickets);
+    setDrafts(
+      Object.fromEntries(
+        nextTickets.map((ticket) => [
+          ticket.id,
+          {
+            status: ticket.status ?? "PENDING",
+            assigned_to: ticket.assigned_to ?? "",
+            notes: ticket.notes ?? "",
+          },
+        ]),
+      ),
+    );
+    setIsLoading(false);
   }, [router]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadTickets();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadTickets]);
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
@@ -375,6 +363,17 @@ export default function ControlPage() {
                   </select>
                 </label>
               </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => void loadTickets()}
+                disabled={isLoading}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isLoading ? "Refreshing..." : "Refresh"}
+              </button>
             </div>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -134,82 +134,72 @@ export default function AdminPage() {
     }
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadTickets = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage("");
 
-    async function loadTickets() {
-      setIsLoading(true);
-      setErrorMessage("");
+    const supabase = getSupabaseClient();
 
-      const supabase = getSupabaseClient();
-
-      if (!supabase) {
-        setTickets([]);
-        setErrorMessage("Supabase environment variables are not configured.");
-        setIsLoading(false);
-        return;
-      }
-
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (!user) {
-        router.replace("/login?next=/admin");
-        return;
-      }
-
-      if (!isAdmin) {
-        router.replace("/");
-        return;
-      }
-
-      setCurrentUserId(user.id);
-
-      const { data, error } = await supabase
-        .from("tickets")
-        .select(
-          "id, requester_name, department, location_lat, location_lng, location_summary, location_confirmed, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
-        )
-        .neq("status", "COMPLETED")
-        .order("updated_at", { ascending: false });
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (error) {
-        setTickets([]);
-        setErrorMessage(error.message);
-        setIsLoading(false);
-        return;
-      }
-
-      const nextTickets = (data ?? []) as Ticket[];
-      setTickets(nextTickets);
-      setDrafts(
-        Object.fromEntries(
-          nextTickets.map((ticket) => [
-            ticket.id,
-            {
-              assigned_to: ticket.assigned_to ?? "",
-              notes: ticket.notes ?? "",
-            },
-          ]),
-        ),
-      );
-      setSelectedChatTicketId(nextTickets[0]?.id ?? null);
+    if (!supabase) {
+      setTickets([]);
+      setErrorMessage("Supabase environment variables are not configured.");
       setIsLoading(false);
+      return;
     }
 
-    loadTickets();
+    const { user, isAdmin } = await getCurrentUserWithRole(supabase);
 
-    return () => {
-      isMounted = false;
-    };
+    if (!user) {
+      router.replace("/login?next=/admin");
+      return;
+    }
+
+    if (!isAdmin) {
+      router.replace("/");
+      return;
+    }
+
+    setCurrentUserId(user.id);
+
+    const { data, error } = await supabase
+      .from("tickets")
+      .select(
+        "id, requester_name, department, location_lat, location_lng, location_summary, location_confirmed, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
+      )
+      .neq("status", "COMPLETED")
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      setTickets([]);
+      setErrorMessage(error.message);
+      setIsLoading(false);
+      return;
+    }
+
+    const nextTickets = (data ?? []) as Ticket[];
+    setTickets(nextTickets);
+    setDrafts(
+      Object.fromEntries(
+        nextTickets.map((ticket) => [
+          ticket.id,
+          {
+            assigned_to: ticket.assigned_to ?? "",
+            notes: ticket.notes ?? "",
+          },
+        ]),
+      ),
+    );
+    setSelectedChatTicketId(nextTickets[0]?.id ?? null);
+    setIsLoading(false);
   }, [router]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadTickets();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadTickets]);
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
@@ -975,6 +965,17 @@ export default function AdminPage() {
                 Parts Control is active below. Use live workflow views, filters, chats, and queue tools to manage operational demand.
               </div>
             ) : null}
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => void loadTickets()}
+                disabled={isLoading}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isLoading ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
 
             <div className="mt-8 flex items-center justify-between gap-4">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
