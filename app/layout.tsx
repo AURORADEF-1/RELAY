@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LegalTermsGate } from "@/components/legal-terms-gate";
 import { NotificationProvider } from "@/components/notification-provider";
+import { NotificationToasts } from "@/components/notification-toasts";
 import { StartupSplash } from "@/components/startup-splash";
 import "./globals.css";
 
@@ -21,6 +22,7 @@ export default function RootLayout({
         <StartupSplash>
           <NotificationProvider>
             <LegalTermsGate />
+            <NotificationToasts />
             {children}
           </NotificationProvider>
         </StartupSplash>

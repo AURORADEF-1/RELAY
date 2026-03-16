@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -25,6 +26,16 @@ type NotificationContextValue = {
   adminBadgeCount: number;
   isAdmin: boolean;
   isAuthenticated: boolean;
+  toasts: NotificationToast[];
+  dismissToast: (id: string) => void;
+};
+
+type NotificationToast = {
+  id: string;
+  title: string;
+  description: string;
+  href?: string;
+  tone?: "default" | "success";
 };
 
 const NotificationContext = createContext<NotificationContextValue>({
@@ -32,11 +43,14 @@ const NotificationContext = createContext<NotificationContextValue>({
   adminBadgeCount: 0,
   isAdmin: false,
   isAuthenticated: false,
+  toasts: [],
+  dismissToast: () => {},
 });
 
 const REQUESTER_UNREAD_KEY = "relay-requester-unread-count";
 const ADMIN_UNREAD_KEY = "relay-admin-unread-count";
 const SOUND_COOLDOWN_MS = 1800;
+const TOAST_DURATION_MS = 10000;
 
 export function NotificationProvider({
   children,
@@ -53,6 +67,7 @@ export function NotificationProvider({
   const [pendingTicketCount, setPendingTicketCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [toasts, setToasts] = useState<NotificationToast[]>([]);
 
   useEffect(() => {
     pathnameRef.current = pathname;
@@ -65,6 +80,20 @@ export function NotificationProvider({
       setAdminUnreadCount(0);
     }
   }, [pathname]);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  }, []);
+
+  function pushToast(toast: Omit<NotificationToast, "id">) {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const nextToast = { ...toast, id };
+    setToasts((current) => [...current.slice(-2), nextToast]);
+
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toastItem) => toastItem.id !== id));
+    }, TOAST_DURATION_MS);
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -118,6 +147,7 @@ export function NotificationProvider({
       setPendingTicketCount(0);
       setRequesterUnreadCount(0);
       setAdminUnreadCount(0);
+      setToasts([]);
 
       if (typeof window !== "undefined") {
         window.sessionStorage.removeItem(REQUESTER_UNREAD_KEY);
@@ -203,8 +233,17 @@ export function NotificationProvider({
               if (payload.new.status === "PENDING") {
                 if (pathnameRef.current !== "/admin") {
                   setAdminUnreadCount((current) => current + 1);
-                  playNotificationSound();
                 }
+                pushToast({
+                  title: "New Request Submitted",
+                  description: formatAdminRequestToast(payload.new),
+                  href:
+                    typeof payload.new.id === "string"
+                      ? `/tickets/${payload.new.id}`
+                      : "/admin",
+                  tone: "success",
+                });
+                playNotificationSound();
               }
 
               void refreshPendingTicketCount(
@@ -294,6 +333,12 @@ export function NotificationProvider({
               }
 
               setRequesterUnreadCount((current) => current + 1);
+              pushToast({
+                title: "Request Status Updated",
+                description: formatRequesterStatusToast(payload.new, newStatus),
+                href: ticketId ? `/tickets/${ticketId}` : "/requests",
+                tone: "success",
+              });
               playNotificationSound();
             },
           );
@@ -364,8 +409,18 @@ export function NotificationProvider({
       adminBadgeCount: adminUnreadCount > 0 ? adminUnreadCount : pendingTicketCount,
       isAdmin,
       isAuthenticated,
+      toasts,
+      dismissToast,
     }),
-    [adminUnreadCount, isAdmin, isAuthenticated, pendingTicketCount, requesterUnreadCount],
+    [
+      adminUnreadCount,
+      dismissToast,
+      isAdmin,
+      isAuthenticated,
+      pendingTicketCount,
+      requesterUnreadCount,
+      toasts,
+    ],
   );
 
   function isRequesterNotificationPage(ticketId?: string) {
@@ -425,6 +480,36 @@ export function NotificationProvider({
       {children}
     </NotificationContext.Provider>
   );
+}
+
+function formatAdminRequestToast(record: Record<string, unknown>) {
+  const jobNumber = readStringField(record, "job_number");
+  const summary =
+    readStringField(record, "request_summary") ??
+    readStringField(record, "request_details");
+
+  if (jobNumber && summary) {
+    return `Job ${jobNumber} · ${summary}`;
+  }
+
+  if (jobNumber) {
+    return `Job ${jobNumber} is awaiting parts control review.`;
+  }
+
+  return summary ?? "A new request is now waiting in the queue.";
+}
+
+function formatRequesterStatusToast(
+  record: Record<string, unknown>,
+  nextStatus: string,
+) {
+  const jobNumber = readStringField(record, "job_number");
+
+  if (jobNumber) {
+    return `Job ${jobNumber} is now ${nextStatus}.`;
+  }
+
+  return `Your request status is now ${nextStatus}.`;
 }
 
 export function useNotifications() {
