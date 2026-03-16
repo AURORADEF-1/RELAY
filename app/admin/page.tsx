@@ -23,6 +23,10 @@ import {
   uploadTicketAttachments,
 } from "@/lib/relay-ticketing";
 import type { RelayAiContext } from "@/lib/relay-ai";
+import {
+  notifyRequesterOfOperatorMessage,
+  notifyRequesterStatusChanged,
+} from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import {
   activeTicketStatusOptions,
@@ -38,6 +42,7 @@ const ADMIN_DASHBOARD_VIEW_STORAGE_KEY = "relay-admin-dashboard-view-mode";
 
 type Ticket = {
   id: string;
+  user_id: string | null;
   requester_name: string | null;
   department: string | null;
   location_lat?: number | null;
@@ -164,7 +169,7 @@ export default function AdminPage() {
     const { data, error } = await supabase
       .from("tickets")
       .select(
-        "id, requester_name, department, location_lat, location_lng, location_summary, location_confirmed, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
+        "id, user_id, requester_name, department, location_lat, location_lng, location_summary, location_confirmed, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
       )
       .neq("status", "COMPLETED")
       .order("updated_at", { ascending: false });
@@ -454,6 +459,18 @@ export default function AdminPage() {
       return;
     }
 
+    try {
+      await notifyRequesterStatusChanged(supabase, {
+        userId: currentTicket.user_id,
+        ticketId,
+        jobNumber: currentTicket.job_number,
+        nextStatus,
+        requestSummary: currentTicket.request_summary ?? currentTicket.request_details,
+      });
+    } catch (notificationError) {
+      console.error("Failed to notify requester about status change", notificationError);
+    }
+
     setTickets((current) =>
       nextStatus === "COMPLETED"
         ? current.filter((ticket) => ticket.id !== ticketId)
@@ -648,6 +665,18 @@ export default function AdminPage() {
         type: "success",
         message: "Reply sent successfully.",
       });
+      try {
+        await notifyRequesterOfOperatorMessage(supabase, {
+          userId: selectedChatTicket.user_id,
+          ticketId: selectedChatTicket.id,
+          jobNumber: selectedChatTicket.job_number,
+          assignedTo: selectedChatTicket.assigned_to,
+          requestSummary:
+            selectedChatTicket.request_summary ?? selectedChatTicket.request_details,
+        });
+      } catch (notificationError) {
+        console.error("Failed to notify requester about operator reply", notificationError);
+      }
       triggerActionFeedback();
       await reloadSelectedChatMessages(supabase, selectedChatTicket.id);
       return true;

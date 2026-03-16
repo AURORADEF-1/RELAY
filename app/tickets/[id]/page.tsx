@@ -15,6 +15,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { triggerActionFeedback } from "@/lib/action-feedback";
+import { notifyAdminsOfRequesterMessage } from "@/lib/notifications";
 import {
   createTicketMessage,
   fetchTicketAttachments,
@@ -204,6 +205,16 @@ export default function TicketDetailPage() {
         type: "success",
         message: "Message sent successfully.",
       });
+      try {
+        await notifyAdminsOfRequesterMessage(supabase, {
+          ticketId: ticket.id,
+          requesterName: ticket.requester_name,
+          jobNumber: ticket.job_number,
+          requestSummary: ticket.request_summary ?? ticket.request_details,
+        });
+      } catch (notificationError) {
+        console.error("Failed to notify admins about requester message", notificationError);
+      }
       triggerActionFeedback();
       await reloadTicketConversation(supabase, ticket.id);
       return true;

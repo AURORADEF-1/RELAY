@@ -14,10 +14,11 @@ import type {
   AuthChangeEvent,
   Session,
   RealtimeChannel,
-  RealtimePostgresInsertPayload,
-  RealtimePostgresUpdatePayload,
-  SupabaseClient,
 } from "@supabase/supabase-js";
+import {
+  fetchUnreadNotifications,
+  markNotificationsRead,
+} from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -47,8 +48,6 @@ const NotificationContext = createContext<NotificationContextValue>({
   dismissToast: () => {},
 });
 
-const REQUESTER_UNREAD_KEY = "relay-requester-unread-count";
-const ADMIN_UNREAD_KEY = "relay-admin-unread-count";
 const SOUND_COOLDOWN_MS = 1800;
 const TOAST_DURATION_MS = 10000;
 const NOTIFICATION_POLL_INTERVAL_MS = 15000;
@@ -60,11 +59,8 @@ export function NotificationProvider({
 }) {
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
-  const requesterTicketIdsRef = useRef<Set<string>>(new Set());
-  const adminKnownPendingTicketIdsRef = useRef<Set<string>>(new Set());
-  const requesterStatusSnapshotRef = useRef<Record<string, string>>({});
-  const handledEventsRef = useRef<Set<string>>(new Set());
   const lastSoundAtRef = useRef(0);
+  const knownUnreadIdsRef = useRef<Set<string>>(new Set());
   const [requesterUnreadCount, setRequesterUnreadCount] = useState(0);
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [pendingTicketCount, setPendingTicketCount] = useState(0);
@@ -72,63 +68,131 @@ export function NotificationProvider({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [toasts, setToasts] = useState<NotificationToast[]>([]);
 
-  useEffect(() => {
-    pathnameRef.current = pathname;
-
-    if (pathname === "/requests" || pathname.startsWith("/tickets/")) {
-      setRequesterUnreadCount(0);
-    }
-
-    if (pathname === "/admin") {
-      setAdminUnreadCount(0);
-    }
-  }, [pathname]);
-
   const dismissToast = useCallback((id: string) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
   const pushToast = useCallback((toast: Omit<NotificationToast, "id">) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const nextToast = { ...toast, id };
-    setToasts((current) => [...current.slice(-2), nextToast]);
+    setToasts((current) => [...current.slice(-2), { ...toast, id }]);
 
     window.setTimeout(() => {
       setToasts((current) => current.filter((toastItem) => toastItem.id !== id));
     }, TOAST_DURATION_MS);
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
+  const playNotificationSound = useCallback(() => {
+    const now = Date.now();
+
+    if (now - lastSoundAtRef.current < SOUND_COOLDOWN_MS) {
       return;
     }
 
-    const savedRequester = Number(window.sessionStorage.getItem(REQUESTER_UNREAD_KEY));
-    const savedAdmin = Number(window.sessionStorage.getItem(ADMIN_UNREAD_KEY));
+    lastSoundAtRef.current = now;
+    const audio = new Audio("/notification.aiff");
+    void audio.play().catch(() => {});
+  }, []);
 
-    if (Number.isFinite(savedRequester) && savedRequester > 0) {
-      setRequesterUnreadCount(savedRequester);
+  const refreshPendingTicketCount = useCallback(async () => {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      return;
     }
 
-    if (Number.isFinite(savedAdmin) && savedAdmin > 0) {
-      setAdminUnreadCount(savedAdmin);
+    const { count, error } = await supabase
+      .from("tickets")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "PENDING");
+
+    if (!error) {
+      setPendingTicketCount(count ?? 0);
     }
   }, []);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem(
-        REQUESTER_UNREAD_KEY,
-        String(requesterUnreadCount),
+  const syncUnreadNotifications = useCallback(
+    async (
+      supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
+      userId: string,
+      adminUser: boolean,
+      options?: { showToasts: boolean },
+    ) => {
+      const unreadNotifications = await fetchUnreadNotifications(supabase, userId);
+      const nextUnreadIds = new Set(unreadNotifications.map((notification) => notification.id));
+
+      if (options?.showToasts) {
+        const nextToasts = unreadNotifications
+          .filter((notification) => !knownUnreadIdsRef.current.has(notification.id))
+          .sort(
+            (left, right) =>
+              new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
+          );
+
+        for (const notification of nextToasts) {
+          pushToast({
+            title: notification.title,
+            description: notification.body ?? "New RELAY activity.",
+            href: notification.ticket_id ? `/tickets/${notification.ticket_id}` : undefined,
+            tone: "success",
+          });
+          playNotificationSound();
+        }
+      }
+
+      knownUnreadIdsRef.current = nextUnreadIds;
+
+      if (adminUser) {
+        setAdminUnreadCount(unreadNotifications.length);
+      } else {
+        setRequesterUnreadCount(unreadNotifications.length);
+      }
+    },
+    [playNotificationSound, pushToast],
+  );
+
+  const markPathNotificationsRead = useCallback(
+    async (
+      supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
+      userId: string,
+      adminUser: boolean,
+      currentPath: string,
+    ) => {
+      const shouldMarkRead = adminUser
+        ? currentPath === "/admin" ||
+          currentPath === "/control" ||
+          currentPath === "/completed" ||
+          currentPath.startsWith("/tickets/")
+        : currentPath === "/requests" || currentPath.startsWith("/tickets/");
+
+      if (!shouldMarkRead) {
+        return;
+      }
+
+      const unreadNotifications = await fetchUnreadNotifications(supabase, userId);
+
+      if (unreadNotifications.length === 0) {
+        return;
+      }
+
+      await markNotificationsRead(
+        supabase,
+        unreadNotifications.map((notification) => notification.id),
       );
-    }
-  }, [requesterUnreadCount]);
+
+      knownUnreadIdsRef.current = new Set();
+
+      if (adminUser) {
+        setAdminUnreadCount(0);
+      } else {
+        setRequesterUnreadCount(0);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem(ADMIN_UNREAD_KEY, String(adminUnreadCount));
-    }
-  }, [adminUnreadCount]);
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -137,31 +201,21 @@ export function NotificationProvider({
       return;
     }
 
-    const supabaseClient = supabase;
-
     let isMounted = true;
     let activeChannel: RealtimeChannel | null = null;
-    let authUnsubscribe: (() => void) | null = null;
     let pollInterval: number | null = null;
 
-    async function clearNotificationState() {
-      requesterTicketIdsRef.current = new Set();
-      setIsAdmin(false);
-      setIsAuthenticated(false);
-      setPendingTicketCount(0);
+    const clearNotificationState = async () => {
+      knownUnreadIdsRef.current = new Set();
       setRequesterUnreadCount(0);
       setAdminUnreadCount(0);
+      setPendingTicketCount(0);
+      setIsAdmin(false);
+      setIsAuthenticated(false);
       setToasts([]);
-      adminKnownPendingTicketIdsRef.current = new Set();
-      requesterStatusSnapshotRef.current = {};
-
-      if (typeof window !== "undefined") {
-        window.sessionStorage.removeItem(REQUESTER_UNREAD_KEY);
-        window.sessionStorage.removeItem(ADMIN_UNREAD_KEY);
-      }
 
       if (activeChannel) {
-        await supabaseClient.removeChannel(activeChannel);
+        await supabase.removeChannel(activeChannel);
         activeChannel = null;
       }
 
@@ -169,23 +223,22 @@ export function NotificationProvider({
         window.clearInterval(pollInterval);
         pollInterval = null;
       }
-    }
+    };
 
-    async function setupNotifications() {
+    const setupNotifications = async () => {
       try {
         if (activeChannel) {
-          await supabaseClient.removeChannel(activeChannel);
+          await supabase.removeChannel(activeChannel);
           activeChannel = null;
         }
 
-        const {
-          user,
-          profile,
-          accessLevel,
-          isAdmin: adminUser,
-        } = await getCurrentUserWithRole(
-          supabaseClient,
-        );
+        if (pollInterval) {
+          window.clearInterval(pollInterval);
+          pollInterval = null;
+        }
+
+        const { user, profile, accessLevel, isAdmin: adminUser } =
+          await getCurrentUserWithRole(supabase);
 
         if (!isMounted) {
           return;
@@ -204,202 +257,64 @@ export function NotificationProvider({
           computedAccess: accessLevel,
         });
 
-        setIsAdmin(adminUser);
         setIsAuthenticated(true);
+        setIsAdmin(adminUser);
+        await syncUnreadNotifications(supabase, user.id, adminUser);
 
         if (adminUser) {
-          await refreshPendingTicketCount(supabaseClient, setPendingTicketCount);
-        } else {
-          const { data, error } = await supabaseClient
-            .from("tickets")
-            .select("id")
-            .eq("user_id", user.id);
-
-          if (error) {
-            throw error;
-          }
-
-          requesterTicketIdsRef.current = new Set(
-            (data ?? [])
-              .map((ticket) => ticket.id)
-              .filter((ticketId): ticketId is string => typeof ticketId === "string"),
-          );
+          await refreshPendingTicketCount();
         }
 
-        await primeNotificationSnapshots(supabaseClient, user.id, adminUser);
-
-        // Realtime notification subscriptions for ticket and chat activity.
-        const channel = supabaseClient.channel(
-          `relay-notifications-${user.id}-${adminUser ? "admin" : "requester"}`,
+        await markPathNotificationsRead(
+          supabase,
+          user.id,
+          adminUser,
+          pathnameRef.current,
         );
+
+        const channel = supabase.channel(`relay-notifications-${user.id}`);
         activeChannel = channel;
 
-        if (adminUser) {
-          channel.on(
-            "postgres_changes",
-            { event: "INSERT", schema: "public", table: "tickets" },
-            async (payload) => {
-              if (!markRealtimeEventHandled(payload)) {
-                return;
-              }
+        channel.on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id}`,
+          },
+          async () => {
+            await syncUnreadNotifications(supabase, user.id, adminUser, {
+              showToasts: true,
+            });
 
-              if (payload.new.status === "PENDING") {
-                if (pathnameRef.current !== "/admin") {
-                  setAdminUnreadCount((current) => current + 1);
-                }
-                pushToast({
-                  title: "New Request Submitted",
-                  description: formatAdminRequestToast(payload.new),
-                  href:
-                    typeof payload.new.id === "string"
-                      ? `/tickets/${payload.new.id}`
-                      : "/admin",
-                  tone: "success",
-                });
-                playNotificationSound();
-              }
-
-              void refreshPendingTicketCount(
-                supabaseClient,
-                setPendingTicketCount,
-              ).catch((error) => {
-                console.error("Failed to refresh pending ticket count", error);
-              });
-            },
-          );
-
-          channel.on(
-            "postgres_changes",
-            { event: "UPDATE", schema: "public", table: "tickets" },
-            () => {
-              void refreshPendingTicketCount(
-                supabaseClient,
-                setPendingTicketCount,
-              ).catch((error) => {
-                console.error("Failed to refresh pending ticket count", error);
-              });
-            },
-          );
-
-          channel.on(
-            "postgres_changes",
-            { event: "INSERT", schema: "public", table: "ticket_messages" },
-            (payload) => {
-              if (!markRealtimeEventHandled(payload)) {
-                return;
-              }
-
-              if (
-                payload.new.sender_role === "requester" &&
-                pathnameRef.current !== "/admin"
-              ) {
-                setAdminUnreadCount((current) => current + 1);
-                playNotificationSound();
-              }
-            },
-          );
-        } else {
-          channel.on(
-            "postgres_changes",
-            {
-              event: "INSERT",
-              schema: "public",
-              table: "tickets",
-              filter: `user_id=eq.${user.id}`,
-            },
-            (payload) => {
-              if (typeof payload.new.id === "string") {
-                requesterTicketIdsRef.current.add(payload.new.id);
-              }
-            },
-          );
-
-          channel.on(
-            "postgres_changes",
-            {
-              event: "UPDATE",
-              schema: "public",
-              table: "tickets",
-              filter: `user_id=eq.${user.id}`,
-            },
-            (payload) => {
-              if (!markRealtimeEventHandled(payload)) {
-                return;
-              }
-
-              const ticketId =
-                typeof payload.new.id === "string" ? payload.new.id : undefined;
-
-              if (ticketId) {
-                requesterTicketIdsRef.current.add(ticketId);
-              }
-
-              const oldStatus = readStringField(payload.old, "status");
-              const newStatus = readStringField(payload.new, "status");
-
-              if (!newStatus || oldStatus === newStatus) {
-                return;
-              }
-
-              if (isRequesterNotificationPage(ticketId)) {
-                return;
-              }
-
-              setRequesterUnreadCount((current) => current + 1);
-              pushToast({
-                title: "Request Status Updated",
-                description: formatRequesterStatusToast(payload.new, newStatus),
-                href: ticketId ? `/tickets/${ticketId}` : "/requests",
-                tone: "success",
-              });
-              playNotificationSound();
-            },
-          );
-
-          channel.on(
-            "postgres_changes",
-            { event: "INSERT", schema: "public", table: "ticket_messages" },
-            (payload) => {
-              if (!markRealtimeEventHandled(payload)) {
-                return;
-              }
-
-              const ticketId = readStringField(payload.new, "ticket_id");
-              const senderUserId = readStringField(payload.new, "sender_user_id");
-
-              if (!ticketId || !requesterTicketIdsRef.current.has(ticketId)) {
-                return;
-              }
-
-              if (senderUserId === user.id || isRequesterNotificationPage(ticketId)) {
-                return;
-              }
-
-              setRequesterUnreadCount((current) => current + 1);
-              playNotificationSound();
-            },
-          );
-        }
+            if (adminUser) {
+              await refreshPendingTicketCount();
+            }
+          },
+        );
 
         channel.subscribe();
 
-        if (pollInterval) {
-          window.clearInterval(pollInterval);
-        }
-
         pollInterval = window.setInterval(() => {
-          void pollForNotificationFallbacks(supabaseClient, user.id, adminUser);
+          void syncUnreadNotifications(supabase, user.id, adminUser, {
+            showToasts: true,
+          });
+
+          if (adminUser) {
+            void refreshPendingTicketCount();
+          }
         }, NOTIFICATION_POLL_INTERVAL_MS);
       } catch (error) {
-        console.error("Failed to initialise realtime notifications", error);
+        console.error("Failed to initialise notifications", error);
       }
-    }
+    };
 
-    setupNotifications();
+    void setupNotifications();
 
     const {
       data: { subscription },
-    } = supabaseClient.auth.onAuthStateChange(
+    } = supabase.auth.onAuthStateChange(
       (_event: AuthChangeEvent, session: Session | null) => {
         if (!isMounted) {
           return;
@@ -413,19 +328,51 @@ export function NotificationProvider({
         void setupNotifications();
       },
     );
-    authUnsubscribe = () => subscription.unsubscribe();
 
     return () => {
       isMounted = false;
-      authUnsubscribe?.();
+      subscription.unsubscribe();
+
       if (pollInterval) {
         window.clearInterval(pollInterval);
       }
+
       if (activeChannel) {
-        void supabaseClient.removeChannel(activeChannel);
+        void supabase.removeChannel(activeChannel);
       }
     };
-  }, []);
+  }, [
+    markPathNotificationsRead,
+    refreshPendingTicketCount,
+    syncUnreadNotifications,
+  ]);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+
+    if (!supabase || !isAuthenticated) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncReadState = async () => {
+      const { user } = await getCurrentUserWithRole(supabase);
+
+      if (!user || cancelled) {
+        return;
+      }
+
+      await markPathNotificationsRead(supabase, user.id, isAdmin, pathname);
+      await syncUnreadNotifications(supabase, user.id, isAdmin);
+    };
+
+    void syncReadState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, isAuthenticated, markPathNotificationsRead, pathname, syncUnreadNotifications]);
 
   const contextValue = useMemo(
     () => ({
@@ -447,230 +394,13 @@ export function NotificationProvider({
     ],
   );
 
-  function isRequesterNotificationPage(ticketId?: string) {
-    return (
-      pathnameRef.current === "/requests" ||
-      (ticketId ? pathnameRef.current === `/tickets/${ticketId}` : false)
-    );
-  }
-
-  function markRealtimeEventHandled(
-    payload:
-      | RealtimePostgresInsertPayload<Record<string, unknown>>
-      | RealtimePostgresUpdatePayload<Record<string, unknown>>,
-  ) {
-    const recordId =
-      readStringField(payload.new, "id") ??
-      readStringField(payload.new, "ticket_id") ??
-      "unknown";
-    const eventKey = [
-      payload.table,
-      payload.eventType,
-      recordId,
-      payload.commit_timestamp ?? "",
-    ].join(":");
-
-    if (handledEventsRef.current.has(eventKey)) {
-      return false;
-    }
-
-    handledEventsRef.current.add(eventKey);
-
-    if (handledEventsRef.current.size > 200) {
-      const firstKey = handledEventsRef.current.values().next().value;
-
-      if (firstKey) {
-        handledEventsRef.current.delete(firstKey);
-      }
-    }
-
-    return true;
-  }
-
-  const playNotificationSound = useCallback(() => {
-    const now = Date.now();
-
-    if (now - lastSoundAtRef.current < SOUND_COOLDOWN_MS) {
-      return;
-    }
-
-    lastSoundAtRef.current = now;
-    const audio = new Audio("/notification.aiff");
-    void audio.play().catch(() => {});
-  }, []);
-
   return (
     <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );
-
-  const primeNotificationSnapshots = useCallback(async (
-    supabase: SupabaseClient,
-    userId: string,
-    adminUser: boolean,
-  ) => {
-    if (adminUser) {
-      const { data, error } = await supabase
-        .from("tickets")
-        .select("id")
-        .eq("status", "PENDING");
-
-      if (!error) {
-        adminKnownPendingTicketIdsRef.current = new Set(
-          (data ?? [])
-            .map((ticket) => ticket.id)
-            .filter((ticketId): ticketId is string => typeof ticketId === "string"),
-        );
-      }
-
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("tickets")
-      .select("id, status")
-      .eq("user_id", userId);
-
-    if (!error) {
-      requesterStatusSnapshotRef.current = Object.fromEntries(
-        (data ?? [])
-          .filter(
-            (ticket): ticket is { id: string; status: string | null } =>
-              typeof ticket.id === "string",
-          )
-          .map((ticket) => [ticket.id, ticket.status ?? ""]),
-      );
-    }
-  }, []);
-
-  const pollForNotificationFallbacks = useCallback(async (
-    supabase: SupabaseClient,
-    userId: string,
-    adminUser: boolean,
-  ) => {
-    if (adminUser) {
-      const { data, error } = await supabase
-        .from("tickets")
-        .select("id, job_number, request_summary, request_details, status")
-        .eq("status", "PENDING");
-
-      if (error) {
-        return;
-      }
-
-      const currentIds = new Set(
-        (data ?? [])
-          .map((ticket) => ticket.id)
-          .filter((ticketId): ticketId is string => typeof ticketId === "string"),
-      );
-
-      for (const ticket of data ?? []) {
-        if (
-          typeof ticket.id === "string" &&
-          !adminKnownPendingTicketIdsRef.current.has(ticket.id)
-        ) {
-          pushToast({
-            title: "New Request Submitted",
-            description: formatAdminRequestToast(ticket),
-            href: `/tickets/${ticket.id}`,
-            tone: "success",
-          });
-          playNotificationSound();
-        }
-      }
-
-      adminKnownPendingTicketIdsRef.current = currentIds;
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("tickets")
-      .select("id, job_number, status")
-      .eq("user_id", userId);
-
-    if (error) {
-      return;
-    }
-
-    const nextSnapshot: Record<string, string> = {};
-
-    for (const ticket of data ?? []) {
-      if (typeof ticket.id !== "string") {
-        continue;
-      }
-
-      const nextStatus = typeof ticket.status === "string" ? ticket.status : "";
-      nextSnapshot[ticket.id] = nextStatus;
-
-      const previousStatus = requesterStatusSnapshotRef.current[ticket.id];
-
-      if (previousStatus && nextStatus && previousStatus !== nextStatus) {
-        pushToast({
-          title: "Request Status Updated",
-          description: formatRequesterStatusToast(ticket, nextStatus),
-          href: `/tickets/${ticket.id}`,
-          tone: "success",
-        });
-        playNotificationSound();
-      }
-    }
-
-    requesterStatusSnapshotRef.current = nextSnapshot;
-  }, [playNotificationSound, pushToast]);
-}
-
-function formatAdminRequestToast(record: Record<string, unknown>) {
-  const jobNumber = readStringField(record, "job_number");
-  const summary =
-    readStringField(record, "request_summary") ??
-    readStringField(record, "request_details");
-
-  if (jobNumber && summary) {
-    return `Job ${jobNumber} · ${summary}`;
-  }
-
-  if (jobNumber) {
-    return `Job ${jobNumber} is awaiting parts control review.`;
-  }
-
-  return summary ?? "A new request is now waiting in the queue.";
-}
-
-function formatRequesterStatusToast(
-  record: Record<string, unknown>,
-  nextStatus: string,
-) {
-  const jobNumber = readStringField(record, "job_number");
-
-  if (jobNumber) {
-    return `Job ${jobNumber} is now ${nextStatus}.`;
-  }
-
-  return `Your request status is now ${nextStatus}.`;
 }
 
 export function useNotifications() {
   return useContext(NotificationContext);
-}
-
-async function refreshPendingTicketCount(
-  supabase: SupabaseClient,
-  setPendingTicketCount: (value: number) => void,
-) {
-  const { count, error } = await supabase
-    .from("tickets")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "PENDING");
-
-  if (error) {
-    throw error;
-  }
-
-  setPendingTicketCount(count ?? 0);
-}
-
-function readStringField(record: Record<string, unknown>, key: string) {
-  const value = record[key];
-  return typeof value === "string" ? value : null;
 }

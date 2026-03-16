@@ -9,6 +9,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
+import { notifyRequesterStatusChanged } from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import {
   activeTicketStatusOptions,
@@ -20,6 +21,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 
 type ControlTicket = {
   id: string;
+  user_id: string | null;
   requester_name: string | null;
   machine_reference: string | null;
   job_number: string | null;
@@ -95,7 +97,7 @@ export default function ControlPage() {
     const { data, error } = await supabase
       .from("tickets")
       .select(
-        "id, requester_name, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
+        "id, user_id, requester_name, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
       )
       .neq("status", "COMPLETED")
       .order("updated_at", { ascending: false });
@@ -217,6 +219,18 @@ export default function ControlPage() {
         setSavingTicketId(null);
         setNotice({ type: "error", message: statusError.message });
         return;
+      }
+
+      try {
+        await notifyRequesterStatusChanged(supabase, {
+          userId: ticket.user_id,
+          ticketId: ticket.id,
+          jobNumber: ticket.job_number,
+          nextStatus: draft.status,
+          requestSummary: ticket.request_summary ?? ticket.request_details,
+        });
+      } catch (notificationError) {
+        console.error("Failed to notify requester about control-board status change", notificationError);
       }
     }
 

@@ -9,6 +9,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { triggerActionFeedback } from "@/lib/action-feedback";
+import { notifyAdminsOfNewTicket } from "@/lib/notifications";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -235,6 +236,17 @@ export default function SubmitPage() {
         setErrorMessage(
           `Ticket ${ticket.id} was created, but the initial status log failed: ${ticketUpdateError.message}`,
         );
+      }
+
+      try {
+        await notifyAdminsOfNewTicket(supabase, {
+          ticketId: ticket.id,
+          jobNumber: ticketPayload.job_number,
+          requesterName: ticketPayload.requester_name,
+          requestSummary: ticketPayload.request_summary,
+        });
+      } catch (notificationError) {
+        console.error("Failed to create admin notifications for new ticket", notificationError);
       }
 
       if (queuedPhotos.length > 0) {
