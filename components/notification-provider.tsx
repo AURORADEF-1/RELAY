@@ -137,7 +137,12 @@ export function NotificationProvider({
           activeChannel = null;
         }
 
-        const { user, isAdmin: adminUser } = await getCurrentUserWithRole(
+        const {
+          user,
+          profile,
+          accessLevel,
+          isAdmin: adminUser,
+        } = await getCurrentUserWithRole(
           supabaseClient,
         );
 
@@ -149,6 +154,14 @@ export function NotificationProvider({
           await clearNotificationState();
           return;
         }
+
+        console.log("RELAY access debug", {
+          authEmail: user?.email,
+          profileRole: profile?.role,
+          profileUsername: profile?.username,
+          profileDisplayName: profile?.display_name,
+          computedAccess: accessLevel,
+        });
 
         setIsAdmin(adminUser);
         setIsAuthenticated(true);

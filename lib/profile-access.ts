@@ -10,13 +10,22 @@ export type AppProfile = {
 export type AccessLevel = "admin" | "user";
 
 export function getAccessLevel(user: User | null, profile: AppProfile): AccessLevel {
-  const email = (user?.email || "").toLowerCase();
-  const username = (profile?.username || "").toLowerCase();
-  const displayName = (profile?.display_name || "").toLowerCase();
-  const identity = `${email} ${username} ${displayName}`;
+  const email = (user?.email || "").toLowerCase().trim();
+  const username = (profile?.username || "").toLowerCase().trim();
+  const displayName = (profile?.display_name || "").toLowerCase().trim();
+  const role = (profile?.role || "").toLowerCase().trim();
+  const identity = `${username} ${displayName}`;
 
   if (email === "admin@mlp.local") {
     return "admin";
+  }
+
+  if (email.includes(".admin")) {
+    return "admin";
+  }
+
+  if (email.includes(".user")) {
+    return "user";
   }
 
   if (identity.includes(".admin")) {
@@ -27,11 +36,11 @@ export function getAccessLevel(user: User | null, profile: AppProfile): AccessLe
     return "user";
   }
 
-  if (profile?.role === "admin") {
+  if (role === "admin") {
     return "admin";
   }
 
-  if (profile?.role === "user") {
+  if (role === "user") {
     return "user";
   }
 
@@ -72,6 +81,25 @@ export async function getCurrentUserWithRole(supabase: SupabaseClient): Promise<
     };
   }
 
+  const emailAccessLevel = getAccessLevel(user, null);
+  if (emailAccessLevel === "admin") {
+    console.log("RELAY access debug", {
+      authEmail: user?.email,
+      profileRole: null,
+      profileUsername: null,
+      profileDisplayName: null,
+      computedAccess: emailAccessLevel,
+    });
+
+    return {
+      user,
+      role: null,
+      profile: null,
+      accessLevel: emailAccessLevel,
+      isAdmin: true,
+    };
+  }
+
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("role, username, full_name")
@@ -79,10 +107,10 @@ export async function getCurrentUserWithRole(supabase: SupabaseClient): Promise<
     .maybeSingle();
 
   if (profileError) {
-    throw new Error(profileError.message);
+    console.warn("RELAY profile lookup fallback", profileError.message);
   }
 
-  const normalizedProfile: AppProfile = profile
+  const normalizedProfile: AppProfile = profile && !profileError
     ? {
         role: typeof profile.role === "string" ? profile.role : null,
         username:
@@ -94,11 +122,12 @@ export async function getCurrentUserWithRole(supabase: SupabaseClient): Promise<
 
   const accessLevel = getAccessLevel(user, normalizedProfile);
 
-  console.log("RELAY access check", {
-    email: user?.email,
+  console.log("RELAY access debug", {
+    authEmail: user?.email,
     profileRole: normalizedProfile?.role,
     profileUsername: normalizedProfile?.username,
-    accessLevel,
+    profileDisplayName: normalizedProfile?.display_name,
+    computedAccess: accessLevel,
   });
 
   return {
