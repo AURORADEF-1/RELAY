@@ -51,6 +51,7 @@ const REQUESTER_UNREAD_KEY = "relay-requester-unread-count";
 const ADMIN_UNREAD_KEY = "relay-admin-unread-count";
 const SOUND_COOLDOWN_MS = 1800;
 const TOAST_DURATION_MS = 10000;
+const NOTIFICATION_POLL_INTERVAL_MS = 15000;
 
 export function NotificationProvider({
   children,
@@ -60,6 +61,8 @@ export function NotificationProvider({
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
   const requesterTicketIdsRef = useRef<Set<string>>(new Set());
+  const adminKnownPendingTicketIdsRef = useRef<Set<string>>(new Set());
+  const requesterStatusSnapshotRef = useRef<Record<string, string>>({});
   const handledEventsRef = useRef<Set<string>>(new Set());
   const lastSoundAtRef = useRef(0);
   const [requesterUnreadCount, setRequesterUnreadCount] = useState(0);
@@ -85,7 +88,7 @@ export function NotificationProvider({
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
-  function pushToast(toast: Omit<NotificationToast, "id">) {
+  const pushToast = useCallback((toast: Omit<NotificationToast, "id">) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const nextToast = { ...toast, id };
     setToasts((current) => [...current.slice(-2), nextToast]);
@@ -93,7 +96,7 @@ export function NotificationProvider({
     window.setTimeout(() => {
       setToasts((current) => current.filter((toastItem) => toastItem.id !== id));
     }, TOAST_DURATION_MS);
-  }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -139,6 +142,7 @@ export function NotificationProvider({
     let isMounted = true;
     let activeChannel: RealtimeChannel | null = null;
     let authUnsubscribe: (() => void) | null = null;
+    let pollInterval: number | null = null;
 
     async function clearNotificationState() {
       requesterTicketIdsRef.current = new Set();
@@ -148,6 +152,8 @@ export function NotificationProvider({
       setRequesterUnreadCount(0);
       setAdminUnreadCount(0);
       setToasts([]);
+      adminKnownPendingTicketIdsRef.current = new Set();
+      requesterStatusSnapshotRef.current = {};
 
       if (typeof window !== "undefined") {
         window.sessionStorage.removeItem(REQUESTER_UNREAD_KEY);
@@ -157,6 +163,11 @@ export function NotificationProvider({
       if (activeChannel) {
         await supabaseClient.removeChannel(activeChannel);
         activeChannel = null;
+      }
+
+      if (pollInterval) {
+        window.clearInterval(pollInterval);
+        pollInterval = null;
       }
     }
 
@@ -214,6 +225,8 @@ export function NotificationProvider({
               .filter((ticketId): ticketId is string => typeof ticketId === "string"),
           );
         }
+
+        await primeNotificationSnapshots(supabaseClient, user.id, adminUser);
 
         // Realtime notification subscriptions for ticket and chat activity.
         const channel = supabaseClient.channel(
@@ -369,6 +382,14 @@ export function NotificationProvider({
         }
 
         channel.subscribe();
+
+        if (pollInterval) {
+          window.clearInterval(pollInterval);
+        }
+
+        pollInterval = window.setInterval(() => {
+          void pollForNotificationFallbacks(supabaseClient, user.id, adminUser);
+        }, NOTIFICATION_POLL_INTERVAL_MS);
       } catch (error) {
         console.error("Failed to initialise realtime notifications", error);
       }
@@ -397,6 +418,9 @@ export function NotificationProvider({
     return () => {
       isMounted = false;
       authUnsubscribe?.();
+      if (pollInterval) {
+        window.clearInterval(pollInterval);
+      }
       if (activeChannel) {
         void supabaseClient.removeChannel(activeChannel);
       }
@@ -463,7 +487,7 @@ export function NotificationProvider({
     return true;
   }
 
-  function playNotificationSound() {
+  const playNotificationSound = useCallback(() => {
     const now = Date.now();
 
     if (now - lastSoundAtRef.current < SOUND_COOLDOWN_MS) {
@@ -473,13 +497,127 @@ export function NotificationProvider({
     lastSoundAtRef.current = now;
     const audio = new Audio("/notification.aiff");
     void audio.play().catch(() => {});
-  }
+  }, []);
 
   return (
     <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );
+
+  const primeNotificationSnapshots = useCallback(async (
+    supabase: SupabaseClient,
+    userId: string,
+    adminUser: boolean,
+  ) => {
+    if (adminUser) {
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("id")
+        .eq("status", "PENDING");
+
+      if (!error) {
+        adminKnownPendingTicketIdsRef.current = new Set(
+          (data ?? [])
+            .map((ticket) => ticket.id)
+            .filter((ticketId): ticketId is string => typeof ticketId === "string"),
+        );
+      }
+
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("tickets")
+      .select("id, status")
+      .eq("user_id", userId);
+
+    if (!error) {
+      requesterStatusSnapshotRef.current = Object.fromEntries(
+        (data ?? [])
+          .filter(
+            (ticket): ticket is { id: string; status: string | null } =>
+              typeof ticket.id === "string",
+          )
+          .map((ticket) => [ticket.id, ticket.status ?? ""]),
+      );
+    }
+  }, []);
+
+  const pollForNotificationFallbacks = useCallback(async (
+    supabase: SupabaseClient,
+    userId: string,
+    adminUser: boolean,
+  ) => {
+    if (adminUser) {
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("id, job_number, request_summary, request_details, status")
+        .eq("status", "PENDING");
+
+      if (error) {
+        return;
+      }
+
+      const currentIds = new Set(
+        (data ?? [])
+          .map((ticket) => ticket.id)
+          .filter((ticketId): ticketId is string => typeof ticketId === "string"),
+      );
+
+      for (const ticket of data ?? []) {
+        if (
+          typeof ticket.id === "string" &&
+          !adminKnownPendingTicketIdsRef.current.has(ticket.id)
+        ) {
+          pushToast({
+            title: "New Request Submitted",
+            description: formatAdminRequestToast(ticket),
+            href: `/tickets/${ticket.id}`,
+            tone: "success",
+          });
+          playNotificationSound();
+        }
+      }
+
+      adminKnownPendingTicketIdsRef.current = currentIds;
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("tickets")
+      .select("id, job_number, status")
+      .eq("user_id", userId);
+
+    if (error) {
+      return;
+    }
+
+    const nextSnapshot: Record<string, string> = {};
+
+    for (const ticket of data ?? []) {
+      if (typeof ticket.id !== "string") {
+        continue;
+      }
+
+      const nextStatus = typeof ticket.status === "string" ? ticket.status : "";
+      nextSnapshot[ticket.id] = nextStatus;
+
+      const previousStatus = requesterStatusSnapshotRef.current[ticket.id];
+
+      if (previousStatus && nextStatus && previousStatus !== nextStatus) {
+        pushToast({
+          title: "Request Status Updated",
+          description: formatRequesterStatusToast(ticket, nextStatus),
+          href: `/tickets/${ticket.id}`,
+          tone: "success",
+        });
+        playNotificationSound();
+      }
+    }
+
+    requesterStatusSnapshotRef.current = nextSnapshot;
+  }, [playNotificationSound, pushToast]);
 }
 
 function formatAdminRequestToast(record: Record<string, unknown>) {
