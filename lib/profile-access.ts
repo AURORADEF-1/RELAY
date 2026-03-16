@@ -141,25 +141,6 @@ export async function getCurrentUserWithRole(supabase: SupabaseClient): Promise<
     };
   }
 
-  const emailAccessLevel = getAccessLevel(user, null);
-  if (emailAccessLevel === "admin") {
-    console.log("RELAY access debug", {
-      authEmail: user?.email,
-      profileRole: null,
-      profileUsername: null,
-      profileDisplayName: null,
-      computedAccess: emailAccessLevel,
-    });
-
-    return {
-      user,
-      role: null,
-      profile: null,
-      accessLevel: emailAccessLevel,
-      isAdmin: true,
-    };
-  }
-
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("role, username, full_name")
