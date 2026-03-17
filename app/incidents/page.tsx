@@ -156,15 +156,34 @@ export default function IncidentsPage() {
       return;
     }
 
-    try {
-      const [directoryUsers, tasks] = await Promise.all([
-        fetchUsersWithPresence(supabase),
-        fetchOpenTasksForAdmin(supabase),
-      ]);
-      setUsers(directoryUsers);
-      setOpenTasks(tasks);
-    } catch (error) {
-      console.error("Failed to load RELAY presence or tasks", error);
+    const [usersResult, tasksResult] = await Promise.allSettled([
+      fetchUsersWithPresence(supabase),
+      fetchOpenTasksForAdmin(supabase),
+    ]);
+
+    let nextUsers: UserDirectoryRecord[] = [];
+
+    if (usersResult.status === "fulfilled") {
+      nextUsers = usersResult.value;
+      setUsers(nextUsers);
+    } else {
+      console.error("Failed to load RELAY users", usersResult.reason);
+    }
+
+    if (tasksResult.status === "fulfilled") {
+      setOpenTasks(
+        tasksResult.value.map((task) => {
+          const assignee = nextUsers.find((user) => user.user_id === task.assigned_to);
+
+          return {
+            ...task,
+            assignee_name: assignee?.full_name ?? task.assigned_to,
+          };
+        }),
+      );
+    } else {
+      console.error("Failed to load RELAY tasks", tasksResult.reason);
+      setOpenTasks([]);
     }
   }, []);
 

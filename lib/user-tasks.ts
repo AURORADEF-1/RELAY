@@ -195,9 +195,7 @@ export async function fetchAssignedTasks(
 export async function fetchOpenTasksForAdmin(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("user_tasks")
-    .select(
-      "id, title, description, status, assigned_to, assigned_by, created_at, updated_at, due_at, profiles:profiles!user_tasks_assigned_to_fkey(full_name)",
-    )
+    .select("id, title, description, status, assigned_to, assigned_by, created_at, updated_at, due_at")
     .eq("status", "OPEN")
     .order("created_at", { ascending: false });
 
@@ -205,29 +203,7 @@ export async function fetchOpenTasksForAdmin(supabase: SupabaseClient) {
     throw new Error(error.message);
   }
 
-  return ((data ?? []) as Array<
-    UserTaskRecord & {
-      profiles:
-        | { full_name: string | null }
-        | { full_name: string | null }[]
-        | null;
-    }
-  >).map((row) => {
-    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-
-    return {
-      id: row.id,
-      title: row.title,
-      description: row.description,
-      status: row.status,
-      assigned_to: row.assigned_to,
-      assigned_by: row.assigned_by,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      due_at: row.due_at,
-      assignee_name: profile?.full_name ?? null,
-    } satisfies UserTaskRecord;
-  });
+  return (data ?? []) as UserTaskRecord[];
 }
 
 export async function markTaskDone(supabase: SupabaseClient, taskId: string) {
