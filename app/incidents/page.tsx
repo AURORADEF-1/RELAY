@@ -188,13 +188,10 @@ export default function IncidentsPage() {
               href="/incidents"
               className="rounded-full bg-white px-4 py-2 font-semibold text-slate-950"
             >
-              Workshop Incidents
+              Workshop Control
             </Link>
             {isAdmin ? (
               <>
-                <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white/10">
-                  Workshop Control
-                </Link>
                 <Link href="/wallboard" className="rounded-full px-4 py-2 hover:bg-white/10">
                   Live Wallboard
                 </Link>
@@ -217,7 +214,7 @@ export default function IncidentsPage() {
                 </div>
                 <div className="space-y-3">
                   <h1 className="text-5xl font-semibold tracking-[-0.05em] text-white sm:text-6xl">
-                    Workshop Incidents
+                    Workshop Control
                   </h1>
                   <p className="max-w-3xl text-lg leading-8 text-slate-300">
                     Live operational view for damage reports, tyre breakdowns, queue pressure, and workshop response movement.

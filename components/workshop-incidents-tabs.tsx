@@ -9,7 +9,7 @@ const tabs: Array<{
   label: string;
   href: string;
 }> = [
-  { key: "dashboard", label: "Incident Dashboard", href: "/incidents" },
+  { key: "dashboard", label: "Workshop Control", href: "/incidents" },
   { key: "closed", label: "Closed Jobs", href: "/incidents/closed" },
   { key: "damage", label: "Report Damage", href: "/incidents/damage/new" },
   { key: "tyres", label: "Report Tyre Breakdown", href: "/incidents/tyres/new" },

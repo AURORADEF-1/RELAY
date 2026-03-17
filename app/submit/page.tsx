@@ -328,12 +328,6 @@ export default function SubmitPage() {
                   href="/incidents"
                   className="rounded-full px-4 py-2 hover:bg-white"
                 >
-                  Workshop Incidents
-                </Link>
-                <Link
-                  href="/control"
-                  className="rounded-full px-4 py-2 hover:bg-white"
-                >
                   Workshop Control
                 </Link>
                 <Link

@@ -159,6 +159,8 @@ export function NotificationProvider({
     ) => {
       const shouldMarkRead = adminUser
         ? currentPath === "/admin" ||
+          currentPath === "/incidents" ||
+          currentPath === "/incidents/closed" ||
           currentPath === "/control" ||
           currentPath === "/completed" ||
           currentPath.startsWith("/tickets/")

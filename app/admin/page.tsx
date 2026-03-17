@@ -812,9 +812,6 @@ export default function AdminPage() {
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
             <Link href="/incidents" className="rounded-full px-4 py-2 hover:bg-white">
-              Workshop Incidents
-            </Link>
-            <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
               Workshop Control
             </Link>
             <Link href="/wallboard" className="rounded-full px-4 py-2 hover:bg-white">
@@ -952,7 +949,7 @@ export default function AdminPage() {
                     {
                       heading: "How to assign and update tickets",
                       body:
-                        "Use Parts Control or Workshop Control to assign the request to a user, add notes, and move the status through the active workflow.",
+                        "Use Parts Control or Workshop Control to manage the request, add notes, and move the status through the active workflow.",
                     },
                     {
                       heading: "How chat with operator works",
