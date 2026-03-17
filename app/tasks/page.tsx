@@ -11,6 +11,8 @@ import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import { fetchAssignedTasks, markTaskDone, type UserTaskRecord } from "@/lib/user-tasks";
 
+const TASK_REFRESH_MS = 15000;
+
 export default function TasksPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
   const [tasks, setTasks] = useState<UserTaskRecord[]>([]);
@@ -40,7 +42,7 @@ export default function TasksPage() {
       }
 
       const nextTasks = await fetchAssignedTasks(supabase, user.id);
-      setTasks(nextTasks);
+      setTasks(nextTasks.filter((task) => task.status === "OPEN"));
       setIsLoading(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to load tasks.");
@@ -56,6 +58,14 @@ export default function TasksPage() {
     return () => window.clearTimeout(timeoutId);
   }, [loadTasks]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void loadTasks();
+    }, TASK_REFRESH_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [loadTasks]);
+
   async function handleMarkDone(taskId: string) {
     const supabase = getSupabaseClient();
 
@@ -67,7 +77,7 @@ export default function TasksPage() {
     setWorkingTaskId(taskId);
     try {
       await markTaskDone(supabase, taskId);
-      setTasks((current) => current.filter((task) => task.id !== taskId));
+      await loadTasks();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to update task.");
     } finally {

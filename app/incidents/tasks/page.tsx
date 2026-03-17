@@ -18,6 +18,8 @@ import {
   type UserTaskRecord,
 } from "@/lib/user-tasks";
 
+const TASK_MANAGER_REFRESH_MS = 15000;
+
 type TaskDraft = {
   title: string;
   description: string;
@@ -95,6 +97,14 @@ export default function WorkshopTasksPage() {
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
+  }, [loadData]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void loadData();
+    }, TASK_MANAGER_REFRESH_MS);
+
+    return () => window.clearInterval(intervalId);
   }, [loadData]);
 
   const selectedTask =
