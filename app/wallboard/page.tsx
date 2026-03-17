@@ -157,6 +157,9 @@ export default function WallboardPage() {
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
+            <Link href="/incidents" className="rounded-full px-4 py-2 hover:bg-white/10">
+              Workshop Incidents
+            </Link>
             <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white/10">
               Workshop Control
             </Link>

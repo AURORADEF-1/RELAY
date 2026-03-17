@@ -190,6 +190,12 @@ export default function Home() {
             {isAdmin ? (
               <>
                 <Link
+                  href="/incidents"
+                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+                >
+                  Workshop Incidents
+                </Link>
+                <Link
                   href="/control"
                   className="rounded-full px-4 py-2 transition hover:bg-slate-100"
                 >
@@ -265,6 +271,12 @@ export default function Home() {
                   )}
                   {isAdmin ? (
                     <>
+                      <Link
+                        href="/incidents"
+                        className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                      >
+                        Workshop Incidents
+                      </Link>
                       <Link
                         href="/control"
                         className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"

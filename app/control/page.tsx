@@ -287,6 +287,9 @@ export default function ControlPage() {
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
+            <Link href="/incidents" className="rounded-full px-4 py-2 hover:bg-white">
+              Workshop Incidents
+            </Link>
             <Link
               href="/control"
               className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800"
