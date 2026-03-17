@@ -13,6 +13,7 @@ create table if not exists public.workshop_incidents (
     check (status in ('REPORTED', 'ASSESSED', 'AWAITING_PARTS', 'IN_REPAIR', 'READY', 'CLOSED')),
   assigned_to text,
   notes text,
+  po_number text,
   damage_area text,
   tyre_position text,
   vehicle_immobilised boolean default false,

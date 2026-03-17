@@ -34,6 +34,7 @@ export type WorkshopIncidentRecord = {
   status: WorkshopIncidentStatus;
   assigned_to: string;
   notes: string;
+  po_number?: string;
   damage_area?: string;
   tyre_position?: string;
   vehicle_immobilised?: boolean;
@@ -64,6 +65,7 @@ const seedIncidents: WorkshopIncidentRecord[] = [
     status: "ASSESSED",
     assigned_to: "Tom",
     notes: "Awaiting panel confirmation before parts order.",
+    po_number: "",
     damage_area: "Rear body panel",
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 14).toISOString(),
     updated_at: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
@@ -82,6 +84,7 @@ const seedIncidents: WorkshopIncidentRecord[] = [
     status: "IN_REPAIR",
     assigned_to: "Stores Tyre Team",
     notes: "Replacement tyre issued and fitter dispatched.",
+    po_number: "PO-482904",
     tyre_position: "Front near-side",
     vehicle_immobilised: true,
     replacement_required: true,

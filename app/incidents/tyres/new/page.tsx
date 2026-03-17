@@ -29,6 +29,7 @@ export default function NewTyreIncidentPage() {
     severity: "HIGH",
     assigned_to: "",
     notes: "",
+    po_number: "",
     tyre_position: "",
     vehicle_immobilised: true,
     replacement_required: true,
@@ -69,6 +70,7 @@ export default function NewTyreIncidentPage() {
       severity: formState.severity as (typeof workshopIncidentSeverities)[number],
       assigned_to: formState.assigned_to.trim(),
       notes: formState.notes.trim(),
+      po_number: formState.po_number.trim(),
       tyre_position: formState.tyre_position.trim(),
       vehicle_immobilised: formState.vehicle_immobilised,
       replacement_required: formState.replacement_required,
@@ -139,6 +141,7 @@ export default function NewTyreIncidentPage() {
               <Field label="Location Summary" value={formState.location_summary} onChange={(value) => setFormState((current) => ({ ...current, location_summary: value }))} />
               <SelectField label="Severity" value={formState.severity} options={[...workshopIncidentSeverities]} onChange={(value) => setFormState((current) => ({ ...current, severity: value }))} />
               <Field label="Assigned User" value={formState.assigned_to} onChange={(value) => setFormState((current) => ({ ...current, assigned_to: value }))} />
+              <Field label="PO Number" value={formState.po_number} onChange={(value) => setFormState((current) => ({ ...current, po_number: value }))} />
               <ToggleField label="Vehicle Immobilised" checked={formState.vehicle_immobilised} onChange={(checked) => setFormState((current) => ({ ...current, vehicle_immobilised: checked }))} />
               <ToggleField label="Replacement Required" checked={formState.replacement_required} onChange={(checked) => setFormState((current) => ({ ...current, replacement_required: checked }))} />
               <AreaField label="Breakdown Description" value={formState.description} onChange={(value) => setFormState((current) => ({ ...current, description: value }))} />

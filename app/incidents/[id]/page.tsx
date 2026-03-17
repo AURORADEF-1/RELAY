@@ -76,6 +76,37 @@ export default function IncidentDetailPage() {
     }
   }
 
+  function handlePrepareTyreCompanyEmail() {
+    if (!incident || incident.incident_type !== "TYRE_BREAKDOWN") {
+      return;
+    }
+
+    const subject = encodeURIComponent(
+      `Tyre Breakdown Report${incident.job_number ? ` - Job ${incident.job_number}` : ""}`,
+    );
+    const body = encodeURIComponent(buildTyreCompanyEmailBody(incident));
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
+
+  function handleGenerateTyrePdf() {
+    if (!incident || incident.incident_type !== "TYRE_BREAKDOWN") {
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=900,height=1100");
+
+    if (!printWindow) {
+      return;
+    }
+
+    printWindow.document.write(buildTyreCompanyPrintHtml(incident));
+    printWindow.document.close();
+    printWindow.focus();
+    window.setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-6xl space-y-8">
@@ -160,6 +191,36 @@ export default function IncidentDetailPage() {
                     <DetailBlock label="Incident Description" value={incident.description} />
                     <DetailBlock label="Workshop Notes" value={incident.notes} />
                   </div>
+
+                  {incident.incident_type === "TYRE_BREAKDOWN" ? (
+                    <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Tyre Company Output
+                      </p>
+                      <p className="mt-3 text-sm leading-7 text-slate-600">
+                        PO Number: <span className="font-semibold text-slate-900">{incident.po_number || "-"}</span>
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={handlePrepareTyreCompanyEmail}
+                          className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                        >
+                          Prepare Email
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleGenerateTyrePdf}
+                          className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        >
+                          Generate PDF
+                        </button>
+                      </div>
+                      <p className="mt-3 text-xs text-slate-500">
+                        PDF generation opens the print dialog so the report can be saved as a PDF and attached to the tyre company email.
+                      </p>
+                    </div>
+                  ) : null}
                 </section>
 
                 <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
@@ -193,6 +254,7 @@ export default function IncidentDetailPage() {
                     <p className="font-semibold text-slate-900">Incident-specific data</p>
                     <p className="mt-3">Damage Area: {incident.damage_area || "-"}</p>
                     <p className="mt-2">Tyre Position: {incident.tyre_position || "-"}</p>
+                    <p className="mt-2">PO Number: {incident.po_number || "-"}</p>
                     <p className="mt-2">
                       Vehicle Immobilised: {incident.vehicle_immobilised ? "Yes" : "No"}
                     </p>
@@ -232,4 +294,74 @@ function DetailBlock({ label, value }: { label: string; value: string }) {
       </p>
     </div>
   );
+}
+
+function buildTyreCompanyEmailBody(incident: WorkshopIncidentRecord) {
+  return [
+    "Please find below the tyre breakdown report.",
+    "",
+    `PO Number: ${incident.po_number || "Not yet assigned"}`,
+    `Job Number: ${incident.job_number || "-"}`,
+    `Machine Reference: ${incident.machine_reference}`,
+    `Reported By: ${incident.reported_by}`,
+    `Location: ${incident.location_type} ${incident.location_summary ? `- ${incident.location_summary}` : ""}`,
+    `Tyre Position: ${incident.tyre_position || "-"}`,
+    `Vehicle Immobilised: ${incident.vehicle_immobilised ? "Yes" : "No"}`,
+    `Replacement Required: ${incident.replacement_required ? "Yes" : "No"}`,
+    `Severity: ${incident.severity}`,
+    "",
+    "Breakdown Description:",
+    incident.description || "-",
+    "",
+    "Workshop Notes:",
+    incident.notes || "-",
+  ].join("\n");
+}
+
+function buildTyreCompanyPrintHtml(incident: WorkshopIncidentRecord) {
+  const escapeHtml = (value: string) =>
+    value
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tyre Breakdown Report</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; }
+      h1 { margin: 0 0 12px; font-size: 28px; }
+      h2 { margin: 24px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; color: #475569; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
+      .card { border: 1px solid #cbd5e1; border-radius: 16px; padding: 20px; }
+      p { margin: 0; line-height: 1.6; }
+      .value { font-weight: 600; color: #020617; }
+      .block { white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>Tyre Breakdown Report</h1>
+    <p>Prepared from RELAY workshop incidents.</p>
+    <div class="card" style="margin-top: 24px;">
+      <div class="grid">
+        <p><strong>PO Number</strong><br><span class="value">${escapeHtml(incident.po_number || "-")}</span></p>
+        <p><strong>Job Number</strong><br><span class="value">${escapeHtml(incident.job_number || "-")}</span></p>
+        <p><strong>Machine Reference</strong><br><span class="value">${escapeHtml(incident.machine_reference)}</span></p>
+        <p><strong>Reported By</strong><br><span class="value">${escapeHtml(incident.reported_by)}</span></p>
+        <p><strong>Location</strong><br><span class="value">${escapeHtml(`${incident.location_type}${incident.location_summary ? ` - ${incident.location_summary}` : ""}`)}</span></p>
+        <p><strong>Tyre Position</strong><br><span class="value">${escapeHtml(incident.tyre_position || "-")}</span></p>
+        <p><strong>Vehicle Immobilised</strong><br><span class="value">${incident.vehicle_immobilised ? "Yes" : "No"}</span></p>
+        <p><strong>Replacement Required</strong><br><span class="value">${incident.replacement_required ? "Yes" : "No"}</span></p>
+        <p><strong>Severity</strong><br><span class="value">${escapeHtml(incident.severity)}</span></p>
+        <p><strong>Status</strong><br><span class="value">${escapeHtml(incident.status)}</span></p>
+      </div>
+      <h2>Breakdown Description</h2>
+      <p class="block">${escapeHtml(incident.description || "-")}</p>
+      <h2>Workshop Notes</h2>
+      <p class="block">${escapeHtml(incident.notes || "-")}</p>
+    </div>
+  </body>
+</html>`;
 }
