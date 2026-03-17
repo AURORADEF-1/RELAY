@@ -131,6 +131,63 @@ export default function CompletedPage() {
     setDeletingTicketId(null);
   }
 
+  async function handleReopenTicket(ticket: CompletedTicket) {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setNotice({
+        type: "error",
+        message: "Supabase environment variables are not configured.",
+      });
+      return;
+    }
+
+    setDeletingTicketId(ticket.id);
+    setNotice(null);
+    setErrorMessage("");
+
+    const { error: updateError } = await supabase
+      .from("tickets")
+      .update({
+        status: "PENDING",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", ticket.id);
+
+    if (updateError) {
+      setNotice({
+        type: "error",
+        message: updateError.message,
+      });
+      setDeletingTicketId(null);
+      return;
+    }
+
+    const { error: historyError } = await supabase.from("ticket_updates").insert({
+      ticket_id: ticket.id,
+      status: "PENDING",
+      comment: "Ticket reopened from completed archive.",
+    });
+
+    if (historyError) {
+      setNotice({
+        type: "error",
+        message: historyError.message,
+      });
+      setDeletingTicketId(null);
+      return;
+    }
+
+    setTickets((current) =>
+      current.filter((currentTicket) => currentTicket.id !== ticket.id),
+    );
+    setNotice({
+      type: "success",
+      message: `Completed job ${ticket.job_number ?? ticket.id} reopened to PENDING.`,
+    });
+    setDeletingTicketId(null);
+  }
+
   function handleExportTickets() {
     if (tickets.length === 0) {
       setNotice({
@@ -320,14 +377,24 @@ export default function CompletedPage() {
                             <StatusBadge status="COMPLETED" />
                           </td>
                           <td className="px-6 py-5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteTicket(ticket)}
-                              disabled={deletingTicketId === ticket.id}
-                              className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {deletingTicketId === ticket.id ? "Deleting..." : "Delete"}
-                            </button>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void handleReopenTicket(ticket)}
+                                disabled={deletingTicketId === ticket.id}
+                                className="inline-flex h-10 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {deletingTicketId === ticket.id ? "Working..." : "Re-open"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteTicket(ticket)}
+                                disabled={deletingTicketId === ticket.id}
+                                className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {deletingTicketId === ticket.id ? "Working..." : "Delete"}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -367,14 +434,24 @@ export default function CompletedPage() {
                       <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Completed {formatDate(ticket.updated_at)}
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteTicket(ticket)}
-                        disabled={deletingTicketId === ticket.id}
-                        className="mt-4 inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {deletingTicketId === ticket.id ? "Deleting..." : "Delete"}
-                      </button>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleReopenTicket(ticket)}
+                          disabled={deletingTicketId === ticket.id}
+                          className="inline-flex h-10 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingTicketId === ticket.id ? "Working..." : "Re-open"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteTicket(ticket)}
+                          disabled={deletingTicketId === ticket.id}
+                          className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingTicketId === ticket.id ? "Working..." : "Delete"}
+                        </button>
+                      </div>
                     </article>
                   ))
                 )}
