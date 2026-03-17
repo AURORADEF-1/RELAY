@@ -25,6 +25,7 @@ import {
   uploadTicketAttachments,
 } from "@/lib/relay-ticketing";
 import type { RelayAiContext } from "@/lib/relay-ai";
+import { ticketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const OPERATOR_NUMBERS = [
@@ -60,6 +61,18 @@ type TicketUpdate = {
   created_at?: string | null;
 };
 
+type TicketEditDraft = {
+  requester_name: string;
+  department: string;
+  machine_reference: string;
+  job_number: string;
+  request_summary: string;
+  request_details: string;
+  status: string;
+  assigned_to: string;
+  notes: string;
+};
+
 export default function TicketDetailPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
   const params = useParams<{ id: string }>();
@@ -72,11 +85,14 @@ export default function TicketDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [chatNotice, setChatNotice] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [editDraft, setEditDraft] = useState<TicketEditDraft | null>(null);
 
   const loadTicket = useCallback(async () => {
     setIsLoading(true);
@@ -117,10 +133,12 @@ export default function TicketDetailPage() {
       setErrorMessage(updatesError.message);
       setTicket(ticketData as TicketRecord);
       setUpdates([]);
+      setEditDraft(buildTicketEditDraft(ticketData as TicketRecord));
     } else {
       setErrorMessage("");
       setTicket(ticketData as TicketRecord);
       setUpdates((updateData ?? []) as TicketUpdate[]);
+      setEditDraft(buildTicketEditDraft(ticketData as TicketRecord));
     }
 
     try {
@@ -307,6 +325,85 @@ export default function TicketDetailPage() {
     }
   }
 
+  async function handleSaveTicketEdit() {
+    if (!ticket || !editDraft) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setIsSavingEdit(true);
+    setErrorMessage("");
+
+    const ticketPatch = {
+      requester_name: editDraft.requester_name.trim() || null,
+      department: editDraft.department.trim() || null,
+      machine_reference: editDraft.machine_reference.trim() || null,
+      job_number: editDraft.job_number.trim() || null,
+      request_summary: editDraft.request_summary.trim() || null,
+      request_details: editDraft.request_details.trim() || null,
+      status: editDraft.status.trim() || null,
+      assigned_to: editDraft.assigned_to.trim() || null,
+      notes: editDraft.notes.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await supabase
+      .from("tickets")
+      .update(ticketPatch)
+      .eq("id", ticket.id);
+
+    if (updateError) {
+      setErrorMessage(updateError.message);
+      setIsSavingEdit(false);
+      return;
+    }
+
+    if (ticket.status !== ticketPatch.status) {
+      const { error: statusError } = await supabase.from("ticket_updates").insert({
+        ticket_id: ticket.id,
+        status: ticketPatch.status,
+        comment: `Status updated to ${ticketPatch.status}.`,
+      });
+
+      if (statusError) {
+        setErrorMessage(statusError.message);
+        setIsSavingEdit(false);
+        return;
+      }
+    }
+
+    if ((ticket.notes ?? "").trim() !== (ticketPatch.notes ?? "").trim() && ticketPatch.notes) {
+      const { error: noteError } = await supabase.from("ticket_updates").insert({
+        ticket_id: ticket.id,
+        comment: ticketPatch.notes,
+      });
+
+      if (noteError) {
+        setErrorMessage(noteError.message);
+        setIsSavingEdit(false);
+        return;
+      }
+    }
+
+    setTicket((current) =>
+      current
+        ? {
+            ...current,
+            ...ticketPatch,
+          }
+        : current,
+    );
+    setIsEditing(false);
+    setIsSavingEdit(false);
+    await loadTicket();
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-6xl space-y-8">
@@ -367,6 +464,18 @@ export default function TicketDetailPage() {
               </div>
               <div className="self-start">
                 <div className="flex flex-wrap gap-3">
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing((current) => !current);
+                        setEditDraft(ticket ? buildTicketEditDraft(ticket) : null);
+                      }}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                    >
+                      {isEditing ? "Cancel Edit" : "Edit Ticket"}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => void loadTicket()}
@@ -411,31 +520,145 @@ export default function TicketDetailPage() {
                       <StatusBadge status={ticket.status ?? "PENDING"} />
                     </div>
 
-                    <dl className="mt-6 grid gap-5 sm:grid-cols-2">
-                      <DetailItem label="Requester" value={ticket.requester_name} />
-                      <DetailItem label="Department" value={ticket.department} />
-                      <DetailItem label="Machine" value={ticket.machine_reference} />
-                      <DetailItem label="Job Number" value={ticket.job_number} />
-                      <DetailItem label="Assigned User" value={ticket.assigned_to} />
-                      <DetailItem
-                        label="Updated"
-                        value={formatDate(ticket.updated_at)}
-                      />
-                    </dl>
+                    {isAdmin && isEditing && editDraft ? (
+                      <div className="mt-6 space-y-5">
+                        <div className="grid gap-5 sm:grid-cols-2">
+                          <EditField
+                            label="Requester"
+                            value={editDraft.requester_name}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, requester_name: value } : current,
+                              )
+                            }
+                          />
+                          <EditSelect
+                            label="Department"
+                            value={editDraft.department}
+                            options={["Onsite", "Yard"]}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, department: value } : current,
+                              )
+                            }
+                          />
+                          <EditField
+                            label="Machine"
+                            value={editDraft.machine_reference}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, machine_reference: value } : current,
+                              )
+                            }
+                          />
+                          <EditField
+                            label="Job Number"
+                            value={editDraft.job_number}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, job_number: value } : current,
+                              )
+                            }
+                          />
+                          <EditField
+                            label="Assigned User"
+                            value={editDraft.assigned_to}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, assigned_to: value } : current,
+                              )
+                            }
+                          />
+                          <EditSelect
+                            label="Status"
+                            value={editDraft.status}
+                            options={[...ticketStatuses]}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, status: value } : current,
+                              )
+                            }
+                          />
+                        </div>
 
-                    {isOnsiteTicket(ticket) ? (
-                      <div className="mt-6">
-                        <OnsiteLocationCard ticket={ticket} />
+                        <EditArea
+                          label="Request Summary"
+                          value={editDraft.request_summary}
+                          onChange={(value) =>
+                            setEditDraft((current) =>
+                              current ? { ...current, request_summary: value } : current,
+                            )
+                          }
+                        />
+                        <EditArea
+                          label="Request Details"
+                          value={editDraft.request_details}
+                          onChange={(value) =>
+                            setEditDraft((current) =>
+                              current ? { ...current, request_details: value } : current,
+                            )
+                          }
+                        />
+                        <EditArea
+                          label="Admin Notes"
+                          value={editDraft.notes}
+                          onChange={(value) =>
+                            setEditDraft((current) =>
+                              current ? { ...current, notes: value } : current,
+                            )
+                          }
+                        />
+
+                        <div className="flex justify-end gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditing(false);
+                              setEditDraft(buildTicketEditDraft(ticket));
+                            }}
+                            className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveTicketEdit()}
+                            disabled={isSavingEdit}
+                            className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isSavingEdit ? "Saving..." : "Save Ticket"}
+                          </button>
+                        </div>
                       </div>
-                    ) : null}
+                    ) : (
+                      <>
+                        <dl className="mt-6 grid gap-5 sm:grid-cols-2">
+                          <DetailItem label="Requester" value={ticket.requester_name} />
+                          <DetailItem label="Department" value={ticket.department} />
+                          <DetailItem label="Machine" value={ticket.machine_reference} />
+                          <DetailItem label="Job Number" value={ticket.job_number} />
+                          <DetailItem label="Assigned User" value={ticket.assigned_to} />
+                          <DetailItem
+                            label="Updated"
+                            value={formatDate(ticket.updated_at)}
+                          />
+                        </dl>
 
-                    <div className="mt-6 space-y-4">
-                      <DetailBlock
-                        label="Request Details"
-                        value={ticket.request_details ?? ticket.request_summary}
-                      />
-                      <DetailBlock label="Admin Notes" value={ticket.notes} />
-                    </div>
+                        {isOnsiteTicket(ticket) ? (
+                          <div className="mt-6">
+                            <OnsiteLocationCard ticket={ticket} />
+                          </div>
+                        ) : null}
+
+                        <div className="mt-6 space-y-4">
+                          <DetailBlock
+                            label="Request Details"
+                            value={ticket.request_details ?? ticket.request_summary}
+                          />
+                          <DetailBlock label="Admin Notes" value={ticket.notes} />
+                        </div>
+                      </>
+                    )}
                   </section>
 
                   <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
@@ -597,6 +820,20 @@ function buildOperatorSmsHref(ticket: TicketRecord) {
   return `sms:${OPERATOR_NUMBERS[0].number}?&body=${encodeURIComponent(buildOperatorMessage(ticket))}`;
 }
 
+function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
+  return {
+    requester_name: ticket.requester_name ?? "",
+    department: ticket.department ?? "",
+    machine_reference: ticket.machine_reference ?? "",
+    job_number: ticket.job_number ?? "",
+    request_summary: ticket.request_summary ?? "",
+    request_details: ticket.request_details ?? "",
+    status: ticket.status ?? "PENDING",
+    assigned_to: ticket.assigned_to ?? "",
+    notes: ticket.notes ?? "",
+  };
+}
+
 function DetailItem({
   label,
   value,
@@ -611,6 +848,84 @@ function DetailItem({
       </dt>
       <dd className="mt-2 text-sm leading-7 text-slate-700">{value || "-"}</dd>
     </div>
+  );
+}
+
+function EditField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="space-y-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+      />
+    </label>
+  );
+}
+
+function EditSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="space-y-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function EditArea({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="space-y-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={4}
+        className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition focus:border-slate-400"
+      />
+    </label>
   );
 }
 
