@@ -13,6 +13,7 @@ import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   getWorkshopIncidentById,
+  reconcileWorkshopIncidentsWithPartsTickets,
   updateWorkshopIncident,
   workshopIncidentStatuses,
   type WorkshopIncidentRecord,
@@ -23,6 +24,7 @@ export default function IncidentDetailPage() {
   const params = useParams<{ id: string }>();
   const incidentId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [incident, setIncident] = useState<WorkshopIncidentRecord | null>(null);
+  const [linkedPartsTicketStatus, setLinkedPartsTicketStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -50,8 +52,42 @@ export default function IncidentDetailPage() {
         isAdmin,
       });
 
-      setIncident(nextIncident);
-      setErrorMessage(nextIncident ? "" : "Incident not found.");
+      if (!nextIncident) {
+        setIncident(null);
+        setLinkedPartsTicketStatus("");
+        setErrorMessage("Incident not found.");
+        setIsLoading(false);
+        return;
+      }
+
+      let resolvedIncident = nextIncident;
+
+      if (nextIncident.job_number.trim()) {
+        const { data: linkedTickets } = await supabase
+          .from("tickets")
+          .select("id, job_number, status")
+          .eq("job_number", nextIncident.job_number.trim());
+
+        const reconciledIncidents = reconcileWorkshopIncidentsWithPartsTickets(
+          [nextIncident],
+          linkedTickets ?? [],
+        );
+        resolvedIncident = reconciledIncidents[0] ?? nextIncident;
+
+        const matchingTicket =
+          (linkedTickets ?? []).find(
+            (ticket) =>
+              ticket.job_number?.trim().toLowerCase() ===
+              nextIncident.job_number.trim().toLowerCase(),
+          ) ?? null;
+
+        setLinkedPartsTicketStatus(matchingTicket?.status ?? "");
+      } else {
+        setLinkedPartsTicketStatus("");
+      }
+
+      setIncident(resolvedIncident);
+      setErrorMessage("");
       setIsLoading(false);
     }
 
@@ -191,6 +227,31 @@ export default function IncidentDetailPage() {
                     <DetailBlock label="Incident Description" value={incident.description} />
                     <DetailBlock label="Workshop Notes" value={incident.notes} />
                   </div>
+
+                  {incident.linked_parts_ticket_id ? (
+                    <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                        Linked Parts Request
+                      </p>
+                      <p className="mt-3 text-sm leading-7 text-emerald-900">
+                        This incident is linked to the parts request for job number{" "}
+                        <span className="font-semibold">{incident.job_number || "-"}</span>.
+                        {linkedPartsTicketStatus ? (
+                          <>
+                            {" "}
+                            Current parts status:{" "}
+                            <span className="font-semibold">{linkedPartsTicketStatus}</span>.
+                          </>
+                        ) : null}
+                      </p>
+                      <Link
+                        href={`/tickets/${incident.linked_parts_ticket_id}`}
+                        className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                      >
+                        Open linked parts request
+                      </Link>
+                    </div>
+                  ) : null}
 
                   {incident.incident_type === "TYRE_BREAKDOWN" ? (
                     <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">

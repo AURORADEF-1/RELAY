@@ -12,6 +12,7 @@ import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   getWorkshopIncidents,
+  reconcileWorkshopIncidentsWithPartsTickets,
   workshopIncidentStatuses,
   type WorkshopIncidentRecord,
 } from "@/lib/workshop-incidents";
@@ -39,12 +40,33 @@ export default function IncidentsPage() {
       return;
     }
 
-    setIncidents(
-      getWorkshopIncidents({
-        userId: user.id,
-        isAdmin,
-      }),
+    const nextIncidents = getWorkshopIncidents({
+      userId: user.id,
+      isAdmin,
+    });
+    const incidentJobNumbers = Array.from(
+      new Set(
+        nextIncidents
+          .map((incident) => incident.job_number.trim())
+          .filter(Boolean),
+      ),
     );
+
+    let reconciledIncidents = nextIncidents;
+
+    if (incidentJobNumbers.length > 0) {
+      const { data: linkedTickets } = await supabase
+        .from("tickets")
+        .select("id, job_number, status")
+        .in("job_number", incidentJobNumbers);
+
+      reconciledIncidents = reconcileWorkshopIncidentsWithPartsTickets(
+        nextIncidents,
+        linkedTickets ?? [],
+      );
+    }
+
+    setIncidents(reconciledIncidents);
     setErrorMessage("");
     setIsLoading(false);
   }, []);
@@ -164,18 +186,19 @@ export default function IncidentsPage() {
                       <th className="px-6 py-4">Severity</th>
                       <th className="px-6 py-4">Status</th>
                       <th className="px-6 py-4">Handled By</th>
+                      <th className="px-6 py-4">Parts Request</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
                     {isLoading ? (
                       <tr>
-                        <td colSpan={8} className="px-6 py-10 text-center text-sm text-slate-500">
+                        <td colSpan={9} className="px-6 py-10 text-center text-sm text-slate-500">
                           Loading workshop incidents...
                         </td>
                       </tr>
                     ) : incidents.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-6 py-10 text-center text-sm text-slate-500">
+                        <td colSpan={9} className="px-6 py-10 text-center text-sm text-slate-500">
                           No workshop incidents reported yet.
                         </td>
                       </tr>
@@ -208,6 +231,18 @@ export default function IncidentsPage() {
                           <td className="px-6 py-5 text-sm text-slate-700">
                             {incident.assigned_to || "-"}
                           </td>
+                          <td className="px-6 py-5 text-sm text-slate-700">
+                            {incident.linked_parts_ticket_id ? (
+                              <Link
+                                href={`/tickets/${incident.linked_parts_ticket_id}`}
+                                className="font-semibold text-slate-900 transition hover:text-slate-600"
+                              >
+                                Open linked request
+                              </Link>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
                         </tr>
                       ))
                     )}
@@ -232,6 +267,14 @@ export default function IncidentsPage() {
                       </span>
                     </div>
                     <p className="mt-4 text-sm leading-7 text-slate-600">{incident.description}</p>
+                    {incident.linked_parts_ticket_id ? (
+                      <Link
+                        href={`/tickets/${incident.linked_parts_ticket_id}`}
+                        className="mt-4 inline-flex rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                      >
+                        Open Linked Parts Request
+                      </Link>
+                    ) : null}
                   </article>
                 ))}
               </div>

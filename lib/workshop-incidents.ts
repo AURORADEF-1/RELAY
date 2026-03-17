@@ -5,6 +5,7 @@ export const workshopIncidentStatuses = [
   "REPORTED",
   "ASSESSED",
   "AWAITING_PARTS",
+  "PARTS_ASSIGNED",
   "IN_REPAIR",
   "READY",
   "CLOSED",
@@ -34,6 +35,7 @@ export type WorkshopIncidentRecord = {
   status: WorkshopIncidentStatus;
   assigned_to: string;
   notes: string;
+  linked_parts_ticket_id?: string;
   po_number?: string;
   damage_area?: string;
   tyre_position?: string;
@@ -65,6 +67,7 @@ const seedIncidents: WorkshopIncidentRecord[] = [
     status: "ASSESSED",
     assigned_to: "Tom",
     notes: "Awaiting panel confirmation before parts order.",
+    linked_parts_ticket_id: "",
     po_number: "",
     damage_area: "Rear body panel",
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 14).toISOString(),
@@ -84,6 +87,7 @@ const seedIncidents: WorkshopIncidentRecord[] = [
     status: "IN_REPAIR",
     assigned_to: "Stores Tyre Team",
     notes: "Replacement tyre issued and fitter dispatched.",
+    linked_parts_ticket_id: "",
     po_number: "PO-482904",
     tyre_position: "Front near-side",
     vehicle_immobilised: true,
@@ -156,6 +160,66 @@ export function updateWorkshopIncident(
 
   writeWorkshopIncidents(nextIncidents);
   return updatedIncident;
+}
+
+export type LinkedPartsTicket = {
+  id: string;
+  job_number: string | null;
+  status: string | null;
+};
+
+export function reconcileWorkshopIncidentsWithPartsTickets(
+  incidents: WorkshopIncidentRecord[],
+  tickets: LinkedPartsTicket[],
+) {
+  const ticketsByJobNumber = new Map(
+    tickets
+      .filter((ticket) => ticket.job_number)
+      .map((ticket) => [ticket.job_number?.trim().toLowerCase(), ticket] as const),
+  );
+
+  let hasChanges = false;
+  const nextIncidents = incidents.map((incident) => {
+    const normalizedJobNumber = incident.job_number.trim().toLowerCase();
+    const linkedTicket = normalizedJobNumber
+      ? ticketsByJobNumber.get(normalizedJobNumber)
+      : undefined;
+
+    if (!linkedTicket) {
+      return incident;
+    }
+
+    const nextLinkedTicketId = linkedTicket.id;
+    const shouldPromoteToPartsAssigned =
+      incident.incident_type === "DAMAGE" &&
+      incident.status === "AWAITING_PARTS" &&
+      linkedTicket.status === "READY";
+
+    const nextIncident: WorkshopIncidentRecord = {
+      ...incident,
+      linked_parts_ticket_id: nextLinkedTicketId,
+      status: shouldPromoteToPartsAssigned ? "PARTS_ASSIGNED" : incident.status,
+      updated_at:
+        shouldPromoteToPartsAssigned || incident.linked_parts_ticket_id !== nextLinkedTicketId
+          ? new Date().toISOString()
+          : incident.updated_at,
+    };
+
+    if (
+      nextIncident.linked_parts_ticket_id !== incident.linked_parts_ticket_id ||
+      nextIncident.status !== incident.status
+    ) {
+      hasChanges = true;
+    }
+
+    return nextIncident;
+  });
+
+  if (hasChanges) {
+    writeWorkshopIncidents(nextIncidents);
+  }
+
+  return nextIncidents;
 }
 
 function readWorkshopIncidents() {

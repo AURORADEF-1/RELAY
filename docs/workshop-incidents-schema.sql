@@ -10,9 +10,10 @@ create table if not exists public.workshop_incidents (
   description text not null,
   severity text not null check (severity in ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
   status text not null default 'REPORTED'
-    check (status in ('REPORTED', 'ASSESSED', 'AWAITING_PARTS', 'IN_REPAIR', 'READY', 'CLOSED')),
+    check (status in ('REPORTED', 'ASSESSED', 'AWAITING_PARTS', 'PARTS_ASSIGNED', 'IN_REPAIR', 'READY', 'CLOSED')),
   assigned_to text,
   notes text,
+  linked_parts_ticket_id uuid references public.tickets (id) on delete set null,
   po_number text,
   damage_area text,
   tyre_position text,
