@@ -29,6 +29,11 @@ export default function CompletedPage() {
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
   const [tickets, setTickets] = useState<CompletedTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingTicketId, setDeletingTicketId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   const loadTickets = useCallback(async () => {
@@ -82,6 +87,100 @@ export default function CompletedPage() {
     return () => window.clearTimeout(timeoutId);
   }, [loadTickets]);
 
+  async function handleDeleteTicket(ticket: CompletedTicket) {
+    const confirmed = window.confirm(
+      `Permanently delete completed job ${ticket.job_number ?? ticket.id}? This cannot be undone.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setNotice({
+        type: "error",
+        message: "Supabase environment variables are not configured.",
+      });
+      return;
+    }
+
+    setDeletingTicketId(ticket.id);
+    setNotice(null);
+    setErrorMessage("");
+
+    const { error } = await supabase.from("tickets").delete().eq("id", ticket.id);
+
+    if (error) {
+      setNotice({
+        type: "error",
+        message: error.message,
+      });
+      setDeletingTicketId(null);
+      return;
+    }
+
+    setTickets((current) =>
+      current.filter((currentTicket) => currentTicket.id !== ticket.id),
+    );
+    setNotice({
+      type: "success",
+      message: `Completed job ${ticket.job_number ?? ticket.id} deleted.`,
+    });
+    setDeletingTicketId(null);
+  }
+
+  function handleExportTickets() {
+    if (tickets.length === 0) {
+      setNotice({
+        type: "error",
+        message: "There are no completed jobs to export.",
+      });
+      return;
+    }
+
+    const csvRows = [
+      [
+        "completed_at",
+        "job_number",
+        "submitter",
+        "machine_reference",
+        "request_summary",
+        "handled_by",
+      ],
+      ...tickets.map((ticket) => [
+        ticket.updated_at ?? "",
+        ticket.job_number ?? "",
+        ticket.requester_name ?? "",
+        ticket.machine_reference ?? "",
+        ticket.request_summary ?? ticket.request_details ?? "",
+        ticket.assigned_to ?? "",
+      ]),
+    ];
+
+    const csvContent = csvRows
+      .map((row) =>
+        row
+          .map((value) => `"${String(value).replaceAll("\"", "\"\"")}"`)
+          .join(","),
+      )
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = `relay-completed-jobs-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(downloadUrl);
+
+    setNotice({
+      type: "success",
+      message: `Exported ${tickets.length} completed job${tickets.length === 1 ? "" : "s"}.`,
+    });
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-7xl space-y-8">
@@ -130,7 +229,15 @@ export default function CompletedPage() {
               <PartsControlTabs activeTab="completed" />
             </div>
 
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleExportTickets}
+                disabled={isLoading || tickets.length === 0}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Export CSV
+              </button>
               <button
                 type="button"
                 onClick={() => void loadTickets()}
@@ -140,6 +247,18 @@ export default function CompletedPage() {
                 {isLoading ? "Refreshing..." : "Refresh"}
               </button>
             </div>
+
+            {notice ? (
+              <div
+                className={`mt-6 rounded-2xl px-4 py-3 text-sm ${
+                  notice.type === "success"
+                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border border-rose-200 bg-rose-50 text-rose-700"
+                }`}
+              >
+                {notice.message}
+              </div>
+            ) : null}
 
             {errorMessage ? (
               <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -158,18 +277,19 @@ export default function CompletedPage() {
                       <th className="px-6 py-4">Request</th>
                       <th className="px-6 py-4">Handled By</th>
                       <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
                     {isLoading ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-500">
+                        <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-500">
                           Loading completed jobs...
                         </td>
                       </tr>
                     ) : tickets.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-500">
+                        <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-500">
                           No completed jobs found.
                         </td>
                       </tr>
@@ -198,6 +318,16 @@ export default function CompletedPage() {
                           </td>
                           <td className="px-6 py-5">
                             <StatusBadge status="COMPLETED" />
+                          </td>
+                          <td className="px-6 py-5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteTicket(ticket)}
+                              disabled={deletingTicketId === ticket.id}
+                              className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {deletingTicketId === ticket.id ? "Deleting..." : "Delete"}
+                            </button>
                           </td>
                         </tr>
                       ))
@@ -237,6 +367,14 @@ export default function CompletedPage() {
                       <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Completed {formatDate(ticket.updated_at)}
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteTicket(ticket)}
+                        disabled={deletingTicketId === ticket.id}
+                        className="mt-4 inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deletingTicketId === ticket.id ? "Deleting..." : "Delete"}
+                      </button>
                     </article>
                   ))
                 )}
