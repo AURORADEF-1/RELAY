@@ -400,12 +400,9 @@ export default function IncidentsPage() {
                   </button>
                 </div>
 
-                <div className={`mt-6 ${isUsersPanelMinimized ? "" : "space-y-3"}`}>
-                  {isUsersPanelMinimized ? (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                      {users.length} users available. Expand to view and select an assignee.
-                    </div>
-                  ) : users.length === 0 ? (
+                {!isUsersPanelMinimized ? (
+                  <div className="mt-6 space-y-3">
+                    {users.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
                       No users are available yet.
                     </div>
@@ -464,8 +461,9 @@ export default function IncidentsPage() {
                         </div>
                       </button>
                     ))
-                  )}
-                </div>
+                    )}
+                  </div>
+                ) : null}
               </section>
 
               <section className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
@@ -487,11 +485,7 @@ export default function IncidentsPage() {
                   </button>
                 </div>
 
-                {isTaskPanelMinimized ? (
-                  <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                    {openTasks.length} open tasks. Expand to assign and review tasks.
-                  </div>
-                ) : (
+                {!isTaskPanelMinimized ? (
                   <>
                     <div className="mt-6 space-y-4">
                   <label className="space-y-2">
@@ -598,7 +592,7 @@ export default function IncidentsPage() {
                       )}
                     </div>
                   </>
-                )}
+                ) : null}
               </section>
             </div>
 
