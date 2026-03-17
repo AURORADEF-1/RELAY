@@ -26,6 +26,7 @@ import {
 } from "@/lib/workshop-incidents";
 
 const INCIDENT_DASHBOARD_REFRESH_MS = 15000;
+const USER_PRESENCE_REFRESH_MS = 30000;
 const activeIncidentStatuses = workshopIncidentStatuses.filter(
   (status) => status !== "CLOSED",
 );
@@ -173,6 +174,14 @@ export default function IncidentsPage() {
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
+  }, [loadPresenceAndTasks]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void loadPresenceAndTasks();
+    }, USER_PRESENCE_REFRESH_MS);
+
+    return () => window.clearInterval(intervalId);
   }, [loadPresenceAndTasks]);
 
   const groupedIncidents = useMemo(
