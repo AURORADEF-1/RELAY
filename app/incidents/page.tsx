@@ -47,6 +47,8 @@ export default function IncidentsPage() {
     description: "",
   });
   const [isAssigningTask, setIsAssigningTask] = useState(false);
+  const [isUsersPanelMinimized, setIsUsersPanelMinimized] = useState(false);
+  const [isTaskPanelMinimized, setIsTaskPanelMinimized] = useState(false);
 
   const loadIncidents = useCallback(async () => {
     try {
@@ -380,17 +382,30 @@ export default function IncidentsPage() {
 
             <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_1fr]">
               <section className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-                    Users
-                  </p>
-                  <p className="text-sm leading-6 text-slate-400">
-                    All known users from RELAY, with a green dot when seen in the last hour.
-                  </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
+                      Users
+                    </p>
+                    <p className="text-sm leading-6 text-slate-400">
+                      All known users from RELAY, with a green dot when seen in the last hour.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsUsersPanelMinimized((current) => !current)}
+                    className="rounded-full border border-white/10 bg-black/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:border-white/20 hover:bg-black/25 hover:text-white"
+                  >
+                    {isUsersPanelMinimized ? "Expand" : "Minimise"}
+                  </button>
                 </div>
 
-                <div className="mt-6 space-y-3">
-                  {users.length === 0 ? (
+                <div className={`mt-6 ${isUsersPanelMinimized ? "" : "space-y-3"}`}>
+                  {isUsersPanelMinimized ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                      {users.length} users available. Expand to view and select an assignee.
+                    </div>
+                  ) : users.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
                       No users are available yet.
                     </div>
@@ -454,16 +469,31 @@ export default function IncidentsPage() {
               </section>
 
               <section className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-                    Send Task
-                  </p>
-                  <p className="text-sm leading-6 text-slate-400">
-                    Click a user, assign a task, and it will appear in their task view.
-                  </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
+                      Send Task
+                    </p>
+                    <p className="text-sm leading-6 text-slate-400">
+                      Click a user, assign a task, and it will appear in their task view.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsTaskPanelMinimized((current) => !current)}
+                    className="rounded-full border border-white/10 bg-black/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:border-white/20 hover:bg-black/25 hover:text-white"
+                  >
+                    {isTaskPanelMinimized ? "Expand" : "Minimise"}
+                  </button>
                 </div>
 
-                <div className="mt-6 space-y-4">
+                {isTaskPanelMinimized ? (
+                  <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                    {openTasks.length} open tasks. Expand to assign and review tasks.
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-6 space-y-4">
                   <label className="space-y-2">
                     <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                       Assigned User
@@ -530,35 +560,37 @@ export default function IncidentsPage() {
                   >
                     {isAssigningTask ? "Assigning..." : "Send Task"}
                   </button>
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Open Tasks
-                  </p>
-                  {openTasks.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                      No open tasks assigned yet.
                     </div>
-                  ) : (
-                    openTasks.slice(0, 6).map((task) => (
-                      <article
-                        key={task.id}
-                        className="rounded-2xl border border-white/10 bg-black/15 p-4"
-                      >
-                        <p className="text-sm font-semibold text-white">{task.title}</p>
-                        <p className="mt-1 text-sm text-slate-400">
-                          {task.assignee_name ?? task.assigned_to}
-                        </p>
-                        {task.description ? (
-                          <p className="mt-3 text-sm leading-6 text-slate-300">
-                            {task.description}
-                          </p>
-                        ) : null}
-                      </article>
-                    ))
-                  )}
-                </div>
+
+                    <div className="mt-6 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Open Tasks
+                      </p>
+                      {openTasks.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                          No open tasks assigned yet.
+                        </div>
+                      ) : (
+                        openTasks.slice(0, 6).map((task) => (
+                          <article
+                            key={task.id}
+                            className="rounded-2xl border border-white/10 bg-black/15 p-4"
+                          >
+                            <p className="text-sm font-semibold text-white">{task.title}</p>
+                            <p className="mt-1 text-sm text-slate-400">
+                              {task.assignee_name ?? task.assigned_to}
+                            </p>
+                            {task.description ? (
+                              <p className="mt-3 text-sm leading-6 text-slate-300">
+                                {task.description}
+                              </p>
+                            ) : null}
+                          </article>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )}
               </section>
             </div>
 
