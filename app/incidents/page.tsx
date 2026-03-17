@@ -18,11 +18,18 @@ import {
   type WorkshopIncidentRecord,
 } from "@/lib/workshop-incidents";
 
+const INCIDENT_DASHBOARD_REFRESH_MS = 15000;
+const activeIncidentStatuses = workshopIncidentStatuses.filter(
+  (status) => status !== "CLOSED",
+);
+
 export default function IncidentsPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
   const [incidents, setIncidents] = useState<WorkshopIncidentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
 
   const loadIncidents = useCallback(async () => {
     try {
@@ -86,6 +93,7 @@ export default function IncidentsPage() {
       }
 
       setIncidents(reconciledIncidents);
+      setLastUpdatedAt(new Date().toISOString());
       setErrorMessage("");
       setIsLoading(false);
     } catch (error) {
@@ -106,53 +114,91 @@ export default function IncidentsPage() {
     return () => window.clearTimeout(timeoutId);
   }, [loadIncidents]);
 
-  const groupedCounts = useMemo(
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void loadIncidents();
+    }, INCIDENT_DASHBOARD_REFRESH_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [loadIncidents]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const groupedIncidents = useMemo(
     () =>
       Object.fromEntries(
-        workshopIncidentStatuses
-          .filter((status) => status !== "CLOSED")
-          .map((status) => [
+        activeIncidentStatuses.map((status) => [
           status,
-          incidents.filter((incident) => incident.status === status).length,
-          ]),
-      ) as Record<string, number>,
+          incidents.filter((incident) => incident.status === status),
+        ]),
+      ) as Record<(typeof activeIncidentStatuses)[number], WorkshopIncidentRecord[]>,
     [incidents],
   );
 
+  const metrics = useMemo(() => {
+    const activeCount = incidents.length;
+    const damageCount = incidents.filter(
+      (incident) => incident.incident_type === "DAMAGE",
+    ).length;
+    const tyreCount = incidents.filter(
+      (incident) => incident.incident_type === "TYRE_BREAKDOWN",
+    ).length;
+    const awaitingPartsCount = incidents.filter(
+      (incident) => incident.status === "AWAITING_PARTS",
+    ).length;
+    const unassignedCount = incidents.filter(
+      (incident) => !incident.assigned_to.trim(),
+    ).length;
+
+    return {
+      activeCount,
+      damageCount,
+      tyreCount,
+      awaitingPartsCount,
+      unassignedCount,
+    };
+  }, [incidents]);
+
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#0f172a_0%,#111827_45%,#020617_100%)] px-6 py-6 text-slate-100">
+      <div className="mx-auto max-w-[120rem] space-y-6">
+        <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/10 bg-white/5 px-5 py-4 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.8)] backdrop-blur">
           <RelayLogo />
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
-            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">
+          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-300">
+            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white/10">
               Home
             </Link>
-            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white/10">
               Legal
             </Link>
-            <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white/10">
               Submit Ticket
             </Link>
-            <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white/10">
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
             <Link
               href="/incidents"
-              className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800"
+              className="rounded-full bg-white px-4 py-2 font-semibold text-slate-950"
             >
               Workshop Incidents
             </Link>
             {isAdmin ? (
               <>
-                <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
+                <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white/10">
                   Workshop Control
                 </Link>
-                <Link href="/wallboard" className="rounded-full px-4 py-2 hover:bg-white">
+                <Link href="/wallboard" className="rounded-full px-4 py-2 hover:bg-white/10">
                   Live Wallboard
                 </Link>
-                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
+                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white/10">
                   Parts Control
                   <NotificationBadge count={adminBadgeCount} />
                 </Link>
@@ -163,150 +209,150 @@ export default function IncidentsPage() {
         </nav>
 
         <AuthGuard requiredRole="admin">
-          <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
-            <div className="space-y-5">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-                Workshop Incident Environment
+          <section className="rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-[0_32px_90px_-48px_rgba(15,23,42,0.85)] backdrop-blur">
+            <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
+              <div className="space-y-5">
+                <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">
+                  Live Incident Board
+                </div>
+                <div className="space-y-3">
+                  <h1 className="text-5xl font-semibold tracking-[-0.05em] text-white sm:text-6xl">
+                    Workshop Incidents
+                  </h1>
+                  <p className="max-w-3xl text-lg leading-8 text-slate-300">
+                    Live operational view for damage reports, tyre breakdowns, queue pressure, and workshop response movement.
+                  </p>
+                </div>
               </div>
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
-                Workshop Incidents
-              </h1>
-              <p className="max-w-3xl text-base leading-8 text-slate-600">
-                Separate live environment for machine damage reports and tyre breakdowns without disturbing the current parts workflow.
-              </p>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <InfoCard label="Current Time" value={formatClock(now)} />
+                <InfoCard
+                  label="Last Sync"
+                  value={lastUpdatedAt ? formatDateTime(lastUpdatedAt) : "Waiting..."}
+                />
+                <button
+                  type="button"
+                  onClick={() => void loadIncidents()}
+                  className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 text-left transition hover:bg-white/15"
+                >
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
+                    Control
+                  </p>
+                  <p className="mt-2 text-xl font-semibold text-white">
+                    Refresh Now
+                  </p>
+                </button>
+              </div>
             </div>
 
             <div className="mt-8">
               <WorkshopIncidentsTabs activeTab="dashboard" />
             </div>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-              {workshopIncidentStatuses.filter((status) => status !== "CLOSED").map((status) => (
-                <div
-                  key={status}
-                  className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-5 py-4"
-                >
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {status}
-                  </p>
-                  <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
-                    {groupedCounts[status]}
-                  </p>
-                </div>
-              ))}
-            </div>
-
             {errorMessage ? (
-              <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <div className="mt-6 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
                 {errorMessage}
               </div>
             ) : null}
 
-            <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.4)]">
-              <div className="hidden overflow-x-auto lg:block">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-slate-50">
-                    <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      <th className="px-6 py-4">Reported</th>
-                      <th className="px-6 py-4">Type</th>
-                      <th className="px-6 py-4">Job Number</th>
-                      <th className="px-6 py-4">Machine</th>
-                      <th className="px-6 py-4">Incident</th>
-                      <th className="px-6 py-4">Severity</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Handled By</th>
-                      <th className="px-6 py-4">Parts Request</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white">
+            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <MetricCard label="Active Incidents" value={String(metrics.activeCount)} tone="slate" />
+              <MetricCard label="Damage Reports" value={String(metrics.damageCount)} tone="rose" />
+              <MetricCard label="Tyre Breakdowns" value={String(metrics.tyreCount)} tone="amber" />
+              <MetricCard label="Awaiting Parts" value={String(metrics.awaitingPartsCount)} tone="blue" />
+              <MetricCard label="Unassigned" value={String(metrics.unassignedCount)} tone="emerald" />
+            </div>
+
+            <div className="mt-8 grid gap-4 xl:grid-cols-6">
+              {activeIncidentStatuses.map((status) => (
+                <section
+                  key={status}
+                  className="min-h-[24rem] rounded-[1.75rem] border border-white/10 bg-white/5 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${getIncidentTone(status)}`}>
+                      {formatIncidentStatus(status)}
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-sm font-semibold text-white">
+                      {groupedIncidents[status].length}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
                     {isLoading ? (
-                      <tr>
-                        <td colSpan={9} className="px-6 py-10 text-center text-sm text-slate-500">
-                          Loading workshop incidents...
-                        </td>
-                      </tr>
-                    ) : incidents.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="px-6 py-10 text-center text-sm text-slate-500">
-                          No workshop incidents reported yet.
-                        </td>
-                      </tr>
+                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                        Loading lane...
+                      </div>
+                    ) : groupedIncidents[status].length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                        No live incidents in this lane.
+                      </div>
                     ) : (
-                      incidents.map((incident) => (
-                        <tr key={incident.id}>
-                          <td className="px-6 py-5 text-sm text-slate-500">
-                            {formatDate(incident.updated_at)}
-                          </td>
-                          <td className="px-6 py-5 text-sm font-semibold text-slate-900">
-                            <Link href={`/incidents/${incident.id}`} className="transition hover:text-slate-600">
-                              {formatIncidentType(incident.incident_type)}
-                            </Link>
-                          </td>
-                          <td className="px-6 py-5 text-sm text-slate-700">
-                            {incident.job_number || "-"}
-                          </td>
-                          <td className="px-6 py-5 text-sm text-slate-700">
-                            {incident.machine_reference}
-                          </td>
-                          <td className="px-6 py-5 text-sm leading-7 text-slate-600">
+                      groupedIncidents[status].map((incident) => (
+                        <Link
+                          key={incident.id}
+                          href={`/incidents/${incident.id}`}
+                          className="block rounded-2xl border border-white/10 bg-black/15 p-4 transition hover:border-white/20 hover:bg-black/25"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-lg font-semibold text-white">
+                                {incident.job_number
+                                  ? `Job ${incident.job_number}`
+                                  : incident.machine_reference}
+                              </p>
+                              <p className="mt-1 truncate text-sm text-slate-300">
+                                {formatIncidentType(incident.incident_type)} · {incident.reported_by || "Unknown reporter"}
+                              </p>
+                            </div>
+                            <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200">
+                              {incident.location_type}
+                            </span>
+                          </div>
+
+                          <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-200">
                             {incident.description}
-                          </td>
-                          <td className="px-6 py-5 text-sm text-slate-700">
-                            {incident.severity}
-                          </td>
-                          <td className="px-6 py-5 text-sm text-slate-700">
-                            {incident.status}
-                          </td>
-                          <td className="px-6 py-5 text-sm text-slate-700">
-                            {incident.assigned_to || "-"}
-                          </td>
-                          <td className="px-6 py-5 text-sm text-slate-700">
-                            {incident.linked_parts_ticket_id ? (
-                              <Link
-                                href={`/tickets/${incident.linked_parts_ticket_id}`}
-                                className="font-semibold text-slate-900 transition hover:text-slate-600"
-                              >
-                                Open linked request
-                              </Link>
-                            ) : (
-                              "-"
-                            )}
-                          </td>
-                        </tr>
+                          </p>
+
+                          <dl className="mt-4 grid gap-2 text-xs text-slate-400">
+                            <div className="flex items-center justify-between gap-3">
+                              <dt>Machine</dt>
+                              <dd className="truncate text-right text-slate-200">
+                                {incident.machine_reference || "-"}
+                              </dd>
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <dt>Assigned</dt>
+                              <dd className="truncate text-right text-slate-200">
+                                {incident.assigned_to || "Unassigned"}
+                              </dd>
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <dt>Severity</dt>
+                              <dd className="truncate text-right text-slate-200">
+                                {incident.severity}
+                              </dd>
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <dt>Updated</dt>
+                              <dd className="truncate text-right text-slate-200">
+                                {formatRelativeTime(incident.updated_at)}
+                              </dd>
+                            </div>
+                          </dl>
+
+                          {incident.linked_parts_ticket_id ? (
+                            <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">
+                              Linked Parts Request
+                            </div>
+                          ) : null}
+                        </Link>
                       ))
                     )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="grid gap-4 bg-slate-50 p-4 lg:hidden">
-                {incidents.map((incident) => (
-                  <article key={incident.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          <Link href={`/incidents/${incident.id}`} className="transition hover:text-slate-600">
-                            {formatIncidentType(incident.incident_type)} · {incident.job_number || incident.machine_reference}
-                          </Link>
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">{incident.machine_reference}</p>
-                      </div>
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-slate-700">
-                        {incident.status}
-                      </span>
-                    </div>
-                    <p className="mt-4 text-sm leading-7 text-slate-600">{incident.description}</p>
-                    {incident.linked_parts_ticket_id ? (
-                      <Link
-                        href={`/tickets/${incident.linked_parts_ticket_id}`}
-                        className="mt-4 inline-flex rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                      >
-                        Open Linked Parts Request
-                      </Link>
-                    ) : null}
-                  </article>
-                ))}
-              </div>
+                  </div>
+                </section>
+              ))}
             </div>
           </section>
         </AuthGuard>
@@ -315,16 +361,104 @@ export default function IncidentsPage() {
   );
 }
 
-function formatDate(value: string) {
+function MetricCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "slate" | "amber" | "emerald" | "rose" | "blue";
+}) {
+  const toneClasses: Record<string, string> = {
+    slate: "border-white/10 bg-white/5",
+    amber: "border-amber-400/20 bg-amber-500/10",
+    emerald: "border-emerald-400/20 bg-emerald-500/10",
+    rose: "border-rose-400/20 bg-rose-500/10",
+    blue: "border-sky-400/20 bg-sky-500/10",
+  };
+
+  return (
+    <div className={`rounded-[1.5rem] border p-5 ${toneClasses[tone]}`}>
+      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
+        {label}
+      </p>
+      <p className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function InfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4">
+      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
+        {label}
+      </p>
+      <p className="mt-2 text-xl font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
-    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
 }
 
+function formatClock(value: Date) {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(value);
+}
+
+function formatRelativeTime(value: string) {
+  const deltaMs = Date.now() - new Date(value).getTime();
+  const deltaMinutes = Math.max(1, Math.round(deltaMs / (1000 * 60)));
+
+  if (deltaMinutes < 60) {
+    return `${deltaMinutes}m ago`;
+  }
+
+  const deltaHours = Math.round(deltaMinutes / 60);
+
+  if (deltaHours < 24) {
+    return `${deltaHours}h ago`;
+  }
+
+  const deltaDays = Math.round(deltaHours / 24);
+  return `${deltaDays}d ago`;
+}
+
 function formatIncidentType(value: string) {
   return value === "TYRE_BREAKDOWN" ? "Tyre Breakdown" : "Damage Report";
+}
+
+function formatIncidentStatus(value: string) {
+  return value.replaceAll("_", " ");
+}
+
+function getIncidentTone(status: string) {
+  switch (status) {
+    case "REPORTED":
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+    case "ASSESSED":
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+    case "AWAITING_PARTS":
+      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
+    case "PARTS_ASSIGNED":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+    case "IN_REPAIR":
+      return "border-indigo-400/20 bg-indigo-500/10 text-indigo-200";
+    case "READY":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+    default:
+      return "border-white/10 bg-white/10 text-slate-200";
+  }
 }
