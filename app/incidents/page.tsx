@@ -247,8 +247,7 @@ export default function IncidentsPage() {
       setOpenTasks((current) => [
         {
           ...nextTask,
-          assignee_name:
-            assignee?.full_name ?? assignee?.username ?? nextTask.assigned_to,
+          assignee_name: assignee?.full_name ?? nextTask.assigned_to,
         },
         ...current,
       ]);
@@ -396,7 +395,7 @@ export default function IncidentsPage() {
                         <div className="flex items-center justify-between gap-4">
                           <div>
                             <p className="text-sm font-semibold">
-                              {user.full_name ?? user.username ?? user.user_id}
+                              {user.full_name ?? user.user_id}
                             </p>
                             <p
                               className={`mt-1 text-xs font-medium uppercase tracking-[0.16em] ${
@@ -463,7 +462,7 @@ export default function IncidentsPage() {
                       <option value="">Select user</option>
                       {users.map((user) => (
                         <option key={user.user_id} value={user.user_id}>
-                          {user.full_name ?? user.username ?? user.user_id}
+                          {user.full_name ?? user.user_id}
                         </option>
                       ))}
                     </select>

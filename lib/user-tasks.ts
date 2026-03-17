@@ -5,7 +5,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type ActiveUserPresence = {
   user_id: string;
   full_name: string | null;
-  username: string | null;
   role: string | null;
   last_seen_at: string;
 };
@@ -13,7 +12,6 @@ export type ActiveUserPresence = {
 export type UserDirectoryRecord = {
   user_id: string;
   full_name: string | null;
-  username: string | null;
   role: string | null;
   last_seen_at: string | null;
   is_active: boolean;
@@ -60,7 +58,7 @@ export async function fetchRecentlyActiveUsers(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("user_presence")
     .select(
-      "user_id, last_seen_at, profiles:profiles!user_presence_user_id_fkey(full_name, username, role)",
+      "user_id, last_seen_at, profiles:profiles!user_presence_user_id_fkey(full_name, role)",
     )
     .gte("last_seen_at", since)
     .order("last_seen_at", { ascending: false });
@@ -75,12 +73,10 @@ export async function fetchRecentlyActiveUsers(supabase: SupabaseClient) {
     profiles:
       | {
           full_name: string | null;
-          username: string | null;
           role: string | null;
         }
       | {
           full_name: string | null;
-          username: string | null;
           role: string | null;
         }[]
       | null;
@@ -90,7 +86,6 @@ export async function fetchRecentlyActiveUsers(supabase: SupabaseClient) {
     return {
       user_id: row.user_id,
       full_name: profile?.full_name ?? null,
-      username: profile?.username ?? null,
       role: profile?.role ?? null,
       last_seen_at: row.last_seen_at,
     } satisfies ActiveUserPresence;
@@ -103,7 +98,7 @@ export async function fetchUsersWithPresence(supabase: SupabaseClient) {
     await Promise.all([
       supabase
         .from("profiles")
-        .select("id, full_name, username, role")
+        .select("id, full_name, role")
         .order("full_name", { ascending: true }),
       supabase
         .from("user_presence")
@@ -130,13 +125,11 @@ export async function fetchUsersWithPresence(supabase: SupabaseClient) {
   return ((profilesData ?? []) as Array<{
     id: string;
     full_name: string | null;
-    username: string | null;
     role: string | null;
   }>)
     .map((profile) => ({
       user_id: profile.id,
       full_name: profile.full_name ?? null,
-      username: profile.username ?? null,
       role: profile.role ?? null,
       last_seen_at: presenceMap.get(profile.id) ?? null,
       is_active: presenceMap.has(profile.id),
@@ -146,8 +139,8 @@ export async function fetchUsersWithPresence(supabase: SupabaseClient) {
         return left.is_active ? -1 : 1;
       }
 
-      const leftName = left.full_name ?? left.username ?? left.user_id;
-      const rightName = right.full_name ?? right.username ?? right.user_id;
+      const leftName = left.full_name ?? left.user_id;
+      const rightName = right.full_name ?? right.user_id;
       return leftName.localeCompare(rightName);
     }) satisfies UserDirectoryRecord[];
 }
@@ -203,7 +196,7 @@ export async function fetchOpenTasksForAdmin(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("user_tasks")
     .select(
-      "id, title, description, status, assigned_to, assigned_by, created_at, updated_at, due_at, profiles:profiles!user_tasks_assigned_to_fkey(full_name, username)",
+      "id, title, description, status, assigned_to, assigned_by, created_at, updated_at, due_at, profiles:profiles!user_tasks_assigned_to_fkey(full_name)",
     )
     .eq("status", "OPEN")
     .order("created_at", { ascending: false });
@@ -215,8 +208,8 @@ export async function fetchOpenTasksForAdmin(supabase: SupabaseClient) {
   return ((data ?? []) as Array<
     UserTaskRecord & {
       profiles:
-        | { full_name: string | null; username: string | null }
-        | { full_name: string | null; username: string | null }[]
+        | { full_name: string | null }
+        | { full_name: string | null }[]
         | null;
     }
   >).map((row) => {
@@ -232,7 +225,7 @@ export async function fetchOpenTasksForAdmin(supabase: SupabaseClient) {
       created_at: row.created_at,
       updated_at: row.updated_at,
       due_at: row.due_at,
-      assignee_name: profile?.full_name ?? profile?.username ?? null,
+      assignee_name: profile?.full_name ?? null,
     } satisfies UserTaskRecord;
   });
 }
