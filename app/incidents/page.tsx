@@ -13,9 +13,9 @@ import { getSupabaseClient } from "@/lib/supabase";
 import {
   createUserTask,
   fetchOpenTasksForAdmin,
-  fetchRecentlyActiveUsers,
-  type ActiveUserPresence,
+  fetchUsersWithPresence,
   type UserTaskRecord,
+  type UserDirectoryRecord,
 } from "@/lib/user-tasks";
 import {
   listWorkshopIncidents,
@@ -39,7 +39,7 @@ export default function IncidentsPage() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeUsers, setActiveUsers] = useState<ActiveUserPresence[]>([]);
+  const [users, setUsers] = useState<UserDirectoryRecord[]>([]);
   const [openTasks, setOpenTasks] = useState<UserTaskRecord[]>([]);
   const [taskDraft, setTaskDraft] = useState({
     assignedTo: "",
@@ -157,11 +157,11 @@ export default function IncidentsPage() {
     }
 
     try {
-      const [users, tasks] = await Promise.all([
-        fetchRecentlyActiveUsers(supabase),
+      const [directoryUsers, tasks] = await Promise.all([
+        fetchUsersWithPresence(supabase),
         fetchOpenTasksForAdmin(supabase),
       ]);
-      setActiveUsers(users);
+      setUsers(directoryUsers);
       setOpenTasks(tasks);
     } catch (error) {
       console.error("Failed to load RELAY presence or tasks", error);
@@ -243,7 +243,7 @@ export default function IncidentsPage() {
         description: taskDraft.description.trim(),
       });
 
-      const assignee = activeUsers.find((user) => user.user_id === nextTask.assigned_to);
+      const assignee = users.find((user) => user.user_id === nextTask.assigned_to);
       setOpenTasks((current) => [
         {
           ...nextTask,
@@ -364,20 +364,20 @@ export default function IncidentsPage() {
               <section className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
                 <div className="space-y-2">
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-                    Active Users
+                    Users
                   </p>
                   <p className="text-sm leading-6 text-slate-400">
-                    Users currently logged in or seen within the last hour.
+                    All known users from RELAY, with a green dot when seen in the last hour.
                   </p>
                 </div>
 
                 <div className="mt-6 space-y-3">
-                  {activeUsers.length === 0 ? (
+                  {users.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                      No recent user activity detected yet.
+                      No users are available yet.
                     </div>
                   ) : (
-                    activeUsers.map((user) => (
+                    users.map((user) => (
                       <button
                         key={user.user_id}
                         type="button"
@@ -405,18 +405,29 @@ export default function IncidentsPage() {
                                   : "text-slate-400"
                               }`}
                             >
-                              {user.role ?? "user"} · Seen {formatHoursAgo(user.last_seen_at)}
+                              {user.role ?? "user"} · {user.is_active && user.last_seen_at
+                                ? `Seen ${formatHoursAgo(user.last_seen_at)}`
+                                : "Offline"}
                             </p>
                           </div>
-                          <span
-                            className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
-                              taskDraft.assignedTo === user.user_id
-                                ? "border border-white/20 bg-white/10 text-white"
-                                : "border border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-                            }`}
-                          >
-                            Active
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`h-3 w-3 rounded-full ${
+                                user.is_active ? "bg-emerald-400 shadow-[0_0_18px_rgba(74,222,128,0.65)]" : "bg-slate-600"
+                              }`}
+                            />
+                            <span
+                              className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
+                                taskDraft.assignedTo === user.user_id
+                                  ? "border border-white/20 bg-white/10 text-white"
+                                  : user.is_active
+                                    ? "border border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                                    : "border border-white/10 bg-black/10 text-slate-400"
+                              }`}
+                            >
+                              {user.is_active ? "Active" : "Offline"}
+                            </span>
+                          </div>
                         </div>
                       </button>
                     ))
@@ -449,8 +460,8 @@ export default function IncidentsPage() {
                       }
                       className="h-11 w-full rounded-xl border border-white/10 bg-black/15 px-4 text-sm text-white outline-none transition focus:border-white/20"
                     >
-                      <option value="">Select active user</option>
-                      {activeUsers.map((user) => (
+                      <option value="">Select user</option>
+                      {users.map((user) => (
                         <option key={user.user_id} value={user.user_id}>
                           {user.full_name ?? user.username ?? user.user_id}
                         </option>

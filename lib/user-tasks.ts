@@ -10,6 +10,15 @@ export type ActiveUserPresence = {
   last_seen_at: string;
 };
 
+export type UserDirectoryRecord = {
+  user_id: string;
+  full_name: string | null;
+  username: string | null;
+  role: string | null;
+  last_seen_at: string | null;
+  is_active: boolean;
+};
+
 export type UserTaskRecord = {
   id: string;
   title: string;
@@ -86,6 +95,61 @@ export async function fetchRecentlyActiveUsers(supabase: SupabaseClient) {
       last_seen_at: row.last_seen_at,
     } satisfies ActiveUserPresence;
   });
+}
+
+export async function fetchUsersWithPresence(supabase: SupabaseClient) {
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const [{ data: profilesData, error: profilesError }, { data: presenceData, error: presenceError }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, full_name, username, role")
+        .order("full_name", { ascending: true }),
+      supabase
+        .from("user_presence")
+        .select("user_id, last_seen_at")
+        .gte("last_seen_at", since)
+        .order("last_seen_at", { ascending: false }),
+    ]);
+
+  if (profilesError) {
+    throw new Error(profilesError.message);
+  }
+
+  if (presenceError) {
+    throw new Error(presenceError.message);
+  }
+
+  const presenceMap = new Map(
+    ((presenceData ?? []) as Array<{ user_id: string; last_seen_at: string }>).map((row) => [
+      row.user_id,
+      row.last_seen_at,
+    ]),
+  );
+
+  return ((profilesData ?? []) as Array<{
+    id: string;
+    full_name: string | null;
+    username: string | null;
+    role: string | null;
+  }>)
+    .map((profile) => ({
+      user_id: profile.id,
+      full_name: profile.full_name ?? null,
+      username: profile.username ?? null,
+      role: profile.role ?? null,
+      last_seen_at: presenceMap.get(profile.id) ?? null,
+      is_active: presenceMap.has(profile.id),
+    }))
+    .sort((left, right) => {
+      if (left.is_active !== right.is_active) {
+        return left.is_active ? -1 : 1;
+      }
+
+      const leftName = left.full_name ?? left.username ?? left.user_id;
+      const rightName = right.full_name ?? right.username ?? right.user_id;
+      return leftName.localeCompare(rightName);
+    }) satisfies UserDirectoryRecord[];
 }
 
 export async function createUserTask(
