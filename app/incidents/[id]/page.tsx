@@ -32,63 +32,80 @@ export default function IncidentDetailPage() {
     let isMounted = true;
 
     async function loadIncident() {
-      const supabase = getSupabaseClient();
+      try {
+        const supabase = getSupabaseClient();
 
-      if (!supabase) {
-        setErrorMessage("Supabase environment variables are not configured.");
+        if (!supabase) {
+          setErrorMessage("Supabase environment variables are not configured.");
+          setIsLoading(false);
+          return;
+        }
+
+        const { user, isAdmin } = await getCurrentUserWithRole(supabase);
+
+        if (!isMounted || !user) {
+          setIsLoading(false);
+          return;
+        }
+
+        const nextIncident = await getWorkshopIncidentById(supabase, incidentId, {
+          userId: user.id,
+          isAdmin,
+        });
+
+        if (!nextIncident) {
+          setIncident(null);
+          setLinkedPartsTicketStatus("");
+          setErrorMessage("Incident not found.");
+          setIsLoading(false);
+          return;
+        }
+
+        let resolvedIncident = nextIncident;
+
+        if (nextIncident.job_number.trim()) {
+          const { data: linkedTickets } = await supabase
+            .from("tickets")
+            .select("id, job_number, status")
+            .eq("job_number", nextIncident.job_number.trim());
+
+          const reconciledIncidents = reconcileWorkshopIncidentsWithPartsTickets(
+            [nextIncident],
+            linkedTickets ?? [],
+          );
+          resolvedIncident = reconciledIncidents[0] ?? nextIncident;
+
+          if (
+            resolvedIncident.linked_parts_ticket_id !== nextIncident.linked_parts_ticket_id ||
+            resolvedIncident.status !== nextIncident.status
+          ) {
+            resolvedIncident = await updateWorkshopIncident(supabase, resolvedIncident.id, {
+              linked_parts_ticket_id: resolvedIncident.linked_parts_ticket_id,
+              status: resolvedIncident.status,
+            });
+          }
+
+          const matchingTicket =
+            (linkedTickets ?? []).find(
+              (ticket) =>
+                ticket.job_number?.trim().toLowerCase() ===
+                nextIncident.job_number.trim().toLowerCase(),
+            ) ?? null;
+
+          setLinkedPartsTicketStatus(matchingTicket?.status ?? "");
+        } else {
+          setLinkedPartsTicketStatus("");
+        }
+
+        setIncident(resolvedIncident);
+        setErrorMessage("");
         setIsLoading(false);
-        return;
-      }
-
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
-
-      if (!isMounted || !user) {
-        setIsLoading(false);
-        return;
-      }
-
-      const nextIncident = getWorkshopIncidentById(incidentId, {
-        userId: user.id,
-        isAdmin,
-      });
-
-      if (!nextIncident) {
-        setIncident(null);
-        setLinkedPartsTicketStatus("");
-        setErrorMessage("Incident not found.");
-        setIsLoading(false);
-        return;
-      }
-
-      let resolvedIncident = nextIncident;
-
-      if (nextIncident.job_number.trim()) {
-        const { data: linkedTickets } = await supabase
-          .from("tickets")
-          .select("id, job_number, status")
-          .eq("job_number", nextIncident.job_number.trim());
-
-        const reconciledIncidents = reconcileWorkshopIncidentsWithPartsTickets(
-          [nextIncident],
-          linkedTickets ?? [],
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Unable to load incident.",
         );
-        resolvedIncident = reconciledIncidents[0] ?? nextIncident;
-
-        const matchingTicket =
-          (linkedTickets ?? []).find(
-            (ticket) =>
-              ticket.job_number?.trim().toLowerCase() ===
-              nextIncident.job_number.trim().toLowerCase(),
-          ) ?? null;
-
-        setLinkedPartsTicketStatus(matchingTicket?.status ?? "");
-      } else {
-        setLinkedPartsTicketStatus("");
+        setIsLoading(false);
       }
-
-      setIncident(resolvedIncident);
-      setErrorMessage("");
-      setIsLoading(false);
     }
 
     void loadIncident();
@@ -103,13 +120,21 @@ export default function IncidentDetailPage() {
       return;
     }
 
-    const updatedIncident = updateWorkshopIncident(incident.id, {
-      status: nextStatus as WorkshopIncidentRecord["status"],
-    });
+    const supabase = getSupabaseClient();
 
-    if (updatedIncident) {
-      setIncident(updatedIncident);
+    if (!supabase) {
+      return;
     }
+
+    void updateWorkshopIncident(supabase, incident.id, {
+      status: nextStatus as WorkshopIncidentRecord["status"],
+    }).then((updatedIncident) => {
+      setIncident(updatedIncident);
+    }).catch((error) => {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to update incident status.",
+      );
+    });
   }
 
   function handlePrepareTyreCompanyEmail() {

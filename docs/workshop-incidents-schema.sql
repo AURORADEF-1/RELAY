@@ -34,3 +34,55 @@ on public.workshop_incidents (user_id);
 
 create index if not exists workshop_incidents_updated_at_idx
 on public.workshop_incidents (updated_at desc);
+
+alter table public.workshop_incidents enable row level security;
+
+drop policy if exists "workshop incidents admin read" on public.workshop_incidents;
+create policy "workshop incidents admin read"
+on public.workshop_incidents
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'admin'
+  )
+);
+
+drop policy if exists "workshop incidents admin insert" on public.workshop_incidents;
+create policy "workshop incidents admin insert"
+on public.workshop_incidents
+for insert
+to authenticated
+with check (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'admin'
+  )
+);
+
+drop policy if exists "workshop incidents admin update" on public.workshop_incidents;
+create policy "workshop incidents admin update"
+on public.workshop_incidents
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'admin'
+  )
+);

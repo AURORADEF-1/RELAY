@@ -1,5 +1,7 @@
 "use client";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 export const workshopIncidentTypes = ["DAMAGE", "TYRE_BREAKDOWN"] as const;
 export const workshopIncidentStatuses = [
   "REPORTED",
@@ -45,128 +47,172 @@ export type WorkshopIncidentRecord = {
   updated_at: string;
 };
 
+type IncidentRow = {
+  id: string;
+  user_id: string;
+  reported_by: string | null;
+  incident_type: string;
+  machine_reference: string;
+  job_number: string | null;
+  location_type: string;
+  location_summary: string | null;
+  description: string;
+  severity: string;
+  status: string;
+  assigned_to: string | null;
+  notes: string | null;
+  linked_parts_ticket_id: string | null;
+  po_number: string | null;
+  damage_area: string | null;
+  tyre_position: string | null;
+  vehicle_immobilised: boolean | null;
+  replacement_required: boolean | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type IncidentDraft = Omit<
   WorkshopIncidentRecord,
-  "id" | "created_at" | "updated_at" | "status"
+  "id" | "created_at" | "updated_at" | "status" | "linked_parts_ticket_id"
 >;
 
-const WORKSHOP_INCIDENTS_STORAGE_KEY = "relay-workshop-incidents";
-
-const seedIncidents: WorkshopIncidentRecord[] = [
-  {
-    id: "incident-seed-1",
-    user_id: "seed-admin",
-    reported_by: "Workshop Control",
-    incident_type: "DAMAGE",
-    machine_reference: "EX-221",
-    job_number: "483321",
-    location_type: "Onsite",
-    location_summary: "Braintree Yard Entry",
-    description: "Rear panel impact damage and broken light cluster.",
-    severity: "HIGH",
-    status: "ASSESSED",
-    assigned_to: "Tom",
-    notes: "Awaiting panel confirmation before parts order.",
-    linked_parts_ticket_id: "",
-    po_number: "",
-    damage_area: "Rear body panel",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 14).toISOString(),
-    updated_at: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
-  },
-  {
-    id: "incident-seed-2",
-    user_id: "seed-user",
-    reported_by: "Van Workshop",
-    incident_type: "TYRE_BREAKDOWN",
-    machine_reference: "VAN-07",
-    job_number: "482904",
-    location_type: "Onsite",
-    location_summary: "Service road loading bay",
-    description: "Front near-side tyre blowout with vehicle immobilised.",
-    severity: "CRITICAL",
-    status: "IN_REPAIR",
-    assigned_to: "Stores Tyre Team",
-    notes: "Replacement tyre issued and fitter dispatched.",
-    linked_parts_ticket_id: "",
-    po_number: "PO-482904",
-    tyre_position: "Front near-side",
-    vehicle_immobilised: true,
-    replacement_required: true,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-    updated_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-  },
-];
-
-export function getWorkshopIncidents(options?: {
-  userId?: string | null;
-  isAdmin?: boolean;
-}) {
-  const incidents = readWorkshopIncidents();
-
-  if (options?.isAdmin) {
-    return incidents;
-  }
-
-  if (!options?.userId) {
-    return [];
-  }
-
-  return incidents.filter((incident) => incident.user_id === options.userId);
-}
-
-export function getWorkshopIncidentById(
-  incidentId: string,
-  options?: { userId?: string | null; isAdmin?: boolean },
-) {
-  return getWorkshopIncidents(options).find((incident) => incident.id === incidentId) ?? null;
-}
-
-export function createWorkshopIncident(draft: IncidentDraft) {
-  const incidents = readWorkshopIncidents();
-  const timestamp = new Date().toISOString();
-  const nextIncident: WorkshopIncidentRecord = {
-    ...draft,
-    id: buildIncidentId(),
-    status: "REPORTED",
-    created_at: timestamp,
-    updated_at: timestamp,
-  };
-
-  const nextIncidents = [nextIncident, ...incidents];
-  writeWorkshopIncidents(nextIncidents);
-  return nextIncident;
-}
-
-export function updateWorkshopIncident(
-  incidentId: string,
-  patch: Partial<Omit<WorkshopIncidentRecord, "id" | "created_at" | "user_id">>,
-) {
-  const incidents = readWorkshopIncidents();
-  let updatedIncident: WorkshopIncidentRecord | null = null;
-
-  const nextIncidents = incidents.map((incident) => {
-    if (incident.id !== incidentId) {
-      return incident;
-    }
-
-    updatedIncident = {
-      ...incident,
-      ...patch,
-      updated_at: new Date().toISOString(),
-    };
-
-    return updatedIncident;
-  });
-
-  writeWorkshopIncidents(nextIncidents);
-  return updatedIncident;
-}
+type IncidentPatch = Partial<
+  Omit<WorkshopIncidentRecord, "id" | "created_at" | "user_id">
+>;
 
 export type LinkedPartsTicket = {
   id: string;
   job_number: string | null;
   status: string | null;
 };
+
+export async function listWorkshopIncidents(
+  supabase: SupabaseClient,
+  options?: {
+    userId?: string | null;
+    isAdmin?: boolean;
+  },
+) {
+  let query = supabase
+    .from("workshop_incidents")
+    .select("*")
+    .order("updated_at", { ascending: false });
+
+  if (!options?.isAdmin && options?.userId) {
+    query = query.eq("user_id", options.userId);
+  }
+
+  if (!options?.isAdmin && !options?.userId) {
+    return [];
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map(normalizeWorkshopIncidentRow);
+}
+
+export async function getWorkshopIncidentById(
+  supabase: SupabaseClient,
+  incidentId: string,
+  options?: { userId?: string | null; isAdmin?: boolean },
+) {
+  let query = supabase
+    .from("workshop_incidents")
+    .select("*")
+    .eq("id", incidentId);
+
+  if (!options?.isAdmin && options?.userId) {
+    query = query.eq("user_id", options.userId);
+  }
+
+  if (!options?.isAdmin && !options?.userId) {
+    return null;
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ? normalizeWorkshopIncidentRow(data) : null;
+}
+
+export async function createWorkshopIncident(
+  supabase: SupabaseClient,
+  draft: IncidentDraft,
+) {
+  const { data, error } = await supabase
+    .from("workshop_incidents")
+    .insert({
+      user_id: draft.user_id,
+      reported_by: draft.reported_by,
+      incident_type: draft.incident_type,
+      machine_reference: draft.machine_reference,
+      job_number: draft.job_number || null,
+      location_type: draft.location_type,
+      location_summary: draft.location_summary || null,
+      description: draft.description,
+      severity: draft.severity,
+      assigned_to: draft.assigned_to || null,
+      notes: draft.notes || null,
+      po_number: draft.po_number || null,
+      damage_area: draft.damage_area || null,
+      tyre_position: draft.tyre_position || null,
+      vehicle_immobilised: draft.vehicle_immobilised ?? false,
+      replacement_required: draft.replacement_required ?? false,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return normalizeWorkshopIncidentRow(data);
+}
+
+export async function updateWorkshopIncident(
+  supabase: SupabaseClient,
+  incidentId: string,
+  patch: IncidentPatch,
+) {
+  const { data, error } = await supabase
+    .from("workshop_incidents")
+    .update({
+      reported_by: patch.reported_by,
+      incident_type: patch.incident_type,
+      machine_reference: patch.machine_reference,
+      job_number: patch.job_number,
+      location_type: patch.location_type,
+      location_summary: patch.location_summary,
+      description: patch.description,
+      severity: patch.severity,
+      status: patch.status,
+      assigned_to: patch.assigned_to,
+      notes: patch.notes,
+      linked_parts_ticket_id: patch.linked_parts_ticket_id,
+      po_number: patch.po_number,
+      damage_area: patch.damage_area,
+      tyre_position: patch.tyre_position,
+      vehicle_immobilised: patch.vehicle_immobilised,
+      replacement_required: patch.replacement_required,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", incidentId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return normalizeWorkshopIncidentRow(data);
+}
 
 export function reconcileWorkshopIncidentsWithPartsTickets(
   incidents: WorkshopIncidentRecord[],
@@ -178,8 +224,7 @@ export function reconcileWorkshopIncidentsWithPartsTickets(
       .map((ticket) => [ticket.job_number?.trim().toLowerCase(), ticket] as const),
   );
 
-  let hasChanges = false;
-  const nextIncidents = incidents.map((incident) => {
+  return incidents.map((incident) => {
     const normalizedJobNumber = incident.job_number.trim().toLowerCase();
     const linkedTicket = normalizedJobNumber
       ? ticketsByJobNumber.get(normalizedJobNumber)
@@ -189,81 +234,74 @@ export function reconcileWorkshopIncidentsWithPartsTickets(
       return incident;
     }
 
-    const nextLinkedTicketId = linkedTicket.id;
     const shouldPromoteToPartsAssigned =
       incident.incident_type === "DAMAGE" &&
       incident.status === "AWAITING_PARTS" &&
       linkedTicket.status === "READY";
 
-    const nextIncident: WorkshopIncidentRecord = {
+    return {
       ...incident,
-      linked_parts_ticket_id: nextLinkedTicketId,
+      linked_parts_ticket_id: linkedTicket.id,
       status: shouldPromoteToPartsAssigned ? "PARTS_ASSIGNED" : incident.status,
-      updated_at:
-        shouldPromoteToPartsAssigned || incident.linked_parts_ticket_id !== nextLinkedTicketId
-          ? new Date().toISOString()
-          : incident.updated_at,
     };
-
-    if (
-      nextIncident.linked_parts_ticket_id !== incident.linked_parts_ticket_id ||
-      nextIncident.status !== incident.status
-    ) {
-      hasChanges = true;
-    }
-
-    return nextIncident;
   });
-
-  if (hasChanges) {
-    writeWorkshopIncidents(nextIncidents);
-  }
-
-  return nextIncidents;
 }
 
-function readWorkshopIncidents() {
-  if (typeof window === "undefined") {
-    return seedIncidents;
-  }
-
-  const stored = window.localStorage.getItem(WORKSHOP_INCIDENTS_STORAGE_KEY);
-
-  if (!stored) {
-    window.localStorage.setItem(
-      WORKSHOP_INCIDENTS_STORAGE_KEY,
-      JSON.stringify(seedIncidents),
-    );
-    return seedIncidents;
-  }
-
-  try {
-    const parsed = JSON.parse(stored) as WorkshopIncidentRecord[];
-    return Array.isArray(parsed) ? parsed : seedIncidents;
-  } catch {
-    window.localStorage.setItem(
-      WORKSHOP_INCIDENTS_STORAGE_KEY,
-      JSON.stringify(seedIncidents),
-    );
-    return seedIncidents;
-  }
+function normalizeWorkshopIncidentRow(row: IncidentRow): WorkshopIncidentRecord {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    reported_by: row.reported_by || "",
+    incident_type: asIncidentType(row.incident_type),
+    machine_reference: row.machine_reference,
+    job_number: row.job_number || "",
+    location_type: row.location_type === "Yard" ? "Yard" : "Onsite",
+    location_summary: row.location_summary || "",
+    description: row.description,
+    severity: asIncidentSeverity(row.severity),
+    status: asIncidentStatus(row.status),
+    assigned_to: row.assigned_to || "",
+    notes: row.notes || "",
+    linked_parts_ticket_id: row.linked_parts_ticket_id || undefined,
+    po_number: row.po_number || "",
+    damage_area: row.damage_area || "",
+    tyre_position: row.tyre_position || "",
+    vehicle_immobilised: Boolean(row.vehicle_immobilised),
+    replacement_required: Boolean(row.replacement_required),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
 }
 
-function writeWorkshopIncidents(incidents: WorkshopIncidentRecord[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(
-    WORKSHOP_INCIDENTS_STORAGE_KEY,
-    JSON.stringify(incidents),
-  );
+function asIncidentType(value: string): WorkshopIncidentType {
+  return value === "TYRE_BREAKDOWN" ? "TYRE_BREAKDOWN" : "DAMAGE";
 }
 
-function buildIncidentId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
+function asIncidentSeverity(value: string): WorkshopIncidentSeverity {
+  if (
+    value === "LOW" ||
+    value === "MEDIUM" ||
+    value === "HIGH" ||
+    value === "CRITICAL"
+  ) {
+    return value;
   }
 
-  return `incident-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return "MEDIUM";
+}
+
+function asIncidentStatus(value: string): WorkshopIncidentStatus {
+  if (
+    value === "REPORTED" ||
+    value === "ASSESSED" ||
+    value === "AWAITING_PARTS" ||
+    value === "PARTS_ASSIGNED" ||
+    value === "IN_REPAIR" ||
+    value === "READY" ||
+    value === "CLOSED"
+  ) {
+    return value;
+  }
+
+  return "REPORTED";
 }

@@ -11,8 +11,9 @@ import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
-  getWorkshopIncidents,
+  listWorkshopIncidents,
   reconcileWorkshopIncidentsWithPartsTickets,
+  updateWorkshopIncident,
   workshopIncidentStatuses,
   type WorkshopIncidentRecord,
 } from "@/lib/workshop-incidents";
@@ -24,51 +25,76 @@ export default function IncidentsPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const loadIncidents = useCallback(async () => {
-    const supabase = getSupabaseClient();
+    try {
+      const supabase = getSupabaseClient();
 
-    if (!supabase) {
-      setErrorMessage("Supabase environment variables are not configured.");
-      setIsLoading(false);
-      return;
-    }
+      if (!supabase) {
+        setErrorMessage("Supabase environment variables are not configured.");
+        setIsLoading(false);
+        return;
+      }
 
-    const { user, isAdmin } = await getCurrentUserWithRole(supabase);
+      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
 
-    if (!user) {
-      setErrorMessage("Sign in to view workshop incidents.");
-      setIsLoading(false);
-      return;
-    }
+      if (!user) {
+        setErrorMessage("Sign in to view workshop incidents.");
+        setIsLoading(false);
+        return;
+      }
 
-    const nextIncidents = getWorkshopIncidents({
-      userId: user.id,
-      isAdmin,
-    });
-    const incidentJobNumbers = Array.from(
-      new Set(
-        nextIncidents
-          .map((incident) => incident.job_number.trim())
-          .filter(Boolean),
-      ),
-    );
-
-    let reconciledIncidents = nextIncidents;
-
-    if (incidentJobNumbers.length > 0) {
-      const { data: linkedTickets } = await supabase
-        .from("tickets")
-        .select("id, job_number, status")
-        .in("job_number", incidentJobNumbers);
-
-      reconciledIncidents = reconcileWorkshopIncidentsWithPartsTickets(
-        nextIncidents,
-        linkedTickets ?? [],
+      const nextIncidents = await listWorkshopIncidents(supabase, {
+        userId: user.id,
+        isAdmin,
+      });
+      const incidentJobNumbers = Array.from(
+        new Set(
+          nextIncidents
+            .map((incident) => incident.job_number.trim())
+            .filter(Boolean),
+        ),
       );
-    }
 
-    setIncidents(reconciledIncidents);
-    setErrorMessage("");
-    setIsLoading(false);
+      let reconciledIncidents = nextIncidents;
+
+      if (incidentJobNumbers.length > 0) {
+        const { data: linkedTickets } = await supabase
+          .from("tickets")
+          .select("id, job_number, status")
+          .in("job_number", incidentJobNumbers);
+
+        reconciledIncidents = reconcileWorkshopIncidentsWithPartsTickets(
+          nextIncidents,
+          linkedTickets ?? [],
+        );
+
+        await Promise.all(
+          reconciledIncidents.map(async (incident, index) => {
+            const previousIncident = nextIncidents[index];
+
+            if (
+              incident.linked_parts_ticket_id !== previousIncident?.linked_parts_ticket_id ||
+              incident.status !== previousIncident?.status
+            ) {
+              await updateWorkshopIncident(supabase, incident.id, {
+                linked_parts_ticket_id: incident.linked_parts_ticket_id,
+                status: incident.status,
+              });
+            }
+          }),
+        );
+      }
+
+      setIncidents(reconciledIncidents);
+      setErrorMessage("");
+      setIsLoading(false);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to load workshop incidents.",
+      );
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {

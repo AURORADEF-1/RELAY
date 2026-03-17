@@ -55,22 +55,29 @@ export default function NewDamageIncidentPage() {
       return;
     }
 
-    const incident = createWorkshopIncident({
-      user_id: user.id,
-      reported_by: formState.reported_by.trim() || user.email || "Workshop Reporter",
-      incident_type: "DAMAGE",
-      machine_reference: formState.machine_reference.trim(),
-      job_number: formState.job_number.trim(),
-      location_type: formState.location_type as "Onsite" | "Yard",
-      location_summary: formState.location_summary.trim(),
-      description: formState.description.trim(),
-      severity: formState.severity as (typeof workshopIncidentSeverities)[number],
-      assigned_to: formState.assigned_to.trim(),
-      notes: formState.notes.trim(),
-      damage_area: formState.damage_area.trim(),
-    });
+    try {
+      const incident = await createWorkshopIncident(supabase, {
+        user_id: user.id,
+        reported_by: formState.reported_by.trim() || user.email || "Workshop Reporter",
+        incident_type: "DAMAGE",
+        machine_reference: formState.machine_reference.trim(),
+        job_number: formState.job_number.trim(),
+        location_type: formState.location_type as "Onsite" | "Yard",
+        location_summary: formState.location_summary.trim(),
+        description: formState.description.trim(),
+        severity: formState.severity as (typeof workshopIncidentSeverities)[number],
+        assigned_to: formState.assigned_to.trim(),
+        notes: formState.notes.trim(),
+        damage_area: formState.damage_area.trim(),
+      });
 
-    router.push(`/incidents/${incident.id}`);
+      router.push(`/incidents/${incident.id}`);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to create damage report.",
+      );
+      setIsSubmitting(false);
+    }
   }
 
   return (

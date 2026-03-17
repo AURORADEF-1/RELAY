@@ -58,25 +58,32 @@ export default function NewTyreIncidentPage() {
       return;
     }
 
-    const incident = createWorkshopIncident({
-      user_id: user.id,
-      reported_by: formState.reported_by.trim() || user.email || "Workshop Reporter",
-      incident_type: "TYRE_BREAKDOWN",
-      machine_reference: formState.machine_reference.trim(),
-      job_number: formState.job_number.trim(),
-      location_type: formState.location_type as "Onsite" | "Yard",
-      location_summary: formState.location_summary.trim(),
-      description: formState.description.trim(),
-      severity: formState.severity as (typeof workshopIncidentSeverities)[number],
-      assigned_to: formState.assigned_to.trim(),
-      notes: formState.notes.trim(),
-      po_number: formState.po_number.trim(),
-      tyre_position: formState.tyre_position.trim(),
-      vehicle_immobilised: formState.vehicle_immobilised,
-      replacement_required: formState.replacement_required,
-    });
+    try {
+      const incident = await createWorkshopIncident(supabase, {
+        user_id: user.id,
+        reported_by: formState.reported_by.trim() || user.email || "Workshop Reporter",
+        incident_type: "TYRE_BREAKDOWN",
+        machine_reference: formState.machine_reference.trim(),
+        job_number: formState.job_number.trim(),
+        location_type: formState.location_type as "Onsite" | "Yard",
+        location_summary: formState.location_summary.trim(),
+        description: formState.description.trim(),
+        severity: formState.severity as (typeof workshopIncidentSeverities)[number],
+        assigned_to: formState.assigned_to.trim(),
+        notes: formState.notes.trim(),
+        po_number: formState.po_number.trim(),
+        tyre_position: formState.tyre_position.trim(),
+        vehicle_immobilised: formState.vehicle_immobilised,
+        replacement_required: formState.replacement_required,
+      });
 
-    router.push(`/incidents/${incident.id}`);
+      router.push(`/incidents/${incident.id}`);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to create tyre breakdown.",
+      );
+      setIsSubmitting(false);
+    }
   }
 
   return (
