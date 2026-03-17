@@ -21,6 +21,7 @@ import {
 } from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
+import { getPresenceHeartbeatMs, upsertUserPresence } from "@/lib/user-tasks";
 
 type NotificationContextValue = {
   requesterUnreadCount: number;
@@ -206,6 +207,7 @@ export function NotificationProvider({
     let isMounted = true;
     let activeChannel: RealtimeChannel | null = null;
     let pollInterval: number | null = null;
+    let presenceInterval: number | null = null;
 
     const clearNotificationState = async () => {
       knownUnreadIdsRef.current = new Set();
@@ -224,6 +226,11 @@ export function NotificationProvider({
       if (pollInterval) {
         window.clearInterval(pollInterval);
         pollInterval = null;
+      }
+
+      if (presenceInterval) {
+        window.clearInterval(presenceInterval);
+        presenceInterval = null;
       }
     };
 
@@ -261,6 +268,17 @@ export function NotificationProvider({
 
         setIsAuthenticated(true);
         setIsAdmin(adminUser);
+        try {
+          await upsertUserPresence(supabase, user.id);
+        } catch (presenceError) {
+          console.error("Failed to update RELAY user presence", presenceError);
+        }
+
+        presenceInterval = window.setInterval(() => {
+          void upsertUserPresence(supabase, user.id).catch((presenceError) => {
+            console.error("Failed to update RELAY user presence", presenceError);
+          });
+        }, getPresenceHeartbeatMs());
         await syncUnreadNotifications(supabase, user.id, adminUser);
 
         if (adminUser) {
@@ -337,6 +355,10 @@ export function NotificationProvider({
 
       if (pollInterval) {
         window.clearInterval(pollInterval);
+      }
+
+      if (presenceInterval) {
+        window.clearInterval(presenceInterval);
       }
 
       if (activeChannel) {

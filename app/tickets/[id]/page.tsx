@@ -423,6 +423,9 @@ export default function TicketDetailPage() {
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
+            <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
+              Tasks
+            </Link>
             {isAdmin ? (
               <>
                 <Link

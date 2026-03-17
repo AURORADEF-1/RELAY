@@ -118,6 +118,9 @@ export default function RequestsPage() {
             >
               Submit Ticket
             </Link>
+            <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
+              Tasks
+            </Link>
             {isAdmin ? (
               <>
                 <Link
