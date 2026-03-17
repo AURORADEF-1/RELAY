@@ -12,9 +12,11 @@ import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
+  fetchWorkshopIncidentAttachments,
   getWorkshopIncidentById,
   reconcileWorkshopIncidentsWithPartsTickets,
   updateWorkshopIncident,
+  type WorkshopIncidentAttachmentRecord,
   workshopIncidentStatuses,
   type WorkshopIncidentRecord,
 } from "@/lib/workshop-incidents";
@@ -24,6 +26,7 @@ export default function IncidentDetailPage() {
   const params = useParams<{ id: string }>();
   const incidentId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [incident, setIncident] = useState<WorkshopIncidentRecord | null>(null);
+  const [attachments, setAttachments] = useState<WorkshopIncidentAttachmentRecord[]>([]);
   const [linkedPartsTicketStatus, setLinkedPartsTicketStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -55,6 +58,7 @@ export default function IncidentDetailPage() {
 
         if (!nextIncident) {
           setIncident(null);
+          setAttachments([]);
           setLinkedPartsTicketStatus("");
           setErrorMessage("Incident not found.");
           setIsLoading(false);
@@ -97,7 +101,13 @@ export default function IncidentDetailPage() {
           setLinkedPartsTicketStatus("");
         }
 
+        const nextAttachments = await fetchWorkshopIncidentAttachments(
+          supabase,
+          nextIncident.id,
+        );
+
         setIncident(resolvedIncident);
+        setAttachments(nextAttachments);
         setErrorMessage("");
         setIsLoading(false);
       } catch (error) {
@@ -307,6 +317,47 @@ export default function IncidentDetailPage() {
                       </p>
                     </div>
                   ) : null}
+
+                  <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Incident Photos
+                    </p>
+                    {attachments.length === 0 ? (
+                      <p className="mt-3 text-sm text-slate-500">
+                        No incident photos uploaded yet.
+                      </p>
+                    ) : (
+                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        {attachments.map((attachment) => (
+                          <a
+                            key={attachment.id}
+                            href={attachment.signed_url ?? undefined}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                          >
+                            {attachment.signed_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={attachment.signed_url}
+                                alt={attachment.file_name || "Incident attachment"}
+                                className="h-24 w-full object-cover transition group-hover:scale-[1.02]"
+                              />
+                            ) : (
+                              <div className="flex h-24 items-center justify-center px-3 text-center text-xs text-slate-500">
+                                Preview unavailable
+                              </div>
+                            )}
+                            <div className="p-2">
+                              <p className="truncate text-xs font-semibold text-slate-700">
+                                {attachment.file_name || "Incident photo"}
+                              </p>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </section>
 
                 <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">

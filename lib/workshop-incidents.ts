@@ -1,6 +1,10 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  RELAY_MEDIA_BUCKET,
+  validateAttachmentFile,
+} from "@/lib/relay-ticketing";
 
 export const workshopIncidentTypes = ["DAMAGE", "TYRE_BREAKDOWN"] as const;
 export const workshopIncidentStatuses = [
@@ -45,6 +49,18 @@ export type WorkshopIncidentRecord = {
   replacement_required?: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type WorkshopIncidentAttachmentRecord = {
+  id: string;
+  incident_id: string;
+  uploaded_by: string | null;
+  file_name: string | null;
+  file_path: string | null;
+  file_url: string | null;
+  signed_url?: string | null;
+  mime_type: string | null;
+  created_at: string | null;
 };
 
 type IncidentRow = {
@@ -247,6 +263,93 @@ export function reconcileWorkshopIncidentsWithPartsTickets(
   });
 }
 
+export async function uploadWorkshopIncidentAttachments({
+  supabase,
+  incidentId,
+  userId,
+  files,
+}: {
+  supabase: SupabaseClient;
+  incidentId: string;
+  userId: string | null;
+  files: File[];
+}) {
+  if (!userId) {
+    throw new Error("You must be signed in to upload incident images.");
+  }
+
+  if (files.length > 5) {
+    throw new Error("You can upload up to 5 incident photos at once.");
+  }
+
+  const uploaded: WorkshopIncidentAttachmentRecord[] = [];
+
+  for (const file of files) {
+    validateAttachmentFile(file);
+
+    const storagePath = buildWorkshopAttachmentPath({
+      userId,
+      incidentId,
+      fileName: file.name,
+    });
+    const { error: uploadError } = await supabase.storage
+      .from(RELAY_MEDIA_BUCKET)
+      .upload(storagePath, file, {
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message);
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from(RELAY_MEDIA_BUCKET).getPublicUrl(storagePath);
+
+    const { data, error } = await supabase
+      .from("workshop_incident_attachments")
+      .insert({
+        incident_id: incidentId,
+        uploaded_by: userId,
+        file_name: file.name,
+        file_path: storagePath,
+        file_url: publicUrl,
+        mime_type: file.type || null,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    uploaded.push(data as WorkshopIncidentAttachmentRecord);
+  }
+
+  return hydrateWorkshopIncidentAttachmentsWithSignedUrls(supabase, uploaded);
+}
+
+export async function fetchWorkshopIncidentAttachments(
+  supabase: SupabaseClient,
+  incidentId: string,
+) {
+  const { data, error } = await supabase
+    .from("workshop_incident_attachments")
+    .select("*")
+    .eq("incident_id", incidentId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return hydrateWorkshopIncidentAttachmentsWithSignedUrls(
+    supabase,
+    (data ?? []) as WorkshopIncidentAttachmentRecord[],
+  );
+}
+
 function normalizeWorkshopIncidentRow(row: IncidentRow): WorkshopIncidentRecord {
   return {
     id: row.id,
@@ -271,6 +374,54 @@ function normalizeWorkshopIncidentRow(row: IncidentRow): WorkshopIncidentRecord 
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
+}
+
+function buildWorkshopAttachmentPath({
+  userId,
+  incidentId,
+  fileName,
+}: {
+  userId: string;
+  incidentId: string;
+  fileName: string;
+}) {
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+  return `${userId}/incidents/${incidentId}/${Date.now()}-${safeName}`;
+}
+
+async function hydrateWorkshopIncidentAttachmentsWithSignedUrls(
+  supabase: SupabaseClient,
+  attachments: WorkshopIncidentAttachmentRecord[],
+) {
+  return Promise.all(
+    attachments.map(async (attachment) => ({
+      ...attachment,
+      signed_url: await createSignedAttachmentUrl(supabase, attachment.file_path),
+    })),
+  );
+}
+
+async function createSignedAttachmentUrl(
+  supabase: SupabaseClient,
+  filePath: string | null,
+) {
+  if (!filePath) {
+    return null;
+  }
+
+  const { data, error } = await supabase.storage
+    .from(RELAY_MEDIA_BUCKET)
+    .createSignedUrl(filePath, 60 * 60);
+
+  if (error) {
+    console.error("Failed to create workshop incident attachment URL", {
+      filePath,
+      message: error.message,
+    });
+    return null;
+  }
+
+  return data.signedUrl;
 }
 
 function asIncidentType(value: string): WorkshopIncidentType {

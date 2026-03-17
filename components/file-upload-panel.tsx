@@ -8,6 +8,7 @@ type FileUploadPanelProps = {
   helperText: string;
   inputId: string;
   multiple?: boolean;
+  maxFiles?: number;
   buttonLabel?: string;
   emptyText?: string;
   onFilesChange?: (files: File[]) => void;
@@ -26,6 +27,7 @@ export function FileUploadPanel({
   helperText,
   inputId,
   multiple = true,
+  maxFiles,
   buttonLabel = "Select images",
   emptyText = "No files selected yet.",
   onFilesChange,
@@ -45,10 +47,12 @@ export function FileUploadPanel({
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const nextFiles = Array.from(event.target.files ?? []);
+    const limitedFiles =
+      typeof maxFiles === "number" ? nextFiles.slice(0, maxFiles) : nextFiles;
     const validFiles: File[] = [];
     const validationErrors: string[] = [];
 
-    nextFiles.forEach((file) => {
+    limitedFiles.forEach((file) => {
       const validationError = getAttachmentValidationError(file);
 
       if (validationError) {
@@ -58,6 +62,10 @@ export function FileUploadPanel({
 
       validFiles.push(file);
     });
+
+    if (typeof maxFiles === "number" && nextFiles.length > maxFiles) {
+      validationErrors.unshift(`You can upload up to ${maxFiles} photos at once.`);
+    }
 
     setSelectionError(validationErrors.length > 0 ? validationErrors[0] : null);
 

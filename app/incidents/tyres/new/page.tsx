@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { FileUploadPanel } from "@/components/file-upload-panel";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
@@ -13,6 +14,7 @@ import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   createWorkshopIncident,
+  uploadWorkshopIncidentAttachments,
   workshopIncidentSeverities,
 } from "@/lib/workshop-incidents";
 
@@ -36,6 +38,7 @@ export default function NewTyreIncidentPage() {
   });
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,6 +79,15 @@ export default function NewTyreIncidentPage() {
         vehicle_immobilised: formState.vehicle_immobilised,
         replacement_required: formState.replacement_required,
       });
+
+      if (selectedFiles.length > 0) {
+        await uploadWorkshopIncidentAttachments({
+          supabase,
+          incidentId: incident.id,
+          userId: user.id,
+          files: selectedFiles,
+        });
+      }
 
       router.push(`/incidents/${incident.id}`);
     } catch (error) {
@@ -153,6 +165,17 @@ export default function NewTyreIncidentPage() {
               <ToggleField label="Replacement Required" checked={formState.replacement_required} onChange={(checked) => setFormState((current) => ({ ...current, replacement_required: checked }))} />
               <AreaField label="Breakdown Description" value={formState.description} onChange={(value) => setFormState((current) => ({ ...current, description: value }))} />
               <AreaField label="Workshop Notes" value={formState.notes} onChange={(value) => setFormState((current) => ({ ...current, notes: value }))} />
+              <div className="lg:col-span-2">
+                <FileUploadPanel
+                  inputId="tyre-incident-photos"
+                  label="Breakdown photos"
+                  helperText="Upload up to 5 photos. Previews stay compact to reduce browser memory pressure."
+                  buttonLabel="Add breakdown photos"
+                  emptyText="No breakdown photos selected."
+                  maxFiles={5}
+                  onFilesChange={setSelectedFiles}
+                />
+              </div>
 
               <div className="lg:col-span-2 flex justify-end">
                 <button

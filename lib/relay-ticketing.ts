@@ -237,7 +237,7 @@ function buildStoragePath(
     : `${userId}/${ticketId}/chat-${Date.now()}-${safeName}`;
 }
 
-function validateAttachmentFile(file: File) {
+export function validateAttachmentFile(file: File) {
   const validationError = getAttachmentValidationError(file);
 
   if (validationError) {

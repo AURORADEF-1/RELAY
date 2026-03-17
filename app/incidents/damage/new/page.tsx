@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { FileUploadPanel } from "@/components/file-upload-panel";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
@@ -13,6 +14,7 @@ import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   createWorkshopIncident,
+  uploadWorkshopIncidentAttachments,
   workshopIncidentSeverities,
 } from "@/lib/workshop-incidents";
 
@@ -33,6 +35,7 @@ export default function NewDamageIncidentPage() {
   });
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,6 +73,15 @@ export default function NewDamageIncidentPage() {
         notes: formState.notes.trim(),
         damage_area: formState.damage_area.trim(),
       });
+
+      if (selectedFiles.length > 0) {
+        await uploadWorkshopIncidentAttachments({
+          supabase,
+          incidentId: incident.id,
+          userId: user.id,
+          files: selectedFiles,
+        });
+      }
 
       router.push(`/incidents/${incident.id}`);
     } catch (error) {
@@ -144,6 +156,17 @@ export default function NewDamageIncidentPage() {
               <Field label="Assigned User" value={formState.assigned_to} onChange={(value) => setFormState((current) => ({ ...current, assigned_to: value }))} />
               <AreaField label="Damage Description" value={formState.description} onChange={(value) => setFormState((current) => ({ ...current, description: value }))} />
               <AreaField label="Workshop Notes" value={formState.notes} onChange={(value) => setFormState((current) => ({ ...current, notes: value }))} />
+              <div className="lg:col-span-2">
+                <FileUploadPanel
+                  inputId="damage-incident-photos"
+                  label="Damage photos"
+                  helperText="Upload up to 5 photos. Previews stay compact to reduce browser memory pressure."
+                  buttonLabel="Add incident photos"
+                  emptyText="No incident photos selected."
+                  maxFiles={5}
+                  onFilesChange={setSelectedFiles}
+                />
+              </div>
 
               <div className="lg:col-span-2 flex justify-end">
                 <button

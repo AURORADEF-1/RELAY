@@ -35,6 +35,20 @@ on public.workshop_incidents (user_id);
 create index if not exists workshop_incidents_updated_at_idx
 on public.workshop_incidents (updated_at desc);
 
+create table if not exists public.workshop_incident_attachments (
+  id uuid primary key default gen_random_uuid(),
+  incident_id uuid not null references public.workshop_incidents (id) on delete cascade,
+  uploaded_by uuid references auth.users (id) on delete set null,
+  file_name text,
+  file_path text not null,
+  file_url text,
+  mime_type text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists workshop_incident_attachments_incident_id_idx
+on public.workshop_incident_attachments (incident_id, created_at asc);
+
 alter table public.workshop_incidents enable row level security;
 
 drop policy if exists "workshop incidents admin read" on public.workshop_incidents;
@@ -78,6 +92,36 @@ using (
       and p.role = 'admin'
   )
 )
+with check (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'admin'
+  )
+);
+
+alter table public.workshop_incident_attachments enable row level security;
+
+drop policy if exists "workshop incident attachments admin read" on public.workshop_incident_attachments;
+create policy "workshop incident attachments admin read"
+on public.workshop_incident_attachments
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'admin'
+  )
+);
+
+drop policy if exists "workshop incident attachments admin insert" on public.workshop_incident_attachments;
+create policy "workshop incident attachments admin insert"
+on public.workshop_incident_attachments
+for insert
+to authenticated
 with check (
   exists (
     select 1
