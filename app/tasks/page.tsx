@@ -67,11 +67,7 @@ export default function TasksPage() {
     setWorkingTaskId(taskId);
     try {
       await markTaskDone(supabase, taskId);
-      setTasks((current) =>
-        current.map((task) =>
-          task.id === taskId ? { ...task, status: "DONE" } : task,
-        ),
-      );
+      setTasks((current) => current.filter((task) => task.id !== taskId));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to update task.");
     } finally {

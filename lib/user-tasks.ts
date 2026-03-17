@@ -183,6 +183,7 @@ export async function fetchAssignedTasks(
     .from("user_tasks")
     .select("*")
     .eq("assigned_to", userId)
+    .eq("status", "OPEN")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -204,6 +205,77 @@ export async function fetchOpenTasksForAdmin(supabase: SupabaseClient) {
   }
 
   return (data ?? []) as UserTaskRecord[];
+}
+
+export async function fetchCompletedTasksForAdmin(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("user_tasks")
+    .select("id, title, description, status, assigned_to, assigned_by, created_at, updated_at, due_at")
+    .eq("status", "DONE")
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as UserTaskRecord[];
+}
+
+export async function updateUserTask(
+  supabase: SupabaseClient,
+  taskId: string,
+  payload: {
+    title?: string;
+    description?: string | null;
+    assigned_to?: string;
+    due_at?: string | null;
+    status?: "OPEN" | "DONE";
+  },
+) {
+  const updatePayload: Record<string, string | null> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (typeof payload.title === "string") {
+    updatePayload.title = payload.title.trim();
+  }
+
+  if (payload.description !== undefined) {
+    updatePayload.description = payload.description?.trim() || null;
+  }
+
+  if (typeof payload.assigned_to === "string") {
+    updatePayload.assigned_to = payload.assigned_to;
+  }
+
+  if (payload.due_at !== undefined) {
+    updatePayload.due_at = payload.due_at || null;
+  }
+
+  if (payload.status) {
+    updatePayload.status = payload.status;
+  }
+
+  const { data, error } = await supabase
+    .from("user_tasks")
+    .update(updatePayload)
+    .eq("id", taskId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as UserTaskRecord;
+}
+
+export async function deleteUserTask(supabase: SupabaseClient, taskId: string) {
+  const { error } = await supabase.from("user_tasks").delete().eq("id", taskId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function markTaskDone(supabase: SupabaseClient, taskId: string) {

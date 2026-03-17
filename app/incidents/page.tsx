@@ -563,9 +563,17 @@ export default function IncidentsPage() {
                     </div>
 
                     <div className="mt-6 space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Open Tasks
-                      </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          Open Tasks
+                        </p>
+                        <Link
+                          href="/incidents/tasks"
+                          className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-200"
+                        >
+                          Manage Tasks
+                        </Link>
+                      </div>
                       {openTasks.length === 0 ? (
                         <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
                           No open tasks assigned yet.
