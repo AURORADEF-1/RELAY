@@ -45,6 +45,7 @@ export default function IncidentsPage() {
       const nextIncidents = await listWorkshopIncidents(supabase, {
         userId: user.id,
         isAdmin,
+        scope: "active",
       });
       const incidentJobNumbers = Array.from(
         new Set(
@@ -108,10 +109,12 @@ export default function IncidentsPage() {
   const groupedCounts = useMemo(
     () =>
       Object.fromEntries(
-        workshopIncidentStatuses.map((status) => [
+        workshopIncidentStatuses
+          .filter((status) => status !== "CLOSED")
+          .map((status) => [
           status,
           incidents.filter((incident) => incident.status === status).length,
-        ]),
+          ]),
       ) as Record<string, number>,
     [incidents],
   );
@@ -178,7 +181,7 @@ export default function IncidentsPage() {
             </div>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-              {workshopIncidentStatuses.map((status) => (
+              {workshopIncidentStatuses.filter((status) => status !== "CLOSED").map((status) => (
                 <div
                   key={status}
                   className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-5 py-4"

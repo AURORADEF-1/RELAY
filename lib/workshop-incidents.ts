@@ -107,12 +107,21 @@ export async function listWorkshopIncidents(
   options?: {
     userId?: string | null;
     isAdmin?: boolean;
+    scope?: "active" | "closed" | "all";
   },
 ) {
   let query = supabase
     .from("workshop_incidents")
     .select("*")
     .order("updated_at", { ascending: false });
+
+  if (options?.scope === "active") {
+    query = query.neq("status", "CLOSED");
+  }
+
+  if (options?.scope === "closed") {
+    query = query.eq("status", "CLOSED");
+  }
 
   if (!options?.isAdmin && options?.userId) {
     query = query.eq("user_id", options.userId);

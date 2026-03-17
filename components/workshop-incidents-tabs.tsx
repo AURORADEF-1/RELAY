@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-type WorkshopIncidentsTab = "dashboard" | "damage" | "tyres";
+type WorkshopIncidentsTab = "dashboard" | "closed" | "damage" | "tyres";
 
 const tabs: Array<{
   key: WorkshopIncidentsTab;
@@ -10,6 +10,7 @@ const tabs: Array<{
   href: string;
 }> = [
   { key: "dashboard", label: "Incident Dashboard", href: "/incidents" },
+  { key: "closed", label: "Closed Jobs", href: "/incidents/closed" },
   { key: "damage", label: "Report Damage", href: "/incidents/damage/new" },
   { key: "tyres", label: "Report Tyre Breakdown", href: "/incidents/tyres/new" },
 ];
