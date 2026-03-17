@@ -11,6 +11,13 @@ import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
+  createUserTask,
+  fetchOpenTasksForAdmin,
+  fetchRecentlyActiveUsers,
+  type ActiveUserPresence,
+  type UserTaskRecord,
+} from "@/lib/user-tasks";
+import {
   listWorkshopIncidents,
   reconcileWorkshopIncidentsWithPartsTickets,
   updateWorkshopIncident,
@@ -30,6 +37,15 @@ export default function IncidentsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [activeUsers, setActiveUsers] = useState<ActiveUserPresence[]>([]);
+  const [openTasks, setOpenTasks] = useState<UserTaskRecord[]>([]);
+  const [taskDraft, setTaskDraft] = useState({
+    assignedTo: "",
+    title: "",
+    description: "",
+  });
+  const [isAssigningTask, setIsAssigningTask] = useState(false);
 
   const loadIncidents = useCallback(async () => {
     try {
@@ -48,6 +64,8 @@ export default function IncidentsPage() {
         setIsLoading(false);
         return;
       }
+
+      setCurrentUserId(user.id);
 
       const nextIncidents = await listWorkshopIncidents(supabase, {
         userId: user.id,
@@ -130,6 +148,33 @@ export default function IncidentsPage() {
     return () => window.clearInterval(intervalId);
   }, []);
 
+  const loadPresenceAndTasks = useCallback(async () => {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    try {
+      const [users, tasks] = await Promise.all([
+        fetchRecentlyActiveUsers(supabase),
+        fetchOpenTasksForAdmin(supabase),
+      ]);
+      setActiveUsers(users);
+      setOpenTasks(tasks);
+    } catch (error) {
+      console.error("Failed to load RELAY presence or tasks", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadPresenceAndTasks();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadPresenceAndTasks]);
+
   const groupedIncidents = useMemo(
     () =>
       Object.fromEntries(
@@ -164,6 +209,51 @@ export default function IncidentsPage() {
       unassignedCount,
     };
   }, [incidents]);
+
+  async function handleAssignTask() {
+    const supabase = getSupabaseClient();
+
+    if (!supabase || !currentUserId) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    if (!taskDraft.assignedTo || !taskDraft.title.trim()) {
+      setErrorMessage("Select a user and enter a task title.");
+      return;
+    }
+
+    setIsAssigningTask(true);
+    setErrorMessage("");
+
+    try {
+      const nextTask = await createUserTask(supabase, {
+        assignedTo: taskDraft.assignedTo,
+        assignedBy: currentUserId,
+        title: taskDraft.title.trim(),
+        description: taskDraft.description.trim(),
+      });
+
+      const assignee = activeUsers.find((user) => user.user_id === nextTask.assigned_to);
+      setOpenTasks((current) => [
+        {
+          ...nextTask,
+          assignee_name:
+            assignee?.full_name ?? assignee?.username ?? nextTask.assigned_to,
+        },
+        ...current,
+      ]);
+      setTaskDraft({
+        assignedTo: "",
+        title: "",
+        description: "",
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to assign task.");
+    } finally {
+      setIsAssigningTask(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#0f172a_0%,#111827_45%,#020617_100%)] px-6 py-6 text-slate-100">
@@ -259,6 +349,179 @@ export default function IncidentsPage() {
               <MetricCard label="Tyre Breakdowns" value={String(metrics.tyreCount)} tone="amber" />
               <MetricCard label="Awaiting Parts" value={String(metrics.awaitingPartsCount)} tone="blue" />
               <MetricCard label="Unassigned" value={String(metrics.unassignedCount)} tone="emerald" />
+            </div>
+
+            <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_1fr]">
+              <section className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
+                    Active Users
+                  </p>
+                  <p className="text-sm leading-6 text-slate-400">
+                    Users currently logged in or seen within the last hour.
+                  </p>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  {activeUsers.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                      No recent user activity detected yet.
+                    </div>
+                  ) : (
+                    activeUsers.map((user) => (
+                      <button
+                        key={user.user_id}
+                        type="button"
+                        onClick={() =>
+                          setTaskDraft((current) => ({
+                            ...current,
+                            assignedTo: user.user_id,
+                          }))
+                        }
+                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                          taskDraft.assignedTo === user.user_id
+                            ? "border-white/20 bg-white/10 text-white"
+                            : "border-white/10 bg-black/15 hover:border-white/20 hover:bg-black/25"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold">
+                              {user.full_name ?? user.username ?? user.user_id}
+                            </p>
+                            <p
+                              className={`mt-1 text-xs font-medium uppercase tracking-[0.16em] ${
+                                taskDraft.assignedTo === user.user_id
+                                  ? "text-slate-300"
+                                  : "text-slate-400"
+                              }`}
+                            >
+                              {user.role ?? "user"} · Seen {formatHoursAgo(user.last_seen_at)}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
+                              taskDraft.assignedTo === user.user_id
+                                ? "border border-white/20 bg-white/10 text-white"
+                                : "border border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                            }`}
+                          >
+                            Active
+                          </span>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
+                    Send Task
+                  </p>
+                  <p className="text-sm leading-6 text-slate-400">
+                    Click a user, assign a task, and it will appear in their task view.
+                  </p>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  <label className="space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Assigned User
+                    </span>
+                    <select
+                      value={taskDraft.assignedTo}
+                      onChange={(event) =>
+                        setTaskDraft((current) => ({
+                          ...current,
+                          assignedTo: event.target.value,
+                        }))
+                      }
+                      className="h-11 w-full rounded-xl border border-white/10 bg-black/15 px-4 text-sm text-white outline-none transition focus:border-white/20"
+                    >
+                      <option value="">Select active user</option>
+                      {activeUsers.map((user) => (
+                        <option key={user.user_id} value={user.user_id}>
+                          {user.full_name ?? user.username ?? user.user_id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Task Title
+                    </span>
+                    <input
+                      value={taskDraft.title}
+                      onChange={(event) =>
+                        setTaskDraft((current) => ({
+                          ...current,
+                          title: event.target.value,
+                        }))
+                      }
+                      placeholder="Example: Check damage photos for job 483321"
+                      className="h-11 w-full rounded-xl border border-white/10 bg-black/15 px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20"
+                    />
+                  </label>
+
+                  <label className="space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Task Detail
+                    </span>
+                    <textarea
+                      value={taskDraft.description}
+                      onChange={(event) =>
+                        setTaskDraft((current) => ({
+                          ...current,
+                          description: event.target.value,
+                        }))
+                      }
+                      rows={4}
+                      placeholder="Add any extra instruction for the assigned user."
+                      className="w-full rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm leading-7 text-white outline-none transition placeholder:text-slate-500 focus:border-white/20"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleAssignTask()}
+                    disabled={isAssigningTask}
+                    className="inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isAssigningTask ? "Assigning..." : "Send Task"}
+                  </button>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Open Tasks
+                  </p>
+                  {openTasks.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                      No open tasks assigned yet.
+                    </div>
+                  ) : (
+                    openTasks.slice(0, 6).map((task) => (
+                      <article
+                        key={task.id}
+                        className="rounded-2xl border border-white/10 bg-black/15 p-4"
+                      >
+                        <p className="text-sm font-semibold text-white">{task.title}</p>
+                        <p className="mt-1 text-sm text-slate-400">
+                          {task.assignee_name ?? task.assigned_to}
+                        </p>
+                        {task.description ? (
+                          <p className="mt-3 text-sm leading-6 text-slate-300">
+                            {task.description}
+                          </p>
+                        ) : null}
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
             </div>
 
             <div className="mt-8 grid gap-4 xl:grid-cols-6">
@@ -431,6 +694,10 @@ function formatRelativeTime(value: string) {
 
   const deltaDays = Math.round(deltaHours / 24);
   return `${deltaDays}d ago`;
+}
+
+function formatHoursAgo(value: string) {
+  return formatRelativeTime(value);
 }
 
 function formatIncidentType(value: string) {
