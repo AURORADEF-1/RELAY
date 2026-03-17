@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const RELAY_MEDIA_BUCKET = "relay-ticket-media";
-const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
-const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
+export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
+export const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -238,15 +238,23 @@ function buildStoragePath(
 }
 
 function validateAttachmentFile(file: File) {
+  const validationError = getAttachmentValidationError(file);
+
+  if (validationError) {
+    throw new Error(validationError);
+  }
+}
+
+export function getAttachmentValidationError(file: File) {
   if (!ALLOWED_ATTACHMENT_MIME_TYPES.has(file.type)) {
-    throw new Error(
-      "Unsupported image format. Please upload JPG, PNG, WEBP, or HEIC images.",
-    );
+    return "Unsupported image format. Please upload JPG, PNG, WEBP, or HEIC images.";
   }
 
   if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-    throw new Error("Image is too large. Please upload files up to 10 MB.");
+    return "Image is too large. Please upload files up to 10 MB.";
   }
+
+  return null;
 }
 
 async function hydrateTicketAttachmentsWithSignedUrls(

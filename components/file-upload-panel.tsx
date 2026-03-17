@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getAttachmentValidationError } from "@/lib/relay-ticketing";
 
 type FileUploadPanelProps = {
   label: string;
@@ -15,7 +16,10 @@ type FileUploadPanelProps = {
 type FilePreview = {
   file: File;
   previewUrl: string | null;
+  previewNote?: string | null;
 };
+
+const MAX_INLINE_PREVIEW_SIZE_BYTES = 4 * 1024 * 1024;
 
 export function FileUploadPanel({
   label,
@@ -27,6 +31,7 @@ export function FileUploadPanel({
   onFilesChange,
 }: FileUploadPanelProps) {
   const [items, setItems] = useState<FilePreview[]>([]);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -40,6 +45,21 @@ export function FileUploadPanel({
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const nextFiles = Array.from(event.target.files ?? []);
+    const validFiles: File[] = [];
+    const validationErrors: string[] = [];
+
+    nextFiles.forEach((file) => {
+      const validationError = getAttachmentValidationError(file);
+
+      if (validationError) {
+        validationErrors.push(`${file.name}: ${validationError}`);
+        return;
+      }
+
+      validFiles.push(file);
+    });
+
+    setSelectionError(validationErrors.length > 0 ? validationErrors[0] : null);
 
     setItems((current) => {
       current.forEach((item) => {
@@ -48,13 +68,14 @@ export function FileUploadPanel({
         }
       });
 
-      return nextFiles.map((file) => ({
+      return validFiles.map((file) => ({
         file,
-        previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+        previewUrl: shouldCreateInlinePreview(file) ? URL.createObjectURL(file) : null,
+        previewNote: getPreviewNote(file),
       }));
     });
 
-    onFilesChange?.(nextFiles);
+    onFilesChange?.(validFiles);
   }
 
   return (
@@ -81,6 +102,12 @@ export function FileUploadPanel({
         />
       </div>
 
+      {selectionError ? (
+        <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {selectionError}
+        </p>
+      ) : null}
+
       {items.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">{emptyText}</p>
       ) : (
@@ -105,6 +132,9 @@ export function FileUploadPanel({
                 <p className="text-xs text-slate-500">
                   {(item.file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
+                {item.previewNote ? (
+                  <p className="text-xs text-slate-500">{item.previewNote}</p>
+                ) : null}
               </div>
             </div>
           ))}
@@ -112,4 +142,29 @@ export function FileUploadPanel({
       )}
     </div>
   );
+}
+
+function shouldCreateInlinePreview(file: File) {
+  return (
+    file.type.startsWith("image/") &&
+    file.size <= MAX_INLINE_PREVIEW_SIZE_BYTES &&
+    file.type !== "image/heic" &&
+    file.type !== "image/heif"
+  );
+}
+
+function getPreviewNote(file: File) {
+  if (!file.type.startsWith("image/")) {
+    return null;
+  }
+
+  if (file.type === "image/heic" || file.type === "image/heif") {
+    return "Preview skipped to avoid mobile memory issues with HEIC images.";
+  }
+
+  if (file.size > MAX_INLINE_PREVIEW_SIZE_BYTES) {
+    return "Preview skipped to reduce browser memory usage on large photos.";
+  }
+
+  return null;
 }
