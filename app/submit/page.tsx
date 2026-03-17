@@ -330,6 +330,12 @@ export default function SubmitPage() {
                 >
                   Workshop Control
                 </Link>
+                <Link
+                  href="/wallboard"
+                  className="rounded-full px-4 py-2 hover:bg-white"
+                >
+                  Live Wallboard
+                </Link>
                 <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
                   Parts Control
                   <NotificationBadge count={adminBadgeCount} />
