@@ -185,6 +185,40 @@ export async function deleteTicketAttachmentsForTicket(
   }
 }
 
+export async function deleteSingleTicketAttachment(
+  supabase: SupabaseClient,
+  attachmentId: string,
+) {
+  const { data: attachment, error: attachmentError } = await supabase
+    .from("ticket_attachments")
+    .select("id, file_path")
+    .eq("id", attachmentId)
+    .single();
+
+  if (attachmentError) {
+    throw new Error(attachmentError.message);
+  }
+
+  if (attachment?.file_path) {
+    const { error: storageError } = await supabase.storage
+      .from(RELAY_MEDIA_BUCKET)
+      .remove([attachment.file_path]);
+
+    if (storageError) {
+      throw new Error(storageError.message);
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from("ticket_attachments")
+    .delete()
+    .eq("id", attachmentId);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+}
+
 export async function saveAnnotatedTicketAttachment({
   supabase,
   attachmentId,

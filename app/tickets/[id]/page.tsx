@@ -18,6 +18,7 @@ import { triggerActionFeedback } from "@/lib/action-feedback";
 import { notifyAdminsOfRequesterMessage } from "@/lib/notifications";
 import {
   createTicketMessage,
+  deleteSingleTicketAttachment,
   deleteTicketAttachmentsForTicket,
   fetchTicketAttachments,
   fetchTicketMessages,
@@ -88,6 +89,7 @@ export default function TicketDetailPage() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [chatNotice, setChatNotice] = useState<{
     type: "success" | "error";
     message: string;
@@ -413,6 +415,44 @@ export default function TicketDetailPage() {
     await loadTicket();
   }
 
+  async function handleDeleteAttachment(attachmentId: string) {
+    const attachment = attachments.find((candidate) => candidate.id === attachmentId);
+
+    if (!attachment || attachment.uploaded_by !== currentUserId || attachment.attachment_context !== "ticket") {
+      setErrorMessage("You can only delete your own uploaded ticket photos.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Delete this photo permanently from the ticket? This cannot be undone.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setDeletingAttachmentId(attachmentId);
+    setErrorMessage("");
+
+    try {
+      await deleteSingleTicketAttachment(supabase, attachmentId);
+      setAttachments((current) => current.filter((candidate) => candidate.id !== attachmentId));
+    } catch (deleteError) {
+      setErrorMessage(
+        deleteError instanceof Error ? deleteError.message : "Failed to delete the photo.",
+      );
+    } finally {
+      setDeletingAttachmentId(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-6xl space-y-8">
@@ -736,6 +776,15 @@ export default function TicketDetailPage() {
                         : "Image uploaded with the parts request",
                   }))}
                   allowDownload={isAdmin}
+                  canDeleteAttachmentIds={attachments
+                    .filter(
+                      (attachment) =>
+                        attachment.uploaded_by === currentUserId &&
+                        attachment.attachment_context === "ticket",
+                    )
+                    .map((attachment) => attachment.id)}
+                  deletingAttachmentId={deletingAttachmentId}
+                  onDeleteAttachment={(attachmentId) => void handleDeleteAttachment(attachmentId)}
                 />
 
                 <TicketChatPanel

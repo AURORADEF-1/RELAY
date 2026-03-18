@@ -10,6 +10,9 @@ type TicketAttachmentGalleryProps = {
   title?: string;
   helperText?: string;
   allowDownload?: boolean;
+  canDeleteAttachmentIds?: string[];
+  deletingAttachmentId?: string | null;
+  onDeleteAttachment?: (attachmentId: string) => void;
 };
 
 export function TicketAttachmentGallery({
@@ -17,6 +20,9 @@ export function TicketAttachmentGallery({
   title = "Attachments",
   helperText = "Photos and diagrams linked to this request.",
   allowDownload = false,
+  canDeleteAttachmentIds = [],
+  deletingAttachmentId = null,
+  onDeleteAttachment,
 }: TicketAttachmentGalleryProps) {
   return (
     <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
@@ -84,6 +90,16 @@ export function TicketAttachmentGallery({
                       >
                         Download
                       </a>
+                    ) : null}
+                    {canDeleteAttachmentIds.includes(attachment.id) && onDeleteAttachment ? (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteAttachment(attachment.id)}
+                        disabled={deletingAttachmentId === attachment.id}
+                        className="inline-flex h-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deletingAttachmentId === attachment.id ? "Deleting..." : "Delete Photo"}
+                      </button>
                     ) : null}
                   </div>
                 ) : null}
