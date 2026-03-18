@@ -126,6 +126,12 @@ export function NotificationProvider({
       options?: { showToasts: boolean },
     ) => {
       const unreadNotifications = await fetchUnreadNotifications(supabase, userId);
+      const unreadTaskNotifications = unreadNotifications.filter(
+        (notification) => notification.type === "task_assigned",
+      );
+      const unreadRequesterNotifications = unreadNotifications.filter(
+        (notification) => notification.type !== "task_assigned",
+      );
       const nextUnreadIds = new Set(unreadNotifications.map((notification) => notification.id));
 
       if (options?.showToasts) {
@@ -157,9 +163,9 @@ export function NotificationProvider({
       if (adminUser) {
         setAdminUnreadCount(unreadNotifications.length);
       } else {
-        setRequesterUnreadCount(unreadNotifications.length);
+        setRequesterUnreadCount(unreadRequesterNotifications.length);
         const unreadTasks = await fetchUnreadTaskCount(supabase, userId);
-        setTaskUnreadCount(unreadTasks);
+        setTaskUnreadCount(Math.max(unreadTasks, unreadTaskNotifications.length));
       }
     },
     [playNotificationSound, pushToast],
@@ -179,7 +185,9 @@ export function NotificationProvider({
           currentPath === "/control" ||
           currentPath === "/completed" ||
           currentPath.startsWith("/tickets/")
-        : currentPath === "/requests" || currentPath.startsWith("/tickets/");
+        : currentPath === "/requests" ||
+          currentPath === "/tasks" ||
+          currentPath.startsWith("/tickets/");
 
       if (!shouldMarkRead) {
         return;
@@ -191,17 +199,38 @@ export function NotificationProvider({
         return;
       }
 
+      const notificationsToMarkRead = adminUser
+        ? unreadNotifications
+        : currentPath === "/tasks"
+          ? unreadNotifications.filter((notification) => notification.type === "task_assigned")
+          : unreadNotifications.filter((notification) => notification.type !== "task_assigned");
+
+      if (notificationsToMarkRead.length === 0) {
+        return;
+      }
+
       await markNotificationsRead(
         supabase,
-        unreadNotifications.map((notification) => notification.id),
+        notificationsToMarkRead.map((notification) => notification.id),
       );
 
-      knownUnreadIdsRef.current = new Set();
+      knownUnreadIdsRef.current = new Set(
+        unreadNotifications
+          .filter(
+            (notification) =>
+              !notificationsToMarkRead.some((readNotification) => readNotification.id === notification.id),
+          )
+          .map((notification) => notification.id),
+      );
 
       if (adminUser) {
         setAdminUnreadCount(0);
       } else {
-        setRequesterUnreadCount(0);
+        if (currentPath === "/tasks") {
+          setTaskUnreadCount(0);
+        } else {
+          setRequesterUnreadCount(0);
+        }
       }
     },
     [],
