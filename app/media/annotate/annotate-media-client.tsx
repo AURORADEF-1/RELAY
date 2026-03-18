@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { saveAnnotatedTicketAttachment } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -35,32 +35,32 @@ export function AnnotateMediaClient({
 
   const hasImage = useMemo(() => imageSrc.trim().length > 0, [imageSrc]);
 
-  useEffect(() => {
-    function syncCanvas() {
-      const image = imageRef.current;
-      const canvas = canvasRef.current;
+  const syncCanvas = useCallback(() => {
+    const image = imageRef.current;
+    const canvas = canvasRef.current;
 
-      if (!image || !canvas) {
-        return;
-      }
-
-      const width = image.clientWidth;
-      const height = image.clientHeight;
-
-      if (!width || !height) {
-        return;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+    if (!image || !canvas) {
+      return;
     }
 
+    const width = image.clientWidth;
+    const height = image.clientHeight;
+
+    if (!width || !height) {
+      return;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+  }, []);
+
+  useEffect(() => {
     syncCanvas();
     window.addEventListener("resize", syncCanvas);
     return () => window.removeEventListener("resize", syncCanvas);
-  }, [imageSrc]);
+  }, [imageSrc, syncCanvas]);
 
   function getPoint(event: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
@@ -186,7 +186,7 @@ export function AnnotateMediaClient({
       });
       setNotice({
         type: "success",
-        message: "Edited photo saved back to the ticket.",
+        message: "Edited photo saved back to the ticket as a new annotated image.",
       });
     } catch (saveError) {
       setNotice({
@@ -332,11 +332,12 @@ export function AnnotateMediaClient({
                   ref={imageRef}
                   src={imageSrc}
                   alt={imageName}
-                  className="w-full rounded-2xl object-contain"
+                  onLoad={syncCanvas}
+                  className="block w-full rounded-2xl object-contain"
                 />
                 <canvas
                   ref={canvasRef}
-                  className="absolute inset-0 touch-none rounded-2xl"
+                  className="absolute left-0 top-0 touch-none rounded-2xl"
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerEnd}

@@ -196,39 +196,35 @@ export async function saveAnnotatedTicketAttachment({
 }) {
   const { data: attachment, error: attachmentError } = await supabase
     .from("ticket_attachments")
-    .select("id, file_path, file_name, mime_type")
+    .select("id, ticket_id, file_name, mime_type")
     .eq("id", attachmentId)
     .single();
 
-  if (attachmentError || !attachment?.file_path) {
+  if (attachmentError || !attachment?.ticket_id) {
     throw new Error(attachmentError?.message || "Attachment not found.");
   }
 
   const contentType = getAnnotationContentType(attachment.mime_type);
   const blob = dataUrlToBlob(dataUrl, contentType);
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  const { error: storageError } = await supabase.storage
-    .from(RELAY_MEDIA_BUCKET)
-    .update(attachment.file_path, blob, {
-      contentType,
-      upsert: true,
-    });
-
-  if (storageError) {
-    throw new Error(storageError.message);
+  if (userError || !user?.id) {
+    throw new Error(userError?.message || "You must be signed in to save the edited photo.");
   }
 
-  const { error: updateError } = await supabase
-    .from("ticket_attachments")
-    .update({
-      mime_type: contentType,
-      file_name: normalizeAttachmentFileName(attachment.file_name, contentType),
-    })
-    .eq("id", attachmentId);
+  const fileName = `annotated-${normalizeAttachmentFileName(attachment.file_name, contentType)}`;
+  const file = new File([blob], fileName, { type: contentType });
 
-  if (updateError) {
-    throw new Error(updateError.message);
-  }
+  await uploadTicketAttachments({
+    supabase,
+    ticketId: attachment.ticket_id,
+    userId: user.id,
+    files: [file],
+    attachmentKind: "ticket",
+  });
 }
 
 export async function createTicketMessage({
