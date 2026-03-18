@@ -99,3 +99,17 @@ with check (
       and p.role = 'admin'
   )
 );
+
+drop policy if exists "user tasks admin delete" on public.user_tasks;
+create policy "user tasks admin delete"
+on public.user_tasks
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'admin'
+  )
+);

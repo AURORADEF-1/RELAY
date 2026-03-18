@@ -271,23 +271,38 @@ export async function updateUserTask(
 }
 
 export async function deleteUserTask(supabase: SupabaseClient, taskId: string) {
-  const { error } = await supabase.from("user_tasks").delete().eq("id", taskId);
+  const { data, error } = await supabase
+    .from("user_tasks")
+    .delete()
+    .eq("id", taskId)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
   }
+
+  if (!data) {
+    throw new Error("Task could not be deleted. Check user_tasks delete permissions.");
+  }
 }
 
 export async function markTaskDone(supabase: SupabaseClient, taskId: string) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("user_tasks")
     .update({
       status: "DONE",
       updated_at: new Date().toISOString(),
     })
-    .eq("id", taskId);
+    .eq("id", taskId)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Task could not be updated. Check user_tasks update permissions.");
   }
 }
