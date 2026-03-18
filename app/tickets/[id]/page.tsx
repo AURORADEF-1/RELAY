@@ -18,6 +18,7 @@ import { triggerActionFeedback } from "@/lib/action-feedback";
 import { notifyAdminsOfRequesterMessage } from "@/lib/notifications";
 import {
   createTicketMessage,
+  deleteTicketAttachmentsForTicket,
   fetchTicketAttachments,
   fetchTicketMessages,
   type TicketAttachmentRecord,
@@ -378,6 +379,14 @@ export default function TicketDetailPage() {
       }
     }
 
+    if (ticketPatch.status === "COMPLETED") {
+      try {
+        await deleteTicketAttachmentsForTicket(supabase, ticket.id);
+      } catch (attachmentError) {
+        console.error("Failed to delete completed ticket attachments", attachmentError);
+      }
+    }
+
     if ((ticket.notes ?? "").trim() !== (ticketPatch.notes ?? "").trim() && ticketPatch.notes) {
       const { error: noteError } = await supabase.from("ticket_updates").insert({
         ticket_id: ticket.id,
@@ -714,6 +723,7 @@ export default function TicketDetailPage() {
                         ? "Image shared in the ticket conversation"
                         : "Image uploaded with the parts request",
                   }))}
+                  allowDownload={isAdmin}
                 />
 
                 <TicketChatPanel

@@ -145,6 +145,46 @@ export async function fetchTicketMessages(
   }));
 }
 
+export async function deleteTicketAttachmentsForTicket(
+  supabase: SupabaseClient,
+  ticketId: string,
+) {
+  const { data, error } = await supabase
+    .from("ticket_attachments")
+    .select("id, file_path")
+    .eq("ticket_id", ticketId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const attachments = (data ?? []) as Array<{ id: string; file_path: string | null }>;
+  const filePaths = attachments
+    .map((attachment) => attachment.file_path)
+    .filter((filePath): filePath is string => Boolean(filePath));
+
+  if (filePaths.length > 0) {
+    const { error: storageError } = await supabase.storage
+      .from(RELAY_MEDIA_BUCKET)
+      .remove(filePaths);
+
+    if (storageError) {
+      throw new Error(storageError.message);
+    }
+  }
+
+  if (attachments.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("ticket_attachments")
+      .delete()
+      .eq("ticket_id", ticketId);
+
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
+  }
+}
+
 export async function createTicketMessage({
   supabase,
   ticketId,

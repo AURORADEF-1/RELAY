@@ -16,6 +16,7 @@ import {
 } from "@/components/ticket-chat-panel";
 import {
   createTicketMessage,
+  deleteTicketAttachmentsForTicket,
   fetchTicketAttachments,
   fetchTicketMessages,
   type TicketAttachmentRecord,
@@ -468,6 +469,14 @@ export default function AdminPage() {
       });
     } catch (notificationError) {
       console.error("Failed to notify requester about status change", notificationError);
+    }
+
+    if (nextStatus === "COMPLETED") {
+      try {
+        await deleteTicketAttachmentsForTicket(supabase, ticketId);
+      } catch (attachmentError) {
+        console.error("Failed to delete completed ticket attachments", attachmentError);
+      }
     }
 
     setTickets((current) =>
