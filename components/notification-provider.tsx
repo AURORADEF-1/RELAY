@@ -58,6 +58,7 @@ const NotificationContext = createContext<NotificationContextValue>({
 const SOUND_COOLDOWN_MS = 1800;
 const TOAST_DURATION_MS = 10000;
 const NOTIFICATION_POLL_INTERVAL_MS = 15000;
+const REQUEST_NOTIFICATION_TYPES = new Set(["status_update", "operator_message"]);
 
 export function NotificationProvider({
   children,
@@ -130,7 +131,7 @@ export function NotificationProvider({
         (notification) => notification.type === "task_assigned",
       );
       const unreadRequesterNotifications = unreadNotifications.filter(
-        (notification) => notification.type !== "task_assigned",
+        (notification) => REQUEST_NOTIFICATION_TYPES.has(notification.type),
       );
       const nextUnreadIds = new Set(unreadNotifications.map((notification) => notification.id));
 
@@ -203,7 +204,9 @@ export function NotificationProvider({
         ? unreadNotifications
         : currentPath === "/tasks"
           ? unreadNotifications.filter((notification) => notification.type === "task_assigned")
-          : unreadNotifications.filter((notification) => notification.type !== "task_assigned");
+          : unreadNotifications.filter((notification) =>
+              REQUEST_NOTIFICATION_TYPES.has(notification.type),
+            );
 
       if (notificationsToMarkRead.length === 0) {
         return;
