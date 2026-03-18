@@ -489,6 +489,18 @@ export default function TicketDetailPage() {
                       {isEditing ? "Cancel Edit" : "Edit Ticket"}
                     </button>
                   ) : null}
+                  {isAdmin && isEditing ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(false);
+                        setEditDraft(ticket ? buildTicketEditDraft(ticket) : null);
+                      }}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                    >
+                      Back to Ticket
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => void loadTicket()}
@@ -631,7 +643,7 @@ export default function TicketDetailPage() {
                             }}
                             className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                           >
-                            Cancel
+                            Back to Ticket
                           </button>
                           <button
                             type="button"
