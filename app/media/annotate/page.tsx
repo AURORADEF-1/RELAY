@@ -12,6 +12,7 @@ export default async function AnnotateMediaPage({
   const attachmentId = getSingleValue(params.attachmentId);
   const originalSrc = getSingleValue(params.src);
   const imageName = getSingleValue(params.name) || "ticket-photo";
+  const returnHref = getSingleValue(params.returnHref) || "/requests";
   const proxiedImageSrc = originalSrc
     ? `/api/media/proxy?src=${encodeURIComponent(originalSrc)}`
     : "";
@@ -23,6 +24,7 @@ export default async function AnnotateMediaPage({
         imageSrc={proxiedImageSrc}
         imageName={imageName}
         originalImageSrc={originalSrc}
+        returnHref={returnHref}
       />
     </Suspense>
   );

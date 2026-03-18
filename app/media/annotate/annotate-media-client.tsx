@@ -15,11 +15,13 @@ export function AnnotateMediaClient({
   imageSrc,
   imageName,
   originalImageSrc,
+  returnHref,
 }: {
   attachmentId: string;
   imageSrc: string;
   imageName: string;
   originalImageSrc: string;
+  returnHref: string;
 }) {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -256,6 +258,12 @@ export function AnnotateMediaClient({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link
+              href={returnHref || "/requests"}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Back to Ticket
+            </Link>
             <Link
               href={originalImageSrc || "#"}
               target="_blank"

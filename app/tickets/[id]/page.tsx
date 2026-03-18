@@ -770,6 +770,7 @@ export default function TicketDetailPage() {
                     id: attachment.id,
                     name: attachment.file_name ?? "Attachment",
                     url: attachment.signed_url ?? null,
+                    returnHref: `/tickets/${ticket.id}`,
                     caption:
                       attachment.attachment_context === "chat"
                         ? "Image shared in the ticket conversation"

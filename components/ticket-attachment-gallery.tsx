@@ -6,6 +6,7 @@ type TicketAttachmentGalleryProps = {
     name: string;
     url?: string | null;
     caption?: string;
+    returnHref?: string;
   }>;
   title?: string;
   helperText?: string;
@@ -76,7 +77,7 @@ export function TicketAttachmentGallery({
                       Open in New Window
                     </a>
                     <Link
-                      href={`/media/annotate?attachmentId=${encodeURIComponent(attachment.id)}&src=${encodeURIComponent(attachment.url)}&name=${encodeURIComponent(attachment.name)}`}
+                      href={`/media/annotate?attachmentId=${encodeURIComponent(attachment.id)}&src=${encodeURIComponent(attachment.url)}&name=${encodeURIComponent(attachment.name)}&returnHref=${encodeURIComponent(attachment.returnHref ?? "/requests")}`}
                       target="_blank"
                       className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                     >
