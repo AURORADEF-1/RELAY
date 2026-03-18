@@ -163,6 +163,22 @@ export async function deleteTicketAttachmentsForTicket(
     .map((attachment) => attachment.file_path)
     .filter((filePath): filePath is string => Boolean(filePath));
 
+  if (attachments.length > 0) {
+    const { data: deletedRows, error: deleteError } = await supabase
+      .from("ticket_attachments")
+      .delete()
+      .eq("ticket_id", ticketId)
+      .select("id");
+
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
+
+    if (!deletedRows || deletedRows.length === 0) {
+      throw new Error("Attachment delete was blocked before any ticket photos were removed.");
+    }
+  }
+
   if (filePaths.length > 0) {
     const { error: storageError } = await supabase.storage
       .from(RELAY_MEDIA_BUCKET)
@@ -170,17 +186,6 @@ export async function deleteTicketAttachmentsForTicket(
 
     if (storageError) {
       throw new Error(storageError.message);
-    }
-  }
-
-  if (attachments.length > 0) {
-    const { error: deleteError } = await supabase
-      .from("ticket_attachments")
-      .delete()
-      .eq("ticket_id", ticketId);
-
-    if (deleteError) {
-      throw new Error(deleteError.message);
     }
   }
 }
@@ -199,6 +204,20 @@ export async function deleteSingleTicketAttachment(
     throw new Error(attachmentError.message);
   }
 
+  const { data: deletedRows, error: deleteError } = await supabase
+    .from("ticket_attachments")
+    .delete()
+    .eq("id", attachmentId)
+    .select("id");
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  if (!deletedRows || deletedRows.length === 0) {
+    throw new Error("Photo delete was blocked. The ticket attachment still exists.");
+  }
+
   if (attachment?.file_path) {
     const { error: storageError } = await supabase.storage
       .from(RELAY_MEDIA_BUCKET)
@@ -207,15 +226,6 @@ export async function deleteSingleTicketAttachment(
     if (storageError) {
       throw new Error(storageError.message);
     }
-  }
-
-  const { error: deleteError } = await supabase
-    .from("ticket_attachments")
-    .delete()
-    .eq("id", attachmentId);
-
-  if (deleteError) {
-    throw new Error(deleteError.message);
   }
 }
 
