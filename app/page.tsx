@@ -51,7 +51,7 @@ const mockUpdates: HomepageUpdate[] = [
 ];
 
 export default function Home() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const [updates, setUpdates] = useState<HomepageUpdate[]>(mockUpdates);
   const [updatesMode, setUpdatesMode] = useState<"live" | "mock">("mock");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -190,6 +190,7 @@ export default function Home() {
                   className="rounded-full px-4 py-2 transition hover:bg-slate-100"
                 >
                   Tasks
+                  <NotificationBadge count={taskUnreadCount} />
                 </Link>
               </>
             ) : null}

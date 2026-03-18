@@ -74,7 +74,7 @@ type TicketEditDraft = {
 };
 
 export default function TicketDetailPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const params = useParams<{ id: string }>();
   const ticketId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [ticket, setTicket] = useState<TicketRecord | null>(null);
@@ -425,6 +425,7 @@ export default function TicketDetailPage() {
             </Link>
             <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
               Tasks
+              <NotificationBadge count={taskUnreadCount} />
             </Link>
             {isAdmin ? (
               <>

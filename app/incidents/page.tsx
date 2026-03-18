@@ -8,6 +8,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
+import { notifyUserTaskAssigned } from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
@@ -265,6 +266,11 @@ export default function IncidentsPage() {
       });
 
       const assignee = users.find((user) => user.user_id === nextTask.assigned_to);
+      await notifyUserTaskAssigned(supabase, {
+        userId: nextTask.assigned_to,
+        taskTitle: nextTask.title,
+        taskDescription: nextTask.description,
+      });
       setOpenTasks((current) => [
         {
           ...nextTask,

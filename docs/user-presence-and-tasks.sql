@@ -15,9 +15,15 @@ create table if not exists public.user_tasks (
   assigned_to uuid not null references auth.users (id) on delete cascade,
   assigned_by uuid references auth.users (id) on delete set null,
   due_at timestamptz,
+  read_at timestamptz,
+  completed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.user_tasks
+add column if not exists read_at timestamptz,
+add column if not exists completed_at timestamptz;
 
 create index if not exists user_tasks_assigned_to_status_idx
 on public.user_tasks (assigned_to, status, created_at desc);

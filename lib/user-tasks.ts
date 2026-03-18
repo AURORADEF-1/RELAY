@@ -27,6 +27,8 @@ export type UserTaskRecord = {
   created_at: string;
   updated_at: string;
   due_at: string | null;
+  read_at?: string | null;
+  completed_at?: string | null;
   assignee_name?: string | null;
 };
 
@@ -164,6 +166,8 @@ export async function createUserTask(
       assigned_to: payload.assignedTo,
       assigned_by: payload.assignedBy,
       due_at: payload.dueAt ?? null,
+      read_at: null,
+      completed_at: null,
     })
     .select("*")
     .single();
@@ -196,7 +200,7 @@ export async function fetchAssignedTasks(
 export async function fetchOpenTasksForAdmin(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("user_tasks")
-    .select("id, title, description, status, assigned_to, assigned_by, created_at, updated_at, due_at")
+    .select("id, title, description, status, assigned_to, assigned_by, created_at, updated_at, due_at, read_at, completed_at")
     .eq("status", "OPEN")
     .order("created_at", { ascending: false });
 
@@ -210,7 +214,7 @@ export async function fetchOpenTasksForAdmin(supabase: SupabaseClient) {
 export async function fetchCompletedTasksForAdmin(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("user_tasks")
-    .select("id, title, description, status, assigned_to, assigned_by, created_at, updated_at, due_at")
+    .select("id, title, description, status, assigned_to, assigned_by, created_at, updated_at, due_at, read_at, completed_at")
     .eq("status", "DONE")
     .order("updated_at", { ascending: false });
 
@@ -293,6 +297,7 @@ export async function markTaskDone(supabase: SupabaseClient, taskId: string) {
     .update({
       status: "DONE",
       updated_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
     })
     .eq("id", taskId)
     .select("id")
@@ -304,5 +309,42 @@ export async function markTaskDone(supabase: SupabaseClient, taskId: string) {
 
   if (!data) {
     throw new Error("Task could not be updated. Check user_tasks update permissions.");
+  }
+}
+
+export async function fetchUnreadTaskCount(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  const { count, error } = await supabase
+    .from("user_tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("assigned_to", userId)
+    .eq("status", "OPEN")
+    .is("read_at", null);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return count ?? 0;
+}
+
+export async function markTasksReadForUser(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  const { error } = await supabase
+    .from("user_tasks")
+    .update({
+      read_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("assigned_to", userId)
+    .eq("status", "OPEN")
+    .is("read_at", null);
+
+  if (error) {
+    throw new Error(error.message);
   }
 }

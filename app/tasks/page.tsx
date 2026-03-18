@@ -9,10 +9,15 @@ import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
-import { fetchAssignedTasks, markTaskDone, type UserTaskRecord } from "@/lib/user-tasks";
+import {
+  fetchAssignedTasks,
+  markTaskDone,
+  markTasksReadForUser,
+  type UserTaskRecord,
+} from "@/lib/user-tasks";
 
 export default function TasksPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const [tasks, setTasks] = useState<UserTaskRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -39,6 +44,7 @@ export default function TasksPage() {
         return;
       }
 
+      await markTasksReadForUser(supabase, user.id);
       const nextTasks = await fetchAssignedTasks(supabase, user.id);
       setTasks(nextTasks.filter((task) => task.status === "OPEN"));
       setIsLoading(false);
@@ -90,6 +96,7 @@ export default function TasksPage() {
             </Link>
             <Link href="/tasks" className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800">
               Tasks
+              <NotificationBadge count={taskUnreadCount} />
             </Link>
             {isAdmin ? (
               <>

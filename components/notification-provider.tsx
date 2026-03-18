@@ -21,11 +21,16 @@ import {
 } from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
-import { getPresenceHeartbeatMs, upsertUserPresence } from "@/lib/user-tasks";
+import {
+  fetchUnreadTaskCount,
+  getPresenceHeartbeatMs,
+  upsertUserPresence,
+} from "@/lib/user-tasks";
 
 type NotificationContextValue = {
   requesterUnreadCount: number;
   adminBadgeCount: number;
+  taskUnreadCount: number;
   isAdmin: boolean;
   isAuthenticated: boolean;
   toasts: NotificationToast[];
@@ -43,6 +48,7 @@ type NotificationToast = {
 const NotificationContext = createContext<NotificationContextValue>({
   requesterUnreadCount: 0,
   adminBadgeCount: 0,
+  taskUnreadCount: 0,
   isAdmin: false,
   isAuthenticated: false,
   toasts: [],
@@ -65,6 +71,7 @@ export function NotificationProvider({
   const [requesterUnreadCount, setRequesterUnreadCount] = useState(0);
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [pendingTicketCount, setPendingTicketCount] = useState(0);
+  const [taskUnreadCount, setTaskUnreadCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [toasts, setToasts] = useState<NotificationToast[]>([]);
@@ -133,7 +140,12 @@ export function NotificationProvider({
           pushToast({
             title: notification.title,
             description: notification.body ?? "New RELAY activity.",
-            href: notification.ticket_id ? `/tickets/${notification.ticket_id}` : undefined,
+            href:
+              notification.type === "task_assigned"
+                ? "/tasks"
+                : notification.ticket_id
+                  ? `/tickets/${notification.ticket_id}`
+                  : undefined,
             tone: "success",
           });
           playNotificationSound();
@@ -146,6 +158,8 @@ export function NotificationProvider({
         setAdminUnreadCount(unreadNotifications.length);
       } else {
         setRequesterUnreadCount(unreadNotifications.length);
+        const unreadTasks = await fetchUnreadTaskCount(supabase, userId);
+        setTaskUnreadCount(unreadTasks);
       }
     },
     [playNotificationSound, pushToast],
@@ -214,6 +228,7 @@ export function NotificationProvider({
       setRequesterUnreadCount(0);
       setAdminUnreadCount(0);
       setPendingTicketCount(0);
+      setTaskUnreadCount(0);
       setIsAdmin(false);
       setIsAuthenticated(false);
       setToasts([]);
@@ -402,6 +417,7 @@ export function NotificationProvider({
     () => ({
       requesterUnreadCount,
       adminBadgeCount: adminUnreadCount > 0 ? adminUnreadCount : pendingTicketCount,
+      taskUnreadCount,
       isAdmin,
       isAuthenticated,
       toasts,
@@ -414,6 +430,7 @@ export function NotificationProvider({
       isAuthenticated,
       pendingTicketCount,
       requesterUnreadCount,
+      taskUnreadCount,
       toasts,
     ],
   );

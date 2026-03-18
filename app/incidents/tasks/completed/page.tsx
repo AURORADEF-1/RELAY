@@ -230,6 +230,9 @@ export default function CompletedTasksPage() {
                         <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
                           Completed {formatDate(task.updated_at)} · {task.assignee_name ?? task.assigned_to}
                         </p>
+                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                          {task.read_at ? `Read ${formatDate(task.read_at)}` : "Not opened before completion"}
+                        </p>
                       </div>
                       <button
                         type="button"

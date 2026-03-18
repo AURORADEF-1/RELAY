@@ -24,7 +24,7 @@ type Ticket = {
 };
 
 export default function RequestsPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -120,6 +120,7 @@ export default function RequestsPage() {
             </Link>
             <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
               Tasks
+              <NotificationBadge count={taskUnreadCount} />
             </Link>
             {isAdmin ? (
               <>

@@ -273,6 +273,9 @@ export default function WorkshopTasksPage() {
                         <p className={`mt-1 text-xs uppercase tracking-[0.16em] ${selectedTaskId === task.id ? "text-slate-300" : "text-slate-500"}`}>
                           {task.assignee_name ?? task.assigned_to}
                         </p>
+                        <p className={`mt-1 text-[11px] uppercase tracking-[0.14em] ${selectedTaskId === task.id ? "text-slate-400" : "text-slate-400"}`}>
+                          {task.read_at ? `Read ${formatDate(task.read_at)}` : "Unread"}
+                        </p>
                       </button>
                     ))
                   )}
@@ -361,6 +364,9 @@ export default function WorkshopTasksPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-3">
+                      <div className="inline-flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-600">
+                        {selectedTask.read_at ? `Read by user ${formatDate(selectedTask.read_at)}` : "Not opened by user yet"}
+                      </div>
                       <button
                         type="button"
                         onClick={() => void handleSaveTask()}
@@ -410,4 +416,13 @@ function toDatetimeLocalValue(value: string) {
   const offset = date.getTimezoneOffset();
   const localDate = new Date(date.getTime() - offset * 60 * 1000);
   return localDate.toISOString().slice(0, 16);
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }

@@ -42,7 +42,7 @@ const fieldLabels: Record<keyof FormValues, string> = {
 };
 
 export default function SubmitPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState("");
@@ -324,6 +324,7 @@ export default function SubmitPage() {
             </Link>
             <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
               Tasks
+              <NotificationBadge count={taskUnreadCount} />
             </Link>
             {isAdmin ? (
               <>

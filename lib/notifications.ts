@@ -4,7 +4,8 @@ export type RelayNotificationType =
   | "new_ticket"
   | "status_update"
   | "requester_message"
-  | "operator_message";
+  | "operator_message"
+  | "task_assigned";
 
 export type RelayNotificationRecord = {
   id: string;
@@ -191,6 +192,25 @@ export async function notifyRequesterOfOperatorMessage(
       type: "operator_message",
       title,
       body,
+    },
+  ]);
+}
+
+export async function notifyUserTaskAssigned(
+  supabase: SupabaseClient,
+  payload: {
+    userId: string;
+    taskTitle: string;
+    taskDescription?: string | null;
+  },
+) {
+  await insertNotifications(supabase, [
+    {
+      user_id: payload.userId,
+      ticket_id: null,
+      type: "task_assigned",
+      title: `New task assigned: ${payload.taskTitle}`,
+      body: payload.taskDescription?.trim() || "A new RELAY task is waiting for you.",
     },
   ]);
 }
