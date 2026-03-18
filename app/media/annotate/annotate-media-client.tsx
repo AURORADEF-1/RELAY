@@ -25,14 +25,14 @@ export function AnnotateMediaClient({
   const hasImage = useMemo(() => imageSrc.trim().length > 0, [imageSrc]);
 
   useEffect(() => {
-    const image = imageRef.current;
-    const canvas = canvasRef.current;
-
-    if (!image || !canvas) {
-      return;
-    }
-
     function syncCanvas() {
+      const image = imageRef.current;
+      const canvas = canvasRef.current;
+
+      if (!image || !canvas) {
+        return;
+      }
+
       const width = image.clientWidth;
       const height = image.clientHeight;
 
