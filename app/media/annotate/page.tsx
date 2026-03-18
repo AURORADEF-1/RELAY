@@ -10,15 +10,19 @@ export default async function AnnotateMediaPage({
 }) {
   const params = await searchParams;
   const attachmentId = getSingleValue(params.attachmentId);
-  const imageSrc = getSingleValue(params.src);
+  const originalSrc = getSingleValue(params.src);
   const imageName = getSingleValue(params.name) || "ticket-photo";
+  const proxiedImageSrc = originalSrc
+    ? `/api/media/proxy?src=${encodeURIComponent(originalSrc)}`
+    : "";
 
   return (
     <Suspense fallback={<AnnotateMediaLoadingState />}>
       <AnnotateMediaClient
         attachmentId={attachmentId}
-        imageSrc={imageSrc}
+        imageSrc={proxiedImageSrc}
         imageName={imageName}
+        originalImageSrc={originalSrc}
       />
     </Suspense>
   );

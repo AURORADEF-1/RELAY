@@ -14,10 +14,12 @@ export function AnnotateMediaClient({
   attachmentId,
   imageSrc,
   imageName,
+  originalImageSrc,
 }: {
   attachmentId: string;
   imageSrc: string;
   imageName: string;
+  originalImageSrc: string;
 }) {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -143,6 +145,10 @@ export function AnnotateMediaClient({
     link.href = dataUrl;
     link.download = `${imageName.replace(/\.[^.]+$/, "")}-annotated.png`;
     link.click();
+    setNotice({
+      type: "success",
+      message: "Edited copy downloaded successfully.",
+    });
   }
 
   async function handleSaveToTicket() {
@@ -193,26 +199,45 @@ export function AnnotateMediaClient({
   }
 
   function buildAnnotatedImageDataUrl() {
-    const image = imageRef.current;
-    const overlay = canvasRef.current;
+    try {
+      const image = imageRef.current;
+      const overlay = canvasRef.current;
 
-    if (!image || !overlay) {
+      if (!image || !overlay) {
+        setNotice({
+          type: "error",
+          message: "Image editor is not ready yet.",
+        });
+        return null;
+      }
+
+      const exportCanvas = document.createElement("canvas");
+      exportCanvas.width = image.naturalWidth;
+      exportCanvas.height = image.naturalHeight;
+      const context = exportCanvas.getContext("2d");
+
+      if (!context) {
+        setNotice({
+          type: "error",
+          message: "Failed to prepare the edited image.",
+        });
+        return null;
+      }
+
+      context.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
+      context.drawImage(overlay, 0, 0, exportCanvas.width, exportCanvas.height);
+
+      return exportCanvas.toDataURL("image/png");
+    } catch (exportError) {
+      setNotice({
+        type: "error",
+        message:
+          exportError instanceof Error
+            ? exportError.message
+            : "Failed to export the edited image.",
+      });
       return null;
     }
-
-    const exportCanvas = document.createElement("canvas");
-    exportCanvas.width = image.naturalWidth;
-    exportCanvas.height = image.naturalHeight;
-    const context = exportCanvas.getContext("2d");
-
-    if (!context) {
-      return null;
-    }
-
-    context.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
-    context.drawImage(overlay, 0, 0, exportCanvas.width, exportCanvas.height);
-
-    return exportCanvas.toDataURL("image/png");
   }
 
   return (
@@ -232,7 +257,7 @@ export function AnnotateMediaClient({
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              href={imageSrc || "#"}
+              href={originalImageSrc || "#"}
               target="_blank"
               className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
             >
