@@ -17,8 +17,6 @@ import {
   type UserTaskRecord,
 } from "@/lib/user-tasks";
 
-const COMPLETED_TASKS_REFRESH_MS = 15000;
-
 export default function CompletedTasksPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
   const [tasks, setTasks] = useState<UserTaskRecord[]>([]);
@@ -77,14 +75,6 @@ export default function CompletedTasksPage() {
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [loadTasks]);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      void loadTasks();
-    }, COMPLETED_TASKS_REFRESH_MS);
-
-    return () => window.clearInterval(intervalId);
   }, [loadTasks]);
 
   async function handleDeleteTask(task: UserTaskRecord) {
