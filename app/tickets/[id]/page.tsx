@@ -15,7 +15,10 @@ import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { triggerActionFeedback } from "@/lib/action-feedback";
-import { notifyAdminsOfRequesterMessage } from "@/lib/notifications";
+import {
+  notifyAdminsOfPartCollected,
+  notifyAdminsOfRequesterMessage,
+} from "@/lib/notifications";
 import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
 import {
   createTicketMessage,
@@ -92,6 +95,8 @@ export default function TicketDetailPage() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [requesterAvatarUrl, setRequesterAvatarUrl] = useState<string | null>(null);
+  const [hasRequesterCollected, setHasRequesterCollected] = useState(false);
+  const [isMarkingCollected, setIsMarkingCollected] = useState(false);
   const [chatNotice, setChatNotice] = useState<{
     type: "success" | "error";
     message: string;
@@ -139,11 +144,17 @@ export default function TicketDetailPage() {
       setTicket(ticketData as TicketRecord);
       setUpdates([]);
       setEditDraft(buildTicketEditDraft(ticketData as TicketRecord));
+      setHasRequesterCollected(false);
     } else {
       setErrorMessage("");
       setTicket(ticketData as TicketRecord);
       setUpdates((updateData ?? []) as TicketUpdate[]);
       setEditDraft(buildTicketEditDraft(ticketData as TicketRecord));
+      setHasRequesterCollected(
+        (updateData ?? []).some(
+          (update) => update.comment === "Part collected by requester.",
+        ),
+      );
     }
 
     try {
@@ -467,6 +478,49 @@ export default function TicketDetailPage() {
     }
   }
 
+  async function handleMarkCollected() {
+    if (!ticket) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setIsMarkingCollected(true);
+    setErrorMessage("");
+
+    try {
+      const { error: insertError } = await supabase.from("ticket_updates").insert({
+        ticket_id: ticket.id,
+        comment: "Part collected by requester.",
+      });
+
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
+
+      await notifyAdminsOfPartCollected(supabase, {
+        ticketId: ticket.id,
+        requesterName: ticket.requester_name,
+        jobNumber: ticket.job_number,
+        requestSummary: ticket.request_summary ?? ticket.request_details,
+      });
+
+      setHasRequesterCollected(true);
+      await loadTicket();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to mark the request as collected.",
+      );
+    } finally {
+      setIsMarkingCollected(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-6xl space-y-8">
@@ -757,6 +811,24 @@ export default function TicketDetailPage() {
                           />
                           <DetailBlock label="Admin Notes" value={ticket.notes} />
                         </div>
+                        {!isAdmin && ticket.status === "READY" ? (
+                          <div className="mt-6">
+                            {hasRequesterCollected ? (
+                              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+                                Part collected. Admin has been notified.
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => void handleMarkCollected()}
+                                disabled={isMarkingCollected}
+                                className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {isMarkingCollected ? "Saving..." : "Collected"}
+                              </button>
+                            )}
+                          </div>
+                        ) : null}
                       </>
                     )}
                   </section>

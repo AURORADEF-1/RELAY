@@ -8,12 +8,15 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
+import { notifyAdminsOfPartCollected } from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Ticket = {
   id: string;
+  user_id?: string | null;
+  requester_name?: string | null;
   machine_reference: string | null;
   job_number: string | null;
   request_summary: string | null;
@@ -26,8 +29,10 @@ type Ticket = {
 export default function RequestsPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [collectedTicketIds, setCollectedTicketIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [workingCollectedTicketId, setWorkingCollectedTicketId] = useState<string | null>(null);
 
   const loadTickets = useCallback(async () => {
     setIsLoading(true);
@@ -56,7 +61,7 @@ export default function RequestsPage() {
     let query = supabase
       .from("tickets")
       .select(
-        "id, machine_reference, job_number, request_summary, request_details, status, updated_at, assigned_to",
+        "id, user_id, requester_name, machine_reference, job_number, request_summary, request_details, status, updated_at, assigned_to",
       )
       .neq("status", "COMPLETED")
       .order("updated_at", { ascending: false });
@@ -88,7 +93,30 @@ export default function RequestsPage() {
       rowCount: data?.length ?? 0,
     });
 
-    setTickets(data ?? []);
+    const nextTickets = (data ?? []) as Ticket[];
+    setTickets(nextTickets);
+
+    if (nextTickets.length > 0) {
+      const { data: updates } = await supabase
+        .from("ticket_updates")
+        .select("ticket_id, comment")
+        .in(
+          "ticket_id",
+          nextTickets.map((ticket) => ticket.id),
+        )
+        .eq("comment", "Part collected by requester.");
+
+      setCollectedTicketIds(
+        new Set(
+          (updates ?? [])
+            .map((update) => update.ticket_id)
+            .filter((ticketId): ticketId is string => typeof ticketId === "string"),
+        ),
+      );
+    } else {
+      setCollectedTicketIds(new Set());
+    }
+
     setIsLoading(false);
   }, []);
 
@@ -99,6 +127,44 @@ export default function RequestsPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadTickets]);
+
+  async function handleMarkCollected(ticket: Ticket) {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setWorkingCollectedTicketId(ticket.id);
+    setErrorMessage("");
+
+    try {
+      const { error: insertError } = await supabase.from("ticket_updates").insert({
+        ticket_id: ticket.id,
+        comment: "Part collected by requester.",
+      });
+
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
+
+      await notifyAdminsOfPartCollected(supabase, {
+        ticketId: ticket.id,
+        requesterName: ticket.requester_name ?? null,
+        jobNumber: ticket.job_number ?? null,
+        requestSummary: ticket.request_summary ?? ticket.request_details,
+      });
+
+      setCollectedTicketIds((current) => new Set(current).add(ticket.id));
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to mark the request as collected.",
+      );
+    } finally {
+      setWorkingCollectedTicketId(null);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
@@ -261,7 +327,19 @@ export default function RequestsPage() {
                           {formatDate(ticket.updated_at)}
                         </td>
                         <td className="px-6 py-5 text-sm text-slate-500">
-                          {ticket.assigned_to ?? "Stores queue"}
+                          <div className="space-y-2">
+                            <p>{ticket.assigned_to ?? "Stores queue"}</p>
+                            {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleMarkCollected(ticket)}
+                                disabled={workingCollectedTicketId === ticket.id}
+                                className="inline-flex h-9 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {workingCollectedTicketId === ticket.id ? "Saving..." : "Collected"}
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -311,6 +389,20 @@ export default function RequestsPage() {
                       <span>Updated {formatDate(ticket.updated_at)}</span>
                       <span>Handled by {ticket.assigned_to ?? "Stores queue"}</span>
                     </div>
+                    {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleMarkCollected(ticket)}
+                        disabled={workingCollectedTicketId === ticket.id}
+                        className="mt-4 inline-flex h-10 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {workingCollectedTicketId === ticket.id ? "Saving..." : "Collected"}
+                      </button>
+                    ) : collectedTicketIds.has(ticket.id) ? (
+                      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                        Part collected
+                      </p>
+                    ) : null}
                   </article>
                 ))
               )}

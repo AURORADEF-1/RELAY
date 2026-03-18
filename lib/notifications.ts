@@ -6,7 +6,9 @@ export type RelayNotificationType =
   | "requester_message"
   | "operator_message"
   | "task_assigned"
-  | "ready_reminder";
+  | "ready_reminder"
+  | "ready_for_collection"
+  | "part_collected";
 
 export type RelayNotificationRecord = {
   id: string;
@@ -107,24 +109,38 @@ export async function notifyRequesterStatusChanged(
     jobNumber: string | null;
     nextStatus: string;
     requestSummary: string | null;
+    assignedTo?: string | null;
   },
 ) {
   if (!payload.userId) {
     return;
   }
 
-  const title = payload.jobNumber
-    ? `Status updated: ${payload.jobNumber}`
-    : "Request status updated";
-  const body = payload.requestSummary?.trim()
-    ? `${payload.requestSummary.trim()} is now ${payload.nextStatus}.`
-    : `Your request is now ${payload.nextStatus}.`;
+  const title =
+    payload.nextStatus === "READY"
+      ? payload.jobNumber
+        ? `Ready to collect: ${payload.jobNumber}`
+        : "Parts ready to collect"
+      : payload.jobNumber
+        ? `Status updated: ${payload.jobNumber}`
+        : "Request status updated";
+  const body =
+    payload.nextStatus === "IN_PROGRESS"
+      ? payload.assignedTo?.trim()
+        ? `${payload.requestSummary?.trim() || "Your parts request"} is now IN_PROGRESS: ${payload.assignedTo.trim()}.`
+        : `${payload.requestSummary?.trim() || "Your parts request"} is now IN_PROGRESS.`
+      : payload.nextStatus === "READY"
+        ? `${payload.requestSummary?.trim() || "Your request"} is READY. Please collect from Stores.`
+        : payload.requestSummary?.trim()
+          ? `${payload.requestSummary.trim()} is now ${payload.nextStatus}.`
+          : `Your request is now ${payload.nextStatus}.`;
+  const type = payload.nextStatus === "READY" ? "ready_for_collection" : "status_update";
 
   await insertNotifications(supabase, [
     {
       user_id: payload.userId,
       ticket_id: payload.ticketId,
-      type: "status_update",
+      type,
       title,
       body,
     },
@@ -273,6 +289,40 @@ export async function ensureReadyReminderNotifications(
           : "Your parts are ready",
         body: `${ticket.request_summary ?? ticket.request_details ?? "Your request"} has been READY for over a day.`,
       })),
+  );
+}
+
+export async function notifyAdminsOfPartCollected(
+  supabase: SupabaseClient,
+  payload: {
+    ticketId: string;
+    requesterName: string | null;
+    jobNumber: string | null;
+    requestSummary: string | null;
+  },
+) {
+  const adminUserIds = await fetchAdminUserIds(supabase);
+
+  if (adminUserIds.length === 0) {
+    return;
+  }
+
+  const title = payload.jobNumber
+    ? `Part collected: ${payload.jobNumber}`
+    : "Part collected";
+  const body = payload.requesterName?.trim()
+    ? `${payload.requesterName.trim()} collected the part. Do you want to complete the job?`
+    : `A part was collected for ${payload.requestSummary?.trim() || "a request"}. Do you want to complete the job?`;
+
+  await insertNotifications(
+    supabase,
+    adminUserIds.map((userId) => ({
+      user_id: userId,
+      ticket_id: payload.ticketId,
+      type: "part_collected",
+      title,
+      body,
+    })),
   );
 }
 

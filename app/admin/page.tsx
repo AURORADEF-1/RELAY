@@ -480,6 +480,7 @@ export default function AdminPage() {
         jobNumber: currentTicket.job_number,
         nextStatus,
         requestSummary: currentTicket.request_summary ?? currentTicket.request_details,
+        assignedTo: drafts[ticketId]?.assigned_to || currentTicket.assigned_to,
       });
     } catch (notificationError) {
       console.error("Failed to notify requester about status change", notificationError);

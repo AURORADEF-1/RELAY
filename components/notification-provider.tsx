@@ -61,7 +61,12 @@ const NotificationContext = createContext<NotificationContextValue>({
 const SOUND_COOLDOWN_MS = 1800;
 const TOAST_DURATION_MS = 10000;
 const NOTIFICATION_POLL_INTERVAL_MS = 15000;
-const REQUEST_NOTIFICATION_TYPES = new Set(["status_update", "operator_message", "ready_reminder"]);
+const REQUEST_NOTIFICATION_TYPES = new Set([
+  "status_update",
+  "operator_message",
+  "ready_reminder",
+  "ready_for_collection",
+]);
 
 export function NotificationProvider({
   children,
@@ -175,7 +180,9 @@ export function NotificationProvider({
                   : undefined,
             tone: "success",
             notificationId: notification.id,
-            persistent: notification.type === "ready_reminder",
+            persistent:
+              notification.type === "ready_reminder" ||
+              notification.type === "ready_for_collection",
           });
           playNotificationSound();
         }
@@ -229,7 +236,8 @@ export function NotificationProvider({
           : unreadNotifications.filter(
               (notification) =>
                 REQUEST_NOTIFICATION_TYPES.has(notification.type) &&
-                notification.type !== "ready_reminder",
+                notification.type !== "ready_reminder" &&
+                notification.type !== "ready_for_collection",
             );
 
       if (notificationsToMarkRead.length === 0) {
