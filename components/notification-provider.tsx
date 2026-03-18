@@ -194,8 +194,13 @@ export function NotificationProvider({
         setAdminUnreadCount(unreadNotifications.length);
       } else {
         setRequesterUnreadCount(unreadRequesterNotifications.length);
-        const unreadTasks = await fetchUnreadTaskCount(supabase, userId);
-        setTaskUnreadCount(Math.max(unreadTasks, unreadTaskNotifications.length));
+        try {
+          const unreadTasks = await fetchUnreadTaskCount(supabase, userId);
+          setTaskUnreadCount(Math.max(unreadTasks, unreadTaskNotifications.length));
+        } catch (taskCountError) {
+          console.error("Failed to load RELAY unread task count", taskCountError);
+          setTaskUnreadCount(unreadTaskNotifications.length);
+        }
       }
     },
     [playNotificationSound, pushToast],
