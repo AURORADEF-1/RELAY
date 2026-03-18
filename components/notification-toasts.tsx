@@ -35,7 +35,7 @@ export function NotificationToasts() {
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
-                  dismissToast(toast.id);
+                  void dismissToast(toast.id);
                 }}
                 className="rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Dismiss notification"
@@ -50,7 +50,7 @@ export function NotificationToasts() {
           <Link
             key={toast.id}
             href={toast.href}
-            onClick={() => dismissToast(toast.id)}
+            onClick={() => void dismissToast(toast.id)}
             className="block transition hover:translate-y-[-1px]"
           >
             {content}

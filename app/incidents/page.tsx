@@ -302,6 +302,9 @@ export default function IncidentsPage() {
             <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white/10">
               Legal
             </Link>
+            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white/10">
+              Settings
+            </Link>
             <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white/10">
               Submit Ticket
             </Link>

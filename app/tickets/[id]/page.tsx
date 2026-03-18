@@ -16,6 +16,7 @@ import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { notifyAdminsOfRequesterMessage } from "@/lib/notifications";
+import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
 import {
   createTicketMessage,
   deleteSingleTicketAttachment,
@@ -90,6 +91,7 @@ export default function TicketDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
+  const [requesterAvatarUrl, setRequesterAvatarUrl] = useState<string | null>(null);
   const [chatNotice, setChatNotice] = useState<{
     type: "success" | "error";
     message: string;
@@ -156,6 +158,18 @@ export default function TicketDetailPage() {
       setErrorMessage(
         loadError instanceof Error ? loadError.message : "Failed to load ticket chat.",
       );
+    }
+
+    if (ticketData?.user_id) {
+      try {
+        const profile = await fetchCurrentProfileSettings(supabase, ticketData.user_id);
+        setRequesterAvatarUrl(profile.avatar_url ?? null);
+      } catch (avatarError) {
+        console.error("Failed to load ticket requester avatar", avatarError);
+        setRequesterAvatarUrl(null);
+      }
+    } else {
+      setRequesterAvatarUrl(null);
     }
 
     setIsLoading(false);
@@ -465,6 +479,9 @@ export default function TicketDetailPage() {
             <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
               Legal
             </Link>
+            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">
+              Settings
+            </Link>
             <Link
               href="/requests"
               className="rounded-full px-4 py-2 hover:bg-white"
@@ -587,6 +604,24 @@ export default function TicketDetailPage() {
 
                     {isAdmin && isEditing && editDraft ? (
                       <div className="mt-6 space-y-5">
+                        <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                          {requesterAvatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={requesterAvatarUrl}
+                              alt={ticket.requester_name ?? "Requester"}
+                              className="h-14 w-14 rounded-full border border-slate-200 object-cover"
+                            />
+                          ) : null}
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {ticket.requester_name ?? "Requester"}
+                            </p>
+                            <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+                              Profile photo shown on admin edit view
+                            </p>
+                          </div>
+                        </div>
                         <div className="grid gap-5 sm:grid-cols-2">
                           <EditField
                             label="Requester"

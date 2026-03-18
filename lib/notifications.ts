@@ -5,7 +5,8 @@ export type RelayNotificationType =
   | "status_update"
   | "requester_message"
   | "operator_message"
-  | "task_assigned";
+  | "task_assigned"
+  | "ready_reminder";
 
 export type RelayNotificationRecord = {
   id: string;
@@ -213,6 +214,66 @@ export async function notifyUserTaskAssigned(
       body: payload.taskDescription?.trim() || "A new RELAY task is waiting for you.",
     },
   ]);
+}
+
+export async function ensureReadyReminderNotifications(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  const reminderCutoffIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: readyTickets, error: ticketError } = await supabase
+    .from("tickets")
+    .select("id, job_number, request_summary, request_details")
+    .eq("user_id", userId)
+    .eq("status", "READY")
+    .lte("updated_at", reminderCutoffIso);
+
+  if (ticketError) {
+    throw new Error(ticketError.message);
+  }
+
+  const tickets = readyTickets ?? [];
+
+  if (tickets.length === 0) {
+    return;
+  }
+
+  const ticketIds = tickets
+    .map((ticket) => (typeof ticket.id === "string" ? ticket.id : null))
+    .filter((ticketId): ticketId is string => Boolean(ticketId));
+
+  const { data: existingReminders, error: reminderError } = await supabase
+    .from("notifications")
+    .select("ticket_id")
+    .eq("user_id", userId)
+    .eq("type", "ready_reminder")
+    .in("ticket_id", ticketIds);
+
+  if (reminderError) {
+    throw new Error(reminderError.message);
+  }
+
+  const existingTicketIds = new Set(
+    (existingReminders ?? [])
+      .map((notification) => notification.ticket_id)
+      .filter((ticketId): ticketId is string => typeof ticketId === "string"),
+  );
+
+  await insertNotifications(
+    supabase,
+    tickets
+      .filter((ticket) => typeof ticket.id === "string" && !existingTicketIds.has(ticket.id))
+      .map((ticket) => ({
+        user_id: userId,
+        ticket_id: ticket.id as string,
+        type: "ready_reminder" as const,
+        title: ticket.job_number
+          ? `Ready reminder: ${ticket.job_number}`
+          : "Your parts are ready",
+        body: `${ticket.request_summary ?? ticket.request_details ?? "Your request"} has been READY for over a day.`,
+      })),
+  );
 }
 
 async function fetchAdminUserIds(supabase: SupabaseClient) {

@@ -112,6 +112,9 @@ export default function RequestsPage() {
             <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
               Legal
             </Link>
+            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">
+              Settings
+            </Link>
             <Link
               href="/submit"
               className="rounded-full px-4 py-2 hover:bg-white"

@@ -10,6 +10,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { notifyAdminsOfNewTicket } from "@/lib/notifications";
+import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -77,6 +78,50 @@ export default function SubmitPage() {
 
     return () => window.clearTimeout(timeout);
   }, [successMessage]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadRequesterName() {
+      const supabase = getSupabaseClient();
+
+      if (!supabase) {
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !isMounted) {
+        return;
+      }
+
+      try {
+        const profile = await fetchCurrentProfileSettings(supabase, user.id);
+        if (!isMounted) {
+          return;
+        }
+
+        setValues((current) =>
+          current.requesterName.trim()
+            ? current
+            : {
+                ...current,
+                requesterName: profile.full_name ?? "",
+              },
+        );
+      } catch (error) {
+        console.error("Failed to prefill requester name", error);
+      }
+    }
+
+    void loadRequesterName();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   function handleChange(
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -288,7 +333,10 @@ export default function SubmitPage() {
         `Ticket ${String(ticket.id).slice(0, 8)} submitted successfully. Status is now PENDING.`,
       );
       triggerActionFeedback();
-      setValues(initialValues);
+      setValues({
+        ...initialValues,
+        requesterName: ticketPayload.requester_name,
+      });
       setErrors({});
       setQueuedPhotos([]);
       setLocationDraft(null);
@@ -314,6 +362,9 @@ export default function SubmitPage() {
             </Link>
             <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
               Legal
+            </Link>
+            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">
+              Settings
             </Link>
             <Link
               href="/requests"

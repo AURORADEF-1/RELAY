@@ -89,6 +89,7 @@ export default function TasksPage() {
           <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
             <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">Home</Link>
             <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">Legal</Link>
+            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">Settings</Link>
             <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white">Submit Ticket</Link>
             <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white">
               My Requests

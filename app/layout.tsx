@@ -3,6 +3,7 @@ import { LegalTermsGate } from "@/components/legal-terms-gate";
 import { NotificationProvider } from "@/components/notification-provider";
 import { NotificationToasts } from "@/components/notification-toasts";
 import { StartupSplash } from "@/components/startup-splash";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,13 +20,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <StartupSplash>
-          <NotificationProvider>
-            <LegalTermsGate />
-            <NotificationToasts />
-            {children}
-          </NotificationProvider>
-        </StartupSplash>
+        <ThemeProvider>
+          <StartupSplash>
+            <NotificationProvider>
+              <LegalTermsGate />
+              <NotificationToasts />
+              {children}
+            </NotificationProvider>
+          </StartupSplash>
+        </ThemeProvider>
       </body>
     </html>
   );

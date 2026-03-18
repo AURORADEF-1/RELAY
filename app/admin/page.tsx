@@ -28,6 +28,7 @@ import {
   notifyRequesterOfOperatorMessage,
   notifyRequesterStatusChanged,
 } from "@/lib/notifications";
+import { fetchProfileAvatarUrls } from "@/lib/profile-settings";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import {
   activeTicketStatusOptions,
@@ -111,6 +112,7 @@ export default function AdminPage() {
   const [resourceTab, setResourceTab] = useState<"operations" | "guide" | "faq">(
     "operations",
   );
+  const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -182,6 +184,18 @@ export default function AdminPage() {
     }
 
     const nextTickets = (data ?? []) as Ticket[];
+    try {
+      const avatars = await fetchProfileAvatarUrls(
+        supabase,
+        nextTickets
+          .map((ticket) => ticket.user_id)
+          .filter((userId): userId is string => Boolean(userId)),
+      );
+      setProfileAvatarByUserId(avatars);
+    } catch (avatarError) {
+      console.error("Failed to load requester avatars", avatarError);
+      setProfileAvatarByUserId({});
+    }
     setTickets(nextTickets);
     setDrafts(
       Object.fromEntries(
@@ -440,7 +454,7 @@ export default function AdminPage() {
 
     const { error: updateError } = await supabase
       .from("tickets")
-      .update({ status: nextStatus })
+      .update({ status: nextStatus, updated_at: new Date().toISOString() })
       .eq("id", ticketId);
 
     if (updateError) {
@@ -805,6 +819,9 @@ export default function AdminPage() {
             </Link>
             <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
               Legal
+            </Link>
+            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">
+              Settings
             </Link>
             <Link
               href="/submit"
@@ -1603,12 +1620,24 @@ export default function AdminPage() {
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-semibold text-slate-900">
-                                    Job {ticket.job_number ?? "Not set"}
-                                  </p>
-                                  <p className="mt-1 text-sm text-slate-500">
-                                    {ticket.requester_name ?? "Requester"}
-                                  </p>
+                                  <div className="mb-2 flex items-center gap-3">
+                                    {ticket.user_id && profileAvatarByUserId[ticket.user_id] ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={profileAvatarByUserId[ticket.user_id] ?? ""}
+                                        alt={ticket.requester_name ?? "Requester"}
+                                        className="h-10 w-10 rounded-full border border-slate-200 object-cover"
+                                      />
+                                    ) : null}
+                                    <div>
+                                    <p className="text-sm font-semibold text-slate-900">
+                                      Job {ticket.job_number ?? "Not set"}
+                                    </p>
+                                    <p className="mt-1 text-sm text-slate-500">
+                                      {ticket.requester_name ?? "Requester"}
+                                    </p>
+                                    </div>
+                                  </div>
                                 </div>
                                 <StatusBadge status={ticket.status ?? "PENDING"} />
                               </div>

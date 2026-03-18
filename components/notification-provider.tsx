@@ -16,6 +16,7 @@ import type {
   RealtimeChannel,
 } from "@supabase/supabase-js";
 import {
+  ensureReadyReminderNotifications,
   fetchUnreadNotifications,
   markNotificationsRead,
 } from "@/lib/notifications";
@@ -34,7 +35,7 @@ type NotificationContextValue = {
   isAdmin: boolean;
   isAuthenticated: boolean;
   toasts: NotificationToast[];
-  dismissToast: (id: string) => void;
+  dismissToast: (id: string) => Promise<void>;
 };
 
 type NotificationToast = {
@@ -43,6 +44,8 @@ type NotificationToast = {
   description: string;
   href?: string;
   tone?: "default" | "success";
+  notificationId?: string;
+  persistent?: boolean;
 };
 
 const NotificationContext = createContext<NotificationContextValue>({
@@ -52,13 +55,13 @@ const NotificationContext = createContext<NotificationContextValue>({
   isAdmin: false,
   isAuthenticated: false,
   toasts: [],
-  dismissToast: () => {},
+  dismissToast: async () => {},
 });
 
 const SOUND_COOLDOWN_MS = 1800;
 const TOAST_DURATION_MS = 10000;
 const NOTIFICATION_POLL_INTERVAL_MS = 15000;
-const REQUEST_NOTIFICATION_TYPES = new Set(["status_update", "operator_message"]);
+const REQUEST_NOTIFICATION_TYPES = new Set(["status_update", "operator_message", "ready_reminder"]);
 
 export function NotificationProvider({
   children,
@@ -77,17 +80,34 @@ export function NotificationProvider({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [toasts, setToasts] = useState<NotificationToast[]>([]);
 
-  const dismissToast = useCallback((id: string) => {
-    setToasts((current) => current.filter((toast) => toast.id !== id));
-  }, []);
+  const dismissToast = useCallback(async (id: string) => {
+    const toast = toasts.find((candidate) => candidate.id === id);
+
+    if (toast?.notificationId) {
+      const supabase = getSupabaseClient();
+
+      if (supabase) {
+        try {
+          await markNotificationsRead(supabase, [toast.notificationId]);
+          knownUnreadIdsRef.current.delete(toast.notificationId);
+        } catch (error) {
+          console.error("Failed to mark RELAY notification as read", error);
+        }
+      }
+    }
+
+    setToasts((current) => current.filter((toastItem) => toastItem.id !== id));
+  }, [toasts]);
 
   const pushToast = useCallback((toast: Omit<NotificationToast, "id">) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setToasts((current) => [...current.slice(-2), { ...toast, id }]);
 
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((toastItem) => toastItem.id !== id));
-    }, TOAST_DURATION_MS);
+    if (!toast.persistent) {
+      window.setTimeout(() => {
+        setToasts((current) => current.filter((toastItem) => toastItem.id !== id));
+      }, TOAST_DURATION_MS);
+    }
   }, []);
 
   const playNotificationSound = useCallback(() => {
@@ -154,6 +174,8 @@ export function NotificationProvider({
                   ? `/tickets/${notification.ticket_id}`
                   : undefined,
             tone: "success",
+            notificationId: notification.id,
+            persistent: notification.type === "ready_reminder",
           });
           playNotificationSound();
         }
@@ -204,8 +226,10 @@ export function NotificationProvider({
         ? unreadNotifications
         : currentPath === "/tasks"
           ? unreadNotifications.filter((notification) => notification.type === "task_assigned")
-          : unreadNotifications.filter((notification) =>
-              REQUEST_NOTIFICATION_TYPES.has(notification.type),
+          : unreadNotifications.filter(
+              (notification) =>
+                REQUEST_NOTIFICATION_TYPES.has(notification.type) &&
+                notification.type !== "ready_reminder",
             );
 
       if (notificationsToMarkRead.length === 0) {
@@ -315,6 +339,13 @@ export function NotificationProvider({
 
         setIsAuthenticated(true);
         setIsAdmin(adminUser);
+        if (!adminUser) {
+          try {
+            await ensureReadyReminderNotifications(supabase, user.id);
+          } catch (reminderError) {
+            console.error("Failed to ensure RELAY ready reminders", reminderError);
+          }
+        }
         try {
           await upsertUserPresence(supabase, user.id);
         } catch (presenceError) {
