@@ -185,6 +185,52 @@ export async function deleteTicketAttachmentsForTicket(
   }
 }
 
+export async function saveAnnotatedTicketAttachment({
+  supabase,
+  attachmentId,
+  dataUrl,
+}: {
+  supabase: SupabaseClient;
+  attachmentId: string;
+  dataUrl: string;
+}) {
+  const { data: attachment, error: attachmentError } = await supabase
+    .from("ticket_attachments")
+    .select("id, file_path, file_name, mime_type")
+    .eq("id", attachmentId)
+    .single();
+
+  if (attachmentError || !attachment?.file_path) {
+    throw new Error(attachmentError?.message || "Attachment not found.");
+  }
+
+  const contentType = getAnnotationContentType(attachment.mime_type);
+  const blob = dataUrlToBlob(dataUrl, contentType);
+
+  const { error: storageError } = await supabase.storage
+    .from(RELAY_MEDIA_BUCKET)
+    .update(attachment.file_path, blob, {
+      contentType,
+      upsert: true,
+    });
+
+  if (storageError) {
+    throw new Error(storageError.message);
+  }
+
+  const { error: updateError } = await supabase
+    .from("ticket_attachments")
+    .update({
+      mime_type: contentType,
+      file_name: normalizeAttachmentFileName(attachment.file_name, contentType),
+    })
+    .eq("id", attachmentId);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+}
+
 export async function createTicketMessage({
   supabase,
   ticketId,
@@ -330,4 +376,42 @@ async function createSignedAttachmentUrl(
   }
 
   return data.signedUrl;
+}
+
+function dataUrlToBlob(dataUrl: string, contentType: string) {
+  const [, base64Payload] = dataUrl.split(",");
+
+  if (!base64Payload) {
+    throw new Error("Invalid image payload.");
+  }
+
+  const binary = atob(base64Payload);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: contentType });
+}
+
+function getAnnotationContentType(mimeType: string | null) {
+  if (mimeType === "image/jpeg" || mimeType === "image/png" || mimeType === "image/webp") {
+    return mimeType;
+  }
+
+  return "image/png";
+}
+
+function normalizeAttachmentFileName(fileName: string | null, contentType: string) {
+  const baseName = (fileName || "attachment").replace(/\.[^.]+$/, "");
+
+  switch (contentType) {
+    case "image/jpeg":
+      return `${baseName}.jpg`;
+    case "image/webp":
+      return `${baseName}.webp`;
+    default:
+      return `${baseName}.png`;
+  }
 }

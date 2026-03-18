@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { saveAnnotatedTicketAttachment } from "@/lib/relay-ticketing";
+import { getSupabaseClient } from "@/lib/supabase";
 
 type Point = {
   x: number;
@@ -9,9 +11,11 @@ type Point = {
 };
 
 export function AnnotateMediaClient({
+  attachmentId,
   imageSrc,
   imageName,
 }: {
+  attachmentId: string;
   imageSrc: string;
   imageName: string;
 }) {
@@ -21,6 +25,11 @@ export function AnnotateMediaClient({
   const [brushColor, setBrushColor] = useState("#ef4444");
   const [brushSize, setBrushSize] = useState(5);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [notice, setNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const hasImage = useMemo(() => imageSrc.trim().length > 0, [imageSrc]);
 
@@ -124,11 +133,71 @@ export function AnnotateMediaClient({
   }
 
   function handleDownload() {
+    const dataUrl = buildAnnotatedImageDataUrl();
+
+    if (!dataUrl) {
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `${imageName.replace(/\.[^.]+$/, "")}-annotated.png`;
+    link.click();
+  }
+
+  async function handleSaveToTicket() {
+    if (!attachmentId) {
+      setNotice({
+        type: "error",
+        message: "This photo is not linked to a ticket attachment record.",
+      });
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    const dataUrl = buildAnnotatedImageDataUrl();
+
+    if (!supabase) {
+      setNotice({
+        type: "error",
+        message: "Supabase environment variables are not configured.",
+      });
+      return;
+    }
+
+    if (!dataUrl) {
+      return;
+    }
+
+    setIsSaving(true);
+    setNotice(null);
+
+    try {
+      await saveAnnotatedTicketAttachment({
+        supabase,
+        attachmentId,
+        dataUrl,
+      });
+      setNotice({
+        type: "success",
+        message: "Edited photo saved back to the ticket.",
+      });
+    } catch (saveError) {
+      setNotice({
+        type: "error",
+        message: saveError instanceof Error ? saveError.message : "Failed to save the edited photo.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function buildAnnotatedImageDataUrl() {
     const image = imageRef.current;
     const overlay = canvasRef.current;
 
     if (!image || !overlay) {
-      return;
+      return null;
     }
 
     const exportCanvas = document.createElement("canvas");
@@ -137,16 +206,13 @@ export function AnnotateMediaClient({
     const context = exportCanvas.getContext("2d");
 
     if (!context) {
-      return;
+      return null;
     }
 
     context.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
     context.drawImage(overlay, 0, 0, exportCanvas.width, exportCanvas.height);
 
-    const link = document.createElement("a");
-    link.href = exportCanvas.toDataURL("image/png");
-    link.download = `${imageName.replace(/\.[^.]+$/, "")}-annotated.png`;
-    link.click();
+    return exportCanvas.toDataURL("image/png");
   }
 
   return (
@@ -181,6 +247,14 @@ export function AnnotateMediaClient({
             </button>
             <button
               type="button"
+              onClick={() => void handleSaveToTicket()}
+              disabled={isSaving || !attachmentId}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSaving ? "Saving..." : "Save to Ticket"}
+            </button>
+            <button
+              type="button"
               onClick={handleDownload}
               className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
@@ -188,6 +262,18 @@ export function AnnotateMediaClient({
             </button>
           </div>
         </div>
+
+        {notice ? (
+          <div
+            className={`mt-6 rounded-2xl px-4 py-3 text-sm ${
+              notice.type === "success"
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border border-rose-200 bg-rose-50 text-rose-700"
+            }`}
+          >
+            {notice.message}
+          </div>
+        ) : null}
 
         {hasImage ? (
           <>

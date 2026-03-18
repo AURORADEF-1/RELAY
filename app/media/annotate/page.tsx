@@ -9,12 +9,17 @@ export default async function AnnotateMediaPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
+  const attachmentId = getSingleValue(params.attachmentId);
   const imageSrc = getSingleValue(params.src);
   const imageName = getSingleValue(params.name) || "ticket-photo";
 
   return (
     <Suspense fallback={<AnnotateMediaLoadingState />}>
-      <AnnotateMediaClient imageSrc={imageSrc} imageName={imageName} />
+      <AnnotateMediaClient
+        attachmentId={attachmentId}
+        imageSrc={imageSrc}
+        imageName={imageName}
+      />
     </Suspense>
   );
 }
