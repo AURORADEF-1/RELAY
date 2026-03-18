@@ -161,13 +161,26 @@ export default function RequestsPage() {
     setErrorMessage("");
 
     try {
-      const { error: insertError } = await supabase.from("ticket_updates").insert({
-        ticket_id: ticket.id,
-        comment: "Part collected by requester.",
-      });
+      const { data: existingCollectedUpdate, error: existingCollectedError } = await supabase
+        .from("ticket_updates")
+        .select("id")
+        .eq("ticket_id", ticket.id)
+        .eq("comment", "Part collected by requester.")
+        .limit(1);
 
-      if (insertError) {
-        throw new Error(insertError.message);
+      if (existingCollectedError) {
+        throw new Error(existingCollectedError.message);
+      }
+
+      if ((existingCollectedUpdate ?? []).length === 0) {
+        const { error: insertError } = await supabase.from("ticket_updates").insert({
+          ticket_id: ticket.id,
+          comment: "Part collected by requester.",
+        });
+
+        if (insertError) {
+          throw new Error(insertError.message);
+        }
       }
 
       await notifyAdminsOfPartCollected(supabase, {

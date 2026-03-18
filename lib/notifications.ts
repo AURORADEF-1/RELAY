@@ -29,6 +29,16 @@ type NotificationInsert = {
   body: string;
 };
 
+function clampNotificationText(value: string, maxLength: number) {
+  const trimmed = value.trim();
+
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
 export async function fetchUnreadNotifications(
   supabase: SupabaseClient,
   userId: string,
@@ -314,14 +324,30 @@ export async function notifyAdminsOfPartCollected(
     ? `${payload.requesterName.trim()} collected the part. Do you want to complete the job?`
     : `A part was collected for ${payload.requestSummary?.trim() || "a request"}. Do you want to complete the job?`;
 
+  const { data: existingNotifications, error: existingNotificationError } = await supabase
+    .from("notifications")
+    .select("id")
+    .eq("ticket_id", payload.ticketId)
+    .eq("type", "part_collected")
+    .is("read_at", null)
+    .limit(1);
+
+  if (existingNotificationError) {
+    throw new Error(existingNotificationError.message);
+  }
+
+  if ((existingNotifications ?? []).length > 0) {
+    return;
+  }
+
   await insertNotifications(
     supabase,
     adminUserIds.map((userId) => ({
       user_id: userId,
       ticket_id: payload.ticketId,
       type: "part_collected",
-      title,
-      body,
+      title: clampNotificationText(title, 120),
+      body: clampNotificationText(body, 240),
     })),
   );
 }
