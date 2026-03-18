@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -33,6 +33,7 @@ export default function RequestsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [workingCollectedTicketId, setWorkingCollectedTicketId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadTickets = useCallback(async () => {
     setIsLoading(true);
@@ -127,6 +128,26 @@ export default function RequestsPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadTickets]);
+
+  const filteredTickets = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return tickets;
+    }
+
+    return tickets.filter((ticket) =>
+      [
+        ticket.job_number,
+        ticket.machine_reference,
+        ticket.request_summary,
+        ticket.request_details,
+        ticket.assigned_to,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => value.toLowerCase().includes(normalizedQuery)),
+    );
+  }, [searchQuery, tickets]);
 
   async function handleMarkCollected(ticket: Ticket) {
     const supabase = getSupabaseClient();
@@ -244,14 +265,23 @@ export default function RequestsPage() {
           </div>
 
           <div className="mt-6 flex justify-end">
-            <button
-              type="button"
-              onClick={() => void loadTickets()}
-              disabled={isLoading}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isLoading ? "Refreshing..." : "Refresh"}
-            </button>
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search job number, plant number, or part"
+                className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 sm:max-w-sm"
+              />
+              <button
+                type="button"
+                onClick={() => void loadTickets()}
+                disabled={isLoading}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isLoading ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
           </div>
 
           {errorMessage ? (
@@ -282,17 +312,17 @@ export default function RequestsPage() {
                         Loading requests...
                       </td>
                     </tr>
-                  ) : tickets.length === 0 ? (
+                  ) : filteredTickets.length === 0 ? (
                     <tr>
                       <td
                         colSpan={5}
                         className="px-6 py-10 text-center text-sm text-slate-500"
                       >
-                        No requests found.
+                        No requests match the current search.
                       </td>
                     </tr>
                   ) : (
-                    tickets.map((ticket) => (
+                    filteredTickets.map((ticket) => (
                       <tr key={ticket.id} className="align-top">
                         <td className="px-6 py-5 text-sm text-slate-600">
                           <div className="space-y-1">
@@ -353,12 +383,12 @@ export default function RequestsPage() {
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
                   Loading requests...
                 </div>
-              ) : tickets.length === 0 ? (
+              ) : filteredTickets.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
-                  No requests found.
+                  No requests match the current search.
                 </div>
               ) : (
-                tickets.map((ticket) => (
+                filteredTickets.map((ticket) => (
                   <article
                     key={ticket.id}
                     className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
