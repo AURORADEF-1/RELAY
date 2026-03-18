@@ -220,8 +220,7 @@ export function NotificationProvider({
           currentPath === "/control" ||
           currentPath === "/completed" ||
           currentPath.startsWith("/tickets/")
-        : currentPath === "/requests" ||
-          currentPath === "/tasks" ||
+        : currentPath === "/tasks" ||
           currentPath.startsWith("/tickets/");
 
       if (!shouldMarkRead) {
@@ -370,7 +369,9 @@ export function NotificationProvider({
             console.error("Failed to update RELAY user presence", presenceError);
           });
         }, getPresenceHeartbeatMs());
-        await syncUnreadNotifications(supabase, user.id, adminUser);
+        await syncUnreadNotifications(supabase, user.id, adminUser, {
+          showToasts: true,
+        });
 
         if (adminUser) {
           await refreshPendingTicketCount();
