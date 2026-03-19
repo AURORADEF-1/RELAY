@@ -16,3 +16,17 @@ export function getSupabaseClient() {
 
   return browserClient;
 }
+
+export async function getSupabaseAccessToken() {
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return session?.access_token ?? null;
+}

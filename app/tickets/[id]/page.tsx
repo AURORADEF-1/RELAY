@@ -32,7 +32,8 @@ import {
 } from "@/lib/relay-ticketing";
 import type { RelayAiContext } from "@/lib/relay-ai";
 import { ticketStatuses } from "@/lib/statuses";
-import { getSupabaseClient } from "@/lib/supabase";
+import { sanitizeUserFacingError } from "@/lib/security";
+import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
 
 const OPERATOR_NUMBERS = [
   { label: "Call Operator 1", number: "07955273861" },
@@ -128,7 +129,9 @@ export default function TicketDetailPage() {
       .single();
 
     if (ticketError) {
-      setErrorMessage(ticketError.message);
+      setErrorMessage(
+        sanitizeUserFacingError(ticketError, "Unable to load this ticket."),
+      );
       setIsLoading(false);
       return;
     }
@@ -140,7 +143,9 @@ export default function TicketDetailPage() {
       .order("created_at", { ascending: false });
 
     if (updatesError) {
-      setErrorMessage(updatesError.message);
+      setErrorMessage(
+        sanitizeUserFacingError(updatesError, "Unable to load ticket history."),
+      );
       setTicket(ticketData as TicketRecord);
       setUpdates([]);
       setEditDraft(buildTicketEditDraft(ticketData as TicketRecord));
@@ -167,7 +172,7 @@ export default function TicketDetailPage() {
       setMessages(messageData);
     } catch (loadError) {
       setErrorMessage(
-        loadError instanceof Error ? loadError.message : "Failed to load ticket chat.",
+        sanitizeUserFacingError(loadError, "Failed to load ticket chat."),
       );
     }
 
@@ -215,7 +220,7 @@ export default function TicketDetailPage() {
       setErrorMessage("Supabase environment variables are not configured.");
       setChatNotice({
         type: "error",
-        message: "Supabase environment variables are not configured.",
+        message: "Unable to send a message right now.",
       });
       return false;
     }
@@ -267,7 +272,7 @@ export default function TicketDetailPage() {
     } catch (sendError) {
       console.error("Ticket chat send failed", sendError);
       const message =
-        sendError instanceof Error ? sendError.message : "Failed to send message.";
+        sanitizeUserFacingError(sendError, "Failed to send message.");
       setErrorMessage(
         message,
       );
@@ -290,6 +295,12 @@ export default function TicketDetailPage() {
     setErrorMessage("");
 
     try {
+      const accessToken = await getSupabaseAccessToken();
+
+      if (!accessToken) {
+        throw new Error("Authentication is required.");
+      }
+
       const ticketContext: RelayAiContext = {
         ticketId: ticket.id,
         status: ticket.status ?? "PENDING",
@@ -317,6 +328,7 @@ export default function TicketDetailPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           question,
@@ -346,7 +358,7 @@ export default function TicketDetailPage() {
       ]);
     } catch (aiError) {
       setErrorMessage(
-        aiError instanceof Error ? aiError.message : "Failed to get AI response.",
+        sanitizeUserFacingError(aiError, "Failed to get AI response."),
       );
     } finally {
       setIsAiLoading(false);
@@ -355,6 +367,11 @@ export default function TicketDetailPage() {
 
   async function handleSaveTicketEdit() {
     if (!ticket || !editDraft) {
+      return;
+    }
+
+    if (!isAdmin) {
+      setErrorMessage("Admin access is required for this action.");
       return;
     }
 
@@ -387,7 +404,9 @@ export default function TicketDetailPage() {
       .eq("id", ticket.id);
 
     if (updateError) {
-      setErrorMessage(updateError.message);
+      setErrorMessage(
+        sanitizeUserFacingError(updateError, "Unable to save ticket changes."),
+      );
       setIsSavingEdit(false);
       return;
     }
@@ -400,7 +419,9 @@ export default function TicketDetailPage() {
       });
 
       if (statusError) {
-        setErrorMessage(statusError.message);
+        setErrorMessage(
+          sanitizeUserFacingError(statusError, "Unable to record the status update."),
+        );
         setIsSavingEdit(false);
         return;
       }
@@ -421,7 +442,9 @@ export default function TicketDetailPage() {
       });
 
       if (noteError) {
-        setErrorMessage(noteError.message);
+        setErrorMessage(
+          sanitizeUserFacingError(noteError, "Unable to save the ticket note."),
+        );
         setIsSavingEdit(false);
         return;
       }
@@ -471,7 +494,7 @@ export default function TicketDetailPage() {
       setAttachments((current) => current.filter((candidate) => candidate.id !== attachmentId));
     } catch (deleteError) {
       setErrorMessage(
-        deleteError instanceof Error ? deleteError.message : "Failed to delete the photo.",
+        sanitizeUserFacingError(deleteError, "Failed to delete the photo."),
       );
     } finally {
       setDeletingAttachmentId(null);
@@ -527,7 +550,10 @@ export default function TicketDetailPage() {
       await loadTicket();
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to mark the request as collected.",
+        sanitizeUserFacingError(
+          error,
+          "Unable to mark the request as collected.",
+        ),
       );
     } finally {
       setIsMarkingCollected(false);

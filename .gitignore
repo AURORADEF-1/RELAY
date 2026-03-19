@@ -23,6 +23,15 @@
 # misc
 .DS_Store
 *.pem
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+.AppleDouble
+.LSOverride
 
 # debug
 npm-debug.log*
@@ -30,8 +39,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
+.env.local
+.env.*.local
 
 # vercel
 .vercel

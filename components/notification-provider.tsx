@@ -329,8 +329,7 @@ export function NotificationProvider({
           pollInterval = null;
         }
 
-        const { user, profile, accessLevel, isAdmin: adminUser } =
-          await getCurrentUserWithRole(supabase);
+        const { user, isAdmin: adminUser } = await getCurrentUserWithRole(supabase);
 
         if (!isMounted) {
           return;
@@ -340,14 +339,6 @@ export function NotificationProvider({
           await clearNotificationState();
           return;
         }
-
-        console.log("RELAY access debug", {
-          authEmail: user?.email,
-          profileRole: profile?.role,
-          profileUsername: profile?.username,
-          profileDisplayName: profile?.display_name,
-          computedAccess: accessLevel,
-        });
 
         setIsAuthenticated(true);
         setIsAdmin(adminUser);

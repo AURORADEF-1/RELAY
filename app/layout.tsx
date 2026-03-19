@@ -10,6 +10,14 @@ export const metadata: Metadata = {
   title: "RELAY",
   description: "MLP Parts Request Workflow",
   applicationName: "RELAY",
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
+  },
 };
 
 export default function RootLayout({

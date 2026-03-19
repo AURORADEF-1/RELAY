@@ -11,6 +11,7 @@ import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type CompletedTicket = {
@@ -69,7 +70,9 @@ export default function CompletedPage() {
       .order("updated_at", { ascending: false });
 
     if (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Unable to load completed jobs."),
+      );
       setTickets([]);
       setIsLoading(false);
       return;
@@ -115,7 +118,7 @@ export default function CompletedPage() {
     if (error) {
       setNotice({
         type: "error",
-        message: error.message,
+        message: sanitizeUserFacingError(error, "Unable to delete this completed job."),
       });
       setDeletingTicketId(null);
       return;
@@ -157,7 +160,7 @@ export default function CompletedPage() {
     if (updateError) {
       setNotice({
         type: "error",
-        message: updateError.message,
+        message: sanitizeUserFacingError(updateError, "Unable to reopen this completed job."),
       });
       setDeletingTicketId(null);
       return;
@@ -172,7 +175,7 @@ export default function CompletedPage() {
     if (historyError) {
       setNotice({
         type: "error",
-        message: historyError.message,
+        message: sanitizeUserFacingError(historyError, "Unable to record the reopen event."),
       });
       setDeletingTicketId(null);
       return;

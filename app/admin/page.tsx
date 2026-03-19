@@ -30,6 +30,7 @@ import {
 } from "@/lib/notifications";
 import { fetchProfileAvatarUrls } from "@/lib/profile-settings";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { sanitizeUserFacingError } from "@/lib/security";
 import {
   activeTicketStatusOptions,
   activeTicketStatuses,
@@ -38,6 +39,7 @@ import {
 } from "@/lib/statuses";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { getSupabaseClient } from "@/lib/supabase";
+import { getSupabaseAccessToken } from "@/lib/supabase";
 
 const ADMIN_CHAT_READ_STORAGE_KEY = "relay-admin-chat-last-opened";
 const ADMIN_DASHBOARD_VIEW_STORAGE_KEY = "relay-admin-dashboard-view-mode";
@@ -113,6 +115,23 @@ export default function AdminPage() {
     "operations",
   );
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
+
+  async function verifyAdminActionAccess() {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      throw new Error("Supabase environment variables are not configured.");
+    }
+
+    const { user, isAdmin } = await getCurrentUserWithRole(supabase);
+
+    if (!user || !isAdmin) {
+      throw new Error("Admin access is required for this action.");
+    }
+
+    return supabase;
+  }
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -178,7 +197,9 @@ export default function AdminPage() {
 
     if (error) {
       setTickets([]);
-      setErrorMessage(error.message);
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Unable to load live parts requests."),
+      );
       setIsLoading(false);
       return;
     }
@@ -444,10 +465,14 @@ export default function AdminPage() {
     setUpdatingTicketId(ticketId);
     setErrorMessage("");
 
-    const supabase = getSupabaseClient();
+    let supabase: ReturnType<typeof getSupabaseClient>;
 
-    if (!supabase) {
-      setErrorMessage("Supabase environment variables are not configured.");
+    try {
+      supabase = await verifyAdminActionAccess();
+    } catch (error) {
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Admin access is required for this action."),
+      );
       setUpdatingTicketId(null);
       return;
     }
@@ -458,7 +483,9 @@ export default function AdminPage() {
       .eq("id", ticketId);
 
     if (updateError) {
-      setErrorMessage(updateError.message);
+      setErrorMessage(
+        sanitizeUserFacingError(updateError, "Unable to update ticket status."),
+      );
       setUpdatingTicketId(null);
       return;
     }
@@ -468,7 +495,9 @@ export default function AdminPage() {
       .insert({ ticket_id: ticketId, status: nextStatus });
 
     if (insertError) {
-      setErrorMessage(insertError.message);
+      setErrorMessage(
+        sanitizeUserFacingError(insertError, "Unable to record the ticket update."),
+      );
       setUpdatingTicketId(null);
       return;
     }
@@ -508,11 +537,21 @@ export default function AdminPage() {
   }
 
   async function handleTicketSave(ticketId: string) {
-    const supabase = getSupabaseClient();
     const draft = drafts[ticketId];
 
-    if (!supabase || !draft) {
-      setErrorMessage("Supabase environment variables are not configured.");
+    if (!draft) {
+      setErrorMessage("Unable to load the latest ticket changes.");
+      return;
+    }
+
+    let supabase: ReturnType<typeof getSupabaseClient>;
+
+    try {
+      supabase = await verifyAdminActionAccess();
+    } catch (error) {
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Admin access is required for this action."),
+      );
       return;
     }
 
@@ -528,7 +567,9 @@ export default function AdminPage() {
       .eq("id", ticketId);
 
     if (updateError) {
-      setErrorMessage(updateError.message);
+      setErrorMessage(
+        sanitizeUserFacingError(updateError, "Unable to save ticket changes."),
+      );
       setUpdatingTicketId(null);
       return;
     }
@@ -540,7 +581,9 @@ export default function AdminPage() {
       });
 
       if (insertError) {
-        setErrorMessage(insertError.message);
+        setErrorMessage(
+          sanitizeUserFacingError(insertError, "Unable to save the ticket note."),
+        );
         setUpdatingTicketId(null);
         return;
       }
@@ -647,13 +690,19 @@ export default function AdminPage() {
       return false;
     }
 
-    const supabase = getSupabaseClient();
+    let supabase: ReturnType<typeof getSupabaseClient>;
 
-    if (!supabase) {
-      setErrorMessage("Supabase environment variables are not configured.");
+    try {
+      supabase = await verifyAdminActionAccess();
+    } catch (error) {
+      const message = sanitizeUserFacingError(
+        error,
+        "Admin access is required for this action.",
+      );
+      setErrorMessage(message);
       setChatNotice({
         type: "error",
-        message: "Supabase environment variables are not configured.",
+        message,
       });
       return false;
     }
@@ -705,11 +754,11 @@ export default function AdminPage() {
       return true;
     } catch (chatError) {
       console.error("Admin ticket chat send failed", chatError);
-      const message =
-        chatError instanceof Error ? chatError.message : "Failed to send chat reply.";
-      setErrorMessage(
-        message,
+      const message = sanitizeUserFacingError(
+        chatError,
+        "Failed to send chat reply.",
       );
+      setErrorMessage(message);
       setChatNotice({
         type: "error",
         message,
@@ -729,6 +778,12 @@ export default function AdminPage() {
     setErrorMessage("");
 
     try {
+      const accessToken = await getSupabaseAccessToken();
+
+      if (!accessToken) {
+        throw new Error("Authentication is required.");
+      }
+
       const ticketContext: RelayAiContext = {
         ticketId: selectedChatTicket.id,
         status: selectedChatTicket.status ?? "PENDING",
@@ -753,6 +808,7 @@ export default function AdminPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           question,
@@ -782,7 +838,7 @@ export default function AdminPage() {
       ]);
     } catch (aiError) {
       setErrorMessage(
-        aiError instanceof Error ? aiError.message : "Failed to get AI response.",
+        sanitizeUserFacingError(aiError, "Failed to get AI response."),
       );
     } finally {
       setIsAiLoading(false);

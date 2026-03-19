@@ -10,6 +10,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   fetchWorkshopIncidentAttachments,
@@ -112,7 +113,7 @@ export default function IncidentDetailPage() {
         setIsLoading(false);
       } catch (error) {
         setErrorMessage(
-          error instanceof Error ? error.message : "Unable to load incident.",
+          sanitizeUserFacingError(error, "Unable to load incident."),
         );
         setIsLoading(false);
       }
@@ -130,6 +131,11 @@ export default function IncidentDetailPage() {
       return;
     }
 
+    if (!isAdmin) {
+      setErrorMessage("Admin access is required for this action.");
+      return;
+    }
+
     const supabase = getSupabaseClient();
 
     if (!supabase) {
@@ -142,7 +148,7 @@ export default function IncidentDetailPage() {
       setIncident(updatedIncident);
     }).catch((error) => {
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to update incident status.",
+        sanitizeUserFacingError(error, "Unable to update incident status."),
       );
     });
   }

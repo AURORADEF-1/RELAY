@@ -10,6 +10,7 @@ import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { notifyAdminsOfPartCollected } from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { sanitizeUserFacingError } from "@/lib/security";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -48,9 +49,7 @@ export default function RequestsPage() {
       return;
     }
 
-    const { user, profile, accessLevel, isAdmin } = await getCurrentUserWithRole(
-      supabase,
-    );
+    const { user, isAdmin } = await getCurrentUserWithRole(supabase);
 
     if (!user) {
       setTickets([]);
@@ -71,28 +70,16 @@ export default function RequestsPage() {
       query = query.eq("user_id", user.id);
     }
 
-    console.log("RELAY request query debug", {
-      email: user?.email,
-      profileRole: profile?.role,
-      profileUsername: profile?.username,
-      access: accessLevel,
-      mode: isAdmin ? "admin-all-requests" : "user-own-requests",
-    });
-
     const { data, error } = await query;
 
     if (error) {
       setTickets([]);
-      setErrorMessage(error.message);
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Unable to load your requests right now."),
+      );
       setIsLoading(false);
       return;
     }
-
-    console.log("RELAY request query debug result", {
-      email: user?.email,
-      access: accessLevel,
-      rowCount: data?.length ?? 0,
-    });
 
     const nextTickets = (data ?? []) as Ticket[];
     setTickets(nextTickets);
@@ -193,7 +180,10 @@ export default function RequestsPage() {
       setCollectedTicketIds((current) => new Set(current).add(ticket.id));
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to mark the request as collected.",
+        sanitizeUserFacingError(
+          error,
+          "Unable to mark the request as collected.",
+        ),
       );
     } finally {
       setWorkingCollectedTicketId(null);

@@ -6,6 +6,10 @@ import {
   extractRelayAiResponseText,
   type RelayAiContext,
 } from "@/lib/relay-ai";
+import {
+  getRelaySessionUserFromRequest,
+  requestCanAccessTicket,
+} from "@/lib/security";
 
 export async function POST(
   request: NextRequest,
@@ -31,8 +35,21 @@ export async function POST(
     );
   }
 
+  const sessionUser = await getRelaySessionUserFromRequest(request);
+
+  if (!sessionUser) {
+    return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+  }
+
+  const canAccessTicket = await requestCanAccessTicket(request, id);
+
+  if (!canAccessTicket) {
+    return NextResponse.json({ error: "You do not have access to this ticket." }, { status: 403 });
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
 
+  // Safeguard: never attempt a paid OpenAI request when the API key is missing.
   if (!apiKey) {
     const message = buildRelayAiPlaceholderResponse(
       body.question,
@@ -65,18 +82,10 @@ export async function POST(
     const payload = (await response.json()) as unknown;
 
     if (!response.ok) {
-      const message =
-        typeof payload === "object" &&
-        payload !== null &&
-        "error" in payload &&
-        typeof payload.error === "object" &&
-        payload.error !== null &&
-        "message" in payload.error &&
-        typeof payload.error.message === "string"
-          ? payload.error.message
-          : "OpenAI request failed.";
-
-      return NextResponse.json({ error: message }, { status: 502 });
+      return NextResponse.json(
+        { error: "The AI service is unavailable right now." },
+        { status: 502 },
+      );
     }
 
     const message =
@@ -90,11 +99,14 @@ export async function POST(
       source: "openai-responses",
     });
   } catch (error) {
-    console.error("RELAY AI route failed", error);
+    console.error("RELAY AI route failed", {
+      ticketId: id,
+      userId: sessionUser.id,
+      message: error instanceof Error ? error.message : "Unknown AI route failure",
+    });
     return NextResponse.json(
       { error: "Failed to contact the AI service." },
       { status: 502 },
     );
   }
-
 }

@@ -9,38 +9,33 @@ export type AppProfile = {
 
 export type AccessLevel = "admin" | "user";
 
+function getNormalizedEmailLocalPart(user: User | null) {
+  const email = (user?.email || "").toLowerCase().trim();
+  return email.split("@")[0] || "";
+}
+
 export function getAccessLevel(user: User | null, profile: AppProfile): AccessLevel {
   const email = (user?.email || "").toLowerCase().trim();
-  const username = (profile?.username || "").toLowerCase().trim();
-  const displayName = (profile?.display_name || "").toLowerCase().trim();
+  const emailLocalPart = getNormalizedEmailLocalPart(user);
   const role = (profile?.role || "").toLowerCase().trim();
-  const identity = `${username} ${displayName}`;
-
-  if (email === "admin@mlp.local") {
-    return "admin";
-  }
-
-  if (email.includes(".admin")) {
-    return "admin";
-  }
-
-  if (email.includes(".user")) {
-    return "user";
-  }
-
-  if (identity.includes(".admin")) {
-    return "admin";
-  }
-
-  if (identity.includes(".user")) {
-    return "user";
-  }
 
   if (role === "admin") {
     return "admin";
   }
 
   if (role === "user") {
+    return "user";
+  }
+
+  if (email === "admin@mlp.local") {
+    return "admin";
+  }
+
+  if (emailLocalPart.endsWith(".admin")) {
+    return "admin";
+  }
+
+  if (emailLocalPart.endsWith(".user")) {
     return "user";
   }
 
@@ -57,12 +52,13 @@ export function isUserOnly(user: User | null, profile: AppProfile) {
 
 function getDerivedProfileRole(user: User | null): "admin" | "user" | null {
   const email = (user?.email || "").toLowerCase().trim();
+  const emailLocalPart = getNormalizedEmailLocalPart(user);
 
-  if (email === "admin@mlp.local" || email.includes(".admin")) {
+  if (email === "admin@mlp.local" || emailLocalPart.endsWith(".admin")) {
     return "admin";
   }
 
-  if (email.includes(".user")) {
+  if (emailLocalPart.endsWith(".user")) {
     return "user";
   }
 
@@ -168,14 +164,6 @@ export async function getCurrentUserWithRole(supabase: SupabaseClient): Promise<
   );
 
   const accessLevel = getAccessLevel(user, syncedProfile);
-
-  console.log("RELAY access debug", {
-    authEmail: user?.email,
-    profileRole: syncedProfile?.role,
-    profileUsername: syncedProfile?.username,
-    profileDisplayName: syncedProfile?.display_name,
-    computedAccess: accessLevel,
-  });
 
   return {
     user,

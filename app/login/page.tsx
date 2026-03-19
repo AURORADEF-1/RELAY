@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RelayLogo } from "@/components/relay-logo";
+import { sanitizeAuthError } from "@/lib/security";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export default function LoginPage() {
@@ -64,7 +65,7 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(sanitizeAuthError(error));
       setIsSubmitting(false);
       return;
     }
