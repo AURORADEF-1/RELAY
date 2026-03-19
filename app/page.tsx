@@ -223,6 +223,12 @@ export default function Home() {
                   Parts Control
                   <NotificationBadge count={adminBadgeCount} />
                 </Link>
+                <Link
+                  href="/retail"
+                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+                >
+                  Retail
+                </Link>
               </>
             ) : null}
             {isLoggedIn ? <LogoutButton /> : null}
@@ -304,6 +310,12 @@ export default function Home() {
                       >
                         Parts Control
                         <NotificationBadge count={adminBadgeCount} />
+                      </Link>
+                      <Link
+                        href="/retail"
+                        className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                      >
+                        Retail
                       </Link>
                     </>
                   ) : null}
