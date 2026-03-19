@@ -87,6 +87,7 @@ export default function AdminPage() {
     return "table";
   });
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [collectedTicketIds, setCollectedTicketIds] = useState<Set<string>>(new Set());
   const [drafts, setDrafts] = useState<Record<string, { assigned_to: string; notes: string }>>(
     {},
   );
@@ -205,6 +206,28 @@ export default function AdminPage() {
     }
 
     const nextTickets = (data ?? []) as Ticket[];
+
+    if (nextTickets.length > 0) {
+      const { data: updates } = await supabase
+        .from("ticket_updates")
+        .select("ticket_id, comment")
+        .in(
+          "ticket_id",
+          nextTickets.map((ticket) => ticket.id),
+        )
+        .eq("comment", "Part collected by requester.");
+
+      setCollectedTicketIds(
+        new Set(
+          (updates ?? [])
+            .map((update) => update.ticket_id)
+            .filter((ticketId): ticketId is string => typeof ticketId === "string"),
+        ),
+      );
+    } else {
+      setCollectedTicketIds(new Set());
+    }
+
     try {
       const avatars = await fetchProfileAvatarUrls(
         supabase,
@@ -1488,6 +1511,9 @@ export default function AdminPage() {
                           </td>
                           <td className="px-6 py-5">
                             <div className="space-y-3">
+                              {collectedTicketIds.has(ticket.id) ? (
+                                <CollectedBadge />
+                              ) : null}
                               <StatusSelect
                                 ticketId={ticket.id}
                                 value={ticket.status ?? "PENDING"}
@@ -1615,6 +1641,9 @@ export default function AdminPage() {
                           Update Status
                         </p>
                         <div className="mt-2 space-y-3">
+                          {collectedTicketIds.has(ticket.id) ? (
+                            <CollectedBadge />
+                          ) : null}
                           <StatusSelect
                             ticketId={ticket.id}
                             value={ticket.status ?? "PENDING"}
@@ -1693,6 +1722,11 @@ export default function AdminPage() {
                                     <p className="mt-1 text-sm text-slate-500">
                                       {ticket.requester_name ?? "Requester"}
                                     </p>
+                                    {collectedTicketIds.has(ticket.id) ? (
+                                      <div className="mt-2">
+                                        <CollectedBadge />
+                                      </div>
+                                    ) : null}
                                     </div>
                                   </div>
                                 </div>
@@ -1763,6 +1797,11 @@ export default function AdminPage() {
                           <p className="mt-1 text-sm text-slate-600">
                             {ticket.requester_name ?? "-"}
                           </p>
+                          {collectedTicketIds.has(ticket.id) ? (
+                            <div className="mt-2">
+                              <CollectedBadge />
+                            </div>
+                          ) : null}
                         </div>
                         <StatusBadge status={ticket.status ?? "PENDING"} />
                       </div>
@@ -2120,6 +2159,15 @@ function KpiCard({
       </p>
       <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
       <p className="mt-2 text-sm leading-6 text-slate-500">{helper}</p>
+    </div>
+  );
+}
+
+function CollectedBadge() {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+      Collected
     </div>
   );
 }
