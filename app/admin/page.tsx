@@ -932,9 +932,6 @@ export default function AdminPage() {
               Parts Control
               <NotificationBadge count={adminBadgeCount} />
             </Link>
-            <Link href="/retail" className="rounded-full px-4 py-2 hover:bg-white">
-              Retail
-            </Link>
             <LogoutButton />
           </div>
         </nav>
