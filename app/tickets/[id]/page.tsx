@@ -256,18 +256,18 @@ export default function TicketDetailPage() {
         type: "success",
         message: "Message sent successfully.",
       });
-      try {
-        await notifyAdminsOfRequesterMessage(supabase, {
-          ticketId: ticket.id,
-          requesterName: ticket.requester_name,
-          jobNumber: ticket.job_number,
-          requestSummary: ticket.request_summary ?? ticket.request_details,
-        });
-      } catch (notificationError) {
-        console.error("Failed to notify admins about requester message", notificationError);
-      }
       triggerActionFeedback();
-      await reloadTicketConversation(supabase, ticket.id);
+      void notifyAdminsOfRequesterMessage(supabase, {
+        ticketId: ticket.id,
+        requesterName: ticket.requester_name,
+        jobNumber: ticket.job_number,
+        requestSummary: ticket.request_summary ?? ticket.request_details,
+      }).catch((notificationError) => {
+        console.error("Failed to notify admins about requester message", notificationError);
+      });
+      void reloadTicketConversation(supabase, ticket.id).catch((conversationReloadError) => {
+        console.error("Failed to reload ticket conversation", conversationReloadError);
+      });
       return true;
     } catch (sendError) {
       console.error("Ticket chat send failed", sendError);
@@ -427,14 +427,6 @@ export default function TicketDetailPage() {
       }
     }
 
-    if (ticketPatch.status === "COMPLETED") {
-      try {
-        await deleteTicketAttachmentsForTicket(supabase, ticket.id);
-      } catch (attachmentError) {
-        console.error("Failed to delete completed ticket attachments", attachmentError);
-      }
-    }
-
     if ((ticket.notes ?? "").trim() !== (ticketPatch.notes ?? "").trim() && ticketPatch.notes) {
       const { error: noteError } = await supabase.from("ticket_updates").insert({
         ticket_id: ticket.id,
@@ -460,7 +452,12 @@ export default function TicketDetailPage() {
     );
     setIsEditing(false);
     setIsSavingEdit(false);
-    await loadTicket();
+    if (ticketPatch.status === "COMPLETED") {
+      void deleteTicketAttachmentsForTicket(supabase, ticket.id).catch((attachmentError) => {
+        console.error("Failed to delete completed ticket attachments", attachmentError);
+      });
+    }
+    void loadTicket();
   }
 
   async function handleDeleteAttachment(attachmentId: string) {

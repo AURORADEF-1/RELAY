@@ -283,17 +283,6 @@ export default function SubmitPage() {
         );
       }
 
-      try {
-        await notifyAdminsOfNewTicket(supabase, {
-          ticketId: ticket.id,
-          jobNumber: ticketPayload.job_number,
-          requesterName: ticketPayload.requester_name,
-          requestSummary: ticketPayload.request_summary,
-        });
-      } catch (notificationError) {
-        console.error("Failed to create admin notifications for new ticket", notificationError);
-      }
-
       if (queuedPhotos.length > 0) {
         try {
           const uploadedPhotos = await uploadTicketAttachments({
@@ -333,6 +322,14 @@ export default function SubmitPage() {
         `Ticket ${String(ticket.id).slice(0, 8)} submitted successfully. Status is now PENDING.`,
       );
       triggerActionFeedback();
+      void notifyAdminsOfNewTicket(supabase, {
+        ticketId: ticket.id,
+        jobNumber: ticketPayload.job_number,
+        requesterName: ticketPayload.requester_name,
+        requestSummary: ticketPayload.request_summary,
+      }).catch((notificationError) => {
+        console.error("Failed to create admin notifications for new ticket", notificationError);
+      });
       setValues({
         ...initialValues,
         requesterName: ticketPayload.requester_name,

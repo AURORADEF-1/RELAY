@@ -29,6 +29,12 @@ type NotificationInsert = {
   body: string;
 };
 
+const ADMIN_USER_CACHE_TTL_MS = 30_000;
+
+let cachedAdminUserIds: string[] | null = null;
+let cachedAdminUserIdsAt = 0;
+let adminUserIdsRequest: Promise<string[]> | null = null;
+
 function clampNotificationText(value: string, maxLength: number) {
   const trimmed = value.trim();
 
@@ -353,18 +359,44 @@ export async function notifyAdminsOfPartCollected(
 }
 
 async function fetchAdminUserIds(supabase: SupabaseClient) {
+  const now = Date.now();
+
+  if (
+    cachedAdminUserIds &&
+    now - cachedAdminUserIdsAt < ADMIN_USER_CACHE_TTL_MS
+  ) {
+    return cachedAdminUserIds;
+  }
+
+  if (adminUserIdsRequest) {
+    return adminUserIdsRequest;
+  }
+
+  adminUserIdsRequest = (async () => {
   const { data, error } = await supabase
     .from("profiles")
     .select("id")
     .eq("role", "admin");
 
   if (error) {
+      adminUserIdsRequest = null;
     throw new Error(error.message);
   }
 
-  return (data ?? [])
-    .map((profile) => profile.id)
-    .filter((id): id is string => typeof id === "string");
+    const nextAdminUserIds = (data ?? [])
+      .map((profile) => profile.id)
+      .filter((id): id is string => typeof id === "string");
+
+    cachedAdminUserIds = nextAdminUserIds;
+    cachedAdminUserIdsAt = Date.now();
+    adminUserIdsRequest = null;
+    return nextAdminUserIds;
+  })().catch((error: unknown) => {
+    adminUserIdsRequest = null;
+    throw error;
+  });
+
+  return adminUserIdsRequest;
 }
 
 async function insertNotifications(

@@ -77,6 +77,9 @@ export function NotificationProvider({
   const pathnameRef = useRef(pathname);
   const lastSoundAtRef = useRef(0);
   const knownUnreadIdsRef = useRef<Set<string>>(new Set());
+  const unreadSyncInFlightRef = useRef<Promise<void> | null>(null);
+  const pendingCountInFlightRef = useRef<Promise<void> | null>(null);
+  const pathReadInFlightRef = useRef<Promise<void> | null>(null);
   const [requesterUnreadCount, setRequesterUnreadCount] = useState(0);
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [pendingTicketCount, setPendingTicketCount] = useState(0);
@@ -128,20 +131,31 @@ export function NotificationProvider({
   }, []);
 
   const refreshPendingTicketCount = useCallback(async () => {
+    if (pendingCountInFlightRef.current) {
+      return pendingCountInFlightRef.current;
+    }
+
     const supabase = getSupabaseClient();
 
     if (!supabase) {
       return;
     }
 
-    const { count, error } = await supabase
-      .from("tickets")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "PENDING");
+    const request = (async () => {
+      const { count, error } = await supabase
+        .from("tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "PENDING");
 
-    if (!error) {
-      setPendingTicketCount(count ?? 0);
-    }
+      if (!error) {
+        setPendingTicketCount(count ?? 0);
+      }
+    })().finally(() => {
+      pendingCountInFlightRef.current = null;
+    });
+
+    pendingCountInFlightRef.current = request;
+    return request;
   }, []);
 
   const syncUnreadNotifications = useCallback(
@@ -151,57 +165,68 @@ export function NotificationProvider({
       adminUser: boolean,
       options?: { showToasts: boolean },
     ) => {
-      const unreadNotifications = await fetchUnreadNotifications(supabase, userId);
-      const unreadTaskNotifications = unreadNotifications.filter(
-        (notification) => notification.type === "task_assigned",
-      );
-      const unreadRequesterNotifications = unreadNotifications.filter(
-        (notification) => REQUEST_NOTIFICATION_TYPES.has(notification.type),
-      );
-      const nextUnreadIds = new Set(unreadNotifications.map((notification) => notification.id));
-
-      if (options?.showToasts) {
-        const nextToasts = unreadNotifications
-          .filter((notification) => !knownUnreadIdsRef.current.has(notification.id))
-          .sort(
-            (left, right) =>
-              new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
-          );
-
-        for (const notification of nextToasts) {
-          pushToast({
-            title: notification.title,
-            description: notification.body ?? "New RELAY activity.",
-            href:
-              notification.type === "task_assigned"
-                ? "/tasks"
-                : notification.ticket_id
-                  ? `/tickets/${notification.ticket_id}`
-                  : undefined,
-            tone: "success",
-            notificationId: notification.id,
-            persistent:
-              notification.type === "ready_reminder" ||
-              notification.type === "ready_for_collection",
-          });
-          playNotificationSound();
-        }
+      if (unreadSyncInFlightRef.current) {
+        return unreadSyncInFlightRef.current;
       }
 
-      knownUnreadIdsRef.current = nextUnreadIds;
+      const request = (async () => {
+        const unreadNotifications = await fetchUnreadNotifications(supabase, userId);
+        const unreadTaskNotifications = unreadNotifications.filter(
+          (notification) => notification.type === "task_assigned",
+        );
+        const unreadRequesterNotifications = unreadNotifications.filter(
+          (notification) => REQUEST_NOTIFICATION_TYPES.has(notification.type),
+        );
+        const nextUnreadIds = new Set(unreadNotifications.map((notification) => notification.id));
 
-      if (adminUser) {
-        setAdminUnreadCount(unreadNotifications.length);
-      } else {
-        setRequesterUnreadCount(unreadRequesterNotifications.length);
-        try {
-          const unreadTasks = await fetchUnreadTaskCount(supabase, userId);
-          setTaskUnreadCount(Math.max(unreadTasks, unreadTaskNotifications.length));
-        } catch (taskCountError) {
-          console.error("Failed to load RELAY unread task count", taskCountError);
-          setTaskUnreadCount(unreadTaskNotifications.length);
+        if (options?.showToasts) {
+          const nextToasts = unreadNotifications
+            .filter((notification) => !knownUnreadIdsRef.current.has(notification.id))
+            .sort(
+              (left, right) =>
+                new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
+            );
+
+          for (const notification of nextToasts) {
+            pushToast({
+              title: notification.title,
+              description: notification.body ?? "New RELAY activity.",
+              href:
+                notification.type === "task_assigned"
+                  ? "/tasks"
+                  : notification.ticket_id
+                    ? `/tickets/${notification.ticket_id}`
+                    : undefined,
+              tone: "success",
+              notificationId: notification.id,
+              persistent:
+                notification.type === "ready_reminder" ||
+                notification.type === "ready_for_collection",
+            });
+            playNotificationSound();
+          }
         }
-      }
+
+        knownUnreadIdsRef.current = nextUnreadIds;
+
+        if (adminUser) {
+          setAdminUnreadCount(unreadNotifications.length);
+        } else {
+          setRequesterUnreadCount(unreadRequesterNotifications.length);
+          try {
+            const unreadTasks = await fetchUnreadTaskCount(supabase, userId);
+            setTaskUnreadCount(Math.max(unreadTasks, unreadTaskNotifications.length));
+          } catch (taskCountError) {
+            console.error("Failed to load RELAY unread task count", taskCountError);
+            setTaskUnreadCount(unreadTaskNotifications.length);
+          }
+        }
+      })().finally(() => {
+        unreadSyncInFlightRef.current = null;
+      });
+
+      unreadSyncInFlightRef.current = request;
+      return request;
     },
     [playNotificationSound, pushToast],
   );
@@ -213,6 +238,10 @@ export function NotificationProvider({
       adminUser: boolean,
       currentPath: string,
     ) => {
+      if (pathReadInFlightRef.current) {
+        return pathReadInFlightRef.current;
+      }
+
       const shouldMarkRead = adminUser
         ? currentPath === "/admin" ||
           currentPath === "/incidents" ||
@@ -227,50 +256,55 @@ export function NotificationProvider({
         return;
       }
 
-      const unreadNotifications = await fetchUnreadNotifications(supabase, userId);
+      const request = (async () => {
+        const unreadNotifications = await fetchUnreadNotifications(supabase, userId);
 
-      if (unreadNotifications.length === 0) {
-        return;
-      }
+        if (unreadNotifications.length === 0) {
+          return;
+        }
 
-      const notificationsToMarkRead = adminUser
-        ? unreadNotifications
-        : currentPath === "/tasks"
-          ? unreadNotifications.filter((notification) => notification.type === "task_assigned")
-          : unreadNotifications.filter(
+        const notificationsToMarkRead = adminUser
+          ? unreadNotifications
+          : currentPath === "/tasks"
+            ? unreadNotifications.filter((notification) => notification.type === "task_assigned")
+            : unreadNotifications.filter(
+                (notification) =>
+                  REQUEST_NOTIFICATION_TYPES.has(notification.type) &&
+                  notification.type !== "ready_reminder" &&
+                  notification.type !== "ready_for_collection",
+              );
+
+        if (notificationsToMarkRead.length === 0) {
+          return;
+        }
+
+        await markNotificationsRead(
+          supabase,
+          notificationsToMarkRead.map((notification) => notification.id),
+        );
+
+        knownUnreadIdsRef.current = new Set(
+          unreadNotifications
+            .filter(
               (notification) =>
-                REQUEST_NOTIFICATION_TYPES.has(notification.type) &&
-                notification.type !== "ready_reminder" &&
-                notification.type !== "ready_for_collection",
-            );
+                !notificationsToMarkRead.some((readNotification) => readNotification.id === notification.id),
+            )
+            .map((notification) => notification.id),
+        );
 
-      if (notificationsToMarkRead.length === 0) {
-        return;
-      }
-
-      await markNotificationsRead(
-        supabase,
-        notificationsToMarkRead.map((notification) => notification.id),
-      );
-
-      knownUnreadIdsRef.current = new Set(
-        unreadNotifications
-          .filter(
-            (notification) =>
-              !notificationsToMarkRead.some((readNotification) => readNotification.id === notification.id),
-          )
-          .map((notification) => notification.id),
-      );
-
-      if (adminUser) {
-        setAdminUnreadCount(0);
-      } else {
-        if (currentPath === "/tasks") {
+        if (adminUser) {
+          setAdminUnreadCount(0);
+        } else if (currentPath === "/tasks") {
           setTaskUnreadCount(0);
         } else {
           setRequesterUnreadCount(0);
         }
-      }
+      })().finally(() => {
+        pathReadInFlightRef.current = null;
+      });
+
+      pathReadInFlightRef.current = request;
+      return request;
     },
     [],
   );

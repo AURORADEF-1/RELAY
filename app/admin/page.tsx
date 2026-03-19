@@ -525,27 +525,6 @@ export default function AdminPage() {
       return;
     }
 
-    try {
-      await notifyRequesterStatusChanged(supabase, {
-        userId: currentTicket.user_id,
-        ticketId,
-        jobNumber: currentTicket.job_number,
-        nextStatus,
-        requestSummary: currentTicket.request_summary ?? currentTicket.request_details,
-        assignedTo: drafts[ticketId]?.assigned_to || currentTicket.assigned_to,
-      });
-    } catch (notificationError) {
-      console.error("Failed to notify requester about status change", notificationError);
-    }
-
-    if (nextStatus === "COMPLETED") {
-      try {
-        await deleteTicketAttachmentsForTicket(supabase, ticketId);
-      } catch (attachmentError) {
-        console.error("Failed to delete completed ticket attachments", attachmentError);
-      }
-    }
-
     setTickets((current) =>
       nextStatus === "COMPLETED"
         ? current.filter((ticket) => ticket.id !== ticketId)
@@ -557,13 +536,42 @@ export default function AdminPage() {
       setSelectedChatTicketId(null);
     }
     setUpdatingTicketId(null);
+    void notifyRequesterStatusChanged(supabase, {
+      userId: currentTicket.user_id,
+      ticketId,
+      jobNumber: currentTicket.job_number,
+      nextStatus,
+      requestSummary: currentTicket.request_summary ?? currentTicket.request_details,
+      assignedTo: drafts[ticketId]?.assigned_to || currentTicket.assigned_to,
+    }).catch((notificationError) => {
+      console.error("Failed to notify requester about status change", notificationError);
+    });
+
+    if (nextStatus === "COMPLETED") {
+      void deleteTicketAttachmentsForTicket(supabase, ticketId).catch((attachmentError) => {
+        console.error("Failed to delete completed ticket attachments", attachmentError);
+      });
+    }
   }
 
   async function handleTicketSave(ticketId: string) {
     const draft = drafts[ticketId];
+    const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
 
-    if (!draft) {
+    if (!draft || !currentTicket) {
       setErrorMessage("Unable to load the latest ticket changes.");
+      return;
+    }
+
+    const nextAssignedTo = draft.assigned_to.trim();
+    const nextNotes = draft.notes.trim();
+    const currentAssignedTo = currentTicket.assigned_to?.trim() ?? "";
+    const currentNotes = currentTicket.notes?.trim() ?? "";
+    const assignmentChanged = nextAssignedTo !== currentAssignedTo;
+    const notesChanged = nextNotes !== currentNotes;
+
+    if (!assignmentChanged && !notesChanged) {
+      setUpdatingTicketId(null);
       return;
     }
 
@@ -584,8 +592,8 @@ export default function AdminPage() {
     const { error: updateError } = await supabase
       .from("tickets")
       .update({
-        assigned_to: draft.assigned_to || null,
-        notes: draft.notes || null,
+        assigned_to: nextAssignedTo || null,
+        notes: nextNotes || null,
       })
       .eq("id", ticketId);
 
@@ -597,10 +605,10 @@ export default function AdminPage() {
       return;
     }
 
-    if (draft.notes.trim()) {
+    if (notesChanged && nextNotes) {
       const { error: insertError } = await supabase.from("ticket_updates").insert({
         ticket_id: ticketId,
-        comment: draft.notes.trim(),
+        comment: nextNotes,
       });
 
       if (insertError) {
@@ -617,8 +625,8 @@ export default function AdminPage() {
         ticket.id === ticketId
           ? {
               ...ticket,
-              assigned_to: draft.assigned_to || null,
-              notes: draft.notes || null,
+              assigned_to: nextAssignedTo || null,
+              notes: nextNotes || null,
             }
           : ticket,
       ),
@@ -760,20 +768,20 @@ export default function AdminPage() {
         type: "success",
         message: "Reply sent successfully.",
       });
-      try {
-        await notifyRequesterOfOperatorMessage(supabase, {
-          userId: selectedChatTicket.user_id,
-          ticketId: selectedChatTicket.id,
-          jobNumber: selectedChatTicket.job_number,
-          assignedTo: selectedChatTicket.assigned_to,
-          requestSummary:
-            selectedChatTicket.request_summary ?? selectedChatTicket.request_details,
-        });
-      } catch (notificationError) {
-        console.error("Failed to notify requester about operator reply", notificationError);
-      }
       triggerActionFeedback();
-      await reloadSelectedChatMessages(supabase, selectedChatTicket.id);
+      void notifyRequesterOfOperatorMessage(supabase, {
+        userId: selectedChatTicket.user_id,
+        ticketId: selectedChatTicket.id,
+        jobNumber: selectedChatTicket.job_number,
+        assignedTo: selectedChatTicket.assigned_to,
+        requestSummary:
+          selectedChatTicket.request_summary ?? selectedChatTicket.request_details,
+      }).catch((notificationError) => {
+        console.error("Failed to notify requester about operator reply", notificationError);
+      });
+      void reloadSelectedChatMessages(supabase, selectedChatTicket.id).catch((chatReloadError) => {
+        console.error("Failed to reload admin chat after reply", chatReloadError);
+      });
       return true;
     } catch (chatError) {
       console.error("Admin ticket chat send failed", chatError);
