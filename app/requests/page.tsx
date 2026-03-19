@@ -170,14 +170,18 @@ export default function RequestsPage() {
         }
       }
 
-      await notifyAdminsOfPartCollected(supabase, {
-        ticketId: ticket.id,
-        requesterName: ticket.requester_name ?? null,
-        jobNumber: ticket.job_number ?? null,
-        requestSummary: ticket.request_summary ?? ticket.request_details,
-      });
-
       setCollectedTicketIds((current) => new Set(current).add(ticket.id));
+
+      try {
+        await notifyAdminsOfPartCollected(supabase, {
+          ticketId: ticket.id,
+          requesterName: ticket.requester_name ?? null,
+          jobNumber: ticket.job_number ?? null,
+          requestSummary: ticket.request_summary ?? ticket.request_details,
+        });
+      } catch (notificationError) {
+        console.error("Failed to notify admins that a part was collected", notificationError);
+      }
     } catch (error) {
       setErrorMessage(
         sanitizeUserFacingError(
