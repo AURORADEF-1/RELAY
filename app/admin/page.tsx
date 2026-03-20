@@ -70,6 +70,7 @@ export default function AdminPage() {
   const loadTicketsRequestIdRef = useRef(0);
   const requesterMessagesRequestIdRef = useRef(0);
   const chatLoadRequestIdRef = useRef(0);
+  const activeTicketOperationIdsRef = useRef<Set<string>>(new Set());
   const [isKpiMinimized, setIsKpiMinimized] = useState(false);
   const [assignedUserFilter, setAssignedUserFilter] = useState("");
   const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS">(
@@ -122,30 +123,26 @@ export default function AdminPage() {
   const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
 
   function beginTicketOperation(ticketId: string) {
-    let started = false;
+    if (activeTicketOperationIdsRef.current.has(ticketId)) {
+      return false;
+    }
 
-    setActiveTicketOperationIds((current) => {
-      if (current.has(ticketId)) {
-        return current;
-      }
-
-      started = true;
-      return new Set(current).add(ticketId);
-    });
-
-    return started;
+    const next = new Set(activeTicketOperationIdsRef.current);
+    next.add(ticketId);
+    activeTicketOperationIdsRef.current = next;
+    setActiveTicketOperationIds(next);
+    return true;
   }
 
   function finishTicketOperation(ticketId: string) {
-    setActiveTicketOperationIds((current) => {
-      if (!current.has(ticketId)) {
-        return current;
-      }
+    if (!activeTicketOperationIdsRef.current.has(ticketId)) {
+      return;
+    }
 
-      const next = new Set(current);
-      next.delete(ticketId);
-      return next;
-    });
+    const next = new Set(activeTicketOperationIdsRef.current);
+    next.delete(ticketId);
+    activeTicketOperationIdsRef.current = next;
+    setActiveTicketOperationIds(next);
   }
 
   async function verifyAdminActionAccess() {
