@@ -27,8 +27,19 @@ type Ticket = {
   assigned_to?: string | null;
 };
 
+const REQUESTS_VIEW_STORAGE_KEY = "relay-requester-requests-view-mode";
+
 export default function RequestsPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const [viewMode, setViewMode] = useState<"standard" | "dynamic">(() => {
+    if (typeof window === "undefined") {
+      return "standard";
+    }
+
+    return window.localStorage.getItem(REQUESTS_VIEW_STORAGE_KEY) === "dynamic"
+      ? "dynamic"
+      : "standard";
+  });
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [collectedTicketIds, setCollectedTicketIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -273,6 +284,18 @@ export default function RequestsPage() {
 
           <div className="mt-6 flex justify-end">
             <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <select
+                value={viewMode}
+                onChange={(event) => {
+                  const nextMode = event.target.value as "standard" | "dynamic";
+                  setViewMode(nextMode);
+                  window.localStorage.setItem(REQUESTS_VIEW_STORAGE_KEY, nextMode);
+                }}
+                className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+              >
+                <option value="standard">Standard View</option>
+                <option value="dynamic">Dynamic View</option>
+              </select>
               <input
                 type="text"
                 value={searchQuery}
@@ -297,115 +320,30 @@ export default function RequestsPage() {
             </div>
           ) : null}
 
-          <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.4)]">
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    <th className="px-6 py-4">Job Number</th>
-                    <th className="px-6 py-4">Parts Requested</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Updated</th>
-                    <th className="px-6 py-4">Handled By</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {isLoading ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-6 py-10 text-center text-sm text-slate-500"
-                      >
-                        Loading requests...
-                      </td>
-                    </tr>
-                  ) : filteredTickets.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-6 py-10 text-center text-sm text-slate-500"
-                      >
-                        No requests match the current search.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredTickets.map((ticket) => (
-                      <tr key={ticket.id} className="align-top">
-                        <td className="px-6 py-5 text-sm text-slate-600">
-                          <div className="space-y-1">
-                            <Link
-                              href={`/tickets/${ticket.id}`}
-                              className="text-base font-semibold text-slate-900 transition hover:text-slate-600"
-                            >
-                              {ticket.job_number ?? "No job number"}
-                            </Link>
-                            <p className="text-xs text-slate-500">
-                              Machine {ticket.machine_reference ?? "-"}
-                            </p>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 text-sm text-slate-600">
-                          <div className="space-y-2">
-                          <Link
-                            href={`/tickets/${ticket.id}`}
-                            className="font-semibold text-slate-900 transition hover:text-slate-600"
-                          >
-                            {ticket.request_summary ?? ticket.request_details ?? "-"}
-                          </Link>
-                            <p className="text-xs uppercase tracking-wide text-slate-500">
-                              Request record only
-                            </p>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <StatusBadge status={ticket.status ?? "PENDING"} />
-                        </td>
-                        <td className="px-6 py-5 text-sm text-slate-500">
-                          {formatDate(ticket.updated_at)}
-                        </td>
-                        <td className="px-6 py-5 text-sm text-slate-500">
-                          <div className="space-y-2">
-                            <p>{ticket.assigned_to ?? "Stores queue"}</p>
-                            {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) ? (
-                              <button
-                                type="button"
-                                onClick={() => void handleMarkCollected(ticket)}
-                                disabled={workingCollectedTicketId === ticket.id}
-                                className="inline-flex h-9 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {workingCollectedTicketId === ticket.id ? "Saving..." : "Collected"}
-                              </button>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="grid gap-4 bg-slate-50 p-4 lg:hidden">
+          {viewMode === "dynamic" ? (
+            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {isLoading ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
                   Loading requests...
                 </div>
               ) : filteredTickets.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
                   No requests match the current search.
                 </div>
               ) : (
                 filteredTickets.map((ticket) => (
                   <article
                     key={ticket.id}
-                    className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                    className={`rounded-3xl border bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_-32px_rgba(15,23,42,0.28)] ${getDynamicRequestCardTone(
+                      ticket.status,
+                    )}`}
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
-                          Job Number
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Job
                         </p>
-                        <p className="mt-2 text-lg font-semibold text-slate-900">
+                        <p className="mt-2 truncate text-xl font-semibold text-slate-900">
                           <Link
                             href={`/tickets/${ticket.id}`}
                             className="transition hover:text-slate-600"
@@ -419,32 +357,196 @@ export default function RequestsPage() {
                       </div>
                       <StatusBadge status={ticket.status ?? "PENDING"} />
                     </div>
-                    <p className="mt-4 text-sm leading-7 text-slate-600">
+
+                    <p className="mt-5 line-clamp-4 text-sm leading-7 text-slate-700">
                       {ticket.request_summary ?? ticket.request_details ?? "-"}
                     </p>
-                    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                      <span>Updated {formatDate(ticket.updated_at)}</span>
-                      <span>Handled by {ticket.assigned_to ?? "Stores queue"}</span>
+
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                        Updated {formatDate(ticket.updated_at)}
+                      </span>
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                        {ticket.assigned_to ?? "Stores queue"}
+                      </span>
                     </div>
-                    {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleMarkCollected(ticket)}
-                        disabled={workingCollectedTicketId === ticket.id}
-                        className="mt-4 inline-flex h-10 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+
+                    <div className="mt-5 flex items-center justify-between gap-3">
+                      <Link
+                        href={`/tickets/${ticket.id}`}
+                        className="text-sm font-semibold text-slate-700 transition hover:text-slate-950"
                       >
-                        {workingCollectedTicketId === ticket.id ? "Saving..." : "Collected"}
-                      </button>
-                    ) : collectedTicketIds.has(ticket.id) ? (
-                      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                        Part collected
-                      </p>
-                    ) : null}
+                        Open request
+                      </Link>
+                      {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleMarkCollected(ticket)}
+                          disabled={workingCollectedTicketId === ticket.id}
+                          className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {workingCollectedTicketId === ticket.id ? "Saving..." : "Collected"}
+                        </button>
+                      ) : collectedTicketIds.has(ticket.id) ? (
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                          Part collected
+                        </p>
+                      ) : null}
+                    </div>
                   </article>
                 ))
               )}
             </div>
-          </div>
+          ) : (
+            <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.4)]">
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="px-6 py-4">Job Number</th>
+                      <th className="px-6 py-4">Parts Requested</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Updated</th>
+                      <th className="px-6 py-4">Handled By</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {isLoading ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-6 py-10 text-center text-sm text-slate-500"
+                        >
+                          Loading requests...
+                        </td>
+                      </tr>
+                    ) : filteredTickets.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-6 py-10 text-center text-sm text-slate-500"
+                        >
+                          No requests match the current search.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredTickets.map((ticket) => (
+                        <tr key={ticket.id} className="align-top">
+                          <td className="px-6 py-5 text-sm text-slate-600">
+                            <div className="space-y-1">
+                              <Link
+                                href={`/tickets/${ticket.id}`}
+                                className="text-base font-semibold text-slate-900 transition hover:text-slate-600"
+                              >
+                                {ticket.job_number ?? "No job number"}
+                              </Link>
+                              <p className="text-xs text-slate-500">
+                                Machine {ticket.machine_reference ?? "-"}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 text-sm text-slate-600">
+                            <div className="space-y-2">
+                            <Link
+                              href={`/tickets/${ticket.id}`}
+                              className="font-semibold text-slate-900 transition hover:text-slate-600"
+                            >
+                              {ticket.request_summary ?? ticket.request_details ?? "-"}
+                            </Link>
+                              <p className="text-xs uppercase tracking-wide text-slate-500">
+                                Request record only
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <StatusBadge status={ticket.status ?? "PENDING"} />
+                          </td>
+                          <td className="px-6 py-5 text-sm text-slate-500">
+                            {formatDate(ticket.updated_at)}
+                          </td>
+                          <td className="px-6 py-5 text-sm text-slate-500">
+                            <div className="space-y-2">
+                              <p>{ticket.assigned_to ?? "Stores queue"}</p>
+                              {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleMarkCollected(ticket)}
+                                  disabled={workingCollectedTicketId === ticket.id}
+                                  className="inline-flex h-9 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {workingCollectedTicketId === ticket.id ? "Saving..." : "Collected"}
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="grid gap-4 bg-slate-50 p-4 lg:hidden">
+                {isLoading ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
+                    Loading requests...
+                  </div>
+                ) : filteredTickets.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
+                    No requests match the current search.
+                  </div>
+                ) : (
+                  filteredTickets.map((ticket) => (
+                    <article
+                      key={ticket.id}
+                      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            Job Number
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-slate-900">
+                            <Link
+                              href={`/tickets/${ticket.id}`}
+                              className="transition hover:text-slate-600"
+                            >
+                              {ticket.job_number ?? "No job number"}
+                            </Link>
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Machine {ticket.machine_reference ?? "-"}
+                          </p>
+                        </div>
+                        <StatusBadge status={ticket.status ?? "PENDING"} />
+                      </div>
+                      <p className="mt-4 text-sm leading-7 text-slate-600">
+                        {ticket.request_summary ?? ticket.request_details ?? "-"}
+                      </p>
+                      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <span>Updated {formatDate(ticket.updated_at)}</span>
+                        <span>Handled by {ticket.assigned_to ?? "Stores queue"}</span>
+                      </div>
+                      {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleMarkCollected(ticket)}
+                          disabled={workingCollectedTicketId === ticket.id}
+                          className="mt-4 inline-flex h-10 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {workingCollectedTicketId === ticket.id ? "Saving..." : "Collected"}
+                        </button>
+                      ) : collectedTicketIds.has(ticket.id) ? (
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                          Part collected
+                        </p>
+                      ) : null}
+                    </article>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
           </section>
         </AuthGuard>
       </div>
@@ -462,4 +564,21 @@ function formatDate(value: string | null) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function getDynamicRequestCardTone(status: string | null) {
+  switch (status) {
+    case "PENDING":
+      return "border-slate-200";
+    case "QUERY":
+      return "border-amber-200 bg-amber-50/40";
+    case "IN_PROGRESS":
+      return "border-sky-200 bg-sky-50/40";
+    case "ORDERED":
+      return "border-violet-200 bg-violet-50/40";
+    case "READY":
+      return "border-emerald-200 bg-emerald-50/50";
+    default:
+      return "border-slate-200";
+  }
 }
