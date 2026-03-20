@@ -241,41 +241,43 @@ export default function AdminPage() {
     const nextTickets = (data ?? []) as Ticket[];
 
     if (nextTickets.length > 0) {
-      const { data: updates } = await supabase
-        .from("ticket_updates")
-        .select("ticket_id, comment")
-        .in(
-          "ticket_id",
-          nextTickets.map((ticket) => ticket.id),
-        )
-        .eq("comment", "Part collected by requester.");
+      const ticketIds = nextTickets.map((ticket) => ticket.id);
+      const avatarUserIds = nextTickets
+        .map((ticket) => ticket.user_id)
+        .filter((userId): userId is string => Boolean(userId));
 
-      setCollectedTicketIds(
-        new Set(
-          (updates ?? [])
-            .map((update) => update.ticket_id)
-            .filter((ticketId): ticketId is string => typeof ticketId === "string"),
-        ),
-      );
+      const [updatesResult, avatarsResult] = await Promise.allSettled([
+        supabase
+          .from("ticket_updates")
+          .select("ticket_id, comment")
+          .in("ticket_id", ticketIds)
+          .eq("comment", "Part collected by requester."),
+        fetchProfileAvatarUrls(supabase, avatarUserIds),
+      ]);
+
+      if (requestId === loadTicketsRequestIdRef.current) {
+        if (updatesResult.status === "fulfilled") {
+          setCollectedTicketIds(
+            new Set(
+              (updatesResult.value.data ?? [])
+                .map((update) => update.ticket_id)
+                .filter((ticketId): ticketId is string => typeof ticketId === "string"),
+            ),
+          );
+        } else {
+          setCollectedTicketIds(new Set());
+        }
+
+        if (avatarsResult.status === "fulfilled") {
+          setProfileAvatarByUserId(avatarsResult.value);
+        } else {
+          console.error("Failed to load requester avatars", avatarsResult.reason);
+          setProfileAvatarByUserId({});
+        }
+      }
     } else {
       setCollectedTicketIds(new Set());
-    }
-
-    try {
-      const avatars = await fetchProfileAvatarUrls(
-        supabase,
-        nextTickets
-          .map((ticket) => ticket.user_id)
-          .filter((userId): userId is string => Boolean(userId)),
-      );
-      if (requestId === loadTicketsRequestIdRef.current) {
-        setProfileAvatarByUserId(avatars);
-      }
-    } catch (avatarError) {
-      console.error("Failed to load requester avatars", avatarError);
-      if (requestId === loadTicketsRequestIdRef.current) {
-        setProfileAvatarByUserId({});
-      }
+      setProfileAvatarByUserId({});
     }
 
     if (requestId !== loadTicketsRequestIdRef.current) {
@@ -394,11 +396,19 @@ export default function AdminPage() {
     tickets.find((ticket) => ticket.id === selectedChatTicketId) ??
     filteredTickets[0] ??
     null;
+  const ticketIds = useMemo(
+    () => tickets.map((ticket) => ticket.id),
+    [tickets],
+  );
+  const ticketIdsKey = useMemo(
+    () => ticketIds.join("|"),
+    [ticketIds],
+  );
+  const activeSelectedChatTicketId = selectedChatTicket?.id ?? null;
 
   useEffect(() => {
     async function loadRequesterMessages() {
       const requestId = ++requesterMessagesRequestIdRef.current;
-      const ticketIds = tickets.map((ticket) => ticket.id);
 
       if (ticketIds.length === 0) {
         setRequesterMessagesByTicket({});
@@ -435,28 +445,28 @@ export default function AdminPage() {
     }
 
     loadRequesterMessages();
-  }, [tickets]);
+  }, [ticketIds, ticketIdsKey]);
 
   useEffect(() => {
-    if (isChatCollapsed || !selectedChatTicket?.id) {
+    if (isChatCollapsed || !activeSelectedChatTicketId) {
       return;
     }
 
     const latestRequesterMessage =
-      requesterMessagesByTicket[selectedChatTicket.id]?.[0]?.created_at;
+      requesterMessagesByTicket[activeSelectedChatTicketId]?.[0]?.created_at;
 
     if (!latestRequesterMessage) {
       return;
     }
 
     setReadRequesterMessageByTicket((current) => {
-      if (current[selectedChatTicket.id] === latestRequesterMessage) {
+      if (current[activeSelectedChatTicketId] === latestRequesterMessage) {
         return current;
       }
 
       const nextState = {
         ...current,
-        [selectedChatTicket.id]: latestRequesterMessage,
+        [activeSelectedChatTicketId]: latestRequesterMessage,
       };
 
       window.sessionStorage.setItem(
@@ -466,12 +476,12 @@ export default function AdminPage() {
 
       return nextState;
     });
-  }, [isChatCollapsed, selectedChatTicket?.id, requesterMessagesByTicket]);
+  }, [activeSelectedChatTicketId, isChatCollapsed, requesterMessagesByTicket]);
 
   useEffect(() => {
     async function loadTicketMessages() {
       const requestId = ++chatLoadRequestIdRef.current;
-      if (!selectedChatTicket) {
+      if (!activeSelectedChatTicketId) {
         setChatAttachments([]);
         setChatMessages([]);
         return;
@@ -490,8 +500,8 @@ export default function AdminPage() {
 
       try {
         const [attachments, messages] = await Promise.all([
-          fetchTicketAttachments(supabase, selectedChatTicket.id),
-          fetchTicketMessages(supabase, selectedChatTicket.id),
+          fetchTicketAttachments(supabase, activeSelectedChatTicketId),
+          fetchTicketMessages(supabase, activeSelectedChatTicketId),
         ]);
 
         if (requestId === chatLoadRequestIdRef.current) {
@@ -514,7 +524,7 @@ export default function AdminPage() {
     }
 
     loadTicketMessages();
-  }, [selectedChatTicket]);
+  }, [activeSelectedChatTicketId]);
 
   async function handleStatusChange(ticketId: string, nextStatus: TicketStatus) {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
