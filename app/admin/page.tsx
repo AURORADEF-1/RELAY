@@ -518,10 +518,16 @@ export default function AdminPage() {
 
   async function handleStatusChange(ticketId: string, nextStatus: TicketStatus) {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
+    const draft = drafts[ticketId];
 
     if (!currentTicket || currentTicket.status === nextStatus || activeTicketOperationIds.has(ticketId)) {
       return;
     }
+
+    const nextAssignedTo = draft?.assigned_to.trim() ?? currentTicket.assigned_to?.trim() ?? "";
+    const nextNotes = draft?.notes.trim() ?? currentTicket.notes?.trim() ?? "";
+    const currentNotes = currentTicket.notes?.trim() ?? "";
+    const notesChanged = nextNotes !== currentNotes;
 
     if (!beginTicketOperation(ticketId)) {
       return;
@@ -546,7 +552,12 @@ export default function AdminPage() {
     const nextUpdatedAt = new Date().toISOString();
     let updateQuery = supabase
       .from("tickets")
-      .update({ status: nextStatus, updated_at: nextUpdatedAt })
+      .update({
+        status: nextStatus,
+        assigned_to: nextAssignedTo || null,
+        notes: nextNotes || null,
+        updated_at: nextUpdatedAt,
+      })
       .eq("id", ticketId);
 
     if (currentTicket.updated_at) {
@@ -587,12 +598,34 @@ export default function AdminPage() {
       return;
     }
 
+    if (notesChanged && nextNotes) {
+      const { error: noteInsertError } = await supabase.from("ticket_updates").insert({
+        ticket_id: ticketId,
+        comment: nextNotes,
+      });
+
+      if (noteInsertError) {
+        setErrorMessage(
+          sanitizeUserFacingError(noteInsertError, "Unable to save the ticket note."),
+        );
+        setUpdatingTicketId(null);
+        finishTicketOperation(ticketId);
+        return;
+      }
+    }
+
     setTickets((current) =>
       nextStatus === "COMPLETED"
         ? current.filter((ticket) => ticket.id !== ticketId)
         : current.map((ticket) =>
             ticket.id === ticketId
-              ? { ...ticket, status: nextStatus, updated_at: updatedTicket.updated_at ?? nextUpdatedAt }
+              ? {
+                  ...ticket,
+                  status: nextStatus,
+                  assigned_to: nextAssignedTo || null,
+                  notes: nextNotes || null,
+                  updated_at: updatedTicket.updated_at ?? nextUpdatedAt,
+                }
               : ticket,
           ),
     );
@@ -607,7 +640,7 @@ export default function AdminPage() {
       jobNumber: currentTicket.job_number,
       nextStatus,
       requestSummary: currentTicket.request_summary ?? currentTicket.request_details,
-      assignedTo: drafts[ticketId]?.assigned_to || currentTicket.assigned_to,
+      assignedTo: nextAssignedTo || currentTicket.assigned_to,
     }).catch((notificationError) => {
       console.error("Failed to notify requester about status change", notificationError);
     });
