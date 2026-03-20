@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -67,6 +67,9 @@ type Ticket = {
 export default function AdminPage() {
   const router = useRouter();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
+  const loadTicketsRequestIdRef = useRef(0);
+  const requesterMessagesRequestIdRef = useRef(0);
+  const chatLoadRequestIdRef = useRef(0);
   const [isKpiMinimized, setIsKpiMinimized] = useState(false);
   const [assignedUserFilter, setAssignedUserFilter] = useState("");
   const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS">(
@@ -116,6 +119,34 @@ export default function AdminPage() {
     "operations",
   );
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
+  const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
+
+  function beginTicketOperation(ticketId: string) {
+    let started = false;
+
+    setActiveTicketOperationIds((current) => {
+      if (current.has(ticketId)) {
+        return current;
+      }
+
+      started = true;
+      return new Set(current).add(ticketId);
+    });
+
+    return started;
+  }
+
+  function finishTicketOperation(ticketId: string) {
+    setActiveTicketOperationIds((current) => {
+      if (!current.has(ticketId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.delete(ticketId);
+      return next;
+    });
+  }
 
   async function verifyAdminActionAccess() {
     const supabase = getSupabaseClient();
@@ -162,6 +193,7 @@ export default function AdminPage() {
   }, []);
 
   const loadTickets = useCallback(async () => {
+    const requestId = ++loadTicketsRequestIdRef.current;
     setIsLoading(true);
     setErrorMessage("");
 
@@ -197,6 +229,10 @@ export default function AdminPage() {
       .order("updated_at", { ascending: false });
 
     if (error) {
+      if (requestId !== loadTicketsRequestIdRef.current) {
+        return;
+      }
+
       setTickets([]);
       setErrorMessage(
         sanitizeUserFacingError(error, "Unable to load live parts requests."),
@@ -235,11 +271,20 @@ export default function AdminPage() {
           .map((ticket) => ticket.user_id)
           .filter((userId): userId is string => Boolean(userId)),
       );
-      setProfileAvatarByUserId(avatars);
+      if (requestId === loadTicketsRequestIdRef.current) {
+        setProfileAvatarByUserId(avatars);
+      }
     } catch (avatarError) {
       console.error("Failed to load requester avatars", avatarError);
-      setProfileAvatarByUserId({});
+      if (requestId === loadTicketsRequestIdRef.current) {
+        setProfileAvatarByUserId({});
+      }
     }
+
+    if (requestId !== loadTicketsRequestIdRef.current) {
+      return;
+    }
+
     setTickets(nextTickets);
     setDrafts(
       Object.fromEntries(
@@ -252,7 +297,13 @@ export default function AdminPage() {
         ]),
       ),
     );
-    setSelectedChatTicketId(nextTickets[0]?.id ?? null);
+    setSelectedChatTicketId((current) => {
+      if (current && nextTickets.some((ticket) => ticket.id === current)) {
+        return current;
+      }
+
+      return nextTickets[0]?.id ?? null;
+    });
     setIsLoading(false);
   }, [router]);
 
@@ -348,9 +399,8 @@ export default function AdminPage() {
     null;
 
   useEffect(() => {
-    let isMounted = true;
-
     async function loadRequesterMessages() {
+      const requestId = ++requesterMessagesRequestIdRef.current;
       const ticketIds = tickets.map((ticket) => ticket.id);
 
       if (ticketIds.length === 0) {
@@ -373,7 +423,7 @@ export default function AdminPage() {
         .eq("sender_role", "requester")
         .order("created_at", { ascending: false });
 
-      if (!isMounted || error) {
+      if (requestId !== requesterMessagesRequestIdRef.current || error) {
         return;
       }
 
@@ -388,10 +438,6 @@ export default function AdminPage() {
     }
 
     loadRequesterMessages();
-
-    return () => {
-      isMounted = false;
-    };
   }, [tickets]);
 
   useEffect(() => {
@@ -426,9 +472,8 @@ export default function AdminPage() {
   }, [isChatCollapsed, selectedChatTicket?.id, requesterMessagesByTicket]);
 
   useEffect(() => {
-    let isMounted = true;
-
     async function loadTicketMessages() {
+      const requestId = ++chatLoadRequestIdRef.current;
       if (!selectedChatTicket) {
         setChatAttachments([]);
         setChatMessages([]);
@@ -438,7 +483,7 @@ export default function AdminPage() {
       const supabase = getSupabaseClient();
 
       if (!supabase) {
-        if (isMounted) {
+        if (requestId === chatLoadRequestIdRef.current) {
           setErrorMessage("Supabase environment variables are not configured.");
         }
         return;
@@ -452,12 +497,12 @@ export default function AdminPage() {
           fetchTicketMessages(supabase, selectedChatTicket.id),
         ]);
 
-        if (isMounted) {
+        if (requestId === chatLoadRequestIdRef.current) {
           setChatAttachments(attachments);
           setChatMessages(messages);
         }
       } catch (chatError) {
-        if (isMounted) {
+        if (requestId === chatLoadRequestIdRef.current) {
           setErrorMessage(
             chatError instanceof Error
               ? chatError.message
@@ -465,23 +510,23 @@ export default function AdminPage() {
           );
         }
       } finally {
-        if (isMounted) {
+        if (requestId === chatLoadRequestIdRef.current) {
           setIsChatLoading(false);
         }
       }
     }
 
     loadTicketMessages();
-
-    return () => {
-      isMounted = false;
-    };
   }, [selectedChatTicket]);
 
   async function handleStatusChange(ticketId: string, nextStatus: TicketStatus) {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
 
-    if (!currentTicket || currentTicket.status === nextStatus) {
+    if (!currentTicket || currentTicket.status === nextStatus || activeTicketOperationIds.has(ticketId)) {
+      return;
+    }
+
+    if (!beginTicketOperation(ticketId)) {
       return;
     }
 
@@ -497,19 +542,38 @@ export default function AdminPage() {
         sanitizeUserFacingError(error, "Admin access is required for this action."),
       );
       setUpdatingTicketId(null);
+      finishTicketOperation(ticketId);
       return;
     }
 
-    const { error: updateError } = await supabase
+    const nextUpdatedAt = new Date().toISOString();
+    let updateQuery = supabase
       .from("tickets")
-      .update({ status: nextStatus, updated_at: new Date().toISOString() })
+      .update({ status: nextStatus, updated_at: nextUpdatedAt })
       .eq("id", ticketId);
+
+    if (currentTicket.updated_at) {
+      updateQuery = updateQuery.eq("updated_at", currentTicket.updated_at);
+    }
+
+    const { data: updatedTicket, error: updateError } = await updateQuery
+      .select("id, updated_at")
+      .maybeSingle();
 
     if (updateError) {
       setErrorMessage(
         sanitizeUserFacingError(updateError, "Unable to update ticket status."),
       );
       setUpdatingTicketId(null);
+      finishTicketOperation(ticketId);
+      return;
+    }
+
+    if (!updatedTicket) {
+      setErrorMessage("This ticket changed in another session. Refresh and try again.");
+      setUpdatingTicketId(null);
+      finishTicketOperation(ticketId);
+      void loadTickets();
       return;
     }
 
@@ -522,6 +586,7 @@ export default function AdminPage() {
         sanitizeUserFacingError(insertError, "Unable to record the ticket update."),
       );
       setUpdatingTicketId(null);
+      finishTicketOperation(ticketId);
       return;
     }
 
@@ -529,13 +594,16 @@ export default function AdminPage() {
       nextStatus === "COMPLETED"
         ? current.filter((ticket) => ticket.id !== ticketId)
         : current.map((ticket) =>
-            ticket.id === ticketId ? { ...ticket, status: nextStatus } : ticket,
+            ticket.id === ticketId
+              ? { ...ticket, status: nextStatus, updated_at: updatedTicket.updated_at ?? nextUpdatedAt }
+              : ticket,
           ),
     );
     if (selectedChatTicketId === ticketId && nextStatus === "COMPLETED") {
       setSelectedChatTicketId(null);
     }
     setUpdatingTicketId(null);
+    finishTicketOperation(ticketId);
     void notifyRequesterStatusChanged(supabase, {
       userId: currentTicket.user_id,
       ticketId,
@@ -558,6 +626,10 @@ export default function AdminPage() {
     const draft = drafts[ticketId];
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
 
+    if (activeTicketOperationIds.has(ticketId)) {
+      return;
+    }
+
     if (!draft || !currentTicket) {
       setErrorMessage("Unable to load the latest ticket changes.");
       return;
@@ -575,6 +647,10 @@ export default function AdminPage() {
       return;
     }
 
+    if (!beginTicketOperation(ticketId)) {
+      return;
+    }
+
     let supabase: ReturnType<typeof getSupabaseClient>;
 
     try {
@@ -583,25 +659,45 @@ export default function AdminPage() {
       setErrorMessage(
         sanitizeUserFacingError(error, "Admin access is required for this action."),
       );
+      finishTicketOperation(ticketId);
       return;
     }
 
     setUpdatingTicketId(ticketId);
     setErrorMessage("");
 
-    const { error: updateError } = await supabase
+    const nextUpdatedAt = new Date().toISOString();
+    let updateQuery = supabase
       .from("tickets")
       .update({
         assigned_to: nextAssignedTo || null,
         notes: nextNotes || null,
+        updated_at: nextUpdatedAt,
       })
       .eq("id", ticketId);
+
+    if (currentTicket.updated_at) {
+      updateQuery = updateQuery.eq("updated_at", currentTicket.updated_at);
+    }
+
+    const { data: updatedTicket, error: updateError } = await updateQuery
+      .select("id, updated_at")
+      .maybeSingle();
 
     if (updateError) {
       setErrorMessage(
         sanitizeUserFacingError(updateError, "Unable to save ticket changes."),
       );
       setUpdatingTicketId(null);
+      finishTicketOperation(ticketId);
+      return;
+    }
+
+    if (!updatedTicket) {
+      setErrorMessage("This ticket changed in another session. Refresh and try again.");
+      setUpdatingTicketId(null);
+      finishTicketOperation(ticketId);
+      void loadTickets();
       return;
     }
 
@@ -616,22 +712,25 @@ export default function AdminPage() {
           sanitizeUserFacingError(insertError, "Unable to save the ticket note."),
         );
         setUpdatingTicketId(null);
+        finishTicketOperation(ticketId);
         return;
       }
     }
 
     setTickets((current) =>
       current.map((ticket) =>
-        ticket.id === ticketId
+            ticket.id === ticketId
           ? {
               ...ticket,
               assigned_to: nextAssignedTo || null,
               notes: nextNotes || null,
+              updated_at: updatedTicket.updated_at ?? nextUpdatedAt,
             }
           : ticket,
       ),
     );
     setUpdatingTicketId(null);
+    finishTicketOperation(ticketId);
   }
 
   async function reloadSelectedChatMessages(
