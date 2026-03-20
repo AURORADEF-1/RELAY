@@ -28,12 +28,22 @@ import {
 
 const INCIDENT_DASHBOARD_REFRESH_MS = 15000;
 const USER_PRESENCE_REFRESH_MS = 30000;
+const INCIDENT_DASHBOARD_VIEW_STORAGE_KEY = "relay-incidents-dashboard-view-mode";
 const activeIncidentStatuses = workshopIncidentStatuses.filter(
   (status) => status !== "CLOSED",
 );
 
 export default function IncidentsPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const [viewMode, setViewMode] = useState<"standard" | "dynamic">(() => {
+    if (typeof window === "undefined") {
+      return "standard";
+    }
+
+    return window.localStorage.getItem(INCIDENT_DASHBOARD_VIEW_STORAGE_KEY) === "dynamic"
+      ? "dynamic"
+      : "standard";
+  });
   const [incidents, setIncidents] = useState<WorkshopIncidentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -356,18 +366,37 @@ export default function IncidentsPage() {
                   label="Last Sync"
                   value={lastUpdatedAt ? formatDateTime(lastUpdatedAt) : "Waiting..."}
                 />
-                <button
-                  type="button"
-                  onClick={() => void loadIncidents()}
-                  className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 text-left transition hover:bg-white/15"
-                >
+                <div className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4">
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-                    Control
+                    View
                   </p>
-                  <p className="mt-2 text-xl font-semibold text-white">
-                    Refresh Now
-                  </p>
-                </button>
+                  <div className="mt-3 flex flex-col gap-3">
+                    <select
+                      value={viewMode}
+                      onChange={(event) => {
+                        const nextMode = event.target.value as "standard" | "dynamic";
+                        setViewMode(nextMode);
+                        window.localStorage.setItem(
+                          INCIDENT_DASHBOARD_VIEW_STORAGE_KEY,
+                          nextMode,
+                        );
+                      }}
+                      className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm font-medium text-white outline-none transition focus:border-white/20"
+                    >
+                      <option value="standard">Standard Board</option>
+                      <option value="dynamic">Dynamic Desktop View</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void loadIncidents()}
+                      className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-left transition hover:border-white/20 hover:bg-black/30"
+                    >
+                      <p className="text-sm font-semibold text-white">
+                        Refresh Now
+                      </p>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -605,96 +634,197 @@ export default function IncidentsPage() {
               </section>
             </div>
 
-            <div className="mt-8 grid gap-4 xl:grid-cols-6">
-              {activeIncidentStatuses.map((status) => (
-                <section
-                  key={status}
-                  className="min-h-[24rem] rounded-[1.75rem] border border-white/10 bg-white/5 p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${getIncidentTone(status)}`}>
-                      {formatIncidentStatus(status)}
-                    </span>
-                    <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-sm font-semibold text-white">
-                      {groupedIncidents[status].length}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    {isLoading ? (
-                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                        Loading lane...
+            {viewMode === "dynamic" ? (
+              <div className="mt-8 grid gap-4 xl:grid-cols-3">
+                {activeIncidentStatuses.map((status) => (
+                  <section
+                    key={status}
+                    className="rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82)_0%,rgba(15,23,42,0.56)_100%)] p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${getIncidentTone(status)}`}>
+                          {formatIncidentStatus(status)}
+                        </span>
+                        <p className="mt-3 text-xs uppercase tracking-[0.16em] text-slate-400">
+                          {groupedIncidents[status].length} live incident
+                          {groupedIncidents[status].length === 1 ? "" : "s"}
+                        </p>
                       </div>
-                    ) : groupedIncidents[status].length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                        No live incidents in this lane.
-                      </div>
-                    ) : (
-                      groupedIncidents[status].map((incident) => (
-                        <Link
-                          key={incident.id}
-                          href={`/incidents/${incident.id}`}
-                          className="block rounded-2xl border border-white/10 bg-black/15 p-4 transition hover:border-white/20 hover:bg-black/25"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate text-lg font-semibold text-white">
-                                {incident.job_number
-                                  ? `Job ${incident.job_number}`
-                                  : incident.machine_reference}
-                              </p>
-                              <p className="mt-1 truncate text-sm text-slate-300">
-                                {formatIncidentType(incident.incident_type)} · {incident.reported_by || "Unknown reporter"}
-                              </p>
-                            </div>
-                            <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200">
-                              {incident.location_type}
-                            </span>
-                          </div>
+                      <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-sm font-semibold text-white">
+                        {groupedIncidents[status].length}
+                      </span>
+                    </div>
 
-                          <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-200">
-                            {incident.description}
-                          </p>
+                    <div className="mt-4 space-y-3">
+                      {isLoading ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                          Loading lane...
+                        </div>
+                      ) : groupedIncidents[status].length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                          No live incidents in this lane.
+                        </div>
+                      ) : (
+                        groupedIncidents[status].map((incident) => (
+                          <Link
+                            key={incident.id}
+                            href={`/incidents/${incident.id}`}
+                            className={`block rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[0_20px_50px_-34px_rgba(15,23,42,0.7)] ${getDynamicIncidentCardTone(
+                              incident.status,
+                            )}`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-lg font-semibold text-white">
+                                  {incident.job_number
+                                    ? `Job ${incident.job_number}`
+                                    : incident.machine_reference}
+                                </p>
+                                <p className="mt-1 truncate text-sm text-slate-300">
+                                  {formatIncidentType(incident.incident_type)} · {incident.reported_by || "Unknown reporter"}
+                                </p>
+                              </div>
+                              <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200">
+                                {incident.location_type}
+                              </span>
+                            </div>
 
-                          <dl className="mt-4 grid gap-2 text-xs text-slate-400">
-                            <div className="flex items-center justify-between gap-3">
-                              <dt>Machine</dt>
-                              <dd className="truncate text-right text-slate-200">
-                                {incident.machine_reference || "-"}
-                              </dd>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <dt>Assigned</dt>
-                              <dd className="truncate text-right text-slate-200">
-                                {incident.assigned_to || "Unassigned"}
-                              </dd>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <dt>Severity</dt>
-                              <dd className="truncate text-right text-slate-200">
+                            <p className="mt-4 line-clamp-4 text-sm leading-6 text-slate-200">
+                              {incident.description}
+                            </p>
+
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200">
                                 {incident.severity}
-                              </dd>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <dt>Updated</dt>
-                              <dd className="truncate text-right text-slate-200">
+                              </span>
+                              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] font-semibold text-slate-200">
+                                {incident.assigned_to || "Unassigned"}
+                              </span>
+                              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] font-semibold text-slate-200">
                                 {formatRelativeTime(incident.updated_at)}
-                              </dd>
+                              </span>
                             </div>
-                          </dl>
 
-                          {incident.linked_parts_ticket_id ? (
-                            <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">
-                              Linked Parts Request
+                            <dl className="mt-4 grid gap-2 text-xs text-slate-400">
+                              <div className="flex items-center justify-between gap-3">
+                                <dt>Machine</dt>
+                                <dd className="truncate text-right text-slate-200">
+                                  {incident.machine_reference || "-"}
+                                </dd>
+                              </div>
+                              <div className="flex items-center justify-between gap-3">
+                                <dt>Location</dt>
+                                <dd className="truncate text-right text-slate-200">
+                                  {incident.location_summary || incident.location_type}
+                                </dd>
+                              </div>
+                            </dl>
+
+                            {incident.linked_parts_ticket_id ? (
+                              <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">
+                                Linked Parts Request
+                              </div>
+                            ) : null}
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-8 grid gap-4 xl:grid-cols-6">
+                {activeIncidentStatuses.map((status) => (
+                  <section
+                    key={status}
+                    className="min-h-[24rem] rounded-[1.75rem] border border-white/10 bg-white/5 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${getIncidentTone(status)}`}>
+                        {formatIncidentStatus(status)}
+                      </span>
+                      <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-sm font-semibold text-white">
+                        {groupedIncidents[status].length}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {isLoading ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                          Loading lane...
+                        </div>
+                      ) : groupedIncidents[status].length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                          No live incidents in this lane.
+                        </div>
+                      ) : (
+                        groupedIncidents[status].map((incident) => (
+                          <Link
+                            key={incident.id}
+                            href={`/incidents/${incident.id}`}
+                            className="block rounded-2xl border border-white/10 bg-black/15 p-4 transition hover:border-white/20 hover:bg-black/25"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-lg font-semibold text-white">
+                                  {incident.job_number
+                                    ? `Job ${incident.job_number}`
+                                    : incident.machine_reference}
+                                </p>
+                                <p className="mt-1 truncate text-sm text-slate-300">
+                                  {formatIncidentType(incident.incident_type)} · {incident.reported_by || "Unknown reporter"}
+                                </p>
+                              </div>
+                              <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200">
+                                {incident.location_type}
+                              </span>
                             </div>
-                          ) : null}
-                        </Link>
-                      ))
-                    )}
-                  </div>
-                </section>
-              ))}
-            </div>
+
+                            <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-200">
+                              {incident.description}
+                            </p>
+
+                            <dl className="mt-4 grid gap-2 text-xs text-slate-400">
+                              <div className="flex items-center justify-between gap-3">
+                                <dt>Machine</dt>
+                                <dd className="truncate text-right text-slate-200">
+                                  {incident.machine_reference || "-"}
+                                </dd>
+                              </div>
+                              <div className="flex items-center justify-between gap-3">
+                                <dt>Assigned</dt>
+                                <dd className="truncate text-right text-slate-200">
+                                  {incident.assigned_to || "Unassigned"}
+                                </dd>
+                              </div>
+                              <div className="flex items-center justify-between gap-3">
+                                <dt>Severity</dt>
+                                <dd className="truncate text-right text-slate-200">
+                                  {incident.severity}
+                                </dd>
+                              </div>
+                              <div className="flex items-center justify-between gap-3">
+                                <dt>Updated</dt>
+                                <dd className="truncate text-right text-slate-200">
+                                  {formatRelativeTime(incident.updated_at)}
+                                </dd>
+                              </div>
+                            </dl>
+
+                            {incident.linked_parts_ticket_id ? (
+                              <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">
+                                Linked Parts Request
+                              </div>
+                            ) : null}
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
           </section>
         </AuthGuard>
       </div>
@@ -805,5 +935,24 @@ function getIncidentTone(status: string) {
       return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
     default:
       return "border-white/10 bg-white/10 text-slate-200";
+  }
+}
+
+function getDynamicIncidentCardTone(status: string) {
+  switch (status) {
+    case "REPORTED":
+      return "border-rose-400/20 bg-rose-500/10";
+    case "ASSESSED":
+      return "border-amber-400/20 bg-amber-500/10";
+    case "AWAITING_PARTS":
+      return "border-sky-400/20 bg-sky-500/10";
+    case "PARTS_ASSIGNED":
+      return "border-emerald-400/20 bg-emerald-500/10";
+    case "IN_REPAIR":
+      return "border-indigo-400/20 bg-indigo-500/10";
+    case "READY":
+      return "border-teal-400/20 bg-teal-500/10";
+    default:
+      return "border-white/10 bg-white/5";
   }
 }
