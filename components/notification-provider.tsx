@@ -27,6 +27,10 @@ import {
   getPresenceHeartbeatMs,
   upsertUserPresence,
 } from "@/lib/user-tasks";
+import {
+  fetchSessionControlState,
+  shouldForceLogoutUser,
+} from "@/lib/session-controls";
 
 type NotificationContextValue = {
   requesterUnreadCount: number;
@@ -61,12 +65,82 @@ const NotificationContext = createContext<NotificationContextValue>({
 const SOUND_COOLDOWN_MS = 1800;
 const TOAST_DURATION_MS = 10000;
 const NOTIFICATION_POLL_INTERVAL_MS = 15000;
+const SESSION_CONTROL_POLL_INTERVAL_MS = 45000;
+const PRESENCE_LEADER_STORAGE_KEY = "relay-presence-leader";
+const PRESENCE_LEASE_TTL_MS = 90_000;
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
   "operator_message",
   "ready_reminder",
   "ready_for_collection",
 ]);
+
+function shouldTrackUserPresence(pathname: string, adminUser: boolean) {
+  if (!adminUser) {
+    return false;
+  }
+
+  return (
+    pathname === "/admin" ||
+    pathname === "/completed" ||
+    pathname === "/control" ||
+    pathname === "/wallboard" ||
+    pathname.startsWith("/incidents")
+  );
+}
+
+function acquirePresenceLease(tabId: string) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const now = Date.now();
+  const rawValue = window.localStorage.getItem(PRESENCE_LEADER_STORAGE_KEY);
+
+  if (rawValue) {
+    try {
+      const currentLease = JSON.parse(rawValue) as { tabId: string; expiresAt: number };
+
+      if (currentLease.tabId !== tabId && currentLease.expiresAt > now) {
+        return false;
+      }
+    } catch {
+      window.localStorage.removeItem(PRESENCE_LEADER_STORAGE_KEY);
+    }
+  }
+
+  window.localStorage.setItem(
+    PRESENCE_LEADER_STORAGE_KEY,
+    JSON.stringify({
+      tabId,
+      expiresAt: now + PRESENCE_LEASE_TTL_MS,
+    }),
+  );
+
+  return true;
+}
+
+function releasePresenceLease(tabId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const rawValue = window.localStorage.getItem(PRESENCE_LEADER_STORAGE_KEY);
+
+  if (!rawValue) {
+    return;
+  }
+
+  try {
+    const currentLease = JSON.parse(rawValue) as { tabId: string; expiresAt: number };
+
+    if (currentLease.tabId === tabId) {
+      window.localStorage.removeItem(PRESENCE_LEADER_STORAGE_KEY);
+    }
+  } catch {
+    window.localStorage.removeItem(PRESENCE_LEADER_STORAGE_KEY);
+  }
+}
 
 export function NotificationProvider({
   children,
@@ -80,6 +154,11 @@ export function NotificationProvider({
   const unreadSyncInFlightRef = useRef<Promise<void> | null>(null);
   const pendingCountInFlightRef = useRef<Promise<void> | null>(null);
   const pathReadInFlightRef = useRef<Promise<void> | null>(null);
+  const [presenceTabId] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `presence-${Date.now().toString(36)}-${performance.now().toFixed(0)}`,
+  );
   const [requesterUnreadCount, setRequesterUnreadCount] = useState(0);
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [pendingTicketCount, setPendingTicketCount] = useState(0);
@@ -315,6 +394,7 @@ export function NotificationProvider({
 
   useEffect(() => {
     const supabase = getSupabaseClient();
+    const activePresenceTabId = presenceTabId;
 
     if (!supabase) {
       return;
@@ -324,6 +404,8 @@ export function NotificationProvider({
     let activeChannel: RealtimeChannel | null = null;
     let pollInterval: number | null = null;
     let presenceInterval: number | null = null;
+    let sessionControlInterval: number | null = null;
+    let visibilityListener: (() => void) | null = null;
 
     const clearNotificationState = async () => {
       knownUnreadIdsRef.current = new Set();
@@ -349,6 +431,18 @@ export function NotificationProvider({
         window.clearInterval(presenceInterval);
         presenceInterval = null;
       }
+
+      if (sessionControlInterval) {
+        window.clearInterval(sessionControlInterval);
+        sessionControlInterval = null;
+      }
+
+      if (visibilityListener) {
+        document.removeEventListener("visibilitychange", visibilityListener);
+        visibilityListener = null;
+      }
+
+      releasePresenceLease(activePresenceTabId);
     };
 
     const setupNotifications = async () => {
@@ -384,16 +478,41 @@ export function NotificationProvider({
           }
         }
         try {
-          await upsertUserPresence(supabase, user.id);
+          const syncPresence = async () => {
+            if (
+              document.hidden ||
+              !shouldTrackUserPresence(pathnameRef.current, adminUser) ||
+              !acquirePresenceLease(activePresenceTabId)
+            ) {
+              return;
+            }
+
+            await upsertUserPresence(supabase, user.id);
+          };
+
+          await syncPresence();
+
+          visibilityListener = () => {
+            if (document.hidden) {
+              releasePresenceLease(activePresenceTabId);
+              return;
+            }
+
+            void syncPresence().catch((presenceError) => {
+              console.error("Failed to update RELAY user presence", presenceError);
+            });
+          };
+
+          document.addEventListener("visibilitychange", visibilityListener);
+
+          presenceInterval = window.setInterval(() => {
+            void syncPresence().catch((presenceError) => {
+              console.error("Failed to update RELAY user presence", presenceError);
+            });
+          }, getPresenceHeartbeatMs());
         } catch (presenceError) {
           console.error("Failed to update RELAY user presence", presenceError);
         }
-
-        presenceInterval = window.setInterval(() => {
-          void upsertUserPresence(supabase, user.id).catch((presenceError) => {
-            console.error("Failed to update RELAY user presence", presenceError);
-          });
-        }, getPresenceHeartbeatMs());
         await syncUnreadNotifications(supabase, user.id, adminUser, {
           showToasts: true,
         });
@@ -442,6 +561,25 @@ export function NotificationProvider({
             void refreshPendingTicketCount();
           }
         }, NOTIFICATION_POLL_INTERVAL_MS);
+
+        sessionControlInterval = window.setInterval(() => {
+          void (async () => {
+            try {
+              const sessionControl = await fetchSessionControlState(supabase, user.id);
+
+              if (!shouldForceLogoutUser(user, sessionControl)) {
+                return;
+              }
+
+              await supabase.auth.signOut();
+              await clearNotificationState();
+              window.alert("Your RELAY session was ended by an administrator.");
+              window.location.href = "/login";
+            } catch (sessionControlError) {
+              console.error("Failed to check RELAY session controls", sessionControlError);
+            }
+          })();
+        }, SESSION_CONTROL_POLL_INTERVAL_MS);
       } catch (error) {
         console.error("Failed to initialise notifications", error);
       }
@@ -478,12 +616,23 @@ export function NotificationProvider({
         window.clearInterval(presenceInterval);
       }
 
+      if (sessionControlInterval) {
+        window.clearInterval(sessionControlInterval);
+      }
+
+      if (visibilityListener) {
+        document.removeEventListener("visibilitychange", visibilityListener);
+      }
+
+      releasePresenceLease(activePresenceTabId);
+
       if (activeChannel) {
         void supabase.removeChannel(activeChannel);
       }
     };
   }, [
     markPathNotificationsRead,
+    presenceTabId,
     refreshPendingTicketCount,
     syncUnreadNotifications,
   ]);

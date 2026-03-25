@@ -32,7 +32,7 @@ export type UserTaskRecord = {
   assignee_name?: string | null;
 };
 
-const PRESENCE_HEARTBEAT_MS = 60_000;
+const PRESENCE_HEARTBEAT_MS = 5 * 60_000;
 
 export async function upsertUserPresence(
   supabase: SupabaseClient,
