@@ -80,16 +80,6 @@ export default function IncidentDetailPage() {
           );
           resolvedIncident = reconciledIncidents[0] ?? nextIncident;
 
-          if (
-            resolvedIncident.linked_parts_ticket_id !== nextIncident.linked_parts_ticket_id ||
-            resolvedIncident.status !== nextIncident.status
-          ) {
-            resolvedIncident = await updateWorkshopIncident(supabase, resolvedIncident.id, {
-              linked_parts_ticket_id: resolvedIncident.linked_parts_ticket_id,
-              status: resolvedIncident.status,
-            });
-          }
-
           const matchingTicket =
             (linkedTickets ?? []).find(
               (ticket) =>

@@ -8,6 +8,20 @@ export type AppProfile = {
 } | null;
 
 export type AccessLevel = "admin" | "user";
+type CurrentUserWithRoleResult = {
+  user: User | null;
+  role: AppProfileRole;
+  profile: AppProfile;
+  accessLevel: AccessLevel;
+  isAdmin: boolean;
+};
+
+const USER_ROLE_CACHE_TTL_MS = 5_000;
+
+let cachedCurrentUserWithRole:
+  | { expiresAt: number; value: CurrentUserWithRoleResult }
+  | null = null;
+let currentUserWithRoleInFlight: Promise<CurrentUserWithRoleResult> | null = null;
 
 function getNormalizedEmailLocalPart(user: User | null) {
   const email = (user?.email || "").toLowerCase().trim();
@@ -65,59 +79,14 @@ function getDerivedProfileRole(user: User | null): "admin" | "user" | null {
   return null;
 }
 
-async function syncProfileAccessRole(
-  supabase: SupabaseClient,
-  user: User,
-  profile: AppProfile,
-) {
-  const derivedRole = getDerivedProfileRole(user);
-
-  if (!derivedRole || profile?.role === derivedRole) {
-    return profile;
-  }
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .upsert(
-      {
-        id: user.id,
-        role: derivedRole,
-        username: profile?.username ?? null,
-        full_name: profile?.display_name ?? null,
-      },
-      {
-        onConflict: "id",
-      },
-    )
-    .select("role, username, full_name")
-    .maybeSingle();
-
-  if (error) {
-    console.warn("RELAY profile role sync failed", error.message);
-    return profile;
-  }
-
-  return data
-    ? {
-        role: typeof data.role === "string" ? data.role : derivedRole,
-        username: typeof data.username === "string" ? data.username : null,
-        display_name:
-          typeof data.full_name === "string" ? data.full_name : null,
-      }
-    : {
-        role: derivedRole,
-        username: profile?.username ?? null,
-        display_name: profile?.display_name ?? null,
-      };
+export function clearCurrentUserWithRoleCache() {
+  cachedCurrentUserWithRole = null;
+  currentUserWithRoleInFlight = null;
 }
 
-export async function getCurrentUserWithRole(supabase: SupabaseClient): Promise<{
-  user: User | null;
-  role: AppProfileRole;
-  profile: AppProfile;
-  accessLevel: AccessLevel;
-  isAdmin: boolean;
-}> {
+async function resolveCurrentUserWithRole(
+  supabase: SupabaseClient,
+): Promise<CurrentUserWithRoleResult> {
   const {
     data: { user },
     error: userError,
@@ -157,19 +126,57 @@ export async function getCurrentUserWithRole(supabase: SupabaseClient): Promise<
       }
     : null;
 
-  const syncedProfile = await syncProfileAccessRole(
-    supabase,
-    user,
-    normalizedProfile,
-  );
+  const derivedRole = getDerivedProfileRole(user);
+  const resolvedProfile: AppProfile = normalizedProfile
+    ? {
+        ...normalizedProfile,
+        role: normalizedProfile.role ?? derivedRole,
+      }
+    : derivedRole
+      ? {
+          role: derivedRole,
+          username: null,
+          display_name: null,
+        }
+      : null;
 
-  const accessLevel = getAccessLevel(user, syncedProfile);
+  const accessLevel = getAccessLevel(user, resolvedProfile);
 
   return {
     user,
-    role: syncedProfile?.role ?? null,
-    profile: syncedProfile,
+    role: resolvedProfile?.role ?? null,
+    profile: resolvedProfile,
     accessLevel,
     isAdmin: accessLevel === "admin",
   };
+}
+
+export async function getCurrentUserWithRole(
+  supabase: SupabaseClient,
+  options?: { forceFresh?: boolean },
+): Promise<CurrentUserWithRoleResult> {
+  const now = Date.now();
+
+  if (!options?.forceFresh && cachedCurrentUserWithRole && cachedCurrentUserWithRole.expiresAt > now) {
+    return cachedCurrentUserWithRole.value;
+  }
+
+  if (!options?.forceFresh && currentUserWithRoleInFlight) {
+    return currentUserWithRoleInFlight;
+  }
+
+  const request = resolveCurrentUserWithRole(supabase)
+    .then((value) => {
+      cachedCurrentUserWithRole = {
+        value,
+        expiresAt: Date.now() + USER_ROLE_CACHE_TTL_MS,
+      };
+      return value;
+    })
+    .finally(() => {
+      currentUserWithRoleInFlight = null;
+    });
+
+  currentUserWithRoleInFlight = request;
+  return request;
 }

@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { recordAdminHealthEvent } from "@/lib/admin-health";
-import { getCurrentUserWithRole } from "@/lib/profile-access";
+import {
+  clearCurrentUserWithRoleCache,
+  getCurrentUserWithRole,
+} from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export function AuthGuard({
@@ -35,48 +38,41 @@ export function AuthGuard({
         return;
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const { user, isAdmin } = await getCurrentUserWithRole(supabase, {
+          forceFresh: true,
+        });
 
-      if (!isMounted) {
-        return;
-      }
-
-      if (!session) {
-        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-        return;
-      }
-
-      if (requiredRole) {
-        try {
-          const { isAdmin } = await getCurrentUserWithRole(supabase);
-
-          if (!isMounted) {
-            return;
-          }
-
-          if (requiredRole === "admin" && !isAdmin) {
-            router.replace("/");
-            return;
-          }
-        } catch (error) {
-          if (!isMounted) {
-            return;
-          }
-
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Failed to verify access.",
-          );
-          recordAdminHealthEvent("auth", "Failed to verify admin access.");
-          setIsChecking(false);
+        if (!isMounted) {
           return;
         }
-      }
 
-      setIsChecking(false);
+        if (!user) {
+          clearCurrentUserWithRoleCache();
+          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+          return;
+        }
+
+        if (requiredRole === "admin" && !isAdmin) {
+          router.replace("/");
+          return;
+        }
+
+        setIsChecking(false);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to verify access.",
+        );
+        recordAdminHealthEvent("auth", "Failed to verify admin access.");
+        setIsChecking(false);
+        return;
+      }
     }
 
     checkSession();

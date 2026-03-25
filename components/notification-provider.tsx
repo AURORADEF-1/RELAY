@@ -16,11 +16,13 @@ import type {
   RealtimeChannel,
 } from "@supabase/supabase-js";
 import {
-  ensureReadyReminderNotifications,
   fetchUnreadNotifications,
   markNotificationsRead,
 } from "@/lib/notifications";
-import { getCurrentUserWithRole } from "@/lib/profile-access";
+import {
+  clearCurrentUserWithRoleCache,
+  getCurrentUserWithRole,
+} from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   fetchUnreadTaskCount,
@@ -155,6 +157,8 @@ export function NotificationProvider({
   const isVisibleRef = useRef(isVisible);
   const isIdleRef = useRef(isIdle);
   const isInteractiveRef = useRef(isInteractive);
+  const currentUserIdRef = useRef<string | null>(null);
+  const currentIsAdminRef = useRef(false);
   const lastSoundAtRef = useRef(0);
   const knownUnreadIdsRef = useRef<Set<string>>(new Set());
   const unreadSyncInFlightRef = useRef<Promise<void> | null>(null);
@@ -423,6 +427,8 @@ export function NotificationProvider({
     let visibilityListener: (() => void) | null = null;
 
     const clearNotificationState = async () => {
+      currentUserIdRef.current = null;
+      currentIsAdminRef.current = false;
       knownUnreadIdsRef.current = new Set();
       setRequesterUnreadCount(0);
       setAdminUnreadCount(0);
@@ -472,7 +478,9 @@ export function NotificationProvider({
           pollTimeout = null;
         }
 
-        const { user, isAdmin: adminUser } = await getCurrentUserWithRole(supabase);
+        const { user, isAdmin: adminUser } = await getCurrentUserWithRole(supabase, {
+          forceFresh: true,
+        });
 
         if (!isMounted) {
           return;
@@ -485,17 +493,11 @@ export function NotificationProvider({
 
         setIsAuthenticated(true);
         setIsAdmin(adminUser);
+        currentUserIdRef.current = user.id;
+        currentIsAdminRef.current = adminUser;
         notificationPollFailureCountRef.current = 0;
         presenceFailureCountRef.current = 0;
         sessionControlFailureCountRef.current = 0;
-        if (!adminUser) {
-          try {
-            await ensureReadyReminderNotifications(supabase, user.id);
-          } catch (reminderError) {
-            console.error("Failed to ensure RELAY ready reminders", reminderError);
-            recordAdminHealthEvent("notifications", "Failed to ensure ready-reminder notifications.");
-          }
-        }
         const syncPresence = async () => {
           if (
             !isInteractiveRef.current ||
@@ -688,6 +690,8 @@ export function NotificationProvider({
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
       (_event: AuthChangeEvent, session: Session | null) => {
+        clearCurrentUserWithRoleCache();
+
         if (!isMounted) {
           return;
         }
@@ -748,14 +752,15 @@ export function NotificationProvider({
     let cancelled = false;
 
     const syncReadState = async () => {
-      const { user } = await getCurrentUserWithRole(supabase);
+      const userId = currentUserIdRef.current;
+      const adminUser = currentIsAdminRef.current;
 
-      if (!user || cancelled) {
+      if (!userId || cancelled) {
         return;
       }
 
-      await markPathNotificationsRead(supabase, user.id, isAdmin, pathname);
-      await syncUnreadNotifications(supabase, user.id, isAdmin);
+      await markPathNotificationsRead(supabase, userId, adminUser, pathname);
+      await syncUnreadNotifications(supabase, userId, adminUser);
     };
 
     void syncReadState();

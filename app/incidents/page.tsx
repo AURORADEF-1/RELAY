@@ -21,7 +21,6 @@ import {
 import {
   listWorkshopIncidents,
   reconcileWorkshopIncidentsWithPartsTickets,
-  updateWorkshopIncident,
   workshopIncidentStatuses,
   type WorkshopIncidentRecord,
 } from "@/lib/workshop-incidents";
@@ -116,22 +115,6 @@ export default function IncidentsPage() {
         reconciledIncidents = reconcileWorkshopIncidentsWithPartsTickets(
           nextIncidents,
           linkedTickets ?? [],
-        );
-
-        await Promise.all(
-          reconciledIncidents.map(async (incident, index) => {
-            const previousIncident = nextIncidents[index];
-
-            if (
-              incident.linked_parts_ticket_id !== previousIncident?.linked_parts_ticket_id ||
-              incident.status !== previousIncident?.status
-            ) {
-              await updateWorkshopIncident(supabase, incident.id, {
-                linked_parts_ticket_id: incident.linked_parts_ticket_id,
-                status: incident.status,
-              });
-            }
-          }),
         );
       }
 
