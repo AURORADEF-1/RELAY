@@ -109,7 +109,7 @@ export default function NewDamageIncidentPage() {
                 <Link href="/incidents" className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800">
                   Workshop Control
                 </Link>
-                <Link href="/wallboard" className="rounded-full px-4 py-2 hover:bg-white">Live Wallboard</Link>
+                <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">Admin Control</Link>
                 <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
                   Parts Control
                   <NotificationBadge count={adminBadgeCount} />

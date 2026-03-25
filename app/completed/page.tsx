@@ -263,8 +263,8 @@ export default function CompletedPage() {
             <Link href="/incidents" className="rounded-full px-4 py-2 hover:bg-white">
               Workshop Control
             </Link>
-            <Link href="/wallboard" className="rounded-full px-4 py-2 hover:bg-white">
-              Live Wallboard
+            <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
+              Admin Control
             </Link>
             <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
               Parts Control

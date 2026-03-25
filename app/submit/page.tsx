@@ -383,10 +383,10 @@ export default function SubmitPage() {
                   Workshop Control
                 </Link>
                 <Link
-                  href="/wallboard"
+                  href="/control"
                   className="rounded-full px-4 py-2 hover:bg-white"
                 >
-                  Live Wallboard
+                  Admin Control
                 </Link>
                 <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
                   Parts Control

@@ -7,6 +7,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type HomepageUpdate = {
@@ -91,6 +92,7 @@ export default function Home() {
         .select(
           "id, job_number, request_summary, request_details, status, updated_at, assigned_to, requester_name",
         )
+        .in("status", activeTicketStatuses)
         .order("updated_at", { ascending: false })
         .limit(isAdmin ? 8 : 5);
 
@@ -211,12 +213,6 @@ export default function Home() {
                   Workshop Control
                 </Link>
                 <Link
-                  href="/wallboard"
-                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
-                >
-                  Live Wallboard
-                </Link>
-                <Link
                   href="/control"
                   className="rounded-full px-4 py-2 transition hover:bg-slate-100"
                 >
@@ -297,12 +293,6 @@ export default function Home() {
                         className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
                       >
                         Workshop Control
-                      </Link>
-                      <Link
-                        href="/wallboard"
-                        className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
-                      >
-                        Live Wallboard
                       </Link>
                       <Link
                         href="/control"

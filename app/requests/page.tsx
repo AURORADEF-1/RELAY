@@ -74,7 +74,7 @@ export default function RequestsPage() {
       .select(
         "id, user_id, requester_name, machine_reference, job_number, request_summary, request_details, status, updated_at, assigned_to",
       )
-      .neq("status", "COMPLETED")
+      .in("status", activeTicketStatuses)
       .order("updated_at", { ascending: false });
 
     if (!isAdmin) {

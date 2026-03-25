@@ -330,8 +330,8 @@ export default function IncidentsPage() {
             </Link>
             {isAdmin ? (
               <>
-                <Link href="/wallboard" className="rounded-full px-4 py-2 hover:bg-white/10">
-                  Live Wallboard
+                <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white/10">
+                  Admin Control
                 </Link>
                 <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white/10">
                   Parts Control

@@ -222,7 +222,7 @@ export default function AdminPage() {
       .select(
         "id, user_id, requester_name, department, location_lat, location_lng, location_summary, location_confirmed, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
       )
-      .neq("status", "COMPLETED")
+      .in("status", activeTicketStatuses)
       .order("updated_at", { ascending: false });
 
     if (error) {
@@ -1068,9 +1068,6 @@ export default function AdminPage() {
             </Link>
             <Link href="/incidents" className="rounded-full px-4 py-2 hover:bg-white">
               Workshop Control
-            </Link>
-            <Link href="/wallboard" className="rounded-full px-4 py-2 hover:bg-white">
-              Live Wallboard
             </Link>
             <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
               Admin Control
