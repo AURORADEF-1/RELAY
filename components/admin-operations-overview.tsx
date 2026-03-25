@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { extractRequesterReturnReason } from "@/lib/requester-ticket-actions";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
@@ -12,6 +13,7 @@ const OPERATIONS_REFRESH_MS = 90_000;
 
 type OverviewTicketRow = {
   id: string;
+  job_number: string | null;
   status: TicketStatus | null;
   assigned_to: string | null;
   updated_at: string | null;
@@ -46,6 +48,7 @@ type OverviewSnapshot = {
   activeUsersCount: number;
   returns: Array<{
     ticketId: string;
+    jobNumber: string | null;
     reason: string;
     createdAt: string | null;
   }>;
@@ -108,7 +111,7 @@ export function AdminOperationsOverview({
       ] = await Promise.all([
         supabase
           .from("tickets")
-          .select("id, status, assigned_to, updated_at, created_at")
+          .select("id, job_number, status, assigned_to, updated_at, created_at")
           .in("status", activeTicketStatuses)
           .order("updated_at", { ascending: false }),
         supabase
@@ -164,6 +167,33 @@ export function AdminOperationsOverview({
         throw new Error(recentReturnsResult.error.message);
       }
 
+      const returnedTicketIds = Array.from(
+        new Set(
+          ((recentReturnsResult.data ?? []) as OverviewReturnRow[])
+            .map((row) => row.ticket_id)
+            .filter((ticketId): ticketId is string => Boolean(ticketId)),
+        ),
+      );
+
+      const returnedTicketJobNumbers =
+        returnedTicketIds.length > 0
+          ? await supabase
+              .from("tickets")
+              .select("id, job_number")
+              .in("id", returnedTicketIds)
+          : { data: [], error: null };
+
+      if (returnedTicketJobNumbers.error) {
+        throw new Error(returnedTicketJobNumbers.error.message);
+      }
+
+      const jobNumberByTicketId = new Map(
+        ((returnedTicketJobNumbers.data ?? []) as Array<{
+          id: string;
+          job_number: string | null;
+        }>).map((ticket) => [ticket.id, ticket.job_number ?? null]),
+      );
+
       setSnapshot({
         activeTickets: (activeTicketsResult.data ?? []) as OverviewTicketRow[],
         activeIncidents: (activeIncidentsResult.data ?? []) as OverviewIncidentRow[],
@@ -172,6 +202,7 @@ export function AdminOperationsOverview({
         returns: ((recentReturnsResult.data ?? []) as OverviewReturnRow[])
           .map((row) => ({
             ticketId: row.ticket_id ?? "",
+            jobNumber: row.ticket_id ? (jobNumberByTicketId.get(row.ticket_id) ?? null) : null,
             reason: extractRequesterReturnReason(row.comment) ?? "",
             createdAt: row.created_at ?? null,
           }))
@@ -446,9 +477,14 @@ export function AdminOperationsOverview({
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-900">
-                        Ticket {entry.ticketId.slice(0, 8)}
-                      </p>
+                      <Link
+                        href={`/tickets/${entry.ticketId}`}
+                        className="text-sm font-semibold text-slate-900 transition hover:text-slate-600"
+                      >
+                        {entry.jobNumber?.trim()
+                          ? `Job ${entry.jobNumber.trim()}`
+                          : `Ticket ${entry.ticketId.slice(0, 8)}`}
+                      </Link>
                       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                         {entry.createdAt ? formatDateTime(entry.createdAt) : "Recent"}
                       </p>
