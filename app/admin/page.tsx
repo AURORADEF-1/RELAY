@@ -30,6 +30,10 @@ import {
 } from "@/lib/notifications";
 import { fetchProfileAvatarUrls } from "@/lib/profile-settings";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import {
+  extractRequesterReturnReason,
+  REQUESTER_COLLECTED_COMMENT,
+} from "@/lib/requester-ticket-actions";
 import { sanitizeUserFacingError } from "@/lib/security";
 import {
   activeTicketStatusOptions,
@@ -92,6 +96,7 @@ export default function AdminPage() {
   });
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [collectedTicketIds, setCollectedTicketIds] = useState<Set<string>>(new Set());
+  const [returnedTicketReasonById, setReturnedTicketReasonById] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, { assigned_to: string; notes: string }>>(
     {},
   );
@@ -250,22 +255,37 @@ export default function AdminPage() {
         supabase
           .from("ticket_updates")
           .select("ticket_id, comment")
-          .in("ticket_id", ticketIds)
-          .eq("comment", "Part collected by requester."),
+          .in("ticket_id", ticketIds),
         fetchProfileAvatarUrls(supabase, avatarUserIds),
       ]);
 
       if (requestId === loadTicketsRequestIdRef.current) {
         if (updatesResult.status === "fulfilled") {
+          const returnedReasons = (updatesResult.value.data ?? []).reduce<Record<string, string>>(
+            (accumulator, update) => {
+              const reason = extractRequesterReturnReason(update.comment);
+
+              if (reason && typeof update.ticket_id === "string") {
+                accumulator[update.ticket_id] = reason;
+              }
+
+              return accumulator;
+            },
+            {},
+          );
+
           setCollectedTicketIds(
             new Set(
               (updatesResult.value.data ?? [])
+                .filter((update) => update.comment === REQUESTER_COLLECTED_COMMENT)
                 .map((update) => update.ticket_id)
                 .filter((ticketId): ticketId is string => typeof ticketId === "string"),
             ),
           );
+          setReturnedTicketReasonById(returnedReasons);
         } else {
           setCollectedTicketIds(new Set());
+          setReturnedTicketReasonById({});
         }
 
         if (avatarsResult.status === "fulfilled") {
@@ -277,6 +297,7 @@ export default function AdminPage() {
       }
     } else {
       setCollectedTicketIds(new Set());
+      setReturnedTicketReasonById({});
       setProfileAvatarByUserId({});
     }
 
@@ -1619,7 +1640,12 @@ export default function AdminPage() {
                             </div>
                           </td>
                           <td className="px-6 py-5 text-sm leading-7 text-slate-600">
-                            {ticket.request_summary ?? ticket.request_details ?? "-"}
+                            <div className="space-y-2">
+                              <p>{ticket.request_summary ?? ticket.request_details ?? "-"}</p>
+                              {returnedTicketReasonById[ticket.id] ? (
+                                <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
+                              ) : null}
+                            </div>
                           </td>
                           <td className="px-6 py-5">
                             <StatusBadge status={ticket.status ?? "PENDING"} />
@@ -1660,6 +1686,9 @@ export default function AdminPage() {
                             <div className="space-y-3">
                               {collectedTicketIds.has(ticket.id) ? (
                                 <CollectedBadge />
+                              ) : null}
+                              {returnedTicketReasonById[ticket.id] ? (
+                                <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
                               ) : null}
                               <StatusSelect
                                 ticketId={ticket.id}
@@ -1761,6 +1790,11 @@ export default function AdminPage() {
                         <p className="mt-1 text-sm leading-7 text-slate-600">
                           {ticket.request_summary ?? ticket.request_details ?? "-"}
                         </p>
+                        {returnedTicketReasonById[ticket.id] ? (
+                          <div className="mt-3">
+                            <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="mt-4">
@@ -1790,6 +1824,9 @@ export default function AdminPage() {
                         <div className="mt-2 space-y-3">
                           {collectedTicketIds.has(ticket.id) ? (
                             <CollectedBadge />
+                          ) : null}
+                          {returnedTicketReasonById[ticket.id] ? (
+                            <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
                           ) : null}
                           <StatusSelect
                             ticketId={ticket.id}
@@ -1874,6 +1911,11 @@ export default function AdminPage() {
                                         <CollectedBadge />
                                       </div>
                                     ) : null}
+                                    {returnedTicketReasonById[ticket.id] ? (
+                                      <div className="mt-2">
+                                        <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
+                                      </div>
+                                    ) : null}
                                     </div>
                                   </div>
                                 </div>
@@ -1947,6 +1989,11 @@ export default function AdminPage() {
                           {collectedTicketIds.has(ticket.id) ? (
                             <div className="mt-2">
                               <CollectedBadge />
+                            </div>
+                          ) : null}
+                          {returnedTicketReasonById[ticket.id] ? (
+                            <div className="mt-2">
+                              <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
                             </div>
                           ) : null}
                         </div>
@@ -2315,6 +2362,18 @@ function CollectedBadge() {
     <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
       <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
       Collected
+    </div>
+  );
+}
+
+function ReturnedBadge({ reason }: { reason: string }) {
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+      <div className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100 px-3 py-1.5 font-semibold uppercase tracking-[0.16em] text-amber-800">
+        <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+        Returned
+      </div>
+      <p className="mt-2 leading-6">{reason}</p>
     </div>
   );
 }
