@@ -57,33 +57,45 @@ export function getPresenceHeartbeatMs() {
 
 export async function fetchRecentlyActiveUsers(supabase: SupabaseClient) {
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
-    .from("user_presence")
-    .select(
-      "user_id, last_seen_at, profiles:profiles!user_presence_user_id_fkey(full_name, role)",
-    )
-    .gte("last_seen_at", since)
-    .order("last_seen_at", { ascending: false });
+  const [{ data: presenceData, error: presenceError }, { data: profilesData, error: profilesError }] =
+    await Promise.all([
+      supabase
+        .from("user_presence")
+        .select("user_id, last_seen_at")
+        .gte("last_seen_at", since)
+        .order("last_seen_at", { ascending: false }),
+      supabase
+        .from("profiles")
+        .select("id, full_name, role"),
+    ]);
 
-  if (error) {
-    throw new Error(error.message);
+  if (presenceError) {
+    throw new Error(presenceError.message);
   }
 
-  return ((data ?? []) as Array<{
+  if (profilesError) {
+    throw new Error(profilesError.message);
+  }
+
+  const profilesById = new Map(
+    ((profilesData ?? []) as Array<{
+      id: string;
+      full_name: string | null;
+      role: string | null;
+    }>).map((profile) => [
+      profile.id,
+      {
+        full_name: profile.full_name ?? null,
+        role: profile.role ?? null,
+      },
+    ]),
+  );
+
+  return ((presenceData ?? []) as Array<{
     user_id: string;
     last_seen_at: string;
-    profiles:
-      | {
-          full_name: string | null;
-          role: string | null;
-        }
-      | {
-          full_name: string | null;
-          role: string | null;
-        }[]
-      | null;
   }>).map((row) => {
-    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    const profile = profilesById.get(row.user_id);
 
     return {
       user_id: row.user_id,
