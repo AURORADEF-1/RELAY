@@ -32,11 +32,6 @@ import { fetchProfileAvatarUrls } from "@/lib/profile-settings";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { sanitizeUserFacingError } from "@/lib/security";
 import {
-  fetchSessionControlsForUsers,
-  forceLogoutUserSessions,
-  type SessionControlRecord,
-} from "@/lib/session-controls";
-import {
   activeTicketStatusOptions,
   activeTicketStatuses,
   type ActiveTicketStatusFilter,
@@ -45,7 +40,6 @@ import {
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getSupabaseAccessToken } from "@/lib/supabase";
-import { fetchUsersWithPresence, type UserDirectoryRecord } from "@/lib/user-tasks";
 
 const ADMIN_CHAT_READ_STORAGE_KEY = "relay-admin-chat-last-opened";
 const ADMIN_DASHBOARD_VIEW_STORAGE_KEY = "relay-admin-dashboard-view-mode";
@@ -112,7 +106,6 @@ export default function AdminPage() {
   >({});
   const [isChatCollapsed, setIsChatCollapsed] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [isChatSending, setIsChatSending] = useState(false);
@@ -128,16 +121,6 @@ export default function AdminPage() {
   );
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
   const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
-  const [managedUsers, setManagedUsers] = useState<UserDirectoryRecord[]>([]);
-  const [sessionControlsByUserId, setSessionControlsByUserId] = useState<
-    Record<string, SessionControlRecord>
-  >({});
-  const [isSessionUsersLoading, setIsSessionUsersLoading] = useState(false);
-  const [sessionActionUserId, setSessionActionUserId] = useState<string | null>(null);
-  const [sessionNotice, setSessionNotice] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
 
   function beginTicketOperation(ticketId: string) {
     if (activeTicketOperationIdsRef.current.has(ticketId)) {
@@ -233,7 +216,6 @@ export default function AdminPage() {
     }
 
     setCurrentUserId(user.id);
-    setCurrentUserEmail(user.email ?? null);
 
     const { data, error } = await supabase
       .from("tickets")
@@ -331,38 +313,6 @@ export default function AdminPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadTickets]);
-
-  const loadManagedUsers = useCallback(async () => {
-    const supabase = getSupabaseClient();
-
-    if (!supabase) {
-      return;
-    }
-
-    setIsSessionUsersLoading(true);
-
-    try {
-      const users = await fetchUsersWithPresence(supabase);
-      const sessionControls = await fetchSessionControlsForUsers(
-        supabase,
-        users.map((user) => user.user_id),
-      );
-      setManagedUsers(users);
-      setSessionControlsByUserId(sessionControls);
-    } catch (error) {
-      console.error("Failed to load session-managed users", error);
-    } finally {
-      setIsSessionUsersLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (currentUserEmail !== "admin@mlp.local") {
-      return;
-    }
-
-    void loadManagedUsers();
-  }, [currentUserEmail, loadManagedUsers]);
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
@@ -905,47 +855,6 @@ export default function AdminPage() {
     [unreadRequesterCountsByTicket],
   );
 
-  async function handleForceSessionEnd(targetUserId: string) {
-    const supabase = getSupabaseClient();
-
-    if (!supabase || !currentUserId) {
-      setSessionNotice({
-        type: "error",
-        message: "Unable to control sessions right now.",
-      });
-      return;
-    }
-
-    setSessionActionUserId(targetUserId);
-    setSessionNotice(null);
-
-    try {
-      const control = await forceLogoutUserSessions(supabase, {
-        userId: targetUserId,
-        updatedBy: currentUserId,
-      });
-
-      setSessionControlsByUserId((current) => ({
-        ...current,
-        [targetUserId]: control,
-      }));
-      setSessionNotice({
-        type: "success",
-        message: "Session end request sent.",
-      });
-    } catch (error) {
-      setSessionNotice({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to end the user session.",
-      });
-    } finally {
-      setSessionActionUserId(null);
-    }
-  }
-
   async function handleSendChatMessage(payload: { messageText: string; files: File[] }) {
     if (!selectedChatTicket) {
       return false;
@@ -1162,6 +1071,9 @@ export default function AdminPage() {
             </Link>
             <Link href="/wallboard" className="rounded-full px-4 py-2 hover:bg-white">
               Live Wallboard
+            </Link>
+            <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
+              Admin Control
             </Link>
             <Link
               href="/admin"
@@ -1520,92 +1432,6 @@ export default function AdminPage() {
               <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {errorMessage}
               </div>
-            ) : null}
-
-            {currentUserEmail === "admin@mlp.local" ? (
-              <section className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-                      Session Control
-                    </p>
-                    <p className="mt-2 max-w-3xl text-sm leading-7 text-amber-900">
-                      End active sessions for other users if RELAY becomes unhealthy or a user is stuck.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void loadManagedUsers()}
-                    disabled={isSessionUsersLoading}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSessionUsersLoading ? "Refreshing..." : "Refresh Users"}
-                  </button>
-                </div>
-
-                {sessionNotice ? (
-                  <div
-                    className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
-                      sessionNotice.type === "success"
-                        ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-                        : "border border-rose-200 bg-rose-50 text-rose-700"
-                    }`}
-                  >
-                    {sessionNotice.message}
-                  </div>
-                ) : null}
-
-                <div className="mt-5 grid gap-3">
-                  {managedUsers.length === 0 ? (
-                    <div className="rounded-2xl border border-amber-200 bg-white px-4 py-4 text-sm text-slate-600">
-                      No users available for session control.
-                    </div>
-                  ) : (
-                    managedUsers.map((user) => {
-                      const sessionControl = sessionControlsByUserId[user.user_id];
-                      const isCurrentUser = user.user_id === currentUserId;
-
-                      return (
-                        <article
-                          key={user.user_id}
-                          className="rounded-2xl border border-amber-200 bg-white px-4 py-4"
-                        >
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                            <div className="space-y-1">
-                              <p className="text-sm font-semibold text-slate-950">
-                                {user.full_name || user.user_id}
-                              </p>
-                              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                                {user.role || "user"} · {user.is_active ? "active" : "inactive"}
-                              </p>
-                              <p className="text-sm text-slate-600">
-                                Last seen {user.last_seen_at ? formatDateTime(user.last_seen_at) : "not recently"}
-                              </p>
-                              {sessionControl?.forced_logout_after ? (
-                                <p className="text-xs text-amber-700">
-                                  Last session end request: {formatDateTime(sessionControl.forced_logout_after)}
-                                </p>
-                              ) : null}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => void handleForceSessionEnd(user.user_id)}
-                              disabled={isCurrentUser || sessionActionUserId === user.user_id}
-                              className="inline-flex h-11 items-center justify-center rounded-xl border border-rose-300 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {isCurrentUser
-                                ? "Current Session"
-                                : sessionActionUserId === user.user_id
-                                  ? "Ending..."
-                                  : "End Session"}
-                            </button>
-                          </div>
-                        </article>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
             ) : null}
 
             <div className="mt-8 rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">

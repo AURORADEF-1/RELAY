@@ -217,6 +217,12 @@ export default function Home() {
                   Live Wallboard
                 </Link>
                 <Link
+                  href="/control"
+                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+                >
+                  Admin Control
+                </Link>
+                <Link
                   href="/admin"
                   className="rounded-full px-4 py-2 transition hover:bg-slate-100"
                 >
@@ -297,6 +303,12 @@ export default function Home() {
                         className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
                       >
                         Live Wallboard
+                      </Link>
+                      <Link
+                        href="/control"
+                        className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                      >
+                        Admin Control
                       </Link>
                       <Link
                         href="/admin"

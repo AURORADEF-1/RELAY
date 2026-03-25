@@ -64,7 +64,7 @@ const NotificationContext = createContext<NotificationContextValue>({
 
 const SOUND_COOLDOWN_MS = 1800;
 const TOAST_DURATION_MS = 10000;
-const NOTIFICATION_POLL_INTERVAL_MS = 15000;
+const NOTIFICATION_POLL_INTERVAL_MS = 30000;
 const SESSION_CONTROL_POLL_INTERVAL_MS = 45000;
 const PRESENCE_LEADER_STORAGE_KEY = "relay-presence-leader";
 const PRESENCE_LEASE_TTL_MS = 90_000;
@@ -87,6 +87,10 @@ function shouldTrackUserPresence(pathname: string, adminUser: boolean) {
     pathname === "/wallboard" ||
     pathname.startsWith("/incidents")
   );
+}
+
+function shouldRunBackgroundSync() {
+  return typeof document === "undefined" ? true : !document.hidden;
 }
 
 function acquirePresenceLease(tabId: string) {
@@ -553,6 +557,10 @@ export function NotificationProvider({
         channel.subscribe();
 
         pollInterval = window.setInterval(() => {
+          if (!shouldRunBackgroundSync()) {
+            return;
+          }
+
           void syncUnreadNotifications(supabase, user.id, adminUser, {
             showToasts: true,
           });
@@ -563,6 +571,10 @@ export function NotificationProvider({
         }, NOTIFICATION_POLL_INTERVAL_MS);
 
         sessionControlInterval = window.setInterval(() => {
+          if (!shouldRunBackgroundSync()) {
+            return;
+          }
+
           void (async () => {
             try {
               const sessionControl = await fetchSessionControlState(supabase, user.id);
@@ -641,6 +653,10 @@ export function NotificationProvider({
     const supabase = getSupabaseClient();
 
     if (!supabase || !isAuthenticated) {
+      return;
+    }
+
+    if (!shouldRunBackgroundSync()) {
       return;
     }
 
