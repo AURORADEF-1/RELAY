@@ -16,5 +16,5 @@ export function extractRequesterReturnReason(comment: string | null | undefined)
     return null;
   }
 
-  return comment.slice(REQUESTER_RETURN_PREFIX.length).trim() || null;
+  return comment!.slice(REQUESTER_RETURN_PREFIX.length).trim() || null;
 }
