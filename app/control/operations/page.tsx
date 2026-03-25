@@ -45,7 +45,7 @@ export default function OperationsOverviewPage() {
             </div>
           </nav>
 
-          <AdminOperationsOverview standalone />
+          <AdminOperationsOverview />
         </div>
       </main>
     </AuthGuard>

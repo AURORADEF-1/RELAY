@@ -60,11 +60,7 @@ type OverviewSnapshot = {
   };
 };
 
-export function AdminOperationsOverview({
-  standalone = false,
-}: {
-  standalone?: boolean;
-}) {
+export function AdminOperationsOverview() {
   const { isVisible, isIdle, isInteractive } = usePageActivity();
   const failureCountRef = useRef(0);
   const [snapshot, setSnapshot] = useState<OverviewSnapshot | null>(null);
@@ -386,31 +382,94 @@ export function AdminOperationsOverview({
     return suggestions;
   }, [derivedSummary, snapshot]);
 
+  const operatorLoad = useMemo(() => {
+    const totals = (snapshot?.activeTickets ?? []).reduce<Record<string, number>>(
+      (accumulator, ticket) => {
+        const operator = ticket.assigned_to?.trim() || "Stores Queue";
+        accumulator[operator] = (accumulator[operator] ?? 0) + 1;
+        return accumulator;
+      },
+      {},
+    );
+
+    const highest = Math.max(1, ...Object.values(totals));
+
+    return Object.entries(totals)
+      .map(([operator, total]) => ({
+        operator,
+        total,
+        ratio: total / highest,
+      }))
+      .sort((left, right) => right.total - left.total);
+  }, [snapshot]);
+
+  const flowMetrics = useMemo(() => {
+    const activeTickets = snapshot?.activeTickets ?? [];
+
+    const counts = {
+      queue: 0,
+      working: 0,
+      ordered: 0,
+      ready: 0,
+    };
+
+    for (const ticket of activeTickets) {
+      if (
+        ticket.status === "PENDING" ||
+        ticket.status === "QUERY" ||
+        ticket.status === "ESTIMATE" ||
+        ticket.status === "QUOTE"
+      ) {
+        counts.queue += 1;
+      } else if (ticket.status === "IN_PROGRESS") {
+        counts.working += 1;
+      } else if (ticket.status === "ORDERED") {
+        counts.ordered += 1;
+      } else if (ticket.status === "READY") {
+        counts.ready += 1;
+      }
+    }
+
+    const total = Math.max(
+      1,
+      counts.queue + counts.working + counts.ordered + counts.ready,
+    );
+
+    return {
+      total,
+      counts,
+    };
+  }, [snapshot]);
+
   return (
-    <section className={`rounded-[2rem] border border-slate-200 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.18)] ${standalone ? "" : ""}`}>
+    <section className="overflow-hidden rounded-[2rem] border border-slate-800 bg-[radial-gradient(circle_at_top,#17304a_0%,#0d1724_30%,#09111b_100%)] p-8 text-slate-100 shadow-[0_28px_80px_-32px_rgba(2,6,23,0.75)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,rgba(56,189,248,0),rgba(56,189,248,0.85),rgba(56,189,248,0))]" />
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-            Operational Overview
+          <div className="inline-flex rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200">
+            Relay Command Surface
           </div>
-          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-slate-950">
+          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">
             Live Operations Summary
           </h2>
-          <p className="mt-3 max-w-3xl text-base leading-8 text-slate-700">
-            Slow-refresh operational snapshot with queue pressure, workshop load, daily KPI movement, and suggested next actions.
+          <p className="mt-3 max-w-3xl text-base leading-8 text-slate-300">
+            Low-frequency operational snapshot with lightweight SVG telemetry, operator workload distribution, and rule-based action prompts.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {lastUpdatedAt ? (
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
               Updated {formatDateTime(lastUpdatedAt)}
             </p>
           ) : null}
+          <div className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+            Low cost: summary queries only
+          </div>
           <button
             type="button"
             onClick={() => void loadOverview()}
             disabled={isLoading}
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/50 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? "Refreshing..." : "Refresh"}
           </button>
@@ -418,43 +477,119 @@ export function AdminOperationsOverview({
       </div>
 
       {errorMessage ? (
-        <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="mt-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
           {errorMessage}
         </div>
       ) : null}
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-4">
-        <OverviewMetricCard label="Active Parts Jobs" value={String(snapshot?.activeTickets.length ?? 0)} helper={`${derivedSummary.queueCount} in queue review, ${derivedSummary.readyCount} ready to collect.`} />
-        <OverviewMetricCard label="Workshop Incidents" value={String(snapshot?.activeIncidents.length ?? 0)} helper={`${derivedSummary.awaitingPartsIncidents} awaiting parts, ${derivedSummary.criticalIncidents} high severity.`} />
-        <OverviewMetricCard label="Open Tasks" value={String(snapshot?.openTasks.length ?? 0)} helper={`${derivedSummary.overdueTasks} overdue, ${snapshot?.activeUsersCount ?? 0} recently active users.`} />
-        <OverviewMetricCard label="Recent Returns" value={String(snapshot?.returns.length ?? 0)} helper={`${derivedSummary.unassignedTickets} unassigned parts jobs, ${derivedSummary.unassignedIncidents} unassigned incidents.`} />
-      </div>
+      <div className="mt-6 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <OverviewMetricCard
+            label="Active Parts Jobs"
+            value={String(snapshot?.activeTickets.length ?? 0)}
+            helper={`${derivedSummary.queueCount} in queue review, ${derivedSummary.readyCount} ready to collect.`}
+            accent="cyan"
+          />
+          <OverviewMetricCard
+            label="Workshop Incidents"
+            value={String(snapshot?.activeIncidents.length ?? 0)}
+            helper={`${derivedSummary.awaitingPartsIncidents} awaiting parts, ${derivedSummary.criticalIncidents} high severity.`}
+            accent="amber"
+          />
+          <OverviewMetricCard
+            label="Open Tasks"
+            value={String(snapshot?.openTasks.length ?? 0)}
+            helper={`${derivedSummary.overdueTasks} overdue, ${snapshot?.activeUsersCount ?? 0} recently active users.`}
+            accent="emerald"
+          />
+          <OverviewMetricCard
+            label="Recent Returns"
+            value={String(snapshot?.returns.length ?? 0)}
+            helper={`${derivedSummary.unassignedTickets} unassigned parts jobs, ${derivedSummary.unassignedIncidents} unassigned incidents.`}
+            accent="rose"
+          />
+        </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+        <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Suggested Actions
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Queue Flow
             </p>
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-              Rule-based
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+              lightweight svg
             </p>
           </div>
-          <div className="mt-4 space-y-3">
-            {suggestedActions.map((action) => (
-              <article
-                key={action}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm leading-6 text-slate-700"
-              >
-                {action}
-              </article>
-            ))}
+          <div className="mt-4">
+            <FlowMeter
+              queue={flowMetrics.counts.queue}
+              working={flowMetrics.counts.working}
+              ordered={flowMetrics.counts.ordered}
+              ready={flowMetrics.counts.ready}
+              total={flowMetrics.total}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-6">
+          <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Operator Load
+              </p>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                assigned jobs
+              </p>
+            </div>
+            <div className="mt-4 space-y-3">
+              {operatorLoad.length > 0 ? (
+                operatorLoad.map((entry) => (
+                  <OperatorLoadRow
+                    key={entry.operator}
+                    operator={entry.operator}
+                    total={entry.total}
+                    ratio={entry.ratio}
+                  />
+                ))
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/70 px-4 py-4 text-sm text-slate-400">
+                  No assigned live jobs to profile yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Suggested Actions
+              </p>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                rule-based
+              </p>
+            </div>
+            <div className="mt-4 space-y-3">
+              {suggestedActions.map((action, index) => (
+                <article
+                  key={action}
+                  className="rounded-2xl border border-slate-700 bg-[linear-gradient(135deg,rgba(15,23,42,0.88),rgba(8,15,26,0.98))] px-4 py-4 text-sm leading-6 text-slate-200"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 text-[11px] font-semibold text-cyan-200">
+                      {index + 1}
+                    </span>
+                    <span>{action}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
               Daily KPI Summary
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -465,8 +600,11 @@ export function AdminOperationsOverview({
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Suggested Actions
+            </p>
+            <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
               Recent Returned Parts
             </p>
             <div className="mt-4 space-y-3">
@@ -474,12 +612,12 @@ export function AdminOperationsOverview({
                 snapshot.returns.map((entry) => (
                   <article
                     key={`${entry.ticketId}-${entry.createdAt ?? "unknown"}`}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
+                    className="rounded-2xl border border-slate-700 bg-[linear-gradient(135deg,rgba(15,23,42,0.88),rgba(8,15,26,0.98))] px-4 py-4"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <Link
                         href={`/tickets/${entry.ticketId}`}
-                        className="text-sm font-semibold text-slate-900 transition hover:text-slate-600"
+                        className="text-sm font-semibold text-cyan-200 transition hover:text-cyan-100"
                       >
                         {entry.jobNumber?.trim()
                           ? `Job ${entry.jobNumber.trim()}`
@@ -489,15 +627,24 @@ export function AdminOperationsOverview({
                         {entry.createdAt ? formatDateTime(entry.createdAt) : "Recent"}
                       </p>
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{entry.reason}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{entry.reason}</p>
                   </article>
                 ))
               ) : (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-4 text-sm text-slate-500">
+                <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/70 px-4 py-4 text-sm text-slate-400">
                   No recent part returns recorded.
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Recent Returned Parts
+            </p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              Render budget is intentionally low: no charting library, no canvas, no animation loops, and no extra live queries beyond the existing summary snapshot.
+            </p>
           </div>
         </div>
       </div>
@@ -509,18 +656,27 @@ function OverviewMetricCard({
   label,
   value,
   helper,
+  accent,
 }: {
   label: string;
   value: string;
   helper: string;
+  accent: "cyan" | "amber" | "emerald" | "rose";
 }) {
+  const accentClasses = {
+    cyan: "border-cyan-400/25 bg-cyan-400/8 text-cyan-100",
+    amber: "border-amber-400/25 bg-amber-400/8 text-amber-100",
+    emerald: "border-emerald-400/25 bg-emerald-400/8 text-emerald-100",
+    rose: "border-rose-400/25 bg-rose-400/8 text-rose-100",
+  }[accent];
+
   return (
-    <article className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+    <article className={`rounded-3xl border p-5 ${accentClasses}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
         {label}
       </p>
-      <p className="mt-3 text-3xl font-semibold text-slate-950">{value}</p>
-      <p className="mt-3 text-sm leading-6 text-slate-600">{helper}</p>
+      <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-300">{helper}</p>
     </article>
   );
 }
@@ -533,12 +689,99 @@ function OverviewStat({
   value: string;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+    <article className="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
     </article>
+  );
+}
+
+function OperatorLoadRow({
+  operator,
+  total,
+  ratio,
+}: {
+  operator: string;
+  total: number;
+  ratio: number;
+}) {
+  return (
+    <article className="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-white">{operator}</p>
+        <p className="text-sm font-semibold text-cyan-200">{total}</p>
+      </div>
+      <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-800">
+        <div
+          className="h-full rounded-full bg-[linear-gradient(90deg,rgba(34,211,238,0.95),rgba(59,130,246,0.9))]"
+          style={{ width: `${Math.max(10, Math.round(ratio * 100))}%` }}
+        />
+      </div>
+    </article>
+  );
+}
+
+function FlowMeter({
+  queue,
+  working,
+  ordered,
+  ready,
+  total,
+}: {
+  queue: number;
+  working: number;
+  ordered: number;
+  ready: number;
+  total: number;
+}) {
+  const widths = {
+    queue: (queue / total) * 100,
+    working: (working / total) * 100,
+    ordered: (ordered / total) * 100,
+    ready: (ready / total) * 100,
+  };
+
+  return (
+    <div>
+      <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
+        <svg viewBox="0 0 100 18" className="h-16 w-full" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="0" y="4" width={widths.queue} height="10" rx="2" fill="rgba(244,114,182,0.9)" />
+          <rect x={widths.queue} y="4" width={widths.working} height="10" rx="2" fill="rgba(34,211,238,0.9)" />
+          <rect x={widths.queue + widths.working} y="4" width={widths.ordered} height="10" rx="2" fill="rgba(251,191,36,0.92)" />
+          <rect x={widths.queue + widths.working + widths.ordered} y="4" width={widths.ready} height="10" rx="2" fill="rgba(16,185,129,0.92)" />
+        </svg>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <FlowLegend label="Queue Review" value={queue} tone="bg-pink-400" />
+        <FlowLegend label="Working" value={working} tone="bg-cyan-400" />
+        <FlowLegend label="Ordered" value={ordered} tone="bg-amber-400" />
+        <FlowLegend label="Ready" value={ready} tone="bg-emerald-400" />
+      </div>
+    </div>
+  );
+}
+
+function FlowLegend({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className={`h-2.5 w-2.5 rounded-full ${tone}`} />
+          <span className="text-sm text-slate-300">{label}</span>
+        </div>
+        <span className="text-sm font-semibold text-white">{value}</span>
+      </div>
+    </div>
   );
 }
 
