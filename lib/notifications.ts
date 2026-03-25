@@ -8,7 +8,8 @@ export type RelayNotificationType =
   | "task_assigned"
   | "ready_reminder"
   | "ready_for_collection"
-  | "part_collected";
+  | "part_collected"
+  | "part_returned";
 
 export type RelayNotificationRecord = {
   id: string;
@@ -352,6 +353,41 @@ export async function notifyAdminsOfPartCollected(
       user_id: userId,
       ticket_id: payload.ticketId,
       type: "part_collected",
+      title: clampNotificationText(title, 120),
+      body: clampNotificationText(body, 240),
+    })),
+  );
+}
+
+export async function notifyAdminsOfPartReturned(
+  supabase: SupabaseClient,
+  payload: {
+    ticketId: string;
+    requesterName: string | null;
+    jobNumber: string | null;
+    requestSummary: string | null;
+    reason: string;
+  },
+) {
+  const adminUserIds = await fetchAdminUserIds(supabase);
+
+  if (adminUserIds.length === 0) {
+    return;
+  }
+
+  const title = payload.jobNumber
+    ? `Part returned: ${payload.jobNumber}`
+    : "Part return requested";
+  const body = payload.requesterName?.trim()
+    ? `${payload.requesterName.trim()} requested a part return. Reason: ${payload.reason.trim()}`
+    : `${payload.requestSummary?.trim() || "A request"} was returned. Reason: ${payload.reason.trim()}`;
+
+  await insertNotifications(
+    supabase,
+    adminUserIds.map((userId) => ({
+      user_id: userId,
+      ticket_id: payload.ticketId,
+      type: "part_returned",
       title: clampNotificationText(title, 120),
       body: clampNotificationText(body, 240),
     })),

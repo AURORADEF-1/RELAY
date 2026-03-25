@@ -8,8 +8,16 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
-import { notifyAdminsOfPartCollected } from "@/lib/notifications";
+import {
+  notifyAdminsOfPartCollected,
+  notifyAdminsOfPartReturned,
+} from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import {
+  buildRequesterReturnComment,
+  isRequesterReturnComment,
+  REQUESTER_COLLECTED_COMMENT,
+} from "@/lib/requester-ticket-actions";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -42,10 +50,13 @@ export default function RequestsPage() {
   });
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [collectedTicketIds, setCollectedTicketIds] = useState<Set<string>>(new Set());
+  const [returnedTicketIds, setReturnedTicketIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [workingCollectedTicketId, setWorkingCollectedTicketId] = useState<string | null>(null);
+  const [workingActionTicketId, setWorkingActionTicketId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [returnDialogTicketId, setReturnDialogTicketId] = useState<string | null>(null);
+  const [returnReason, setReturnReason] = useState("");
 
   const loadTickets = useCallback(async () => {
     setIsLoading(true);
@@ -102,18 +113,27 @@ export default function RequestsPage() {
         .in(
           "ticket_id",
           nextTickets.map((ticket) => ticket.id),
-        )
-        .eq("comment", "Part collected by requester.");
+        );
 
       setCollectedTicketIds(
         new Set(
           (updates ?? [])
+            .filter((update) => update.comment === REQUESTER_COLLECTED_COMMENT)
+            .map((update) => update.ticket_id)
+            .filter((ticketId): ticketId is string => typeof ticketId === "string"),
+        ),
+      );
+      setReturnedTicketIds(
+        new Set(
+          (updates ?? [])
+            .filter((update) => isRequesterReturnComment(update.comment))
             .map((update) => update.ticket_id)
             .filter((ticketId): ticketId is string => typeof ticketId === "string"),
         ),
       );
     } else {
       setCollectedTicketIds(new Set());
+      setReturnedTicketIds(new Set());
     }
 
     setIsLoading(false);
@@ -155,7 +175,7 @@ export default function RequestsPage() {
       return;
     }
 
-    setWorkingCollectedTicketId(ticket.id);
+    setWorkingActionTicketId(ticket.id);
     setErrorMessage("");
 
     try {
@@ -163,7 +183,7 @@ export default function RequestsPage() {
         .from("ticket_updates")
         .select("id")
         .eq("ticket_id", ticket.id)
-        .eq("comment", "Part collected by requester.")
+        .eq("comment", REQUESTER_COLLECTED_COMMENT)
         .limit(1);
 
       if (existingCollectedError) {
@@ -173,7 +193,7 @@ export default function RequestsPage() {
       if ((existingCollectedUpdate ?? []).length === 0) {
         const { error: insertError } = await supabase.from("ticket_updates").insert({
           ticket_id: ticket.id,
-          comment: "Part collected by requester.",
+          comment: REQUESTER_COLLECTED_COMMENT,
         });
 
         if (insertError) {
@@ -201,7 +221,91 @@ export default function RequestsPage() {
         ),
       );
     } finally {
-      setWorkingCollectedTicketId(null);
+      setWorkingActionTicketId(null);
+    }
+  }
+
+  async function handleRequestReturn(ticket: Ticket) {
+    const trimmedReason = returnReason.trim();
+
+    if (!trimmedReason) {
+      setErrorMessage("Please give a reason for the return request.");
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setWorkingActionTicketId(ticket.id);
+    setErrorMessage("");
+
+    try {
+      const returnComment = buildRequesterReturnComment(trimmedReason);
+      const nextUpdatedAt = new Date().toISOString();
+
+      const { error: updateError } = await supabase
+        .from("tickets")
+        .update({
+          status: "QUERY",
+          updated_at: nextUpdatedAt,
+        })
+        .eq("id", ticket.id);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      const { error: updateInsertError } = await supabase.from("ticket_updates").insert([
+        {
+          ticket_id: ticket.id,
+          status: "QUERY",
+        },
+        {
+          ticket_id: ticket.id,
+          comment: returnComment,
+        },
+      ]);
+
+      if (updateInsertError) {
+        throw new Error(updateInsertError.message);
+      }
+
+      setTickets((current) =>
+        current.map((currentTicket) =>
+          currentTicket.id === ticket.id
+            ? {
+                ...currentTicket,
+                status: "QUERY",
+                updated_at: nextUpdatedAt,
+              }
+            : currentTicket,
+        ),
+      );
+      setReturnedTicketIds((current) => new Set(current).add(ticket.id));
+      setReturnDialogTicketId(null);
+      setReturnReason("");
+
+      try {
+        await notifyAdminsOfPartReturned(supabase, {
+          ticketId: ticket.id,
+          requesterName: ticket.requester_name ?? null,
+          jobNumber: ticket.job_number ?? null,
+          requestSummary: ticket.request_summary ?? ticket.request_details,
+          reason: trimmedReason,
+        });
+      } catch (notificationError) {
+        console.error("Failed to notify admins that a part was returned", notificationError);
+      }
+    } catch (error) {
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Unable to request a part return."),
+      );
+    } finally {
+      setWorkingActionTicketId(null);
     }
   }
 
@@ -378,21 +482,73 @@ export default function RequestsPage() {
                       >
                         Open request
                       </Link>
-                      {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) ? (
-                        <button
-                          type="button"
-                          onClick={() => void handleMarkCollected(ticket)}
-                          disabled={workingCollectedTicketId === ticket.id}
-                          className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {workingCollectedTicketId === ticket.id ? "Saving..." : "Collected"}
-                        </button>
+                      {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) && !returnedTicketIds.has(ticket.id) ? (
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleMarkCollected(ticket)}
+                            disabled={workingActionTicketId === ticket.id}
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {workingActionTicketId === ticket.id ? "Saving..." : "Confirm Collection"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReturnDialogTicketId(ticket.id);
+                              setReturnReason("");
+                              setErrorMessage("");
+                            }}
+                            disabled={workingActionTicketId === ticket.id}
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-700 transition hover:border-amber-400 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Return Part
+                          </button>
+                        </div>
                       ) : collectedTicketIds.has(ticket.id) ? (
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                          Part collected
+                          Collection confirmed
+                        </p>
+                      ) : returnedTicketIds.has(ticket.id) ? (
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                          Return requested
                         </p>
                       ) : null}
                     </div>
+                    {returnDialogTicketId === ticket.id ? (
+                      <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                        <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-amber-800">
+                          Reason for return
+                        </label>
+                        <textarea
+                          value={returnReason}
+                          onChange={(event) => setReturnReason(event.target.value)}
+                          rows={3}
+                          placeholder="Tell Stores why this part needs to be returned."
+                          className="mt-2 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-300"
+                        />
+                        <div className="mt-3 flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReturnDialogTicketId(null);
+                              setReturnReason("");
+                            }}
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleRequestReturn(ticket)}
+                            disabled={workingActionTicketId === ticket.id}
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-300 bg-amber-100 px-4 text-sm font-semibold text-amber-800 transition hover:border-amber-400 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {workingActionTicketId === ticket.id ? "Saving..." : "Submit Return Request"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </article>
                 ))
               )}
@@ -467,15 +623,68 @@ export default function RequestsPage() {
                           <td className="px-6 py-5 text-sm text-slate-500">
                             <div className="space-y-2">
                               <p>{ticket.assigned_to ?? "Stores queue"}</p>
-                              {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) ? (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleMarkCollected(ticket)}
-                                  disabled={workingCollectedTicketId === ticket.id}
-                                  className="inline-flex h-9 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {workingCollectedTicketId === ticket.id ? "Saving..." : "Collected"}
-                                </button>
+                              {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) && !returnedTicketIds.has(ticket.id) ? (
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleMarkCollected(ticket)}
+                                    disabled={workingActionTicketId === ticket.id}
+                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {workingActionTicketId === ticket.id ? "Saving..." : "Confirm Collection"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setReturnDialogTicketId(ticket.id);
+                                      setReturnReason("");
+                                      setErrorMessage("");
+                                    }}
+                                    disabled={workingActionTicketId === ticket.id}
+                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-amber-300 bg-amber-50 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 transition hover:border-amber-400 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    Return Part
+                                  </button>
+                                </div>
+                              ) : collectedTicketIds.has(ticket.id) ? (
+                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                                  Collection confirmed
+                                </p>
+                              ) : returnedTicketIds.has(ticket.id) ? (
+                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                                  Return requested
+                                </p>
+                              ) : null}
+                              {returnDialogTicketId === ticket.id ? (
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                  <textarea
+                                    value={returnReason}
+                                    onChange={(event) => setReturnReason(event.target.value)}
+                                    rows={3}
+                                    placeholder="Tell Stores why this part needs to be returned."
+                                    className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-300"
+                                  />
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setReturnDialogTicketId(null);
+                                        setReturnReason("");
+                                      }}
+                                      className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition hover:bg-slate-50"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleRequestReturn(ticket)}
+                                      disabled={workingActionTicketId === ticket.id}
+                                      className="inline-flex h-9 items-center justify-center rounded-lg border border-amber-300 bg-amber-100 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-amber-800 transition hover:border-amber-400 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      {workingActionTicketId === ticket.id ? "Saving..." : "Submit Return Request"}
+                                    </button>
+                                  </div>
+                                </div>
                               ) : null}
                             </div>
                           </td>
@@ -527,19 +736,71 @@ export default function RequestsPage() {
                         <span>Updated {formatDate(ticket.updated_at)}</span>
                         <span>Handled by {ticket.assigned_to ?? "Stores queue"}</span>
                       </div>
-                      {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) ? (
-                        <button
-                          type="button"
-                          onClick={() => void handleMarkCollected(ticket)}
-                          disabled={workingCollectedTicketId === ticket.id}
-                          className="mt-4 inline-flex h-10 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {workingCollectedTicketId === ticket.id ? "Saving..." : "Collected"}
-                        </button>
+                      {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) && !returnedTicketIds.has(ticket.id) ? (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleMarkCollected(ticket)}
+                            disabled={workingActionTicketId === ticket.id}
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {workingActionTicketId === ticket.id ? "Saving..." : "Confirm Collection"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReturnDialogTicketId(ticket.id);
+                              setReturnReason("");
+                              setErrorMessage("");
+                            }}
+                            disabled={workingActionTicketId === ticket.id}
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-700 transition hover:border-amber-400 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Return Part
+                          </button>
+                        </div>
                       ) : collectedTicketIds.has(ticket.id) ? (
                         <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                          Part collected
+                          Collection confirmed
                         </p>
+                      ) : returnedTicketIds.has(ticket.id) ? (
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                          Return requested
+                        </p>
+                      ) : null}
+                      {returnDialogTicketId === ticket.id ? (
+                        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                          <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-amber-800">
+                            Reason for return
+                          </label>
+                          <textarea
+                            value={returnReason}
+                            onChange={(event) => setReturnReason(event.target.value)}
+                            rows={3}
+                            placeholder="Tell Stores why this part needs to be returned."
+                            className="mt-2 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-300"
+                          />
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReturnDialogTicketId(null);
+                                setReturnReason("");
+                              }}
+                              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleRequestReturn(ticket)}
+                              disabled={workingActionTicketId === ticket.id}
+                              className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-300 bg-amber-100 px-4 text-sm font-semibold text-amber-800 transition hover:border-amber-400 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {workingActionTicketId === ticket.id ? "Saving..." : "Submit Return Request"}
+                            </button>
+                          </div>
+                        </div>
                       ) : null}
                     </article>
                   ))

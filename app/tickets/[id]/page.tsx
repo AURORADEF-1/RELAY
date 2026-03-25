@@ -17,6 +17,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import {
   notifyAdminsOfPartCollected,
+  notifyAdminsOfPartReturned,
   notifyAdminsOfRequesterMessage,
 } from "@/lib/notifications";
 import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
@@ -31,6 +32,11 @@ import {
   uploadTicketAttachments,
 } from "@/lib/relay-ticketing";
 import type { RelayAiContext } from "@/lib/relay-ai";
+import {
+  buildRequesterReturnComment,
+  isRequesterReturnComment,
+  REQUESTER_COLLECTED_COMMENT,
+} from "@/lib/requester-ticket-actions";
 import { ticketStatuses } from "@/lib/statuses";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
@@ -97,7 +103,10 @@ export default function TicketDetailPage() {
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [requesterAvatarUrl, setRequesterAvatarUrl] = useState<string | null>(null);
   const [hasRequesterCollected, setHasRequesterCollected] = useState(false);
+  const [hasRequesterReturnRequested, setHasRequesterReturnRequested] = useState(false);
   const [isMarkingCollected, setIsMarkingCollected] = useState(false);
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+  const [returnReason, setReturnReason] = useState("");
   const [chatNotice, setChatNotice] = useState<{
     type: "success" | "error";
     message: string;
@@ -150,6 +159,7 @@ export default function TicketDetailPage() {
       setUpdates([]);
       setEditDraft(buildTicketEditDraft(ticketData as TicketRecord));
       setHasRequesterCollected(false);
+      setHasRequesterReturnRequested(false);
     } else {
       setErrorMessage("");
       setTicket(ticketData as TicketRecord);
@@ -157,8 +167,11 @@ export default function TicketDetailPage() {
       setEditDraft(buildTicketEditDraft(ticketData as TicketRecord));
       setHasRequesterCollected(
         (updateData ?? []).some(
-          (update) => update.comment === "Part collected by requester.",
+          (update) => update.comment === REQUESTER_COLLECTED_COMMENT,
         ),
+      );
+      setHasRequesterReturnRequested(
+        (updateData ?? []).some((update) => isRequesterReturnComment(update.comment)),
       );
     }
 
@@ -518,7 +531,7 @@ export default function TicketDetailPage() {
         .from("ticket_updates")
         .select("id")
         .eq("ticket_id", ticket.id)
-        .eq("comment", "Part collected by requester.")
+        .eq("comment", REQUESTER_COLLECTED_COMMENT)
         .limit(1);
 
       if (existingCollectedError) {
@@ -528,7 +541,7 @@ export default function TicketDetailPage() {
       if ((existingCollectedUpdate ?? []).length === 0) {
         const { error: insertError } = await supabase.from("ticket_updates").insert({
           ticket_id: ticket.id,
-          comment: "Part collected by requester.",
+          comment: REQUESTER_COLLECTED_COMMENT,
         });
 
         if (insertError) {
@@ -559,6 +572,84 @@ export default function TicketDetailPage() {
       );
     } finally {
       setIsMarkingCollected(false);
+    }
+  }
+
+  async function handleRequestReturn() {
+    if (!ticket) {
+      return;
+    }
+
+    const trimmedReason = returnReason.trim();
+
+    if (!trimmedReason) {
+      setErrorMessage("Please give a reason for the return request.");
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setIsSubmittingReturn(true);
+    setErrorMessage("");
+
+    try {
+      const returnComment = buildRequesterReturnComment(trimmedReason);
+      const nextUpdatedAt = new Date().toISOString();
+
+      const { error: updateError } = await supabase
+        .from("tickets")
+        .update({
+          status: "QUERY",
+          updated_at: nextUpdatedAt,
+        })
+        .eq("id", ticket.id);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      const { error: insertError } = await supabase.from("ticket_updates").insert([
+        {
+          ticket_id: ticket.id,
+          status: "QUERY",
+        },
+        {
+          ticket_id: ticket.id,
+          comment: returnComment,
+        },
+      ]);
+
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
+
+      setHasRequesterReturnRequested(true);
+      setReturnReason("");
+
+      try {
+        await notifyAdminsOfPartReturned(supabase, {
+          ticketId: ticket.id,
+          requesterName: ticket.requester_name,
+          jobNumber: ticket.job_number,
+          requestSummary: ticket.request_summary ?? ticket.request_details,
+          reason: trimmedReason,
+        });
+      } catch (notificationError) {
+        console.error("Failed to notify admins that a part was returned", notificationError);
+      }
+
+      await loadTicket();
+    } catch (error) {
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Unable to request a part return."),
+      );
+    } finally {
+      setIsSubmittingReturn(false);
     }
   }
 
@@ -856,17 +947,50 @@ export default function TicketDetailPage() {
                           <div className="mt-6">
                             {hasRequesterCollected ? (
                               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
-                                Part collected. Admin has been notified.
+                                Collection confirmed. Admin has been notified.
+                              </div>
+                            ) : hasRequesterReturnRequested ? (
+                              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                                Return requested. Stores has been notified.
                               </div>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => void handleMarkCollected()}
-                                disabled={isMarkingCollected}
-                                className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {isMarkingCollected ? "Saving..." : "Collected"}
-                              </button>
+                              <div className="space-y-4">
+                                <div className="flex flex-wrap gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleMarkCollected()}
+                                    disabled={isMarkingCollected || isSubmittingReturn}
+                                    className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {isMarkingCollected ? "Saving..." : "Confirm Collection"}
+                                  </button>
+                                </div>
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                                  <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-amber-800">
+                                    Request a return
+                                  </label>
+                                  <p className="mt-1 text-sm text-amber-800/80">
+                                    If the supplied part is wrong or unsuitable, tell Stores why it needs to be returned.
+                                  </p>
+                                  <textarea
+                                    value={returnReason}
+                                    onChange={(event) => setReturnReason(event.target.value)}
+                                    rows={3}
+                                    placeholder="Explain why this part needs to be returned."
+                                    className="mt-3 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-300"
+                                  />
+                                  <div className="mt-3 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleRequestReturn()}
+                                      disabled={isMarkingCollected || isSubmittingReturn}
+                                      className="inline-flex h-11 items-center justify-center rounded-xl border border-amber-300 bg-amber-100 px-4 text-sm font-semibold text-amber-800 transition hover:border-amber-400 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      {isSubmittingReturn ? "Saving..." : "Submit Return Request"}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
                             )}
                           </div>
                         ) : null}
