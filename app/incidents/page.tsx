@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -25,9 +25,10 @@ import {
   workshopIncidentStatuses,
   type WorkshopIncidentRecord,
 } from "@/lib/workshop-incidents";
+import { getAdaptivePollDelay, usePageActivity } from "@/lib/page-activity";
 
-const INCIDENT_DASHBOARD_REFRESH_MS = 15000;
-const USER_PRESENCE_REFRESH_MS = 30000;
+const INCIDENT_DASHBOARD_REFRESH_MS = 20000;
+const USER_PRESENCE_REFRESH_MS = 60000;
 const INCIDENT_DASHBOARD_VIEW_STORAGE_KEY = "relay-incidents-dashboard-view-mode";
 const activeIncidentStatuses = workshopIncidentStatuses.filter(
   (status) => status !== "CLOSED",
@@ -35,6 +36,10 @@ const activeIncidentStatuses = workshopIncidentStatuses.filter(
 
 export default function IncidentsPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const { isVisible, isIdle, isInteractive } = usePageActivity();
+  const incidentsLoadInFlightRef = useRef(false);
+  const incidentsFailureCountRef = useRef(0);
+  const presenceFailureCountRef = useRef(0);
   const [viewMode, setViewMode] = useState<"standard" | "dynamic">(() => {
     if (typeof window === "undefined") {
       return "standard";
@@ -62,6 +67,12 @@ export default function IncidentsPage() {
   const [isTaskPanelMinimized, setIsTaskPanelMinimized] = useState(false);
 
   const loadIncidents = useCallback(async () => {
+    if (incidentsLoadInFlightRef.current) {
+      return;
+    }
+
+    incidentsLoadInFlightRef.current = true;
+
     try {
       const supabase = getSupabaseClient();
 
@@ -128,13 +139,17 @@ export default function IncidentsPage() {
       setLastUpdatedAt(new Date().toISOString());
       setErrorMessage("");
       setIsLoading(false);
+      incidentsFailureCountRef.current = 0;
     } catch (error) {
+      incidentsFailureCountRef.current += 1;
       setErrorMessage(
         error instanceof Error
           ? error.message
           : "Unable to load workshop incidents.",
       );
       setIsLoading(false);
+    } finally {
+      incidentsLoadInFlightRef.current = false;
     }
   }, []);
 
@@ -147,12 +162,44 @@ export default function IncidentsPage() {
   }, [loadIncidents]);
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      void loadIncidents();
-    }, INCIDENT_DASHBOARD_REFRESH_MS);
+    let cancelled = false;
+    let timeoutId: number | null = null;
 
-    return () => window.clearInterval(intervalId);
-  }, [loadIncidents]);
+    const scheduleRefresh = () => {
+      if (cancelled) {
+        return;
+      }
+
+      const nextDelay = getAdaptivePollDelay(INCIDENT_DASHBOARD_REFRESH_MS, {
+        isVisible,
+        isIdle,
+        failureCount: incidentsFailureCountRef.current,
+        maxMs: 5 * 60_000,
+      });
+
+      timeoutId = window.setTimeout(() => {
+        void (async () => {
+          try {
+            if (isInteractive) {
+              await loadIncidents();
+            }
+          } finally {
+            scheduleRefresh();
+          }
+        })();
+      }, nextDelay);
+    };
+
+    scheduleRefresh();
+
+    return () => {
+      cancelled = true;
+
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [isIdle, isInteractive, isVisible, loadIncidents]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -163,6 +210,10 @@ export default function IncidentsPage() {
   }, []);
 
   const loadPresenceAndTasks = useCallback(async () => {
+    if (!isInteractive) {
+      return;
+    }
+
     const supabase = getSupabaseClient();
 
     if (!supabase) {
@@ -180,6 +231,7 @@ export default function IncidentsPage() {
       nextUsers = usersResult.value;
       setUsers(nextUsers);
     } else {
+      presenceFailureCountRef.current += 1;
       console.error("Failed to load RELAY users", usersResult.reason);
     }
 
@@ -195,10 +247,14 @@ export default function IncidentsPage() {
         }),
       );
     } else {
+      presenceFailureCountRef.current += 1;
       console.error("Failed to load RELAY tasks", tasksResult.reason);
       setOpenTasks([]);
     }
-  }, []);
+    if (usersResult.status === "fulfilled" && tasksResult.status === "fulfilled") {
+      presenceFailureCountRef.current = 0;
+    }
+  }, [isInteractive]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -209,12 +265,42 @@ export default function IncidentsPage() {
   }, [loadPresenceAndTasks]);
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      void loadPresenceAndTasks();
-    }, USER_PRESENCE_REFRESH_MS);
+    let cancelled = false;
+    let timeoutId: number | null = null;
 
-    return () => window.clearInterval(intervalId);
-  }, [loadPresenceAndTasks]);
+    const scheduleRefresh = () => {
+      if (cancelled) {
+        return;
+      }
+
+      const nextDelay = getAdaptivePollDelay(USER_PRESENCE_REFRESH_MS, {
+        isVisible,
+        isIdle,
+        failureCount: presenceFailureCountRef.current,
+        maxMs: 10 * 60_000,
+      });
+
+      timeoutId = window.setTimeout(() => {
+        void (async () => {
+          try {
+            await loadPresenceAndTasks();
+          } finally {
+            scheduleRefresh();
+          }
+        })();
+      }, nextDelay);
+    };
+
+    scheduleRefresh();
+
+    return () => {
+      cancelled = true;
+
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [isIdle, isVisible, loadPresenceAndTasks]);
 
   const groupedIncidents = useMemo(
     () =>

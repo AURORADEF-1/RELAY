@@ -77,7 +77,12 @@ export default function Home() {
 
       const { user, isAdmin } = await getCurrentUserWithRole(supabase);
 
-      if (!isMounted || !user) {
+      if (!isMounted) {
+        return;
+      }
+
+      if (!user) {
+        setIsLoggedIn(false);
         return;
       }
 
@@ -115,32 +120,6 @@ export default function Home() {
     }
 
     loadHomepageUpdates();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadSessionState() {
-      const supabase = getSupabaseClient();
-
-      if (!supabase) {
-        return;
-      }
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (isMounted) {
-        setIsLoggedIn(Boolean(session));
-      }
-    }
-
-    loadSessionState();
 
     return () => {
       isMounted = false;

@@ -31,6 +31,7 @@ import {
   fetchSessionControlState,
   shouldForceLogoutUser,
 } from "@/lib/session-controls";
+import { getAdaptivePollDelay, usePageActivity } from "@/lib/page-activity";
 
 type NotificationContextValue = {
   requesterUnreadCount: number;
@@ -87,10 +88,6 @@ function shouldTrackUserPresence(pathname: string, adminUser: boolean) {
     pathname === "/wallboard" ||
     pathname.startsWith("/incidents")
   );
-}
-
-function shouldRunBackgroundSync() {
-  return typeof document === "undefined" ? true : !document.hidden;
 }
 
 function acquirePresenceLease(tabId: string) {
@@ -152,12 +149,19 @@ export function NotificationProvider({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { isVisible, isIdle, isInteractive } = usePageActivity();
   const pathnameRef = useRef(pathname);
+  const isVisibleRef = useRef(isVisible);
+  const isIdleRef = useRef(isIdle);
+  const isInteractiveRef = useRef(isInteractive);
   const lastSoundAtRef = useRef(0);
   const knownUnreadIdsRef = useRef<Set<string>>(new Set());
   const unreadSyncInFlightRef = useRef<Promise<void> | null>(null);
   const pendingCountInFlightRef = useRef<Promise<void> | null>(null);
   const pathReadInFlightRef = useRef<Promise<void> | null>(null);
+  const notificationPollFailureCountRef = useRef(0);
+  const presenceFailureCountRef = useRef(0);
+  const sessionControlFailureCountRef = useRef(0);
   const [presenceTabId] = useState(() =>
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -397,6 +401,12 @@ export function NotificationProvider({
   }, [pathname]);
 
   useEffect(() => {
+    isVisibleRef.current = isVisible;
+    isIdleRef.current = isIdle;
+    isInteractiveRef.current = isInteractive;
+  }, [isIdle, isInteractive, isVisible]);
+
+  useEffect(() => {
     const supabase = getSupabaseClient();
     const activePresenceTabId = presenceTabId;
 
@@ -406,9 +416,9 @@ export function NotificationProvider({
 
     let isMounted = true;
     let activeChannel: RealtimeChannel | null = null;
-    let pollInterval: number | null = null;
-    let presenceInterval: number | null = null;
-    let sessionControlInterval: number | null = null;
+    let pollTimeout: number | null = null;
+    let presenceTimeout: number | null = null;
+    let sessionControlTimeout: number | null = null;
     let visibilityListener: (() => void) | null = null;
 
     const clearNotificationState = async () => {
@@ -426,19 +436,19 @@ export function NotificationProvider({
         activeChannel = null;
       }
 
-      if (pollInterval) {
-        window.clearInterval(pollInterval);
-        pollInterval = null;
+      if (pollTimeout) {
+        window.clearTimeout(pollTimeout);
+        pollTimeout = null;
       }
 
-      if (presenceInterval) {
-        window.clearInterval(presenceInterval);
-        presenceInterval = null;
+      if (presenceTimeout) {
+        window.clearTimeout(presenceTimeout);
+        presenceTimeout = null;
       }
 
-      if (sessionControlInterval) {
-        window.clearInterval(sessionControlInterval);
-        sessionControlInterval = null;
+      if (sessionControlTimeout) {
+        window.clearTimeout(sessionControlTimeout);
+        sessionControlTimeout = null;
       }
 
       if (visibilityListener) {
@@ -456,9 +466,9 @@ export function NotificationProvider({
           activeChannel = null;
         }
 
-        if (pollInterval) {
-          window.clearInterval(pollInterval);
-          pollInterval = null;
+        if (pollTimeout) {
+          window.clearTimeout(pollTimeout);
+          pollTimeout = null;
         }
 
         const { user, isAdmin: adminUser } = await getCurrentUserWithRole(supabase);
@@ -474,6 +484,9 @@ export function NotificationProvider({
 
         setIsAuthenticated(true);
         setIsAdmin(adminUser);
+        notificationPollFailureCountRef.current = 0;
+        presenceFailureCountRef.current = 0;
+        sessionControlFailureCountRef.current = 0;
         if (!adminUser) {
           try {
             await ensureReadyReminderNotifications(supabase, user.id);
@@ -481,21 +494,48 @@ export function NotificationProvider({
             console.error("Failed to ensure RELAY ready reminders", reminderError);
           }
         }
+        const syncPresence = async () => {
+          if (
+            !isInteractiveRef.current ||
+            !shouldTrackUserPresence(pathnameRef.current, adminUser) ||
+            !acquirePresenceLease(activePresenceTabId)
+          ) {
+            return;
+          }
+
+          await upsertUserPresence(supabase, user.id);
+        };
+
+        const schedulePresenceSync = () => {
+          if (!isMounted) {
+            return;
+          }
+
+          const nextDelay = getAdaptivePollDelay(getPresenceHeartbeatMs(), {
+            isVisible: isVisibleRef.current,
+            isIdle: isIdleRef.current,
+            failureCount: presenceFailureCountRef.current,
+            maxMs: 20 * 60_000,
+          });
+
+          presenceTimeout = window.setTimeout(() => {
+            void (async () => {
+              try {
+                await syncPresence();
+                presenceFailureCountRef.current = 0;
+              } catch (presenceError) {
+                presenceFailureCountRef.current += 1;
+                console.error("Failed to update RELAY user presence", presenceError);
+              } finally {
+                schedulePresenceSync();
+              }
+            })();
+          }, nextDelay);
+        };
+
         try {
-          const syncPresence = async () => {
-            if (
-              document.hidden ||
-              !shouldTrackUserPresence(pathnameRef.current, adminUser) ||
-              !acquirePresenceLease(activePresenceTabId)
-            ) {
-              return;
-            }
-
-            await upsertUserPresence(supabase, user.id);
-          };
-
           await syncPresence();
-
+          presenceFailureCountRef.current = 0;
           visibilityListener = () => {
             if (document.hidden) {
               releasePresenceLease(activePresenceTabId);
@@ -503,18 +543,15 @@ export function NotificationProvider({
             }
 
             void syncPresence().catch((presenceError) => {
+              presenceFailureCountRef.current += 1;
               console.error("Failed to update RELAY user presence", presenceError);
             });
           };
 
           document.addEventListener("visibilitychange", visibilityListener);
-
-          presenceInterval = window.setInterval(() => {
-            void syncPresence().catch((presenceError) => {
-              console.error("Failed to update RELAY user presence", presenceError);
-            });
-          }, getPresenceHeartbeatMs());
+          schedulePresenceSync();
         } catch (presenceError) {
+          presenceFailureCountRef.current += 1;
           console.error("Failed to update RELAY user presence", presenceError);
         }
         await syncUnreadNotifications(supabase, user.id, adminUser, {
@@ -556,42 +593,82 @@ export function NotificationProvider({
 
         channel.subscribe();
 
-        pollInterval = window.setInterval(() => {
-          if (!shouldRunBackgroundSync()) {
+        const scheduleNotificationSync = () => {
+          if (!isMounted) {
             return;
           }
 
-          void syncUnreadNotifications(supabase, user.id, adminUser, {
-            showToasts: true,
+          const nextDelay = getAdaptivePollDelay(NOTIFICATION_POLL_INTERVAL_MS, {
+            isVisible: isVisibleRef.current,
+            isIdle: isIdleRef.current,
+            failureCount: notificationPollFailureCountRef.current,
+            maxMs: 5 * 60_000,
           });
 
-          if (adminUser) {
-            void refreshPendingTicketCount();
-          }
-        }, NOTIFICATION_POLL_INTERVAL_MS);
+          pollTimeout = window.setTimeout(() => {
+            void (async () => {
+              try {
+                if (isInteractiveRef.current) {
+                  await syncUnreadNotifications(supabase, user.id, adminUser, {
+                    showToasts: true,
+                  });
 
-        sessionControlInterval = window.setInterval(() => {
-          if (!shouldRunBackgroundSync()) {
+                  if (adminUser) {
+                    await refreshPendingTicketCount();
+                  }
+                }
+
+                notificationPollFailureCountRef.current = 0;
+              } catch (pollError) {
+                notificationPollFailureCountRef.current += 1;
+                console.error("Failed to refresh RELAY notifications", pollError);
+              } finally {
+                scheduleNotificationSync();
+              }
+            })();
+          }, nextDelay);
+        };
+
+        const scheduleSessionControlCheck = () => {
+          if (!isMounted) {
             return;
           }
 
-          void (async () => {
-            try {
-              const sessionControl = await fetchSessionControlState(supabase, user.id);
+          const nextDelay = getAdaptivePollDelay(SESSION_CONTROL_POLL_INTERVAL_MS, {
+            isVisible: isVisibleRef.current,
+            isIdle: isIdleRef.current,
+            failureCount: sessionControlFailureCountRef.current,
+            maxMs: 5 * 60_000,
+          });
 
-              if (!shouldForceLogoutUser(user, sessionControl)) {
-                return;
+          sessionControlTimeout = window.setTimeout(() => {
+            void (async () => {
+              try {
+                if (isInteractiveRef.current) {
+                  const sessionControl = await fetchSessionControlState(supabase, user.id);
+
+                  if (shouldForceLogoutUser(user, sessionControl)) {
+                    await supabase.auth.signOut();
+                    await clearNotificationState();
+                    window.alert("Your RELAY session was ended by an administrator.");
+                    window.location.href = "/login";
+                    return;
+                  }
+                }
+
+                sessionControlFailureCountRef.current = 0;
+              } catch (sessionControlError) {
+                sessionControlFailureCountRef.current += 1;
+                console.error("Failed to check RELAY session controls", sessionControlError);
+              } finally {
+                scheduleSessionControlCheck();
               }
+            })();
+          }, nextDelay);
+        };
 
-              await supabase.auth.signOut();
-              await clearNotificationState();
-              window.alert("Your RELAY session was ended by an administrator.");
-              window.location.href = "/login";
-            } catch (sessionControlError) {
-              console.error("Failed to check RELAY session controls", sessionControlError);
-            }
-          })();
-        }, SESSION_CONTROL_POLL_INTERVAL_MS);
+        scheduleNotificationSync();
+        scheduleSessionControlCheck();
       } catch (error) {
         console.error("Failed to initialise notifications", error);
       }
@@ -620,16 +697,16 @@ export function NotificationProvider({
       isMounted = false;
       subscription.unsubscribe();
 
-      if (pollInterval) {
-        window.clearInterval(pollInterval);
+      if (pollTimeout) {
+        window.clearTimeout(pollTimeout);
       }
 
-      if (presenceInterval) {
-        window.clearInterval(presenceInterval);
+      if (presenceTimeout) {
+        window.clearTimeout(presenceTimeout);
       }
 
-      if (sessionControlInterval) {
-        window.clearInterval(sessionControlInterval);
+      if (sessionControlTimeout) {
+        window.clearTimeout(sessionControlTimeout);
       }
 
       if (visibilityListener) {
@@ -656,7 +733,7 @@ export function NotificationProvider({
       return;
     }
 
-    if (!shouldRunBackgroundSync()) {
+    if (!isInteractive) {
       return;
     }
 
@@ -678,7 +755,14 @@ export function NotificationProvider({
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, isAuthenticated, markPathNotificationsRead, pathname, syncUnreadNotifications]);
+  }, [
+    isAdmin,
+    isAuthenticated,
+    isInteractive,
+    markPathNotificationsRead,
+    pathname,
+    syncUnreadNotifications,
+  ]);
 
   const contextValue = useMemo(
     () => ({
