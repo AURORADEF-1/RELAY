@@ -2035,32 +2035,29 @@ export default function AdminPage() {
                         </div>
                       ) : null}
                       <div className="mt-4 grid gap-3">
-                        <input
-                          type="text"
+                        <select
                           value={drafts[ticket.id]?.assigned_to ?? ""}
                           onChange={(event) =>
-                            setDrafts((current) => ({
-                              ...current,
-                              [ticket.id]: {
-                                assigned_to: event.target.value,
-                                notes: current[ticket.id]?.notes ?? "",
-                              },
-                            }))
+                            updateTicketDraft(ticket.id, {
+                              assigned_to: event.target.value,
+                            })
                           }
-                          placeholder="Assigned user"
                           className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-                        />
+                        >
+                          <option value="">Stores queue</option>
+                          {ADMIN_OPERATOR_OPTIONS.map((operator) => (
+                            <option key={operator} value={operator}>
+                              {operator}
+                            </option>
+                          ))}
+                        </select>
                         <textarea
                           rows={3}
                           value={drafts[ticket.id]?.notes ?? ""}
                           onChange={(event) =>
-                            setDrafts((current) => ({
-                              ...current,
-                              [ticket.id]: {
-                                assigned_to: current[ticket.id]?.assigned_to ?? "",
-                                notes: event.target.value,
-                              },
-                            }))
+                            updateTicketDraft(ticket.id, {
+                              notes: event.target.value,
+                            })
                           }
                           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
                         />
