@@ -32,6 +32,7 @@ import {
   shouldForceLogoutUser,
 } from "@/lib/session-controls";
 import { getAdaptivePollDelay, usePageActivity } from "@/lib/page-activity";
+import { recordAdminHealthEvent } from "@/lib/admin-health";
 
 type NotificationContextValue = {
   requesterUnreadCount: number;
@@ -492,6 +493,7 @@ export function NotificationProvider({
             await ensureReadyReminderNotifications(supabase, user.id);
           } catch (reminderError) {
             console.error("Failed to ensure RELAY ready reminders", reminderError);
+            recordAdminHealthEvent("notifications", "Failed to ensure ready-reminder notifications.");
           }
         }
         const syncPresence = async () => {
@@ -526,6 +528,7 @@ export function NotificationProvider({
               } catch (presenceError) {
                 presenceFailureCountRef.current += 1;
                 console.error("Failed to update RELAY user presence", presenceError);
+                recordAdminHealthEvent("presence", "Failed to update user presence.");
               } finally {
                 schedulePresenceSync();
               }
@@ -545,6 +548,7 @@ export function NotificationProvider({
             void syncPresence().catch((presenceError) => {
               presenceFailureCountRef.current += 1;
               console.error("Failed to update RELAY user presence", presenceError);
+              recordAdminHealthEvent("presence", "Failed to update user presence.");
             });
           };
 
@@ -553,6 +557,7 @@ export function NotificationProvider({
         } catch (presenceError) {
           presenceFailureCountRef.current += 1;
           console.error("Failed to update RELAY user presence", presenceError);
+          recordAdminHealthEvent("presence", "Failed to update user presence.");
         }
         await syncUnreadNotifications(supabase, user.id, adminUser, {
           showToasts: true,
@@ -622,6 +627,7 @@ export function NotificationProvider({
               } catch (pollError) {
                 notificationPollFailureCountRef.current += 1;
                 console.error("Failed to refresh RELAY notifications", pollError);
+                recordAdminHealthEvent("notifications", "Failed to refresh notifications.");
               } finally {
                 scheduleNotificationSync();
               }
@@ -660,6 +666,7 @@ export function NotificationProvider({
               } catch (sessionControlError) {
                 sessionControlFailureCountRef.current += 1;
                 console.error("Failed to check RELAY session controls", sessionControlError);
+                recordAdminHealthEvent("session_control", "Failed to check session controls.");
               } finally {
                 scheduleSessionControlCheck();
               }
@@ -671,6 +678,7 @@ export function NotificationProvider({
         scheduleSessionControlCheck();
       } catch (error) {
         console.error("Failed to initialise notifications", error);
+        recordAdminHealthEvent("notifications", "Failed to initialise notification services.");
       }
     };
 

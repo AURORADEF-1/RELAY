@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { recordAdminHealthEvent } from "@/lib/admin-health";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -29,6 +30,7 @@ export function AuthGuard({
         }
 
         setErrorMessage("Supabase environment variables are not configured.");
+        recordAdminHealthEvent("auth", "Supabase environment variables are not configured.");
         setIsChecking(false);
         return;
       }
@@ -68,6 +70,7 @@ export function AuthGuard({
               ? error.message
               : "Failed to verify access.",
           );
+          recordAdminHealthEvent("auth", "Failed to verify admin access.");
           setIsChecking(false);
           return;
         }

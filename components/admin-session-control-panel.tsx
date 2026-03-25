@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { recordAdminHealthEvent } from "@/lib/admin-health";
 import {
   fetchSessionControlsForUsers,
   forceLogoutUserSessions,
@@ -31,6 +32,7 @@ export function AdminSessionControlPanel() {
         type: "error",
         message: "Supabase environment variables are not configured.",
       });
+      recordAdminHealthEvent("session_control", "Supabase environment variables are not configured for session control.");
       setIsLoading(false);
       return;
     }
@@ -45,6 +47,7 @@ export function AdminSessionControlPanel() {
           type: "error",
           message: "Admin access is required for session controls.",
         });
+        recordAdminHealthEvent("session_control", "Admin access failed for session control.");
         setIsLoading(false);
         return;
       }
@@ -61,6 +64,7 @@ export function AdminSessionControlPanel() {
       setSessionControlsByUserId(sessionControls);
       setNotice(null);
     } catch (error) {
+      recordAdminHealthEvent("session_control", "Failed to load session-managed users.");
       setNotice({
         type: "error",
         message:
@@ -79,6 +83,7 @@ export function AdminSessionControlPanel() {
     const supabase = getSupabaseClient();
 
     if (!supabase || !currentUserId) {
+      recordAdminHealthEvent("session_control", "Session control action blocked because the current admin session is unavailable.");
       setNotice({
         type: "error",
         message: "Unable to control sessions right now.",
@@ -104,6 +109,7 @@ export function AdminSessionControlPanel() {
         message: "Session end request sent.",
       });
     } catch (error) {
+      recordAdminHealthEvent("session_control", "Failed to end a user session.");
       setNotice({
         type: "error",
         message:

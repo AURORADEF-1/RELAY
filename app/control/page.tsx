@@ -1,6 +1,7 @@
 "use client";
 
 import { AuthGuard } from "@/components/auth-guard";
+import { AdminHealthPanel } from "@/components/admin-health-panel";
 import { AdminSessionControlPanel } from "@/components/admin-session-control-panel";
 import Link from "next/link";
 import { NotificationBadge } from "@/components/notification-badge";
@@ -42,6 +43,7 @@ export default function ControlPage() {
             </div>
           </nav>
 
+          <AdminHealthPanel />
           <AdminSessionControlPanel />
         </div>
       </main>
