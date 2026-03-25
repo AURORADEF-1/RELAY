@@ -11,6 +11,9 @@ import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import {
+  ADMIN_OPERATOR_OPTIONS,
+} from "@/lib/admin-operators";
+import {
   type ChatMessage,
   TicketChatPanel,
 } from "@/components/ticket-chat-panel";
@@ -126,6 +129,16 @@ export default function AdminPage() {
   );
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
   const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
+
+  function updateTicketDraft(ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) {
+    setDrafts((current) => ({
+      ...current,
+      [ticketId]: {
+        assigned_to: patch.assigned_to ?? current[ticketId]?.assigned_to ?? "",
+        notes: patch.notes ?? current[ticketId]?.notes ?? "",
+      },
+    }));
+  }
 
   function beginTicketOperation(ticketId: string) {
     if (activeTicketOperationIdsRef.current.has(ticketId)) {
@@ -1094,6 +1107,14 @@ export default function AdminPage() {
               Admin Control
             </Link>
             <Link
+              href="/control/operations"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full px-4 py-2 hover:bg-white"
+            >
+              Open Ops View
+            </Link>
+            <Link
               href="/admin"
               className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800"
             >
@@ -1651,33 +1672,31 @@ export default function AdminPage() {
                             <StatusBadge status={ticket.status ?? "PENDING"} />
                           </td>
                           <td className="px-6 py-5">
-                            <input
-                              type="text"
+                            <select
                               value={drafts[ticket.id]?.assigned_to ?? ""}
                               onChange={(event) =>
-                                setDrafts((current) => ({
-                                  ...current,
-                                  [ticket.id]: {
-                                    assigned_to: event.target.value,
-                                    notes: current[ticket.id]?.notes ?? "",
-                                  },
-                                }))
+                                updateTicketDraft(ticket.id, {
+                                  assigned_to: event.target.value,
+                                })
                               }
                               className="w-40 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-                            />
+                            >
+                              <option value="">Stores queue</option>
+                              {ADMIN_OPERATOR_OPTIONS.map((operator) => (
+                                <option key={operator} value={operator}>
+                                  {operator}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                           <td className="px-6 py-5">
                             <textarea
                               rows={3}
                               value={drafts[ticket.id]?.notes ?? ""}
                               onChange={(event) =>
-                                setDrafts((current) => ({
-                                  ...current,
-                                  [ticket.id]: {
-                                    assigned_to: current[ticket.id]?.assigned_to ?? "",
-                                    notes: event.target.value,
-                                  },
-                                }))
+                                updateTicketDraft(ticket.id, {
+                                  notes: event.target.value,
+                                })
                               }
                               className="w-56 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
                             />
@@ -1759,20 +1778,22 @@ export default function AdminPage() {
                             Assigned User
                           </dt>
                           <dd className="mt-2">
-                            <input
-                              type="text"
+                            <select
                               value={drafts[ticket.id]?.assigned_to ?? ""}
                               onChange={(event) =>
-                                setDrafts((current) => ({
-                                  ...current,
-                                  [ticket.id]: {
-                                    assigned_to: event.target.value,
-                                    notes: current[ticket.id]?.notes ?? "",
-                                  },
-                                }))
+                                updateTicketDraft(ticket.id, {
+                                  assigned_to: event.target.value,
+                                })
                               }
                               className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-                            />
+                            >
+                              <option value="">Stores queue</option>
+                              {ADMIN_OPERATOR_OPTIONS.map((operator) => (
+                                <option key={operator} value={operator}>
+                                  {operator}
+                                </option>
+                              ))}
+                            </select>
                           </dd>
                         </div>
                       </dl>
@@ -1805,13 +1826,9 @@ export default function AdminPage() {
                           rows={4}
                           value={drafts[ticket.id]?.notes ?? ""}
                           onChange={(event) =>
-                            setDrafts((current) => ({
-                              ...current,
-                              [ticket.id]: {
-                                assigned_to: current[ticket.id]?.assigned_to ?? "",
-                                notes: event.target.value,
-                              },
-                            }))
+                            updateTicketDraft(ticket.id, {
+                              notes: event.target.value,
+                            })
                           }
                           className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
                         />
