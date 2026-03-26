@@ -180,3 +180,39 @@ export async function getCurrentUserWithRole(
   currentUserWithRoleInFlight = request;
   return request;
 }
+
+export async function fetchProfileDisplayNamesByUserId(
+  supabase: SupabaseClient,
+  userIds: string[],
+) {
+  const uniqueUserIds = Array.from(new Set(userIds.filter(Boolean)));
+
+  if (uniqueUserIds.length === 0) {
+    return {} as Record<string, string>;
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, username")
+    .in("id", uniqueUserIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).reduce<Record<string, string>>((accumulator, profile) => {
+    if (typeof profile.id !== "string") {
+      return accumulator;
+    }
+
+    const displayName =
+      (typeof profile.full_name === "string" ? profile.full_name.trim() : "") ||
+      (typeof profile.username === "string" ? profile.username.trim() : "");
+
+    if (displayName) {
+      accumulator[profile.id] = displayName;
+    }
+
+    return accumulator;
+  }, {});
+}

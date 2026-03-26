@@ -37,7 +37,10 @@ import {
   isRequesterReturnComment,
   REQUESTER_COLLECTED_COMMENT,
 } from "@/lib/requester-ticket-actions";
-import { getCurrentUserWithRole } from "@/lib/profile-access";
+import {
+  fetchProfileDisplayNamesByUserId,
+  getCurrentUserWithRole,
+} from "@/lib/profile-access";
 import { ticketStatuses } from "@/lib/statuses";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
@@ -95,6 +98,7 @@ export default function TicketDetailPage() {
   const [updates, setUpdates] = useState<TicketUpdate[]>([]);
   const [attachments, setAttachments] = useState<TicketAttachmentRecord[]>([]);
   const [messages, setMessages] = useState<TicketMessageRecord[]>([]);
+  const [messageSenderNameByUserId, setMessageSenderNameByUserId] = useState<Record<string, string>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -187,9 +191,16 @@ export default function TicketDetailPage() {
         fetchTicketAttachments(supabase, ticketId),
         fetchTicketMessages(supabase, ticketId),
       ]);
+      const senderNames = await fetchProfileDisplayNamesByUserId(
+        supabase,
+        messageData
+          .map((message) => message.sender_user_id)
+          .filter((userId): userId is string => Boolean(userId)),
+      );
 
       setAttachments(attachmentData);
       setMessages(messageData);
+      setMessageSenderNameByUserId(senderNames);
     } catch (loadError) {
       setErrorMessage(
         sanitizeUserFacingError(loadError, "Failed to load ticket chat."),
@@ -224,9 +235,16 @@ export default function TicketDetailPage() {
       fetchTicketAttachments(supabase, activeTicketId),
       fetchTicketMessages(supabase, activeTicketId),
     ]);
+    const senderNames = await fetchProfileDisplayNamesByUserId(
+      supabase,
+      messageData
+        .map((message) => message.sender_user_id)
+        .filter((userId): userId is string => Boolean(userId)),
+    );
 
     setAttachments(attachmentData);
     setMessages(messageData);
+    setMessageSenderNameByUserId(senderNames);
   }
 
   async function handleSendMessage(payload: { messageText: string; files: File[] }) {
@@ -1083,6 +1101,7 @@ export default function TicketDetailPage() {
                     attachments,
                     currentUserId,
                     currentUserDisplayName,
+                    messageSenderNameByUserId,
                   )}
                   isSending={isSending}
                   isAiLoading={isAiLoading}
@@ -1112,6 +1131,7 @@ function mapMessagesToChat(
   attachments: TicketAttachmentRecord[],
   currentUserId: string | null,
   currentUserDisplayName: string | null,
+  senderNameByUserId: Record<string, string>,
 ): ChatMessage[] {
   return messages.map((message) => {
     const attachment = attachments.find(
@@ -1125,6 +1145,7 @@ function mapMessagesToChat(
         ticket,
         currentUserId,
         currentUserDisplayName,
+        senderNameByUserId,
       ),
       senderRole:
         message.sender_role === "parts" ? "operator" : message.sender_role,
@@ -1142,6 +1163,7 @@ function resolveSenderName(
   ticket: TicketRecord,
   currentUserId: string | null,
   currentUserDisplayName: string | null,
+  senderNameByUserId: Record<string, string>,
 ) {
   if (message.is_ai_message || message.sender_role === "ai") {
     return "RELAY Assistant";
@@ -1152,6 +1174,10 @@ function resolveSenderName(
   }
 
   if (message.sender_role === "admin") {
+    if (message.sender_user_id && senderNameByUserId[message.sender_user_id]) {
+      return senderNameByUserId[message.sender_user_id];
+    }
+
     if (message.sender_user_id && message.sender_user_id === currentUserId) {
       return currentUserDisplayName || "Administrator";
     }
@@ -1160,6 +1186,10 @@ function resolveSenderName(
   }
 
   if (message.sender_role === "operator") {
+    if (message.sender_user_id && senderNameByUserId[message.sender_user_id]) {
+      return senderNameByUserId[message.sender_user_id];
+    }
+
     if (message.sender_user_id && message.sender_user_id === currentUserId) {
       return currentUserDisplayName || ticket.assigned_to || "Stores Operator";
     }

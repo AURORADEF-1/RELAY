@@ -32,7 +32,10 @@ import {
   notifyRequesterStatusChanged,
 } from "@/lib/notifications";
 import { fetchProfileAvatarUrls } from "@/lib/profile-settings";
-import { getCurrentUserWithRole } from "@/lib/profile-access";
+import {
+  fetchProfileDisplayNamesByUserId,
+  getCurrentUserWithRole,
+} from "@/lib/profile-access";
 import {
   extractRequesterReturnReason,
   REQUESTER_COLLECTED_COMMENT,
@@ -106,6 +109,7 @@ export default function AdminPage() {
   const [selectedChatTicketId, setSelectedChatTicketId] = useState<string | null>(null);
   const [chatAttachments, setChatAttachments] = useState<TicketAttachmentRecord[]>([]);
   const [chatMessages, setChatMessages] = useState<TicketMessageRecord[]>([]);
+  const [chatSenderNameByUserId, setChatSenderNameByUserId] = useState<Record<string, string>>({});
   const [requesterMessagesByTicket, setRequesterMessagesByTicket] = useState<
     Record<string, TicketMessageRecord[]>
   >({});
@@ -543,10 +547,17 @@ export default function AdminPage() {
           fetchTicketAttachments(supabase, activeSelectedChatTicketId),
           fetchTicketMessages(supabase, activeSelectedChatTicketId),
         ]);
+        const senderNames = await fetchProfileDisplayNamesByUserId(
+          supabase,
+          messages
+            .map((message) => message.sender_user_id)
+            .filter((userId): userId is string => Boolean(userId)),
+        );
 
         if (requestId === chatLoadRequestIdRef.current) {
           setChatAttachments(attachments);
           setChatMessages(messages);
+          setChatSenderNameByUserId(senderNames);
         }
       } catch (chatError) {
         if (requestId === chatLoadRequestIdRef.current) {
@@ -821,8 +832,15 @@ export default function AdminPage() {
       fetchTicketAttachments(supabase, activeTicketId),
       fetchTicketMessages(supabase, activeTicketId),
     ]);
+    const senderNames = await fetchProfileDisplayNamesByUserId(
+      supabase,
+      messages
+        .map((message) => message.sender_user_id)
+        .filter((userId): userId is string => Boolean(userId)),
+    );
     setChatAttachments(attachments);
     setChatMessages(messages);
+    setChatSenderNameByUserId(senderNames);
   }
 
   function markTicketChatRead(ticketId: string) {
@@ -1575,13 +1593,14 @@ export default function AdminPage() {
                           "Awaiting Stores update."
                         }
                         assignedTo={selectedChatTicket.assigned_to}
-                        messages={mapMessagesToChat(
-                          chatMessages,
-                          selectedChatTicket,
-                          chatAttachments,
-                          currentUserId,
-                          currentUserDisplayName,
-                        )}
+                  messages={mapMessagesToChat(
+                    chatMessages,
+                    selectedChatTicket,
+                    chatAttachments,
+                    currentUserId,
+                    currentUserDisplayName,
+                    chatSenderNameByUserId,
+                  )}
                         isSending={isChatSending}
                         isAiLoading={isAiLoading}
                         notice={chatNotice}
@@ -2102,6 +2121,7 @@ function mapMessagesToChat(
   attachments: TicketAttachmentRecord[],
   currentUserId: string | null,
   currentUserDisplayName: string | null,
+  senderNameByUserId: Record<string, string>,
 ): ChatMessage[] {
   return messages.map((message) => {
     const attachment = attachments.find(
@@ -2115,6 +2135,7 @@ function mapMessagesToChat(
         ticket,
         currentUserId,
         currentUserDisplayName,
+        senderNameByUserId,
       ),
       senderRole:
         message.sender_role === "parts" ? "operator" : message.sender_role,
@@ -2321,6 +2342,7 @@ function resolveSenderName(
   ticket: Ticket,
   currentUserId: string | null,
   currentUserDisplayName: string | null,
+  senderNameByUserId: Record<string, string>,
 ) {
   if (message.is_ai_message || message.sender_role === "ai") {
     return "RELAY Assistant";
@@ -2331,6 +2353,10 @@ function resolveSenderName(
   }
 
   if (message.sender_role === "admin") {
+    if (message.sender_user_id && senderNameByUserId[message.sender_user_id]) {
+      return senderNameByUserId[message.sender_user_id];
+    }
+
     if (message.sender_user_id && message.sender_user_id === currentUserId) {
       return currentUserDisplayName || "Administrator";
     }
@@ -2339,6 +2365,10 @@ function resolveSenderName(
   }
 
   if (message.sender_role === "operator") {
+    if (message.sender_user_id && senderNameByUserId[message.sender_user_id]) {
+      return senderNameByUserId[message.sender_user_id];
+    }
+
     if (message.sender_user_id && message.sender_user_id === currentUserId) {
       return currentUserDisplayName || "Stores Operator";
     }
