@@ -10,6 +10,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
+import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -242,48 +243,49 @@ export default function CompletedPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
+    <main className="aurora-shell">
+      <div className="aurora-shell-inner max-w-7xl space-y-8">
+        <nav className="aurora-nav">
           <RelayLogo />
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
-            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">
+          <div className="aurora-nav-links text-sm font-medium">
+            <Link href="/" className="aurora-link">
               Home
             </Link>
-            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/legal" className="aurora-link">
               Legal
             </Link>
-            <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/submit" className="aurora-link">
               Submit Ticket
             </Link>
-            <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/requests" className="aurora-link">
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
-            <Link href="/incidents" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/incidents" className="aurora-link">
               Workshop Control
             </Link>
-            <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/control" className="aurora-link">
               Admin Control
             </Link>
-            <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/admin" className="aurora-link">
               Parts Control
               <NotificationBadge count={adminBadgeCount} />
             </Link>
+            <ThemeToggleButton />
             <LogoutButton />
           </div>
         </nav>
 
         <AuthGuard requiredRole="admin">
-          <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
+          <section className="aurora-section sm:p-10">
             <div className="space-y-5">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
+              <div className="aurora-kicker">
                 Archive
               </div>
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              <h1 className="aurora-title text-4xl sm:text-5xl">
                 Completed Jobs
               </h1>
-              <p className="max-w-3xl text-base leading-8 text-slate-600">
+              <p className="max-w-3xl aurora-copy">
                 Completed requests are archived here, newest first, so active workload views stay focused on live jobs.
               </p>
             </div>
@@ -297,7 +299,7 @@ export default function CompletedPage() {
                 type="button"
                 onClick={handleExportTickets}
                 disabled={isLoading || tickets.length === 0}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Export CSV
               </button>
@@ -305,7 +307,7 @@ export default function CompletedPage() {
                 type="button"
                 onClick={() => void loadTickets()}
                 disabled={isLoading}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? "Refreshing..." : "Refresh"}
               </button>
@@ -315,8 +317,8 @@ export default function CompletedPage() {
               <div
                 className={`mt-6 rounded-2xl px-4 py-3 text-sm ${
                   notice.type === "success"
-                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border border-rose-200 bg-rose-50 text-rose-700"
+                    ? "aurora-alert aurora-alert-success"
+                    : "aurora-alert aurora-alert-error"
                 }`}
               >
                 {notice.message}
@@ -324,7 +326,7 @@ export default function CompletedPage() {
             ) : null}
 
             {errorMessage ? (
-              <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <div className="aurora-alert aurora-alert-error mt-6">
                 {errorMessage}
               </div>
             ) : null}

@@ -7,6 +7,7 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
 import { notifyUserTaskAssigned } from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
@@ -370,60 +371,61 @@ export default function IncidentsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#0f172a_0%,#111827_45%,#020617_100%)] px-6 py-6 text-slate-100">
-      <div className="mx-auto max-w-[120rem] space-y-6">
-        <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/10 bg-white/5 px-5 py-4 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.8)] backdrop-blur">
+    <main className="aurora-shell">
+      <div className="aurora-shell-inner max-w-[120rem] space-y-6">
+        <nav className="aurora-nav">
           <RelayLogo />
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-300">
-            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white/10">
+          <div className="aurora-nav-links text-sm font-medium">
+            <Link href="/" className="aurora-link">
               Home
             </Link>
-            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white/10">
+            <Link href="/legal" className="aurora-link">
               Legal
             </Link>
-            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white/10">
+            <Link href="/settings" className="aurora-link">
               Settings
             </Link>
-            <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white/10">
+            <Link href="/submit" className="aurora-link">
               Submit Ticket
             </Link>
-            <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white/10">
+            <Link href="/requests" className="aurora-link">
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
             <Link
               href="/incidents"
-              className="rounded-full bg-white px-4 py-2 font-semibold text-slate-950"
+              className="aurora-link aurora-link-active"
             >
               Workshop Control
             </Link>
             {isAdmin ? (
               <>
-                <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white/10">
+                <Link href="/control" className="aurora-link">
                   Admin Control
                 </Link>
-                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white/10">
+                <Link href="/admin" className="aurora-link">
                   Parts Control
                   <NotificationBadge count={adminBadgeCount} />
                 </Link>
               </>
             ) : null}
+            <ThemeToggleButton />
             <LogoutButton />
           </div>
         </nav>
 
         <AuthGuard requiredRole="admin">
-          <section className="rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-[0_32px_90px_-48px_rgba(15,23,42,0.85)] backdrop-blur">
+          <section className="aurora-section">
             <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
               <div className="space-y-5">
-                <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">
+                <div className="aurora-kicker">
                   Live Incident Board
                 </div>
                 <div className="space-y-3">
-                  <h1 className="text-5xl font-semibold tracking-[-0.05em] text-white sm:text-6xl">
+                  <h1 className="aurora-title text-5xl sm:text-6xl">
                     Workshop Control
                   </h1>
-                  <p className="max-w-3xl text-lg leading-8 text-slate-300">
+                  <p className="max-w-3xl text-lg leading-8 text-[color:var(--foreground-muted)]">
                     Live operational view for damage reports, tyre breakdowns, queue pressure, and workshop response movement.
                   </p>
                 </div>
@@ -435,8 +437,8 @@ export default function IncidentsPage() {
                   label="Last Sync"
                   value={lastUpdatedAt ? formatDateTime(lastUpdatedAt) : "Waiting..."}
                 />
-                <div className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
+                <div className="aurora-panel px-5 py-4">
+                  <p className="aurora-stat-label text-sm">
                     View
                   </p>
                   <div className="mt-3 flex flex-col gap-3">
@@ -450,7 +452,7 @@ export default function IncidentsPage() {
                           nextMode,
                         );
                       }}
-                      className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm font-medium text-white outline-none transition focus:border-white/20"
+                      className="aurora-select"
                     >
                       <option value="standard">Standard Board</option>
                       <option value="dynamic">Dynamic Desktop View</option>
@@ -458,9 +460,9 @@ export default function IncidentsPage() {
                     <button
                       type="button"
                       onClick={() => void loadIncidents()}
-                      className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-left transition hover:border-white/20 hover:bg-black/30"
+                      className="aurora-button-secondary justify-start rounded-xl px-4 py-3 text-left"
                     >
-                      <p className="text-sm font-semibold text-white">
+                      <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
                         Refresh Now
                       </p>
                     </button>
@@ -474,7 +476,7 @@ export default function IncidentsPage() {
             </div>
 
             {errorMessage ? (
-              <div className="mt-6 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              <div className="aurora-alert aurora-alert-error mt-6">
                 {errorMessage}
               </div>
             ) : null}

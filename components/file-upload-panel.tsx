@@ -95,16 +95,16 @@ export function FileUploadPanel({
   }
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5">
+    <div className="aurora-panel p-5">
       <div className="space-y-2">
-        <p className="text-sm font-semibold text-slate-900">{label}</p>
-        <p className="text-sm leading-6 text-slate-500">{helperText}</p>
+        <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">{label}</p>
+        <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">{helperText}</p>
       </div>
 
       <div className="mt-4">
         <label
           htmlFor={inputId}
-          className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+          className="aurora-button-secondary cursor-pointer"
         >
           {buttonLabel}
         </label>
@@ -119,25 +119,25 @@ export function FileUploadPanel({
       </div>
 
       {selectionError ? (
-        <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p className="aurora-alert mt-4 border-[color:rgba(180,83,9,0.24)] bg-[color:var(--warning-soft)] text-[color:var(--warning)]">
           {selectionError}
         </p>
       ) : null}
 
       {isProcessing ? (
-        <p className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+        <p className="aurora-alert mt-4 border-[color:var(--border)] bg-[color:var(--background-muted)] text-[color:var(--foreground-muted)]">
           Optimising photos for upload...
         </p>
       ) : null}
 
       {items.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-500">{emptyText}</p>
+        <p className="mt-4 text-sm text-[color:var(--foreground-muted)]">{emptyText}</p>
       ) : (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {items.map((item) => (
             <div
               key={`${item.file.name}-${item.file.lastModified}`}
-              className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+              className="rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] p-3"
             >
               {item.previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -148,14 +148,14 @@ export function FileUploadPanel({
                 />
               ) : null}
               <div className="mt-3 space-y-1">
-                <p className="truncate text-sm font-semibold text-slate-800">
+                <p className="truncate text-sm font-semibold text-[color:var(--foreground-strong)]">
                   {item.file.name}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[color:var(--foreground-subtle)]">
                   {(item.file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
                 {item.previewNote ? (
-                  <p className="text-xs text-slate-500">{item.previewNote}</p>
+                  <p className="text-xs text-[color:var(--foreground-subtle)]">{item.previewNote}</p>
                 ) : null}
               </div>
             </div>

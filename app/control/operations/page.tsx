@@ -6,6 +6,7 @@ import { AdminOperationsOverview } from "@/components/admin-operations-overview"
 import { LogoutButton } from "@/components/logout-button";
 import { NotificationBadge } from "@/components/notification-badge";
 import { RelayLogo } from "@/components/relay-logo";
+import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { useNotifications } from "@/components/notification-provider";
 
 export default function OperationsOverviewPage() {
@@ -13,34 +14,35 @@ export default function OperationsOverviewPage() {
 
   return (
     <AuthGuard requiredRole="admin">
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
-        <div className="mx-auto max-w-7xl space-y-8">
-          <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
+      <main className="aurora-shell">
+        <div className="aurora-shell-inner max-w-7xl space-y-8">
+          <nav className="aurora-nav">
             <RelayLogo />
-            <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
-              <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">
+            <div className="aurora-nav-links text-sm font-medium">
+              <Link href="/" className="aurora-link">
                 Home
               </Link>
-              <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white">
+              <Link href="/requests" className="aurora-link">
                 My Requests
                 <NotificationBadge count={requesterUnreadCount} />
               </Link>
-              <Link href="/incidents" className="rounded-full px-4 py-2 hover:bg-white">
+              <Link href="/incidents" className="aurora-link">
                 Workshop Control
               </Link>
-              <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
+              <Link href="/admin" className="aurora-link">
                 Parts Control
                 <NotificationBadge count={adminBadgeCount} />
               </Link>
-              <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
+              <Link href="/control" className="aurora-link">
                 Admin Control
               </Link>
               <Link
                 href="/control/operations"
-                className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800"
+                className="aurora-link aurora-link-active"
               >
                 Ops Overview
               </Link>
+              <ThemeToggleButton />
               <LogoutButton />
             </div>
           </nav>

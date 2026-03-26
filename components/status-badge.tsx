@@ -1,12 +1,12 @@
 const statusTones: Record<string, string> = {
-  PENDING: "border-amber-200 bg-amber-50 text-amber-900",
-  ESTIMATE: "border-violet-200 bg-violet-50 text-violet-900",
-  QUOTE: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900",
-  QUERY: "border-orange-200 bg-orange-50 text-orange-900",
-  IN_PROGRESS: "border-blue-200 bg-blue-50 text-blue-900",
-  ORDERED: "border-sky-200 bg-sky-50 text-sky-900",
-  READY: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  COMPLETED: "border-slate-200 bg-slate-100 text-slate-800",
+  PENDING: "border-[color:rgba(180,83,9,0.28)] bg-[color:rgba(180,83,9,0.1)] text-[color:var(--warning)]",
+  ESTIMATE: "border-[color:rgba(124,58,237,0.28)] bg-[color:rgba(124,58,237,0.1)] text-violet-500",
+  QUOTE: "border-[color:rgba(192,38,211,0.28)] bg-[color:rgba(192,38,211,0.1)] text-fuchsia-500",
+  QUERY: "border-[color:rgba(234,88,12,0.28)] bg-[color:rgba(234,88,12,0.1)] text-orange-500",
+  IN_PROGRESS: "border-[color:rgba(37,99,235,0.28)] bg-[color:rgba(37,99,235,0.1)] text-blue-500",
+  ORDERED: "border-[color:rgba(2,132,199,0.28)] bg-[color:rgba(2,132,199,0.1)] text-sky-500",
+  READY: "border-[color:rgba(4,120,87,0.28)] bg-[color:rgba(4,120,87,0.1)] text-[color:var(--success)]",
+  COMPLETED: "border-[color:var(--border)] bg-[color:var(--background-muted)] text-[color:var(--foreground-muted)]",
 };
 
 const statusDots: Record<string, string> = {
@@ -23,12 +23,12 @@ const statusDots: Record<string, string> = {
 export function StatusBadge({ status }: { status: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-semibold tracking-[0.14em] ${
-        statusTones[status] ?? "border-slate-200 bg-slate-100 text-slate-800"
+      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-semibold tracking-[0.16em] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${
+        statusTones[status] ?? "border-[color:var(--border)] bg-[color:var(--background-muted)] text-[color:var(--foreground-muted)]"
       }`}
     >
       <span
-        className={`h-2.5 w-2.5 rounded-full ${statusDots[status] ?? "bg-slate-500"}`}
+        className={`aurora-status-dot ${statusDots[status] ?? "bg-slate-500"}`}
       />
       {status}
     </span>

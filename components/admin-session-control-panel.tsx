@@ -123,16 +123,16 @@ export function AdminSessionControlPanel() {
   }
 
   return (
-    <section className="rounded-[2rem] border border-amber-200 bg-amber-50 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.2)]">
+    <section className="aurora-section">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="inline-flex rounded-full border border-amber-300 bg-white px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-800">
+          <div className="aurora-kicker">
             Admin Control
           </div>
-          <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+          <h1 className="mt-4 aurora-heading text-4xl sm:text-5xl">
             Session Tools
           </h1>
-          <p className="mt-3 max-w-3xl text-base leading-8 text-slate-700">
+          <p className="mt-3 max-w-3xl aurora-copy">
             End active sessions for other users when RELAY becomes unhealthy or stale clients need to be cleared out.
           </p>
         </div>
@@ -140,7 +140,7 @@ export function AdminSessionControlPanel() {
           type="button"
           onClick={() => void loadManagedUsers()}
           disabled={isLoading}
-          className="inline-flex h-11 items-center justify-center rounded-xl border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+          className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isLoading ? "Refreshing..." : "Refresh Users"}
         </button>
@@ -148,10 +148,10 @@ export function AdminSessionControlPanel() {
 
       {notice ? (
         <div
-          className={`mt-6 rounded-2xl px-4 py-3 text-sm ${
+          className={`mt-6 ${
             notice.type === "success"
-              ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border border-rose-200 bg-rose-50 text-rose-700"
+              ? "aurora-alert aurora-alert-success"
+              : "aurora-alert aurora-alert-error"
           }`}
         >
           {notice.message}
@@ -160,11 +160,11 @@ export function AdminSessionControlPanel() {
 
       <div className="mt-6 grid gap-3">
         {isLoading ? (
-          <div className="rounded-2xl border border-amber-200 bg-white px-4 py-4 text-sm text-slate-600">
+          <div className="aurora-empty">
             Loading users...
           </div>
         ) : managedUsers.length === 0 ? (
-          <div className="rounded-2xl border border-amber-200 bg-white px-4 py-4 text-sm text-slate-600">
+          <div className="aurora-empty">
             No users available for session control.
           </div>
         ) : (
@@ -175,21 +175,21 @@ export function AdminSessionControlPanel() {
             return (
               <article
                 key={user.user_id}
-                className="rounded-2xl border border-amber-200 bg-white px-4 py-4"
+                className="rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4 shadow-[var(--shadow-soft)]"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-950">
+                    <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
                       {user.full_name || user.user_id}
                     </p>
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                    <p className="text-xs uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
                       {user.role || "user"} · {user.is_active ? "active" : "inactive"}
                     </p>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[color:var(--foreground-muted)]">
                       Last seen {user.last_seen_at ? formatControlDateTime(user.last_seen_at) : "not recently"}
                     </p>
                     {sessionControl?.forced_logout_after ? (
-                      <p className="text-xs text-amber-700">
+                      <p className="text-xs text-[color:var(--warning)]">
                         Last session end request: {formatControlDateTime(sessionControl.forced_logout_after)}
                       </p>
                     ) : null}
@@ -198,7 +198,7 @@ export function AdminSessionControlPanel() {
                     type="button"
                     onClick={() => void handleForceSessionEnd(user.user_id)}
                     disabled={isCurrentUser || sessionActionUserId === user.user_id}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-rose-300 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="aurora-button-danger disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isCurrentUser
                       ? "Current Session"

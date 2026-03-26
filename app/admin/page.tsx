@@ -10,6 +10,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
+import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import {
   ADMIN_OPERATOR_OPTIONS,
 } from "@/lib/admin-operators";
@@ -1094,79 +1095,80 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
+    <main className="aurora-shell">
+      <div className="aurora-shell-inner max-w-7xl space-y-8">
+        <nav className="aurora-nav">
           <RelayLogo />
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
-            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">
+          <div className="aurora-nav-links text-sm font-medium">
+            <Link href="/" className="aurora-link">
               Home
             </Link>
-            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/legal" className="aurora-link">
               Legal
             </Link>
-            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/settings" className="aurora-link">
               Settings
             </Link>
             <Link
               href="/submit"
-              className="rounded-full px-4 py-2 hover:bg-white"
+              className="aurora-link"
             >
               Submit Ticket
             </Link>
             <Link
               href="/requests"
-              className="rounded-full px-4 py-2 hover:bg-white"
+              className="aurora-link"
             >
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
-            <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/tasks" className="aurora-link">
               Tasks
             </Link>
-            <Link href="/incidents" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/incidents" className="aurora-link">
               Workshop Control
             </Link>
-            <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white">
+            <Link href="/control" className="aurora-link">
               Admin Control
             </Link>
             <Link
               href="/control/operations"
               target="_blank"
               rel="noreferrer"
-              className="rounded-full px-4 py-2 hover:bg-white"
+              className="aurora-link"
             >
               Open Ops View
             </Link>
             <Link
               href="/admin"
-              className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800"
+              className="aurora-link aurora-link-active"
             >
               Parts Control
               <NotificationBadge count={adminBadgeCount} />
             </Link>
+            <ThemeToggleButton />
             <LogoutButton />
           </div>
         </nav>
 
         <AuthGuard requiredRole="admin">
-          <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
+          <section className="aurora-section sm:p-10">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl space-y-5">
-                <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
+                <div className="aurora-kicker">
                   Parts Control
                 </div>
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              <h1 className="aurora-title text-4xl sm:text-5xl">
                   Parts Control
                   <NotificationBadge count={adminBadgeCount} />
                 </h1>
-                <p className="text-base leading-8 text-slate-600">
+                <p className="aurora-copy">
                   Monitor live request activity, manage workflow status, and control operational workload in real time.
                 </p>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                <label className="text-sm font-medium text-slate-600">
+                <label className="text-sm font-medium text-[color:var(--foreground-muted)]">
                   Filter by status
                 </label>
                 <select
@@ -1174,7 +1176,7 @@ export default function AdminPage() {
                   onChange={(event) =>
                     setStatusFilter(event.target.value as ActiveTicketStatusFilter)
                   }
-                  className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                  className="aurora-select"
                 >
                   {activeTicketStatusOptions.map((status) => (
                     <option key={status} value={status}>
@@ -1186,7 +1188,7 @@ export default function AdminPage() {
                   value={assignedUserFilter}
                   onChange={(event) => setAssignedUserFilter(event.target.value)}
                   placeholder="Filter by user"
-                  className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                  className="aurora-input"
                 />
                 <select
                   value={departmentFilter}
@@ -1195,7 +1197,7 @@ export default function AdminPage() {
                       event.target.value as "ALL" | "Onsite" | "Yard",
                     )
                   }
-                  className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                  className="aurora-select"
                 >
                   <option value="ALL">All Departments</option>
                   <option value="Onsite">Onsite</option>
@@ -1212,7 +1214,7 @@ export default function AdminPage() {
                         | "LAST_30_DAYS",
                     )
                   }
-                  className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                  className="aurora-select"
                 >
                   <option value="ALL">All Time</option>
                   <option value="TODAY">Today</option>
@@ -1229,7 +1231,7 @@ export default function AdminPage() {
                       nextMode,
                     );
                   }}
-                  className="h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
+                  className="aurora-select"
                 >
                   <option value="table">Table View</option>
                   <option value="compact">Compact Summary</option>
@@ -1239,7 +1241,7 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={() => setStatusFilter("ALL")}
-                    className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                    className="aurora-button-secondary"
                   >
                     Show All
                   </button>
@@ -2158,21 +2160,21 @@ function AdminSupportPanel({
   items: { heading: string; body: string }[];
 }) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
+    <section className="aurora-section">
       <div className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+        <p className="aurora-kicker">
           {title}
         </p>
-        <p className="text-sm leading-6 text-slate-500">{description}</p>
+        <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">{description}</p>
       </div>
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         {items.map((item) => (
           <article
             key={item.heading}
-            className="rounded-2xl border border-slate-200 bg-white p-5"
+            className="aurora-panel p-5"
           >
-            <p className="text-sm font-semibold text-slate-900">{item.heading}</p>
-            <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
+            <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">{item.heading}</p>
+            <p className="mt-3 text-sm leading-7 text-[color:var(--foreground-muted)]">{item.body}</p>
           </article>
         ))}
       </div>

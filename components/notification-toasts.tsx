@@ -16,29 +16,29 @@ export function NotificationToasts() {
         const isPanel = toast.variant === "panel";
         const content = (
           <div
-            className={`pointer-events-auto rounded-3xl border shadow-[0_24px_70px_-32px_rgba(15,23,42,0.45)] backdrop-blur ${
+            className={`pointer-events-auto rounded-[1.75rem] border shadow-[var(--shadow-panel)] backdrop-blur ${
               isPanel ? "px-6 py-5" : "px-4 py-4"
             } ${
               toast.tone === "success"
-                ? "border-emerald-200 bg-white/95"
-                : "border-slate-200 bg-white/95"
+                ? "border-[color:rgba(4,120,87,0.24)] bg-[color:var(--background-elevated)]"
+                : "border-[color:var(--border)] bg-[color:var(--background-elevated)]"
             } ${isPanel ? "w-[min(52rem,calc(100vw-2rem))]" : "w-[min(34rem,calc(100vw-2rem))]"}`}
           >
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
                 {isPanel ? (
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--success)]">
                     Pending Job Alert
                   </p>
                 ) : null}
-                <p className={`${isPanel ? "mt-2 text-lg" : "text-sm"} font-semibold text-slate-950`}>
+                <p className={`${isPanel ? "mt-2 text-lg" : "text-sm"} font-semibold text-[color:var(--foreground-strong)]`}>
                   {toast.title}
                 </p>
-                <p className={`${isPanel ? "mt-2 text-base leading-7" : "mt-1 text-sm leading-6"} text-slate-600`}>
+                <p className={`${isPanel ? "mt-2 text-base leading-7" : "mt-1 text-sm leading-6"} text-[color:var(--foreground-muted)]`}>
                   {toast.description}
                 </p>
                 {toast.href && isPanel ? (
-                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
                     Open ticket
                   </p>
                 ) : null}
@@ -50,7 +50,7 @@ export function NotificationToasts() {
                   event.stopPropagation();
                   void dismissToast(toast.id);
                 }}
-                className="rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)] transition hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--foreground-strong)]"
                 aria-label="Dismiss notification"
               >
                 Close

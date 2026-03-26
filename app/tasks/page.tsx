@@ -7,6 +7,7 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
@@ -82,46 +83,47 @@ export default function TasksPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
+    <main className="aurora-shell">
+      <div className="aurora-shell-inner max-w-6xl space-y-8">
+        <nav className="aurora-nav">
           <RelayLogo />
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
-            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">Home</Link>
-            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">Legal</Link>
-            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">Settings</Link>
-            <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white">Submit Ticket</Link>
-            <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white">
+          <div className="aurora-nav-links text-sm font-medium">
+            <Link href="/" className="aurora-link">Home</Link>
+            <Link href="/legal" className="aurora-link">Legal</Link>
+            <Link href="/settings" className="aurora-link">Settings</Link>
+            <Link href="/submit" className="aurora-link">Submit Ticket</Link>
+            <Link href="/requests" className="aurora-link">
               My Requests
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
-            <Link href="/tasks" className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800">
+            <Link href="/tasks" className="aurora-link aurora-link-active">
               Tasks
               <NotificationBadge count={taskUnreadCount} />
             </Link>
             {isAdmin ? (
               <>
-                <Link href="/incidents" className="rounded-full px-4 py-2 hover:bg-white">Workshop Control</Link>
-                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
+                <Link href="/incidents" className="aurora-link">Workshop Control</Link>
+                <Link href="/admin" className="aurora-link">
                   Parts Control
                   <NotificationBadge count={adminBadgeCount} />
                 </Link>
               </>
             ) : null}
+            <ThemeToggleButton />
             <LogoutButton />
           </div>
         </nav>
 
         <AuthGuard>
-          <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
+          <section className="aurora-section sm:p-10">
             <div className="space-y-5">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
+              <div className="aurora-kicker">
                 Assigned Work
               </div>
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              <h1 className="aurora-title text-4xl sm:text-5xl">
                 My Tasks
               </h1>
-              <p className="max-w-3xl text-base leading-8 text-slate-600">
+              <p className="max-w-3xl aurora-copy">
                 Tasks assigned by the parts and workshop control team.
               </p>
             </div>
@@ -131,40 +133,40 @@ export default function TasksPage() {
                 type="button"
                 onClick={() => void loadTasks()}
                 disabled={isLoading}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? "Refreshing..." : "Refresh"}
               </button>
             </div>
 
             {errorMessage ? (
-              <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <div className="aurora-alert aurora-alert-error mt-6">
                 {errorMessage}
               </div>
             ) : null}
 
             <div className="mt-8 grid gap-4">
               {isLoading ? (
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+                <div className="aurora-empty">
                   Loading tasks...
                 </div>
               ) : tasks.length === 0 ? (
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+                <div className="aurora-empty">
                   No assigned tasks yet.
                 </div>
               ) : (
                 tasks.map((task) => (
                   <article
                     key={task.id}
-                    className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+                    className="aurora-panel p-6"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-2">
-                        <p className="text-lg font-semibold text-slate-950">{task.title}</p>
-                        <p className="text-sm leading-7 text-slate-600">
+                        <p className="text-lg font-semibold text-[color:var(--foreground-strong)]">{task.title}</p>
+                        <p className="text-sm leading-7 text-[color:var(--foreground-muted)]">
                           {task.description || "No task detail provided."}
                         </p>
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
                           {task.status} {task.due_at ? `· Due ${formatDate(task.due_at)}` : ""}
                         </p>
                       </div>
@@ -172,7 +174,7 @@ export default function TasksPage() {
                         type="button"
                         onClick={() => void handleMarkDone(task.id)}
                         disabled={task.status === "DONE" || workingTaskId === task.id}
-                        className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                        className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {task.status === "DONE"
                           ? "Completed"

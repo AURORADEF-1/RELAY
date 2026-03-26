@@ -38,10 +38,10 @@ type TicketChatPanelProps = {
 };
 
 const senderTone: Record<ChatRole, string> = {
-  requester: "border-slate-200 bg-white",
-  operator: "border-sky-200 bg-sky-50",
-  admin: "border-emerald-200 bg-emerald-50",
-  ai: "border-amber-200 bg-amber-50",
+  requester: "border-[color:var(--border)] bg-[color:var(--background-panel-strong)]",
+  operator: "border-[color:rgba(2,132,199,0.24)] bg-[color:rgba(2,132,199,0.08)]",
+  admin: "border-[color:rgba(4,120,87,0.24)] bg-[color:rgba(4,120,87,0.08)]",
+  ai: "border-[color:rgba(180,83,9,0.24)] bg-[color:rgba(180,83,9,0.08)]",
 };
 
 export function TicketChatPanel({
@@ -108,24 +108,24 @@ export function TicketChatPanel({
   const conversationLabel = ticketLabel?.trim() || "this request";
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+    <section className="aurora-section">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <p className="aurora-kicker">
             Ticket Chat
           </p>
-          <h2 className="text-2xl font-semibold tracking-[-0.03em] text-slate-950">
+          <h2 className="aurora-heading">
             Request Conversation
           </h2>
-          <p className="text-sm leading-6 text-slate-500">
+          <p className="aurora-copy text-sm">
             This conversation is linked to job number{" "}
-            <span className="font-semibold text-slate-700">{conversationLabel}</span>.
+            <span className="font-semibold text-[color:var(--foreground-strong)]">{conversationLabel}</span>.
           </p>
         </div>
 
-        <div className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-4 sm:grid-cols-3">
+        <div className="grid gap-3 rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-4 sm:grid-cols-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <p className="aurora-stat-label">
               Current Status
             </p>
             <div className="mt-2">
@@ -133,16 +133,16 @@ export function TicketChatPanel({
             </div>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <p className="aurora-stat-label">
               Latest Update
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">{latestUpdate}</p>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--foreground-muted)]">{latestUpdate}</p>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <p className="aurora-stat-label">
               Assigned User
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">
+            <p className="mt-2 text-sm leading-6 text-[color:var(--foreground-muted)]">
               {assignedTo || "Stores queue"}
             </p>
           </div>
@@ -151,35 +151,35 @@ export function TicketChatPanel({
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.36fr]">
         <div className="space-y-4">
-          <div className="rounded-3xl border border-slate-200 bg-white p-4">
+          <div className="rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-4 shadow-[var(--shadow-soft)]">
             <div className="space-y-3">
               {sortedMessages.map((message) => (
                 <article
                   key={message.id}
-                  className={`rounded-2xl border p-4 ${senderTone[message.senderRole]}`}
+                  className={`rounded-[1.25rem] border p-4 ${senderTone[message.senderRole]}`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
                         {message.senderName}
                       </p>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
                         {message.isAiMessage ? "AI Assistant" : message.senderRole}
                       </p>
                     </div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[color:var(--foreground-subtle)]">
                       {formatDateTime(message.createdAt)}
                     </p>
                   </div>
 
                   {message.messageText ? (
-                    <p className="mt-4 text-sm leading-7 text-slate-700">
+                    <p className="mt-4 text-sm leading-7 text-[color:var(--foreground-muted)]">
                       {message.messageText}
                     </p>
                   ) : null}
 
                   {message.attachmentUrl || message.attachmentName ? (
-                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <div className="mt-4 overflow-hidden rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)]">
                       {message.attachmentUrl ? (
                         <>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -190,11 +190,11 @@ export function TicketChatPanel({
                           />
                         </>
                       ) : (
-                        <div className="flex h-48 items-center justify-center bg-slate-100 px-6 text-center text-sm text-slate-500">
+                        <div className="flex h-48 items-center justify-center bg-[color:var(--background-muted)] px-6 text-center text-sm text-[color:var(--foreground-subtle)]">
                           Preview unavailable for this attachment.
                         </div>
                       )}
-                      <p className="px-4 py-3 text-sm font-medium text-slate-600">
+                      <p className="px-4 py-3 text-sm font-medium text-[color:var(--foreground-muted)]">
                         {message.attachmentName ?? "Attachment"}
                       </p>
                     </div>
@@ -204,14 +204,14 @@ export function TicketChatPanel({
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-5 shadow-[var(--shadow-soft)]">
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-slate-900">
+              <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
                 {mode === "operator" ? "Reply as Stores / Operator" : "Message about this request"}
               </p>
-              <p className="text-sm leading-6 text-slate-500">
+              <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">
                 Messages, photos, and AI responses will stay linked to job number{" "}
-                <span className="font-semibold text-slate-700">{conversationLabel}</span>.
+                <span className="font-semibold text-[color:var(--foreground-strong)]">{conversationLabel}</span>.
               </p>
             </div>
 
@@ -224,7 +224,7 @@ export function TicketChatPanel({
                   ? "Reply to the requester or add a Stores update..."
                   : "Ask Stores about this ticket or request an update..."
               }
-              className="mt-4 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
+              className="aurora-textarea mt-4"
             />
 
             <div className="mt-4">
@@ -241,10 +241,10 @@ export function TicketChatPanel({
 
             {notice ? (
               <div
-                className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                className={`mt-4 ${
                   notice.type === "success"
-                    ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-                    : "border border-rose-200 bg-rose-50 text-rose-700"
+                    ? "aurora-alert aurora-alert-success"
+                    : "aurora-alert aurora-alert-error"
                 }`}
               >
                 {notice.message}
@@ -256,7 +256,7 @@ export function TicketChatPanel({
                 type="button"
                 onClick={handleSend}
                 disabled={isSending}
-                className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="aurora-button px-5"
               >
                 {isSending
                   ? "Sending..."
@@ -268,12 +268,12 @@ export function TicketChatPanel({
                 type="button"
                 onClick={handleAskAi}
                 disabled={isAiLoading}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                className="aurora-button-secondary px-5"
               >
                 {isAiLoading ? "Asking AI..." : "Ask AI About This Ticket"}
               </button>
               {queuedImages.length > 0 ? (
-                <p className="self-center text-xs font-medium uppercase tracking-wide text-slate-500">
+                <p className="self-center text-xs font-medium uppercase tracking-wide text-[color:var(--foreground-subtle)]">
                   {queuedImages.length} image{queuedImages.length > 1 ? "s" : ""} queued
                 </p>
               ) : null}
@@ -282,19 +282,19 @@ export function TicketChatPanel({
         </div>
 
         <aside className="space-y-4">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div className="aurora-panel p-5">
+            <p className="aurora-stat-label text-sm">
               AI Assistant
             </p>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
+            <p className="mt-3 text-sm leading-7 text-[color:var(--foreground-muted)]">
               The RELAY assistant will answer questions using only this ticket’s
               request data, status history, messages, and attachments.
             </p>
-            <div className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <div className="mt-4 space-y-3 rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
                 Example grounded prompts
               </p>
-              <ul className="space-y-2 text-sm leading-6 text-slate-600">
+              <ul className="space-y-2 text-sm leading-6 text-[color:var(--foreground-muted)]">
                 <li>&ldquo;What is the status of this order?&rdquo;</li>
                 <li>&ldquo;Has this part been ordered?&rdquo;</li>
                 <li>&ldquo;Summarise the history of this request.&rdquo;</li>
@@ -302,11 +302,11 @@ export function TicketChatPanel({
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div className="aurora-panel p-5">
+            <p className="aurora-stat-label text-sm">
               Escalation
             </p>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
+            <p className="mt-3 text-sm leading-7 text-[color:var(--foreground-muted)]">
               Escalate this ticket directly from the support thread.
             </p>
             <div className="mt-4 grid gap-3">
@@ -315,7 +315,7 @@ export function TicketChatPanel({
                 target="_blank"
                 rel="noreferrer"
                 aria-disabled={!operatorChatHref}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                className="aurora-button-secondary"
               >
                 Chat with Operator
               </a>
@@ -324,21 +324,21 @@ export function TicketChatPanel({
                   <a
                     key={callOption.href}
                     href={callOption.href}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+                    className="aurora-button-secondary"
                   >
                     {callOption.label}
                   </a>
                 ))}
               </div>
               {!operatorChatHref ? (
-                <p className="text-xs leading-6 text-slate-500">
+                <p className="text-xs leading-6 text-[color:var(--foreground-subtle)]">
                   Operator contact options will appear when request details are
                   available on this ticket.
                 </p>
               ) : operatorSmsHref ? (
                 <a
                   href={operatorSmsHref}
-                  className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-700"
+                  className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)] transition hover:text-[color:var(--foreground-strong)]"
                 >
                   SMS fallback
                 </a>

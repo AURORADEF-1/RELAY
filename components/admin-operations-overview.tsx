@@ -442,34 +442,33 @@ export function AdminOperationsOverview() {
   }, [snapshot]);
 
   return (
-    <section className="overflow-hidden rounded-[2rem] border border-slate-800 bg-[radial-gradient(circle_at_top,#17304a_0%,#0d1724_30%,#09111b_100%)] p-8 text-slate-100 shadow-[0_28px_80px_-32px_rgba(2,6,23,0.75)]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,rgba(56,189,248,0),rgba(56,189,248,0.85),rgba(56,189,248,0))]" />
+    <section className="aurora-section overflow-hidden">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="inline-flex rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200">
+          <div className="aurora-kicker">
             Relay Command Surface
           </div>
-          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">
+          <h2 className="mt-4 aurora-heading">
             Live Operations Summary
           </h2>
-          <p className="mt-3 max-w-3xl text-base leading-8 text-slate-300">
+          <p className="mt-3 max-w-3xl aurora-copy">
             Low-frequency operational snapshot with lightweight SVG telemetry, operator workload distribution, and rule-based action prompts.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {lastUpdatedAt ? (
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
               Updated {formatDateTime(lastUpdatedAt)}
             </p>
           ) : null}
-          <div className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+          <div className="aurora-kicker">
             Low cost: summary queries only
           </div>
           <button
             type="button"
             onClick={() => void loadOverview()}
             disabled={isLoading}
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/50 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60"
+            className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? "Refreshing..." : "Refresh"}
           </button>
@@ -477,7 +476,7 @@ export function AdminOperationsOverview() {
       </div>
 
       {errorMessage ? (
-        <div className="mt-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+        <div className="aurora-alert aurora-alert-error mt-6">
           {errorMessage}
         </div>
       ) : null}
@@ -510,12 +509,12 @@ export function AdminOperationsOverview() {
           />
         </div>
 
-        <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
+        <div className="aurora-subpanel p-5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+            <p className="aurora-stat-label text-sm">
               Queue Flow
             </p>
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+            <p className="text-xs uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
               lightweight svg
             </p>
           </div>
@@ -533,12 +532,12 @@ export function AdminOperationsOverview() {
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
-          <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
+          <div className="aurora-subpanel p-5">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <p className="aurora-stat-label text-sm">
                 Operator Load
               </p>
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
                 assigned jobs
               </p>
             </div>
@@ -553,19 +552,19 @@ export function AdminOperationsOverview() {
                   />
                 ))
               ) : (
-                <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/70 px-4 py-4 text-sm text-slate-400">
+                <div className="aurora-empty">
                   No assigned live jobs to profile yet.
                 </div>
               )}
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
+          <div className="aurora-subpanel p-5">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <p className="aurora-stat-label text-sm">
                 Suggested Actions
               </p>
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
                 rule-based
               </p>
             </div>
@@ -573,10 +572,10 @@ export function AdminOperationsOverview() {
               {suggestedActions.map((action, index) => (
                 <article
                   key={action}
-                  className="rounded-2xl border border-slate-700 bg-[linear-gradient(135deg,rgba(15,23,42,0.88),rgba(8,15,26,0.98))] px-4 py-4 text-sm leading-6 text-slate-200"
+                  className="rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4 text-sm leading-6 text-[color:var(--foreground-muted)]"
                 >
                   <div className="flex items-start gap-3">
-                    <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 text-[11px] font-semibold text-cyan-200">
+                    <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--accent-soft)] text-[11px] font-semibold text-[color:var(--foreground-strong)]">
                       {index + 1}
                     </span>
                     <span>{action}</span>
@@ -588,8 +587,8 @@ export function AdminOperationsOverview() {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+          <div className="aurora-subpanel p-5">
+            <p className="aurora-stat-label text-sm">
               Daily KPI Summary
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -600,11 +599,11 @@ export function AdminOperationsOverview() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+          <div className="aurora-subpanel p-5">
+            <p className="aurora-stat-label text-sm">
               Suggested Actions
             </p>
-            <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+            <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
               Recent Returned Parts
             </p>
             <div className="mt-4 space-y-3">
@@ -612,37 +611,37 @@ export function AdminOperationsOverview() {
                 snapshot.returns.map((entry) => (
                   <article
                     key={`${entry.ticketId}-${entry.createdAt ?? "unknown"}`}
-                    className="rounded-2xl border border-slate-700 bg-[linear-gradient(135deg,rgba(15,23,42,0.88),rgba(8,15,26,0.98))] px-4 py-4"
+                    className="rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <Link
                         href={`/tickets/${entry.ticketId}`}
-                        className="text-sm font-semibold text-cyan-200 transition hover:text-cyan-100"
+                        className="text-sm font-semibold text-[color:var(--foreground-strong)] transition hover:opacity-75"
                       >
                         {entry.jobNumber?.trim()
                           ? `Job ${entry.jobNumber.trim()}`
                           : `Ticket ${entry.ticketId.slice(0, 8)}`}
                       </Link>
-                      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                      <p className="text-xs uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
                         {entry.createdAt ? formatDateTime(entry.createdAt) : "Recent"}
                       </p>
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">{entry.reason}</p>
+                    <p className="mt-2 text-sm leading-6 text-[color:var(--foreground-muted)]">{entry.reason}</p>
                   </article>
                 ))
               ) : (
-                <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/70 px-4 py-4 text-sm text-slate-400">
+                <div className="aurora-empty">
                   No recent part returns recorded.
                 </div>
               )}
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-700 bg-slate-950/60 p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+          <div className="aurora-subpanel p-5">
+            <p className="aurora-stat-label text-sm">
               Recent Returned Parts
             </p>
-            <p className="mt-1 text-sm leading-6 text-slate-400">
+            <p className="mt-1 text-sm leading-6 text-[color:var(--foreground-muted)]">
               Render budget is intentionally low: no charting library, no canvas, no animation loops, and no extra live queries beyond the existing summary snapshot.
             </p>
           </div>
@@ -664,19 +663,19 @@ function OverviewMetricCard({
   accent: "cyan" | "amber" | "emerald" | "rose";
 }) {
   const accentClasses = {
-    cyan: "border-cyan-400/25 bg-cyan-400/8 text-cyan-100",
-    amber: "border-amber-400/25 bg-amber-400/8 text-amber-100",
-    emerald: "border-emerald-400/25 bg-emerald-400/8 text-emerald-100",
-    rose: "border-rose-400/25 bg-rose-400/8 text-rose-100",
+    cyan: "border-[color:rgba(2,132,199,0.24)] bg-[color:rgba(2,132,199,0.08)]",
+    amber: "border-[color:rgba(180,83,9,0.24)] bg-[color:rgba(180,83,9,0.08)]",
+    emerald: "border-[color:rgba(4,120,87,0.24)] bg-[color:rgba(4,120,87,0.08)]",
+    rose: "border-[color:rgba(185,28,28,0.24)] bg-[color:rgba(185,28,28,0.08)]",
   }[accent];
 
   return (
-    <article className={`rounded-3xl border p-5 ${accentClasses}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+    <article className={`rounded-[1.5rem] border p-5 shadow-[var(--shadow-soft)] ${accentClasses}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
         {label}
       </p>
-      <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
-      <p className="mt-3 text-sm leading-6 text-slate-300">{helper}</p>
+      <p className="mt-3 text-3xl font-semibold text-[color:var(--foreground-strong)]">{value}</p>
+      <p className="mt-3 text-sm leading-6 text-[color:var(--foreground-muted)]">{helper}</p>
     </article>
   );
 }
@@ -689,11 +688,11 @@ function OverviewStat({
   value: string;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+    <article className="rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+      <p className="mt-2 text-2xl font-semibold text-[color:var(--foreground-strong)]">{value}</p>
     </article>
   );
 }
@@ -708,14 +707,14 @@ function OperatorLoadRow({
   ratio: number;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-4">
+    <article className="rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-white">{operator}</p>
-        <p className="text-sm font-semibold text-cyan-200">{total}</p>
+        <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">{operator}</p>
+        <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">{total}</p>
       </div>
-      <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-800">
+      <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[color:var(--accent-soft)]">
         <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,rgba(34,211,238,0.95),rgba(59,130,246,0.9))]"
+          className="h-full rounded-full bg-[linear-gradient(90deg,rgba(58,79,108,0.9),rgba(15,23,42,0.95))]"
           style={{ width: `${Math.max(10, Math.round(ratio * 100))}%` }}
         />
       </div>
@@ -745,12 +744,12 @@ function FlowMeter({
 
   return (
     <div>
-      <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
+      <div className="overflow-hidden rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-4">
         <svg viewBox="0 0 100 18" className="h-16 w-full" preserveAspectRatio="none" aria-hidden="true">
-          <rect x="0" y="4" width={widths.queue} height="10" rx="2" fill="rgba(244,114,182,0.9)" />
-          <rect x={widths.queue} y="4" width={widths.working} height="10" rx="2" fill="rgba(34,211,238,0.9)" />
-          <rect x={widths.queue + widths.working} y="4" width={widths.ordered} height="10" rx="2" fill="rgba(251,191,36,0.92)" />
-          <rect x={widths.queue + widths.working + widths.ordered} y="4" width={widths.ready} height="10" rx="2" fill="rgba(16,185,129,0.92)" />
+          <rect x="0" y="4" width={widths.queue} height="10" rx="2" fill="rgba(180,83,9,0.9)" />
+          <rect x={widths.queue} y="4" width={widths.working} height="10" rx="2" fill="rgba(71,85,105,0.92)" />
+          <rect x={widths.queue + widths.working} y="4" width={widths.ordered} height="10" rx="2" fill="rgba(100,116,139,0.92)" />
+          <rect x={widths.queue + widths.working + widths.ordered} y="4" width={widths.ready} height="10" rx="2" fill="rgba(4,120,87,0.92)" />
         </svg>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -773,13 +772,13 @@ function FlowLegend({
   tone: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3">
+    <div className="rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className={`h-2.5 w-2.5 rounded-full ${tone}`} />
-          <span className="text-sm text-slate-300">{label}</span>
+          <span className="text-sm text-[color:var(--foreground-muted)]">{label}</span>
         </div>
-        <span className="text-sm font-semibold text-white">{value}</span>
+        <span className="text-sm font-semibold text-[color:var(--foreground-strong)]">{value}</span>
       </div>
     </div>
   );
