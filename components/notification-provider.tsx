@@ -52,6 +52,7 @@ type NotificationToast = {
   description: string;
   href?: string;
   tone?: "default" | "success";
+  variant?: "default" | "panel";
   notificationId?: string;
   persistent?: boolean;
 };
@@ -80,6 +81,7 @@ const NOTIFICATION_POLL_INTERVAL_MS = 30000;
 const SESSION_CONTROL_POLL_INTERVAL_MS = 45000;
 const PRESENCE_LEADER_STORAGE_KEY = "relay-presence-leader";
 const PRESENCE_LEASE_TTL_MS = 90_000;
+const ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-admin-browser-notification-prompted";
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
   "operator_message",
@@ -232,6 +234,38 @@ export function NotificationProvider({
     void audio.play().catch(() => {});
   }, []);
 
+  const pushBrowserNotification = useCallback(
+    (notification: {
+      title: string;
+      body: string;
+      href?: string;
+    }) => {
+      if (typeof window === "undefined" || typeof Notification === "undefined") {
+        return;
+      }
+
+      if (Notification.permission !== "granted") {
+        return;
+      }
+
+      const browserNotification = new Notification(notification.title, {
+        body: notification.body,
+        tag: notification.href ?? notification.title,
+      });
+
+      browserNotification.onclick = () => {
+        window.focus();
+
+        if (notification.href) {
+          window.location.href = notification.href;
+        }
+
+        browserNotification.close();
+      };
+    },
+    [],
+  );
+
   const refreshPendingTicketCount = useCallback(async (adminUser: boolean) => {
     if (pendingCountInFlightRef.current) {
       return pendingCountInFlightRef.current;
@@ -284,6 +318,17 @@ export function NotificationProvider({
               "A new Stores request is waiting in the pending queue.",
             href: `/tickets/${latestPendingTicket.id}`,
             tone: "success",
+            variant: "panel",
+          });
+          pushBrowserNotification({
+            title: latestPendingTicket.job_number?.trim()
+              ? `New pending job: ${latestPendingTicket.job_number.trim()}`
+              : "New pending job received",
+            body:
+              latestPendingTicket.request_summary?.trim() ||
+              latestPendingTicket.requester_name?.trim() ||
+              "A new Stores request is waiting in the pending queue.",
+            href: `/tickets/${latestPendingTicket.id}`,
           });
           playNotificationSound();
         }
@@ -294,7 +339,7 @@ export function NotificationProvider({
 
     pendingCountInFlightRef.current = request;
     return request;
-  }, [playNotificationSound, pushToast]);
+  }, [playNotificationSound, pushBrowserNotification, pushToast]);
 
   const syncUnreadNotifications = useCallback(
     async (
@@ -546,6 +591,18 @@ export function NotificationProvider({
         notificationPollFailureCountRef.current = 0;
         presenceFailureCountRef.current = 0;
         sessionControlFailureCountRef.current = 0;
+
+        if (
+          adminUser &&
+          typeof window !== "undefined" &&
+          typeof Notification !== "undefined" &&
+          Notification.permission === "default" &&
+          !window.localStorage.getItem(ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY)
+        ) {
+          window.localStorage.setItem(ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY, "1");
+          void Notification.requestPermission().catch(() => {});
+        }
+
         const syncPresence = async () => {
           if (
             !isInteractiveRef.current ||
