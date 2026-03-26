@@ -56,6 +56,14 @@ type NotificationToast = {
   persistent?: boolean;
 };
 
+type PendingTicketSummary = {
+  id: string;
+  job_number: string | null;
+  request_summary: string | null;
+  requester_name: string | null;
+  created_at: string | null;
+};
+
 const NotificationContext = createContext<NotificationContextValue>({
   requesterUnreadCount: 0,
   adminBadgeCount: 0,
@@ -163,6 +171,8 @@ export function NotificationProvider({
   const knownUnreadIdsRef = useRef<Set<string>>(new Set());
   const unreadSyncInFlightRef = useRef<Promise<void> | null>(null);
   const pendingCountInFlightRef = useRef<Promise<void> | null>(null);
+  const latestPendingTicketIdRef = useRef<string | null>(null);
+  const pendingTicketsInitializedRef = useRef(false);
   const pathReadInFlightRef = useRef<Promise<void> | null>(null);
   const notificationPollFailureCountRef = useRef(0);
   const presenceFailureCountRef = useRef(0);
@@ -222,7 +232,7 @@ export function NotificationProvider({
     void audio.play().catch(() => {});
   }, []);
 
-  const refreshPendingTicketCount = useCallback(async () => {
+  const refreshPendingTicketCount = useCallback(async (adminUser: boolean) => {
     if (pendingCountInFlightRef.current) {
       return pendingCountInFlightRef.current;
     }
@@ -234,13 +244,49 @@ export function NotificationProvider({
     }
 
     const request = (async () => {
-      const { count, error } = await supabase
+      const { data, count, error } = await supabase
         .from("tickets")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "PENDING");
+        .select("id, job_number, request_summary, requester_name, created_at", {
+          count: "exact",
+        })
+        .eq("status", "PENDING")
+        .order("created_at", { ascending: false })
+        .limit(1);
 
       if (!error) {
         setPendingTicketCount(count ?? 0);
+
+        const latestPendingTicket = ((data ?? [])[0] ?? null) as PendingTicketSummary | null;
+        const previousPendingTicketId = latestPendingTicketIdRef.current;
+        latestPendingTicketIdRef.current = latestPendingTicket?.id ?? null;
+
+        if (!adminUser) {
+          pendingTicketsInitializedRef.current = true;
+          return;
+        }
+
+        if (!pendingTicketsInitializedRef.current) {
+          pendingTicketsInitializedRef.current = true;
+          return;
+        }
+
+        if (
+          latestPendingTicket?.id &&
+          latestPendingTicket.id !== previousPendingTicketId
+        ) {
+          pushToast({
+            title: latestPendingTicket.job_number?.trim()
+              ? `New pending job: ${latestPendingTicket.job_number.trim()}`
+              : "New pending job received",
+            description:
+              latestPendingTicket.request_summary?.trim() ||
+              latestPendingTicket.requester_name?.trim() ||
+              "A new Stores request is waiting in the pending queue.",
+            href: `/tickets/${latestPendingTicket.id}`,
+            tone: "success",
+          });
+          playNotificationSound();
+        }
       }
     })().finally(() => {
       pendingCountInFlightRef.current = null;
@@ -248,7 +294,7 @@ export function NotificationProvider({
 
     pendingCountInFlightRef.current = request;
     return request;
-  }, []);
+  }, [playNotificationSound, pushToast]);
 
   const syncUnreadNotifications = useCallback(
     async (
@@ -429,6 +475,8 @@ export function NotificationProvider({
     const clearNotificationState = async () => {
       currentUserIdRef.current = null;
       currentIsAdminRef.current = false;
+      latestPendingTicketIdRef.current = null;
+      pendingTicketsInitializedRef.current = false;
       knownUnreadIdsRef.current = new Set();
       setRequesterUnreadCount(0);
       setAdminUnreadCount(0);
@@ -566,7 +614,7 @@ export function NotificationProvider({
         });
 
         if (adminUser) {
-          await refreshPendingTicketCount();
+          await refreshPendingTicketCount(adminUser);
         }
 
         await markPathNotificationsRead(
@@ -593,7 +641,7 @@ export function NotificationProvider({
             });
 
             if (adminUser) {
-              await refreshPendingTicketCount();
+              await refreshPendingTicketCount(adminUser);
             }
           },
         );
@@ -621,7 +669,7 @@ export function NotificationProvider({
                   });
 
                   if (adminUser) {
-                    await refreshPendingTicketCount();
+                    await refreshPendingTicketCount(adminUser);
                   }
                 }
 
