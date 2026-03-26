@@ -3,7 +3,6 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 export type AppProfileRole = string | null;
 export type AppProfile = {
   role: AppProfileRole;
-  username?: string | null;
   display_name?: string | null;
 } | null;
 
@@ -108,7 +107,7 @@ async function resolveCurrentUserWithRole(
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role, username, full_name")
+    .select("role, full_name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -119,8 +118,6 @@ async function resolveCurrentUserWithRole(
   const normalizedProfile: AppProfile = profile && !profileError
     ? {
         role: typeof profile.role === "string" ? profile.role : null,
-        username:
-          typeof profile.username === "string" ? profile.username : null,
         display_name:
           typeof profile.full_name === "string" ? profile.full_name : null,
       }
@@ -135,7 +132,6 @@ async function resolveCurrentUserWithRole(
     : derivedRole
       ? {
           role: derivedRole,
-          username: null,
           display_name: null,
         }
       : null;
@@ -193,7 +189,7 @@ export async function fetchProfileDisplayNamesByUserId(
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, username")
+    .select("id, full_name")
     .in("id", uniqueUserIds);
 
   if (error) {
@@ -206,8 +202,7 @@ export async function fetchProfileDisplayNamesByUserId(
     }
 
     const displayName =
-      (typeof profile.full_name === "string" ? profile.full_name.trim() : "") ||
-      (typeof profile.username === "string" ? profile.username.trim() : "");
+      typeof profile.full_name === "string" ? profile.full_name.trim() : "";
 
     if (displayName) {
       accumulator[profile.id] = displayName;
