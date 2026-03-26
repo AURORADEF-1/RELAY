@@ -114,6 +114,7 @@ export default function AdminPage() {
   >({});
   const [isChatCollapsed, setIsChatCollapsed] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [isChatSending, setIsChatSending] = useState(false);
@@ -234,6 +235,11 @@ export default function AdminPage() {
     }
 
     setCurrentUserId(user.id);
+    setCurrentUserDisplayName(
+      profile?.display_name?.trim() ||
+      user.email?.split("@")[0]?.trim() ||
+      "Stores Operator",
+    );
 
     const { data, error } = await supabase
       .from("tickets")
@@ -1573,6 +1579,8 @@ export default function AdminPage() {
                           chatMessages,
                           selectedChatTicket,
                           chatAttachments,
+                          currentUserId,
+                          currentUserDisplayName,
                         )}
                         isSending={isChatSending}
                         isAiLoading={isAiLoading}
@@ -2092,6 +2100,8 @@ function mapMessagesToChat(
   messages: TicketMessageRecord[],
   ticket: Ticket,
   attachments: TicketAttachmentRecord[],
+  currentUserId: string | null,
+  currentUserDisplayName: string | null,
 ): ChatMessage[] {
   return messages.map((message) => {
     const attachment = attachments.find(
@@ -2100,7 +2110,12 @@ function mapMessagesToChat(
 
     return {
       id: message.id,
-      senderName: resolveSenderName(message, ticket),
+      senderName: resolveSenderName(
+        message,
+        ticket,
+        currentUserId,
+        currentUserDisplayName,
+      ),
       senderRole:
         message.sender_role === "parts" ? "operator" : message.sender_role,
       messageText: message.message_text ?? undefined,
@@ -2301,7 +2316,12 @@ function buildAdminMapUrl(ticket: Ticket) {
   return null;
 }
 
-function resolveSenderName(message: TicketMessageRecord, ticket: Ticket) {
+function resolveSenderName(
+  message: TicketMessageRecord,
+  ticket: Ticket,
+  currentUserId: string | null,
+  currentUserDisplayName: string | null,
+) {
   if (message.is_ai_message || message.sender_role === "ai") {
     return "RELAY Assistant";
   }
@@ -2311,10 +2331,18 @@ function resolveSenderName(message: TicketMessageRecord, ticket: Ticket) {
   }
 
   if (message.sender_role === "admin") {
+    if (message.sender_user_id && message.sender_user_id === currentUserId) {
+      return currentUserDisplayName || "Administrator";
+    }
+
     return "Administrator";
   }
 
   if (message.sender_role === "operator") {
+    if (message.sender_user_id && message.sender_user_id === currentUserId) {
+      return currentUserDisplayName || "Stores Operator";
+    }
+
     return ticket.assigned_to || "Stores Operator";
   }
 

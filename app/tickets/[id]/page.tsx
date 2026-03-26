@@ -37,6 +37,7 @@ import {
   isRequesterReturnComment,
   REQUESTER_COLLECTED_COMMENT,
 } from "@/lib/requester-ticket-actions";
+import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { ticketStatuses } from "@/lib/statuses";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
@@ -95,6 +96,7 @@ export default function TicketDetailPage() {
   const [attachments, setAttachments] = useState<TicketAttachmentRecord[]>([]);
   const [messages, setMessages] = useState<TicketMessageRecord[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -125,11 +127,16 @@ export default function TicketDetailPage() {
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user, profile } = await getCurrentUserWithRole(supabase, {
+      forceFresh: true,
+    });
 
     setCurrentUserId(user?.id ?? null);
+    setCurrentUserDisplayName(
+      profile?.display_name?.trim() ||
+      user?.email?.split("@")[0]?.trim() ||
+      null,
+    );
 
     const { data: ticketData, error: ticketError } = await supabase
       .from("tickets")
@@ -1070,7 +1077,13 @@ export default function TicketDetailPage() {
                     "No recent chat summary available."
                   }
                   assignedTo={ticket.assigned_to}
-                  messages={mapMessagesToChat(messages, ticket, attachments)}
+                  messages={mapMessagesToChat(
+                    messages,
+                    ticket,
+                    attachments,
+                    currentUserId,
+                    currentUserDisplayName,
+                  )}
                   isSending={isSending}
                   isAiLoading={isAiLoading}
                   notice={chatNotice}
@@ -1097,6 +1110,8 @@ function mapMessagesToChat(
   messages: TicketMessageRecord[],
   ticket: TicketRecord,
   attachments: TicketAttachmentRecord[],
+  currentUserId: string | null,
+  currentUserDisplayName: string | null,
 ): ChatMessage[] {
   return messages.map((message) => {
     const attachment = attachments.find(
@@ -1105,7 +1120,12 @@ function mapMessagesToChat(
 
     return {
       id: message.id,
-      senderName: resolveSenderName(message, ticket),
+      senderName: resolveSenderName(
+        message,
+        ticket,
+        currentUserId,
+        currentUserDisplayName,
+      ),
       senderRole:
         message.sender_role === "parts" ? "operator" : message.sender_role,
       messageText: message.message_text ?? undefined,
@@ -1117,7 +1137,12 @@ function mapMessagesToChat(
   });
 }
 
-function resolveSenderName(message: TicketMessageRecord, ticket: TicketRecord) {
+function resolveSenderName(
+  message: TicketMessageRecord,
+  ticket: TicketRecord,
+  currentUserId: string | null,
+  currentUserDisplayName: string | null,
+) {
   if (message.is_ai_message || message.sender_role === "ai") {
     return "RELAY Assistant";
   }
@@ -1127,10 +1152,18 @@ function resolveSenderName(message: TicketMessageRecord, ticket: TicketRecord) {
   }
 
   if (message.sender_role === "admin") {
+    if (message.sender_user_id && message.sender_user_id === currentUserId) {
+      return currentUserDisplayName || "Administrator";
+    }
+
     return "Administrator";
   }
 
   if (message.sender_role === "operator") {
+    if (message.sender_user_id && message.sender_user_id === currentUserId) {
+      return currentUserDisplayName || ticket.assigned_to || "Stores Operator";
+    }
+
     return ticket.assigned_to || "Stores Operator";
   }
 
