@@ -14,8 +14,8 @@ export default function OperationsOverviewPage() {
 
   return (
     <AuthGuard requiredRole="admin">
-      <main className="aurora-shell ops-background">
-        <div className="aurora-shell-inner relative z-[1] max-w-7xl space-y-8">
+      <main className="aurora-shell">
+        <div className="aurora-shell-inner max-w-7xl space-y-8">
           <nav className="aurora-nav">
             <RelayLogo />
             <div className="aurora-nav-links text-sm font-medium">
@@ -49,26 +49,6 @@ export default function OperationsOverviewPage() {
 
           <AdminOperationsOverview />
         </div>
-        <style jsx>{`
-          .ops-background {
-            position: relative;
-            min-height: 100vh;
-            background-image: url('/backgrounds/RELAYBACKGROUND.png');
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-color: #000000;
-          }
-
-          .ops-background::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            pointer-events: none;
-            z-index: 0;
-          }
-        `}</style>
       </main>
     </AuthGuard>
   );

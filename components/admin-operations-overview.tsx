@@ -519,7 +519,7 @@ export function AdminOperationsOverview() {
             </p>
           </div>
           <div className="mt-4">
-            <FlowLineGraph
+            <FlowPieChart
               queue={flowMetrics.counts.queue}
               working={flowMetrics.counts.working}
               ordered={flowMetrics.counts.ordered}
@@ -729,7 +729,7 @@ const FLOW_SERIES = [
   { key: "ready", label: "Ready", color: "#047857" },
 ] as const;
 
-function FlowLineGraph({
+function FlowPieChart({
   queue,
   working,
   ordered,
@@ -742,65 +742,90 @@ function FlowLineGraph({
   ready: number;
   total: number;
 }) {
-  const stageValues = [queue, working, ordered, ready];
-  const chartWidth = 100;
-  const chartHeight = 44;
-  const baseline = 38;
-  const maxValue = Math.max(1, total, ...stageValues);
-  const stepX = chartWidth / (stageValues.length - 1);
-  const points = stageValues.map((value, index) => {
-    const x = index * stepX;
-    const normalized = value / maxValue;
-    const y = baseline - normalized * 28;
-
-    return {
-      x,
-      y,
-      value,
-    };
-  });
+  const segments = [
+    { label: "Queue Review", value: queue, color: FLOW_SERIES[0].color },
+    { label: "Working", value: working, color: FLOW_SERIES[1].color },
+    { label: "Ordered", value: ordered, color: FLOW_SERIES[2].color },
+    { label: "Ready", value: ready, color: FLOW_SERIES[3].color },
+  ];
+  const circumference = 2 * Math.PI * 42;
+  let offset = 0;
 
   return (
     <div>
       <div className="overflow-hidden rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-4">
-        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-24 w-full" preserveAspectRatio="none" aria-hidden="true">
-          <line x1="0" y1={baseline} x2={chartWidth} y2={baseline} stroke="rgba(148,163,184,0.24)" strokeWidth="0.8" />
-          {points.map((point, index) => (
-            <line
-              key={`guide-${FLOW_SERIES[index].key}`}
-              x1={point.x}
-              y1="6"
-              x2={point.x}
-              y2={baseline}
-              stroke={`${FLOW_SERIES[index].color}33`}
-              strokeWidth="0.8"
-            />
-          ))}
-          {points.slice(0, -1).map((point, index) => (
-            <line
-              key={`segment-${FLOW_SERIES[index].key}`}
-              x1={point.x}
-              y1={point.y}
-              x2={points[index + 1].x}
-              y2={points[index + 1].y}
-              stroke={FLOW_SERIES[index + 1].color}
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          ))}
-          {points.map((point, index) => (
-            <g key={`point-${FLOW_SERIES[index].key}`}>
-              <circle cx={point.x} cy={point.y} r="3.6" fill={FLOW_SERIES[index].color} />
-              <circle cx={point.x} cy={point.y} r="6.4" fill={`${FLOW_SERIES[index].color}26`} />
-            </g>
-          ))}
-        </svg>
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex h-40 w-40 shrink-0 items-center justify-center">
+            <svg viewBox="0 0 120 120" className="h-40 w-40 -rotate-90" aria-hidden="true">
+              <circle
+                cx="60"
+                cy="60"
+                r="42"
+                fill="none"
+                stroke="rgba(148,163,184,0.18)"
+                strokeWidth="12"
+              />
+              {segments.map((segment) => {
+                const dashLength = (segment.value / total) * circumference;
+                const circle = (
+                  <circle
+                    key={segment.label}
+                    cx="60"
+                    cy="60"
+                    r="42"
+                    fill="none"
+                    stroke={segment.color}
+                    strokeWidth="12"
+                    strokeLinecap={segment.value > 0 ? "round" : "butt"}
+                    strokeDasharray={`${dashLength} ${circumference - dashLength}`}
+                    strokeDashoffset={-offset}
+                  />
+                );
+                offset += dashLength;
+                return circle;
+              })}
+            </svg>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                Live Jobs
+              </span>
+              <span className="mt-1 text-3xl font-semibold text-[color:var(--foreground-strong)]">
+                {total}
+              </span>
+            </div>
+          </div>
+          <div className="grid w-full gap-3 sm:grid-cols-2">
+            {segments.map((segment) => (
+              <FlowLegend
+                key={segment.label}
+                label={segment.label}
+                value={segment.value}
+                color={segment.color}
+              />
+            ))}
+          </div>
+        </div>
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <FlowLegend label="Queue Review" value={queue} color={FLOW_SERIES[0].color} />
-        <FlowLegend label="Working" value={working} color={FLOW_SERIES[1].color} />
-        <FlowLegend label="Ordered" value={ordered} color={FLOW_SERIES[2].color} />
-        <FlowLegend label="Ready" value={ready} color={FLOW_SERIES[3].color} />
+      <div className="mt-4 grid gap-3 sm:grid-cols-4">
+        {segments.map((segment) => (
+          <div
+            key={`${segment.label}-share`}
+            className="rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-3"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs uppercase tracking-[0.14em] text-[color:var(--foreground-subtle)]">
+                {segment.label}
+              </span>
+              <span
+                className="inline-flex h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: segment.color }}
+              />
+            </div>
+            <p className="mt-2 text-xl font-semibold text-[color:var(--foreground-strong)]">
+              {total > 0 ? `${Math.round((segment.value / total) * 100)}%` : "0%"}
+            </p>
+          </div>
+        ))}
       </div>
     </div>
   );
