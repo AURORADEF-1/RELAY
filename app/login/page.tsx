@@ -76,14 +76,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#000000_0%,#050505_100%)] px-4 py-5 text-white sm:px-5 sm:py-6">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.025)_0%,rgba(0,0,0,0)_58%)]" />
-        <div className="absolute inset-0 opacity-[0.035] [background-image:radial-gradient(rgba(255,255,255,0.9)_0.6px,transparent_0.6px)] [background-size:5px_5px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(0,0,0,0.34)_100%)]" />
-      </div>
-
-      <div className="relative mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-[90vw] flex-col justify-center sm:max-w-[29rem]">
+    <main className="login-page text-white">
+      <div className="login-content mx-auto flex min-h-screen w-full max-w-[90vw] flex-col justify-center px-4 py-5 sm:max-w-[29rem] sm:px-5 sm:py-6">
         <nav className="mb-10 flex items-center justify-between gap-4">
           <RelayLogo />
           <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
@@ -177,6 +171,45 @@ export default function LoginPage() {
           </form>
         </section>
       </div>
+      <style jsx>{`
+        .login-page {
+          position: relative;
+          min-height: 100vh;
+          width: 100%;
+          overflow: hidden;
+          background-image: url('/backgrounds/RELAYBACKGROUND.png');
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          background-color: #000000;
+        }
+
+        .login-page::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.6);
+          z-index: 0;
+        }
+
+        .login-page::after {
+          content: "";
+          position: fixed;
+          inset: 0;
+          background:
+            radial-gradient(circle at center, transparent 48%, rgba(0, 0, 0, 0.26) 100%),
+            radial-gradient(rgba(255, 255, 255, 0.85) 0.55px, transparent 0.55px);
+          background-size: auto, 5px 5px;
+          opacity: 0.045;
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        .login-content {
+          position: relative;
+          z-index: 1;
+        }
+      `}</style>
     </main>
   );
 }
