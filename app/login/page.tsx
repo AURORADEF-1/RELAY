@@ -78,8 +78,10 @@ export default function LoginPage() {
   return (
     <main className="login-page text-white">
       <div className="login-content mx-auto flex min-h-screen w-full max-w-[90vw] flex-col justify-center px-4 py-5 sm:max-w-[29rem] sm:px-5 sm:py-6">
-        <nav className="mb-10 flex items-center justify-between gap-4">
-          <RelayLogo />
+        <nav className="mb-8 flex items-center justify-between gap-4 sm:mb-10">
+          <div className="flex h-10 items-center">
+            <RelayLogo />
+          </div>
           <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
             <Link href="/legal" className="rounded-full px-3 py-2 transition hover:bg-white/6 hover:text-white">
               Legal
@@ -87,14 +89,9 @@ export default function LoginPage() {
           </div>
         </nav>
 
-        <section className="mx-auto w-full space-y-9">
-          <div className="space-y-8 text-center">
-            <div className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.34em] text-white/40">
-                Aurora Systems Secure Access
-              </p>
-            </div>
-            <div className="mx-auto flex max-w-[26rem] items-center justify-center">
+        <section className="mx-auto w-full space-y-8 sm:space-y-9">
+          <div className="space-y-6 text-center sm:space-y-8">
+            <div className="mx-auto flex max-w-[24rem] items-center justify-center sm:max-w-[26rem]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/aurora-logo-build.gif"
@@ -102,23 +99,14 @@ export default function LoginPage() {
                 className="h-auto w-full object-contain"
               />
             </div>
-            <div className="space-y-2">
+            <div>
               <h1 className="text-4xl font-semibold tracking-[-0.085em] text-white sm:text-[3.35rem]">
                 RELAY
               </h1>
-              <p className="mx-auto max-w-md text-sm leading-7 text-white/46 sm:text-[0.95rem]">
-                Secure operator access for authorised Aurora Systems personnel.
-              </p>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="mx-auto w-full space-y-5">
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-white/34">
-                Operator Credentials
-              </p>
-            </div>
-
+          <form onSubmit={handleSubmit} className="mx-auto w-full space-y-4 sm:space-y-5">
             <label className="block text-sm font-medium text-white/82">
               Email
               <input
