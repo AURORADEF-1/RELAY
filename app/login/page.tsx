@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { RelayLogo } from "@/components/relay-logo";
 import { sanitizeAuthError } from "@/lib/security";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -78,10 +77,7 @@ export default function LoginPage() {
   return (
     <main className="login-page text-white">
       <div className="login-content mx-auto flex min-h-screen w-full max-w-[90vw] flex-col justify-center px-4 py-5 sm:max-w-[29rem] sm:px-5 sm:py-6">
-        <nav className="mb-8 flex items-center justify-between gap-4 sm:mb-10">
-          <div className="flex h-10 items-center">
-            <RelayLogo />
-          </div>
+        <nav className="mb-8 flex items-center justify-end gap-4 sm:mb-10">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
             <Link href="/legal" className="rounded-full px-3 py-2 transition hover:bg-white/6 hover:text-white">
               Legal
