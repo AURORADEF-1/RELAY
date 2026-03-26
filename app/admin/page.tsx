@@ -222,7 +222,7 @@ export default function AdminPage() {
       return;
     }
 
-    const { user, isAdmin } = await getCurrentUserWithRole(supabase);
+    const { user, isAdmin, profile } = await getCurrentUserWithRole(supabase);
 
     if (!user) {
       router.replace("/login?next=/admin");
