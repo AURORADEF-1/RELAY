@@ -519,7 +519,7 @@ export function AdminOperationsOverview() {
             </p>
           </div>
           <div className="mt-4">
-            <FlowMeter
+            <FlowLineGraph
               queue={flowMetrics.counts.queue}
               working={flowMetrics.counts.working}
               ordered={flowMetrics.counts.ordered}
@@ -722,7 +722,14 @@ function OperatorLoadRow({
   );
 }
 
-function FlowMeter({
+const FLOW_SERIES = [
+  { key: "queue", label: "Queue Review", color: "#B45309" },
+  { key: "working", label: "Working", color: "#475569" },
+  { key: "ordered", label: "Ordered", color: "#64748B" },
+  { key: "ready", label: "Ready", color: "#047857" },
+] as const;
+
+function FlowLineGraph({
   queue,
   working,
   ordered,
@@ -735,28 +742,65 @@ function FlowMeter({
   ready: number;
   total: number;
 }) {
-  const widths = {
-    queue: (queue / total) * 100,
-    working: (working / total) * 100,
-    ordered: (ordered / total) * 100,
-    ready: (ready / total) * 100,
-  };
+  const stageValues = [queue, working, ordered, ready];
+  const chartWidth = 100;
+  const chartHeight = 44;
+  const baseline = 38;
+  const maxValue = Math.max(1, total, ...stageValues);
+  const stepX = chartWidth / (stageValues.length - 1);
+  const points = stageValues.map((value, index) => {
+    const x = index * stepX;
+    const normalized = value / maxValue;
+    const y = baseline - normalized * 28;
+
+    return {
+      x,
+      y,
+      value,
+    };
+  });
 
   return (
     <div>
       <div className="overflow-hidden rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-4">
-        <svg viewBox="0 0 100 18" className="h-16 w-full" preserveAspectRatio="none" aria-hidden="true">
-          <rect x="0" y="4" width={widths.queue} height="10" rx="2" fill="rgba(180,83,9,0.9)" />
-          <rect x={widths.queue} y="4" width={widths.working} height="10" rx="2" fill="rgba(71,85,105,0.92)" />
-          <rect x={widths.queue + widths.working} y="4" width={widths.ordered} height="10" rx="2" fill="rgba(100,116,139,0.92)" />
-          <rect x={widths.queue + widths.working + widths.ordered} y="4" width={widths.ready} height="10" rx="2" fill="rgba(4,120,87,0.92)" />
+        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-24 w-full" preserveAspectRatio="none" aria-hidden="true">
+          <line x1="0" y1={baseline} x2={chartWidth} y2={baseline} stroke="rgba(148,163,184,0.24)" strokeWidth="0.8" />
+          {points.map((point, index) => (
+            <line
+              key={`guide-${FLOW_SERIES[index].key}`}
+              x1={point.x}
+              y1="6"
+              x2={point.x}
+              y2={baseline}
+              stroke={`${FLOW_SERIES[index].color}33`}
+              strokeWidth="0.8"
+            />
+          ))}
+          {points.slice(0, -1).map((point, index) => (
+            <line
+              key={`segment-${FLOW_SERIES[index].key}`}
+              x1={point.x}
+              y1={point.y}
+              x2={points[index + 1].x}
+              y2={points[index + 1].y}
+              stroke={FLOW_SERIES[index + 1].color}
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          ))}
+          {points.map((point, index) => (
+            <g key={`point-${FLOW_SERIES[index].key}`}>
+              <circle cx={point.x} cy={point.y} r="3.6" fill={FLOW_SERIES[index].color} />
+              <circle cx={point.x} cy={point.y} r="6.4" fill={`${FLOW_SERIES[index].color}26`} />
+            </g>
+          ))}
         </svg>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <FlowLegend label="Queue Review" value={queue} tone="bg-pink-400" />
-        <FlowLegend label="Working" value={working} tone="bg-cyan-400" />
-        <FlowLegend label="Ordered" value={ordered} tone="bg-amber-400" />
-        <FlowLegend label="Ready" value={ready} tone="bg-emerald-400" />
+        <FlowLegend label="Queue Review" value={queue} color={FLOW_SERIES[0].color} />
+        <FlowLegend label="Working" value={working} color={FLOW_SERIES[1].color} />
+        <FlowLegend label="Ordered" value={ordered} color={FLOW_SERIES[2].color} />
+        <FlowLegend label="Ready" value={ready} color={FLOW_SERIES[3].color} />
       </div>
     </div>
   );
@@ -765,17 +809,17 @@ function FlowMeter({
 function FlowLegend({
   label,
   value,
-  tone,
+  color,
 }: {
   label: string;
   value: number;
-  tone: string;
+  color: string;
 }) {
   return (
     <div className="rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className={`h-2.5 w-2.5 rounded-full ${tone}`} />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
           <span className="text-sm text-[color:var(--foreground-muted)]">{label}</span>
         </div>
         <span className="text-sm font-semibold text-[color:var(--foreground-strong)]">{value}</span>
