@@ -11,32 +11,33 @@ export function NotificationToasts() {
   }
 
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-[90] flex w-[min(34rem,calc(100vw-2rem))] flex-col gap-3">
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-[90] flex flex-col items-end gap-3 px-4">
       {toasts.map((toast) => {
+        const isPanel = toast.variant === "panel";
         const content = (
           <div
             className={`pointer-events-auto rounded-3xl border shadow-[0_24px_70px_-32px_rgba(15,23,42,0.45)] backdrop-blur ${
-              toast.variant === "panel" ? "px-5 py-5" : "px-4 py-4"
+              isPanel ? "px-6 py-5" : "px-4 py-4"
             } ${
               toast.tone === "success"
                 ? "border-emerald-200 bg-white/95"
                 : "border-slate-200 bg-white/95"
-            }`}
+            } ${isPanel ? "w-[min(52rem,calc(100vw-2rem))]" : "w-[min(34rem,calc(100vw-2rem))]"}`}
           >
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
-                {toast.variant === "panel" ? (
+                {isPanel ? (
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600">
                     Pending Job Alert
                   </p>
                 ) : null}
-                <p className={`${toast.variant === "panel" ? "mt-2 text-base" : "text-sm"} font-semibold text-slate-950`}>
+                <p className={`${isPanel ? "mt-2 text-lg" : "text-sm"} font-semibold text-slate-950`}>
                   {toast.title}
                 </p>
-                <p className={`${toast.variant === "panel" ? "mt-2 text-sm leading-7" : "mt-1 text-sm leading-6"} text-slate-600`}>
+                <p className={`${isPanel ? "mt-2 text-base leading-7" : "mt-1 text-sm leading-6"} text-slate-600`}>
                   {toast.description}
                 </p>
-                {toast.href && toast.variant === "panel" ? (
+                {toast.href && isPanel ? (
                   <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     Open ticket
                   </p>
@@ -63,12 +64,12 @@ export function NotificationToasts() {
             key={toast.id}
             href={toast.href}
             onClick={() => void dismissToast(toast.id)}
-            className="block transition hover:translate-y-[-1px]"
+            className={`block transition hover:translate-y-[-1px] ${isPanel ? "self-center" : ""}`}
           >
             {content}
           </Link>
         ) : (
-          <div key={toast.id}>{content}</div>
+          <div key={toast.id} className={isPanel ? "self-center" : ""}>{content}</div>
         );
       })}
     </div>

@@ -319,6 +319,7 @@ export function NotificationProvider({
             href: `/tickets/${latestPendingTicket.id}`,
             tone: "success",
             variant: "panel",
+            persistent: true,
           });
           pushBrowserNotification({
             title: latestPendingTicket.job_number?.trim()
