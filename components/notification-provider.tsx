@@ -512,6 +512,7 @@ export function NotificationProvider({
 
     let isMounted = true;
     let activeChannel: RealtimeChannel | null = null;
+    let activePendingTicketChannel: RealtimeChannel | null = null;
     let pollTimeout: number | null = null;
     let presenceTimeout: number | null = null;
     let sessionControlTimeout: number | null = null;
@@ -534,6 +535,11 @@ export function NotificationProvider({
       if (activeChannel) {
         await supabase.removeChannel(activeChannel);
         activeChannel = null;
+      }
+
+      if (activePendingTicketChannel) {
+        await supabase.removeChannel(activePendingTicketChannel);
+        activePendingTicketChannel = null;
       }
 
       if (pollTimeout) {
@@ -564,6 +570,11 @@ export function NotificationProvider({
         if (activeChannel) {
           await supabase.removeChannel(activeChannel);
           activeChannel = null;
+        }
+
+        if (activePendingTicketChannel) {
+          await supabase.removeChannel(activePendingTicketChannel);
+          activePendingTicketChannel = null;
         }
 
         if (pollTimeout) {
@@ -705,6 +716,26 @@ export function NotificationProvider({
 
         channel.subscribe();
 
+        if (adminUser) {
+          const pendingTicketChannel = supabase.channel(`relay-pending-tickets-${user.id}`);
+          activePendingTicketChannel = pendingTicketChannel;
+
+          pendingTicketChannel.on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "tickets",
+              filter: "status=eq.PENDING",
+            },
+            async () => {
+              await refreshPendingTicketCount(adminUser);
+            },
+          );
+
+          pendingTicketChannel.subscribe();
+        }
+
         const scheduleNotificationSync = () => {
           if (!isMounted) {
             return;
@@ -834,6 +865,10 @@ export function NotificationProvider({
 
       if (activeChannel) {
         void supabase.removeChannel(activeChannel);
+      }
+
+      if (activePendingTicketChannel) {
+        void supabase.removeChannel(activePendingTicketChannel);
       }
     };
   }, [
