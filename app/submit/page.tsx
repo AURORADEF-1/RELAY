@@ -6,6 +6,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { FileUploadPanel } from "@/components/file-upload-panel";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
+import { QrMachineReferenceScanner } from "@/components/qr-machine-reference-scanner";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
 import { triggerActionFeedback } from "@/lib/action-feedback";
@@ -145,6 +146,23 @@ export default function SubmitPage() {
           },
     );
   }, [scannedMachineReference]);
+
+  function handleMachineReferenceDetected(machineReference: string) {
+    setScannedMachineReference(machineReference);
+    setValues((current) => ({
+      ...current,
+      machineReference,
+    }));
+    setErrors((current) => {
+      if (!current.machineReference) {
+        return current;
+      }
+
+      const nextErrors = { ...current };
+      delete nextErrors.machineReference;
+      return nextErrors;
+    });
+  }
 
   function handleChange(
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -440,6 +458,19 @@ export default function SubmitPage() {
                   Machine reference <span className="font-semibold">{scannedMachineReference}</span> was captured from a QR scan and prefilled below.
                 </div>
               ) : null}
+              <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">
+                      Machine QR intake
+                    </p>
+                    <p className="mt-1 text-sm leading-7 text-slate-500">
+                      Scan a machine label after sign-in and prefill the machine reference field.
+                    </p>
+                  </div>
+                  <QrMachineReferenceScanner onDetected={handleMachineReferenceDetected} />
+                </div>
+              </div>
               <div className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-4">
                 <button
                   type="button"
