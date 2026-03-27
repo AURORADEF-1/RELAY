@@ -2,9 +2,23 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { sanitizeAuthError } from "@/lib/security";
 import { getSupabaseClient } from "@/lib/supabase";
+
+type BarcodeDetectorResult = {
+  rawValue?: string;
+};
+
+type BarcodeDetectorShape = {
+  detect: (
+    source: HTMLVideoElement,
+  ) => Promise<BarcodeDetectorResult[]>;
+};
+
+type BrowserWithBarcodeDetector = Window & {
+  BarcodeDetector?: new (options?: { formats?: string[] }) => BarcodeDetectorShape;
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +28,31 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [nextPath, setNextPath] = useState("/requests");
+  const [hasActiveSession, setHasActiveSession] = useState(false);
+  const [isScanOpen, setIsScanOpen] = useState(false);
+  const [scanErrorMessage, setScanErrorMessage] = useState("");
+  const [scanNotice, setScanNotice] = useState("");
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
+  const [scannedMachineReference, setScannedMachineReference] = useState("");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanTimeoutRef = useRef<number | null>(null);
+
+  function stopScanner() {
+    if (scanTimeoutRef.current !== null) {
+      window.clearTimeout(scanTimeoutRef.current);
+      scanTimeoutRef.current = null;
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -35,6 +74,7 @@ export default function LoginPage() {
       } = await supabase.auth.getSession();
 
       if (isMounted && session) {
+        setHasActiveSession(true);
         router.replace(nextValue || "/requests");
       }
     }
@@ -45,6 +85,104 @@ export default function LoginPage() {
       isMounted = false;
     };
   }, [router]);
+
+  useEffect(() => {
+    if (!isScanOpen) {
+      stopScanner();
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function startScanner() {
+      setScanNotice("");
+      setScanErrorMessage("");
+      setScannedMachineReference("");
+      setIsCameraLoading(true);
+
+      const browserWindow = window as BrowserWithBarcodeDetector;
+
+      if (!browserWindow.BarcodeDetector) {
+        setScanErrorMessage("QR scanning is not supported in this browser.");
+        setIsCameraLoading(false);
+        return;
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setScanErrorMessage("Camera access is not available on this device.");
+        setIsCameraLoading(false);
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: {
+              ideal: "environment",
+            },
+          },
+          audio: false,
+        });
+
+        if (isCancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+
+        const detector = new browserWindow.BarcodeDetector({
+          formats: ["qr_code"],
+        });
+
+        const scanFrame = async () => {
+          if (isCancelled || !videoRef.current) {
+            return;
+          }
+
+          try {
+            const detections = await detector.detect(videoRef.current);
+            const matchedReference = detections
+              .map((result) => parseMachineReference(result.rawValue))
+              .find((value): value is string => Boolean(value));
+
+            if (matchedReference) {
+              stopScanner();
+              setScannedMachineReference(matchedReference);
+              setIsCameraLoading(false);
+              return;
+            }
+          } catch {
+            setScanErrorMessage("The QR scan failed. Try holding the code closer to the camera.");
+            setIsCameraLoading(false);
+            return;
+          }
+
+          scanTimeoutRef.current = window.setTimeout(() => {
+            void scanFrame();
+          }, 250);
+        };
+
+        setIsCameraLoading(false);
+        void scanFrame();
+      } catch {
+        setScanErrorMessage("Camera permission was denied or the camera could not be opened.");
+        setIsCameraLoading(false);
+      }
+    }
+
+    void startScanner();
+
+    return () => {
+      isCancelled = true;
+      stopScanner();
+    };
+  }, [isScanOpen]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -72,6 +210,41 @@ export default function LoginPage() {
 
     router.push(nextPath);
     router.refresh();
+  }
+
+  function handleContinueFromScan() {
+    if (!scannedMachineReference) {
+      return;
+    }
+
+    const destination = `/submit?machineReference=${encodeURIComponent(scannedMachineReference)}`;
+
+    if (hasActiveSession) {
+      setIsScanOpen(false);
+      router.push(destination);
+      router.refresh();
+      return;
+    }
+
+    setNextPath(destination);
+    setIsScanOpen(false);
+    setScanNotice(`Machine reference ${scannedMachineReference} captured. Sign in to create the request.`);
+  }
+
+  function openScanModal() {
+    setScanNotice("");
+    setScanErrorMessage("");
+    setScannedMachineReference("");
+    setIsCameraLoading(false);
+    setIsScanOpen(true);
+  }
+
+  function closeScanModal() {
+    stopScanner();
+    setIsScanOpen(false);
+    setScanErrorMessage("");
+    setScannedMachineReference("");
+    setIsCameraLoading(false);
   }
 
   return (
@@ -139,11 +312,17 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {errorMessage ? (
-              <div className="rounded-[10px] border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                {errorMessage}
-              </div>
-            ) : null}
+              {errorMessage ? (
+                <div className="rounded-[10px] border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                  {errorMessage}
+                </div>
+              ) : null}
+
+              {scanNotice ? (
+                <div className="rounded-[10px] border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                  {scanNotice}
+                </div>
+              ) : null}
 
             <button
               type="submit"
@@ -152,9 +331,105 @@ export default function LoginPage() {
             >
               {isSubmitting ? "Authenticating..." : "Access Relay"}
             </button>
+
+            <button
+              type="button"
+              onClick={openScanModal}
+              className="inline-flex h-12 w-full items-center justify-center rounded-lg border border-white/14 bg-white/[0.04] px-5 text-sm font-semibold uppercase tracking-[0.18em] text-white transition hover:border-white/24 hover:bg-white/[0.08]"
+            >
+              Scan Machine QR
+            </button>
           </form>
         </section>
       </div>
+      {isScanOpen ? (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/72 px-4 py-6">
+          <div className="w-full max-w-xl rounded-[1.5rem] border border-white/12 bg-slate-950/96 p-6 shadow-[0_28px_90px_-32px_rgba(15,23,42,0.9)] backdrop-blur">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200/72">
+                  QR Intake
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">
+                  Scan Machine Reference
+                </h2>
+                <p className="mt-2 text-sm leading-7 text-slate-300">
+                  Point the camera at a QR code containing <span className="font-semibold text-white">Machine Reference XXXXX</span>.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeScanModal}
+                className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 transition hover:bg-white/8 hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+
+            {!scannedMachineReference ? (
+              <div className="mt-5 space-y-4">
+                <div className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-black">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="aspect-[4/3] w-full object-cover"
+                  />
+                </div>
+
+                {isCameraLoading ? (
+                  <div className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
+                    Opening camera...
+                  </div>
+                ) : null}
+
+                {scanErrorMessage ? (
+                  <div className="rounded-[1rem] border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                    {scanErrorMessage}
+                  </div>
+                ) : (
+                  <div className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300">
+                    The scan will continue until a valid machine reference is detected.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-5 rounded-[1.25rem] border border-emerald-500/20 bg-emerald-500/10 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200/80">
+                  Machine Detected
+                </p>
+                <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">
+                  {scannedMachineReference}
+                </p>
+                <p className="mt-3 text-sm leading-7 text-emerald-50/86">
+                  Create a parts request with this machine reference prefilled.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleContinueFromScan}
+                    className="inline-flex h-11 items-center justify-center rounded-lg bg-white px-5 text-sm font-semibold uppercase tracking-[0.16em] text-black transition hover:opacity-92"
+                  >
+                    Create Request
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScannedMachineReference("");
+                      setScanErrorMessage("");
+                      setIsCameraLoading(false);
+                    }}
+                    className="inline-flex h-11 items-center justify-center rounded-lg border border-white/12 bg-white/[0.04] px-5 text-sm font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-white/[0.08]"
+                  >
+                    Scan Again
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
       <style jsx>{`
         .login-page {
           position: relative;
@@ -196,4 +471,19 @@ export default function LoginPage() {
       `}</style>
     </main>
   );
+}
+
+function parseMachineReference(rawValue?: string) {
+  if (!rawValue) {
+    return null;
+  }
+
+  const normalized = rawValue.replace(/\s+/g, " ").trim();
+  const matchedReference = normalized.match(/^machine reference[:\s-]+(.+)$/i);
+
+  if (!matchedReference) {
+    return null;
+  }
+
+  return matchedReference[1]?.trim() || null;
 }

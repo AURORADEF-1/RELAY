@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { FileUploadPanel } from "@/components/file-upload-panel";
@@ -44,6 +45,7 @@ const fieldLabels: Record<keyof FormValues, string> = {
 
 export default function SubmitPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const searchParams = useSearchParams();
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState("");
@@ -66,6 +68,7 @@ export default function SubmitPage() {
     summary: string;
     confirmed: boolean;
   } | null>(null);
+  const scannedMachineReference = searchParams.get("machineReference")?.trim() || "";
 
   useEffect(() => {
     if (!successMessage) {
@@ -122,6 +125,21 @@ export default function SubmitPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!scannedMachineReference) {
+      return;
+    }
+
+    setValues((current) =>
+      current.machineReference.trim()
+        ? current
+        : {
+            ...current,
+            machineReference: scannedMachineReference,
+          },
+    );
+  }, [scannedMachineReference]);
 
   function handleChange(
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -412,6 +430,11 @@ export default function SubmitPage() {
                 Use this form to request parts from Stores. Provide accurate
                 information so the request can be processed quickly.
               </p>
+              {scannedMachineReference ? (
+                <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
+                  Machine reference <span className="font-semibold">{scannedMachineReference}</span> was captured from a QR scan and prefilled below.
+                </div>
+              ) : null}
               <div className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-4">
                 <button
                   type="button"
