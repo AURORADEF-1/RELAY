@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { FileUploadPanel } from "@/components/file-upload-panel";
@@ -45,7 +44,6 @@ const fieldLabels: Record<keyof FormValues, string> = {
 
 export default function SubmitPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
-  const searchParams = useSearchParams();
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState("");
@@ -68,7 +66,7 @@ export default function SubmitPage() {
     summary: string;
     confirmed: boolean;
   } | null>(null);
-  const scannedMachineReference = searchParams.get("machineReference")?.trim() || "";
+  const [scannedMachineReference, setScannedMachineReference] = useState("");
 
   useEffect(() => {
     if (!successMessage) {
@@ -124,6 +122,13 @@ export default function SubmitPage() {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const nextMachineReference =
+      new URLSearchParams(window.location.search).get("machineReference")?.trim() || "";
+
+    setScannedMachineReference(nextMachineReference);
   }, []);
 
   useEffect(() => {
