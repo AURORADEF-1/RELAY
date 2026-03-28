@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -1990,101 +1990,17 @@ export default function AdminPage() {
                       </tr>
                     ) : (
                       filteredTickets.map((ticket) => (
-                        <tr key={ticket.id} className="align-top">
-                          <td className="px-6 py-5 text-sm font-semibold text-slate-900">
-                            <Link
-                              href={`/tickets/${ticket.id}`}
-                              className="transition hover:text-slate-600"
-                            >
-                              {formatRequestTitle(ticket)}
-                            </Link>
-                          </td>
-                          <td className="px-6 py-5 text-sm text-slate-600">
-                            <div className="space-y-1">
-                              <p>{ticket.requester_name ?? "-"}</p>
-                              <div className="text-xs text-slate-500">
-                                <p>{ticket.department ?? "-"}</p>
-                                {isOnsiteAdminTicket(ticket) ? (
-                                  <AdminLocationLink ticket={ticket} compact />
-                                ) : null}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-5 text-sm text-slate-600">
-                            <div className="space-y-1">
-                              <p>{ticket.job_number ?? "-"}</p>
-                              <p className="text-xs text-slate-500">
-                                {ticket.machine_reference ?? "-"}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-5 text-sm leading-7 text-slate-600">
-                            <div className="space-y-2">
-                              <p>{ticket.request_summary ?? ticket.request_details ?? "-"}</p>
-                              <TicketOperationalSummary ticket={ticket} compact />
-                              {returnedTicketReasonById[ticket.id] ? (
-                                <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
-                              ) : null}
-                            </div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <StatusBadge status={ticket.status ?? "PENDING"} />
-                          </td>
-                          <td className="px-6 py-5">
-                            <select
-                              value={drafts[ticket.id]?.assigned_to ?? ""}
-                              onChange={(event) =>
-                                updateTicketDraft(ticket.id, {
-                                  assigned_to: event.target.value,
-                                })
-                              }
-                              className="w-40 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-                            >
-                              <option value="">Stores queue</option>
-                              {ADMIN_OPERATOR_OPTIONS.map((operator) => (
-                                <option key={operator} value={operator}>
-                                  {operator}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-6 py-5">
-                            <textarea
-                              rows={3}
-                              value={drafts[ticket.id]?.notes ?? ""}
-                              onChange={(event) =>
-                                updateTicketDraft(ticket.id, {
-                                  notes: event.target.value,
-                                })
-                              }
-                              className="w-56 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-                            />
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="space-y-3">
-                              {collectedTicketIds.has(ticket.id) ? (
-                                <CollectedBadge />
-                              ) : null}
-                              {returnedTicketReasonById[ticket.id] ? (
-                                <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
-                              ) : null}
-                              <StatusSelect
-                                ticketId={ticket.id}
-                                value={ticket.status ?? "PENDING"}
-                                onChange={handleStatusChange}
-                                disabled={updatingTicketId === ticket.id}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleTicketSave(ticket.id)}
-                                disabled={updatingTicketId === ticket.id}
-                                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                Save
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                        <AdminTicketTableRow
+                          key={ticket.id}
+                          ticket={ticket}
+                          draft={drafts[ticket.id]}
+                          isCollected={collectedTicketIds.has(ticket.id)}
+                          returnedReason={returnedTicketReasonById[ticket.id]}
+                          isUpdating={updatingTicketId === ticket.id}
+                          onDraftChange={updateTicketDraft}
+                          onStatusChange={handleStatusChange}
+                          onSave={handleTicketSave}
+                        />
                       ))
                     )}
                   </tbody>
@@ -2350,99 +2266,17 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   filteredTickets.map((ticket) => (
-                    <article
+                    <AdminCompactTicketCard
                       key={ticket.id}
-                      className={`rounded-3xl border p-5 shadow-sm ${getCompactStatusCardTone(
-                        ticket.status ?? "PENDING",
-                      )}`}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            <Link href={`/tickets/${ticket.id}`} className="transition hover:text-slate-600">
-                              {formatRequestTitle(ticket)}
-                            </Link>
-                          </p>
-                          <p className="mt-1 text-sm text-slate-600">
-                            {ticket.requester_name ?? "-"}
-                          </p>
-                          {collectedTicketIds.has(ticket.id) ? (
-                            <div className="mt-2">
-                              <CollectedBadge />
-                            </div>
-                          ) : null}
-                          {returnedTicketReasonById[ticket.id] ? (
-                            <div className="mt-2">
-                              <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
-                            </div>
-                          ) : null}
-                        </div>
-                        <StatusBadge status={ticket.status ?? "PENDING"} />
-                      </div>
-                      <p className="mt-4 text-sm leading-7 text-slate-700">
-                        {ticket.request_summary ?? ticket.request_details ?? "-"}
-                      </p>
-                      <div className="mt-4">
-                        <TicketOperationalSummary ticket={ticket} />
-                      </div>
-                      <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-                        <div>
-                          <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Job Number</dt>
-                          <dd className="mt-1">{ticket.job_number ?? "-"}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Machine Ref</dt>
-                          <dd className="mt-1">{ticket.machine_reference ?? "-"}</dd>
-                        </div>
-                      </dl>
-                      {isOnsiteAdminTicket(ticket) ? (
-                        <div className="mt-4">
-                          <AdminLocationCard ticket={ticket} />
-                        </div>
-                      ) : null}
-                      <div className="mt-4 grid gap-3">
-                        <select
-                          value={drafts[ticket.id]?.assigned_to ?? ""}
-                          onChange={(event) =>
-                            updateTicketDraft(ticket.id, {
-                              assigned_to: event.target.value,
-                            })
-                          }
-                          className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-                        >
-                          <option value="">Stores queue</option>
-                          {ADMIN_OPERATOR_OPTIONS.map((operator) => (
-                            <option key={operator} value={operator}>
-                              {operator}
-                            </option>
-                          ))}
-                        </select>
-                        <textarea
-                          rows={3}
-                          value={drafts[ticket.id]?.notes ?? ""}
-                          onChange={(event) =>
-                            updateTicketDraft(ticket.id, {
-                              notes: event.target.value,
-                            })
-                          }
-                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-                        />
-                        <StatusSelect
-                          ticketId={ticket.id}
-                          value={ticket.status ?? "PENDING"}
-                          onChange={handleStatusChange}
-                          disabled={updatingTicketId === ticket.id}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleTicketSave(ticket.id)}
-                          disabled={updatingTicketId === ticket.id}
-                          className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Save Ticket
-                        </button>
-                      </div>
-                    </article>
+                      ticket={ticket}
+                      draft={drafts[ticket.id]}
+                      isCollected={collectedTicketIds.has(ticket.id)}
+                      returnedReason={returnedTicketReasonById[ticket.id]}
+                      isUpdating={updatingTicketId === ticket.id}
+                      onDraftChange={updateTicketDraft}
+                      onStatusChange={handleStatusChange}
+                      onSave={handleTicketSave}
+                    />
                   ))
                 )}
               </div>
@@ -2454,6 +2288,239 @@ export default function AdminPage() {
     </main>
   );
 }
+
+const AdminTicketTableRow = memo(function AdminTicketTableRow({
+  ticket,
+  draft,
+  isCollected,
+  returnedReason,
+  isUpdating,
+  onDraftChange,
+  onStatusChange,
+  onSave,
+}: {
+  ticket: Ticket;
+  draft?: { assigned_to: string; notes: string };
+  isCollected: boolean;
+  returnedReason?: string;
+  isUpdating: boolean;
+  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) => void;
+  onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
+  onSave: (ticketId: string) => void;
+}) {
+  return (
+    <tr className="align-top">
+      <td className="px-6 py-5 text-sm font-semibold text-slate-900">
+        <Link
+          href={`/tickets/${ticket.id}`}
+          className="transition hover:text-slate-600"
+        >
+          {formatRequestTitle(ticket)}
+        </Link>
+      </td>
+      <td className="px-6 py-5 text-sm text-slate-600">
+        <div className="space-y-1">
+          <p>{ticket.requester_name ?? "-"}</p>
+          <div className="text-xs text-slate-500">
+            <p>{ticket.department ?? "-"}</p>
+            {isOnsiteAdminTicket(ticket) ? (
+              <AdminLocationLink ticket={ticket} compact />
+            ) : null}
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-5 text-sm text-slate-600">
+        <div className="space-y-1">
+          <p>{ticket.job_number ?? "-"}</p>
+          <p className="text-xs text-slate-500">
+            {ticket.machine_reference ?? "-"}
+          </p>
+        </div>
+      </td>
+      <td className="px-6 py-5 text-sm leading-7 text-slate-600">
+        <div className="space-y-2">
+          <p>{ticket.request_summary ?? ticket.request_details ?? "-"}</p>
+          <TicketOperationalSummary ticket={ticket} compact />
+          {returnedReason ? (
+            <ReturnedBadge reason={returnedReason} />
+          ) : null}
+        </div>
+      </td>
+      <td className="px-6 py-5">
+        <StatusBadge status={ticket.status ?? "PENDING"} />
+      </td>
+      <td className="px-6 py-5">
+        <select
+          value={draft?.assigned_to ?? ""}
+          onChange={(event) =>
+            onDraftChange(ticket.id, {
+              assigned_to: event.target.value,
+            })
+          }
+          className="w-40 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+        >
+          <option value="">Stores queue</option>
+          {ADMIN_OPERATOR_OPTIONS.map((operator) => (
+            <option key={operator} value={operator}>
+              {operator}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className="px-6 py-5">
+        <textarea
+          rows={3}
+          value={draft?.notes ?? ""}
+          onChange={(event) =>
+            onDraftChange(ticket.id, {
+              notes: event.target.value,
+            })
+          }
+          className="w-56 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+        />
+      </td>
+      <td className="px-6 py-5">
+        <div className="space-y-3">
+          {isCollected ? (
+            <CollectedBadge />
+          ) : null}
+          {returnedReason ? (
+            <ReturnedBadge reason={returnedReason} />
+          ) : null}
+          <StatusSelect
+            ticketId={ticket.id}
+            value={ticket.status ?? "PENDING"}
+            onChange={onStatusChange}
+            disabled={isUpdating}
+          />
+          <button
+            type="button"
+            onClick={() => onSave(ticket.id)}
+            disabled={isUpdating}
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Save
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
+  ticket,
+  draft,
+  isCollected,
+  returnedReason,
+  isUpdating,
+  onDraftChange,
+  onStatusChange,
+  onSave,
+}: {
+  ticket: Ticket;
+  draft?: { assigned_to: string; notes: string };
+  isCollected: boolean;
+  returnedReason?: string;
+  isUpdating: boolean;
+  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) => void;
+  onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
+  onSave: (ticketId: string) => void;
+}) {
+  return (
+    <article
+      className={`rounded-3xl border p-5 shadow-sm ${getCompactStatusCardTone(
+        ticket.status ?? "PENDING",
+      )}`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">
+            <Link href={`/tickets/${ticket.id}`} className="transition hover:text-slate-600">
+              {formatRequestTitle(ticket)}
+            </Link>
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            {ticket.requester_name ?? "-"}
+          </p>
+          {isCollected ? (
+            <div className="mt-2">
+              <CollectedBadge />
+            </div>
+          ) : null}
+          {returnedReason ? (
+            <div className="mt-2">
+              <ReturnedBadge reason={returnedReason} />
+            </div>
+          ) : null}
+        </div>
+        <StatusBadge status={ticket.status ?? "PENDING"} />
+      </div>
+      <p className="mt-4 text-sm leading-7 text-slate-700">
+        {ticket.request_summary ?? ticket.request_details ?? "-"}
+      </p>
+      <div className="mt-4">
+        <TicketOperationalSummary ticket={ticket} />
+      </div>
+      <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+        <div>
+          <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Job Number</dt>
+          <dd className="mt-1">{ticket.job_number ?? "-"}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Machine Ref</dt>
+          <dd className="mt-1">{ticket.machine_reference ?? "-"}</dd>
+        </div>
+      </dl>
+      {isOnsiteAdminTicket(ticket) ? (
+        <div className="mt-4">
+          <AdminLocationCard ticket={ticket} />
+        </div>
+      ) : null}
+      <div className="mt-4 grid gap-3">
+        <select
+          value={draft?.assigned_to ?? ""}
+          onChange={(event) =>
+            onDraftChange(ticket.id, {
+              assigned_to: event.target.value,
+            })
+          }
+          className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+        >
+          <option value="">Stores queue</option>
+          {ADMIN_OPERATOR_OPTIONS.map((operator) => (
+            <option key={operator} value={operator}>
+              {operator}
+            </option>
+          ))}
+        </select>
+        <textarea
+          rows={3}
+          value={draft?.notes ?? ""}
+          onChange={(event) =>
+            onDraftChange(ticket.id, {
+              notes: event.target.value,
+            })
+          }
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+        />
+        <StatusSelect
+          ticketId={ticket.id}
+          value={ticket.status ?? "PENDING"}
+          onChange={onStatusChange}
+          disabled={isUpdating}
+        />
+        <button
+          type="button"
+          onClick={() => onSave(ticket.id)}
+          disabled={isUpdating}
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Save Ticket
+        </button>
+      </div>
+    </article>
+  );
+});
 
 function mapMessagesToChat(
   messages: TicketMessageRecord[],
