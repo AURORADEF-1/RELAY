@@ -171,7 +171,7 @@ export default function AdminPage() {
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
   const [dismissingOverdueTicketId, setDismissingOverdueTicketId] = useState<string | null>(null);
 
-  function updateTicketDraft(ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) {
+  const updateTicketDraft = useCallback((ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) => {
     setDrafts((current) => ({
       ...current,
       [ticketId]: {
@@ -179,9 +179,9 @@ export default function AdminPage() {
         notes: patch.notes ?? current[ticketId]?.notes ?? "",
       },
     }));
-  }
+  }, []);
 
-  function beginTicketOperation(ticketId: string) {
+  const beginTicketOperation = useCallback((ticketId: string) => {
     if (activeTicketOperationIdsRef.current.has(ticketId)) {
       return false;
     }
@@ -191,9 +191,9 @@ export default function AdminPage() {
     activeTicketOperationIdsRef.current = next;
     setActiveTicketOperationIds(next);
     return true;
-  }
+  }, []);
 
-  function finishTicketOperation(ticketId: string) {
+  const finishTicketOperation = useCallback((ticketId: string) => {
     if (!activeTicketOperationIdsRef.current.has(ticketId)) {
       return;
     }
@@ -202,17 +202,17 @@ export default function AdminPage() {
     next.delete(ticketId);
     activeTicketOperationIdsRef.current = next;
     setActiveTicketOperationIds(next);
-  }
+  }, []);
 
-  function setStatusWorkflowError(ticketId: string, message: string) {
+  const setStatusWorkflowError = useCallback((ticketId: string, message: string) => {
     setStatusWorkflowDialog((current) =>
       current && current.ticketId === ticketId
         ? { ...current, errorMessage: message }
         : current,
     );
-  }
+  }, []);
 
-  function syncTicketIntoState(nextTicket: Ticket) {
+  const syncTicketIntoState = useCallback((nextTicket: Ticket) => {
     setTickets((current) => {
       const existingTicket = current.find((ticket) => ticket.id === nextTicket.id);
 
@@ -230,9 +230,9 @@ export default function AdminPage() {
         notes: nextTicket.notes ?? "",
       },
     }));
-  }
+  }, []);
 
-  function toOrderedWorkflowErrorMessage(error: unknown, fallbackMessage: string) {
+  const toOrderedWorkflowErrorMessage = useCallback((error: unknown, fallbackMessage: string) => {
     const baseMessage = sanitizeUserFacingError(error, fallbackMessage);
     const normalized = baseMessage.toLowerCase();
 
@@ -252,9 +252,9 @@ export default function AdminPage() {
     }
 
     return baseMessage;
-  }
+  }, []);
 
-  async function verifyAdminActionAccess() {
+  const verifyAdminActionAccess = useCallback(async () => {
     const supabase = getSupabaseClient();
 
     if (!supabase) {
@@ -268,7 +268,7 @@ export default function AdminPage() {
     }
 
     return supabase;
-  }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -677,7 +677,7 @@ export default function AdminPage() {
     [filteredTickets],
   );
 
-  function openStatusWorkflowDialog(ticket: Ticket, nextStatus: TicketStatus) {
+  const openStatusWorkflowDialog = useCallback((ticket: Ticket, nextStatus: TicketStatus) => {
     const mode = getStatusWorkflowRequirement(ticket.status, nextStatus);
 
     if (!mode) {
@@ -695,9 +695,9 @@ export default function AdminPage() {
     });
 
     return true;
-  }
+  }, []);
 
-  async function dismissOverdueReminder(ticketId: string) {
+  const dismissOverdueReminder = useCallback(async (ticketId: string) => {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
 
     if (!currentTicket || dismissingOverdueTicketId === ticketId) {
@@ -749,9 +749,9 @@ export default function AdminPage() {
       ),
     );
     setDismissingOverdueTicketId(null);
-  }
+  }, [currentUserDisplayName, currentUserId, dismissingOverdueTicketId, tickets, verifyAdminActionAccess]);
 
-  async function commitStatusChange(
+  const commitStatusChange = useCallback(async (
     ticketId: string,
     nextStatus: TicketStatus,
     workflow?: {
@@ -759,7 +759,7 @@ export default function AdminPage() {
       leadTimeNote?: string;
       binLocation?: string;
     },
-  ): Promise<boolean> {
+  ): Promise<boolean> => {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
     const draft = drafts[ticketId];
 
@@ -951,9 +951,23 @@ export default function AdminPage() {
     }
 
     return true;
-  }
+  }, [
+    activeTicketOperationIds,
+    beginTicketOperation,
+    currentUserDisplayName,
+    currentUserId,
+    drafts,
+    finishTicketOperation,
+    loadTickets,
+    selectedChatTicketId,
+    setStatusWorkflowError,
+    syncTicketIntoState,
+    tickets,
+    toOrderedWorkflowErrorMessage,
+    verifyAdminActionAccess,
+  ]);
 
-  async function handleStatusChange(ticketId: string, nextStatus: TicketStatus) {
+  const handleStatusChange = useCallback(async (ticketId: string, nextStatus: TicketStatus) => {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
 
     if (!currentTicket || currentTicket.status === nextStatus || activeTicketOperationIds.has(ticketId)) {
@@ -965,9 +979,9 @@ export default function AdminPage() {
     }
 
     await commitStatusChange(ticketId, nextStatus);
-  }
+  }, [activeTicketOperationIds, commitStatusChange, openStatusWorkflowDialog, tickets]);
 
-  async function handleTicketSave(ticketId: string) {
+  const handleTicketSave = useCallback(async (ticketId: string) => {
     const draft = drafts[ticketId];
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
 
@@ -1076,7 +1090,15 @@ export default function AdminPage() {
     );
     setUpdatingTicketId(null);
     finishTicketOperation(ticketId);
-  }
+  }, [
+    activeTicketOperationIds,
+    beginTicketOperation,
+    drafts,
+    finishTicketOperation,
+    loadTickets,
+    tickets,
+    verifyAdminActionAccess,
+  ]);
 
   async function reloadSelectedChatMessages(
     supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
@@ -1097,7 +1119,7 @@ export default function AdminPage() {
     setChatSenderNameByUserId(senderNames);
   }
 
-  function markTicketChatRead(ticketId: string) {
+  const markTicketChatRead = useCallback((ticketId: string) => {
     const latestRequesterMessage = requesterMessagesByTicket[ticketId]?.[0]?.created_at;
 
     if (!latestRequesterMessage) {
@@ -1117,7 +1139,7 @@ export default function AdminPage() {
 
       return nextState;
     });
-  }
+  }, [requesterMessagesByTicket]);
 
   const unreadRequesterCountsByTicket = useMemo(
     () =>
@@ -1327,13 +1349,13 @@ export default function AdminPage() {
     }
   }
 
-  function handleSelectChatTicket(ticketId: string) {
+  const handleSelectChatTicket = useCallback((ticketId: string) => {
     setSelectedChatTicketId(ticketId);
     setIsChatCollapsed(false);
     markTicketChatRead(ticketId);
-  }
+  }, [markTicketChatRead]);
 
-  function handleReadAllMessages() {
+  const handleReadAllMessages = useCallback(() => {
     const nextState = Object.fromEntries(
       Object.entries(requesterMessagesByTicket)
         .filter(([, messages]) => messages[0]?.created_at)
@@ -1345,7 +1367,7 @@ export default function AdminPage() {
       ADMIN_CHAT_READ_STORAGE_KEY,
       JSON.stringify(nextState),
     );
-  }
+  }, [requesterMessagesByTicket]);
 
   return (
     <main className="aurora-shell">
