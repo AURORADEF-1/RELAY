@@ -47,6 +47,7 @@ export function TicketStatusWorkflowModal({
           <button
             type="button"
             onClick={onCancel}
+            disabled={isSubmitting}
             className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)] transition hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--foreground-strong)]"
           >
             Cancel
@@ -105,6 +106,7 @@ export function TicketStatusWorkflowModal({
           <button
             type="button"
             onClick={onCancel}
+            disabled={isSubmitting}
             className="aurora-button-secondary"
           >
             Cancel

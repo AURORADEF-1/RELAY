@@ -40,6 +40,7 @@ import {
   formatOperationalDate,
   getStatusWorkflowRequirement,
   isTicketOrderOverdue,
+  parseDueDateToEndOfDay,
   toDateInputValue,
 } from "@/lib/ticket-operational";
 import { fetchProfileAvatarUrls } from "@/lib/profile-settings";
@@ -198,6 +199,34 @@ export default function AdminPage() {
     next.delete(ticketId);
     activeTicketOperationIdsRef.current = next;
     setActiveTicketOperationIds(next);
+  }
+
+  function setStatusWorkflowError(ticketId: string, message: string) {
+    setStatusWorkflowDialog((current) =>
+      current && current.ticketId === ticketId
+        ? { ...current, errorMessage: message }
+        : current,
+    );
+  }
+
+  function syncTicketIntoState(nextTicket: Ticket) {
+    setTickets((current) => {
+      const existingTicket = current.find((ticket) => ticket.id === nextTicket.id);
+
+      if (!existingTicket) {
+        return current;
+      }
+
+      return current.map((ticket) => (ticket.id === nextTicket.id ? { ...ticket, ...nextTicket } : ticket));
+    });
+
+    setDrafts((current) => ({
+      ...current,
+      [nextTicket.id]: {
+        assigned_to: nextTicket.assigned_to ?? "",
+        notes: nextTicket.notes ?? "",
+      },
+    }));
   }
 
   async function verifyAdminActionAccess() {
@@ -416,6 +445,11 @@ export default function AdminPage() {
   const dashboardMetrics = useMemo(() => {
     const activeTickets = tickets;
     const unassignedCount = activeTickets.filter((ticket) => !ticket.assigned_to?.trim()).length;
+    const statusCounts = activeTickets.reduce<Record<string, number>>((accumulator, ticket) => {
+      const status = ticket.status ?? "UNKNOWN";
+      accumulator[status] = (accumulator[status] ?? 0) + 1;
+      return accumulator;
+    }, {});
 
     const operatorWorkload = Object.entries(
       activeTickets.reduce<Record<string, { total: number; pending: number; ready: number }>>(
@@ -462,6 +496,7 @@ export default function AdminPage() {
       unassignedCount,
       longestOpenHours,
       operatorWorkload,
+      statusCounts,
     };
   }, [tickets]);
 
@@ -470,19 +505,16 @@ export default function AdminPage() {
     tickets.find((ticket) => ticket.id === selectedChatTicketId) ??
     filteredTickets[0] ??
     null;
-  const ticketIds = useMemo(
-    () => tickets.map((ticket) => ticket.id),
-    [tickets],
-  );
   const ticketIdsKey = useMemo(
-    () => ticketIds.join("|"),
-    [ticketIds],
+    () => tickets.map((ticket) => ticket.id).join("|"),
+    [tickets],
   );
   const activeSelectedChatTicketId = selectedChatTicket?.id ?? null;
 
   useEffect(() => {
     async function loadRequesterMessages() {
       const requestId = ++requesterMessagesRequestIdRef.current;
+      const ticketIds = ticketIdsKey ? ticketIdsKey.split("|") : [];
 
       if (ticketIds.length === 0) {
         setRequesterMessagesByTicket({});
@@ -519,7 +551,7 @@ export default function AdminPage() {
     }
 
     loadRequesterMessages();
-  }, [ticketIds, ticketIdsKey]);
+  }, [ticketIdsKey]);
 
   useEffect(() => {
     if (isChatCollapsed || !activeSelectedChatTicketId) {
@@ -711,6 +743,26 @@ export default function AdminPage() {
     const wasOrdered = currentTicket.status === "ORDERED";
     const movingOrderedToReady = wasOrdered && nextStatus === "READY";
     const leavingOrdered = wasOrdered && nextStatus !== "ORDERED";
+    const normalizedExpectedDeliveryDate = workflow?.expectedDeliveryDate?.trim() || "";
+    const normalizedLeadTimeNote = workflow?.leadTimeNote?.trim() || "";
+    const normalizedBinLocation = workflow?.binLocation?.trim() || "";
+
+    if (nextStatus === "ORDERED") {
+      if (!normalizedExpectedDeliveryDate) {
+        setStatusWorkflowError(ticketId, "Expected delivery date is required before saving ORDERED.");
+        return false;
+      }
+
+      if (!parseDueDateToEndOfDay(normalizedExpectedDeliveryDate)) {
+        setStatusWorkflowError(ticketId, "Enter a valid expected delivery date before saving ORDERED.");
+        return false;
+      }
+    }
+
+    if (movingOrderedToReady && !normalizedBinLocation) {
+      setStatusWorkflowError(ticketId, "Bin location required before marking this ticket READY.");
+      return false;
+    }
 
     if (!beginTicketOperation(ticketId)) {
       return false;
@@ -740,14 +792,14 @@ export default function AdminPage() {
     };
 
     if (nextStatus === "ORDERED") {
-      updatePayload.expected_delivery_date = workflow?.expectedDeliveryDate?.trim() || null;
-      updatePayload.lead_time_note = workflow?.leadTimeNote?.trim() || null;
+      updatePayload.expected_delivery_date = normalizedExpectedDeliveryDate || null;
+      updatePayload.lead_time_note = normalizedLeadTimeNote || null;
       updatePayload.ordered_at = nextUpdatedAt;
       updatePayload.ordered_by = actorName;
       updatePayload.overdue_reminder_dismissed_at = null;
       updatePayload.overdue_reminder_dismissed_by = null;
     } else if (movingOrderedToReady) {
-      updatePayload.bin_location = workflow?.binLocation?.trim() || null;
+      updatePayload.bin_location = normalizedBinLocation || null;
       updatePayload.ready_at = nextUpdatedAt;
       updatePayload.ready_by = actorName;
       updatePayload.overdue_reminder_dismissed_at = null;
@@ -767,20 +819,22 @@ export default function AdminPage() {
     }
 
     const { data: updatedTicket, error: updateError } = await updateQuery
-      .select("id, updated_at")
+      .select("*")
       .maybeSingle();
 
     if (updateError) {
-      setErrorMessage(
-        sanitizeUserFacingError(updateError, "Unable to update ticket status."),
-      );
+      const message = sanitizeUserFacingError(updateError, "Unable to update ticket status.");
+      setErrorMessage(message);
+      setStatusWorkflowError(ticketId, message);
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
       return false;
     }
 
     if (!updatedTicket) {
-      setErrorMessage("This ticket changed in another session. Refresh and try again.");
+      const message = "This ticket changed in another session. Refresh and try again.";
+      setErrorMessage(message);
+      setStatusWorkflowError(ticketId, message);
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
       void loadTickets();
@@ -791,22 +845,22 @@ export default function AdminPage() {
       { ticket_id: ticketId, status: nextStatus },
     ];
 
-    if (nextStatus === "ORDERED" && workflow?.expectedDeliveryDate) {
+    if (nextStatus === "ORDERED" && normalizedExpectedDeliveryDate) {
       ticketUpdateRows.push({
         ticket_id: ticketId,
         comment: buildOrderedWorkflowComment({
-          expectedDeliveryDate: workflow.expectedDeliveryDate,
-          leadTimeNote: workflow.leadTimeNote,
+          expectedDeliveryDate: normalizedExpectedDeliveryDate,
+          leadTimeNote: normalizedLeadTimeNote,
           actorName,
         }),
       });
     }
 
-    if (movingOrderedToReady && workflow?.binLocation?.trim()) {
+    if (movingOrderedToReady && normalizedBinLocation) {
       ticketUpdateRows.push({
         ticket_id: ticketId,
         comment: buildReadyWorkflowComment({
-          binLocation: workflow.binLocation,
+          binLocation: normalizedBinLocation,
           actorName,
         }),
       });
@@ -824,63 +878,19 @@ export default function AdminPage() {
       .insert(ticketUpdateRows);
 
     if (insertError) {
-      setErrorMessage(
-        sanitizeUserFacingError(insertError, "Unable to record the ticket update."),
-      );
+      const message = sanitizeUserFacingError(insertError, "Unable to record the ticket update.");
+      setErrorMessage(message);
+      setStatusWorkflowError(ticketId, message);
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
       return false;
     }
 
-    setTickets((current) =>
-      nextStatus === "COMPLETED"
-        ? current.filter((ticket) => ticket.id !== ticketId)
-        : current.map((ticket) =>
-            ticket.id === ticketId
-              ? {
-                  ...ticket,
-                  status: nextStatus,
-                  assigned_to: nextAssignedTo || null,
-                  notes: nextNotes || null,
-                  expected_delivery_date:
-                    nextStatus === "ORDERED"
-                      ? workflow?.expectedDeliveryDate?.trim() || null
-                      : ticket.expected_delivery_date ?? null,
-                  lead_time_note:
-                    nextStatus === "ORDERED"
-                      ? workflow?.leadTimeNote?.trim() || null
-                      : ticket.lead_time_note ?? null,
-                  ordered_at: nextStatus === "ORDERED" ? nextUpdatedAt : ticket.ordered_at ?? null,
-                  ordered_by: nextStatus === "ORDERED" ? actorName : ticket.ordered_by ?? null,
-                  bin_location:
-                    movingOrderedToReady
-                      ? workflow?.binLocation?.trim() || null
-                      : ticket.bin_location ?? null,
-                  ready_at:
-                    movingOrderedToReady
-                      ? nextUpdatedAt
-                      : ticket.ready_at ?? null,
-                  ready_by:
-                    movingOrderedToReady
-                      ? actorName
-                      : ticket.ready_by ?? null,
-                  overdue_reminder_dismissed_at:
-                    nextStatus === "ORDERED"
-                      ? null
-                      : leavingOrdered
-                        ? null
-                        : ticket.overdue_reminder_dismissed_at ?? null,
-                  overdue_reminder_dismissed_by:
-                    nextStatus === "ORDERED"
-                      ? null
-                      : leavingOrdered
-                        ? null
-                        : ticket.overdue_reminder_dismissed_by ?? null,
-                  updated_at: updatedTicket.updated_at ?? nextUpdatedAt,
-                }
-              : ticket,
-          ),
-    );
+    if (nextStatus === "COMPLETED") {
+      setTickets((current) => current.filter((ticket) => ticket.id !== ticketId));
+    } else {
+      syncTicketIntoState(updatedTicket as Ticket);
+    }
     if (selectedChatTicketId === ticketId && nextStatus === "COMPLETED") {
       setSelectedChatTicketId(null);
     }
@@ -895,8 +905,8 @@ export default function AdminPage() {
       assignedTo: nextAssignedTo || currentTicket.assigned_to,
       binLocation:
         movingOrderedToReady
-          ? workflow?.binLocation?.trim() || null
-          : currentTicket.bin_location ?? null,
+          ? normalizedBinLocation || null
+          : (updatedTicket as Ticket).bin_location ?? currentTicket.bin_location ?? null,
     }).catch((notificationError) => {
       console.error("Failed to notify requester about status change", notificationError);
     });
@@ -1657,7 +1667,7 @@ export default function AdminPage() {
                         statusFilter === status ? "text-white" : "text-slate-900"
                       }`}
                     >
-                      {tickets.filter((ticket) => ticket.status === status).length}
+                      {dashboardMetrics.statusCounts[status] ?? 0}
                     </p>
                   </button>
                 ))}

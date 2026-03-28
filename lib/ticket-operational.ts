@@ -69,7 +69,17 @@ export function parseDueDateToEndOfDay(value: string) {
     const year = Number(matchedDate[1]);
     const month = Number(matchedDate[2]) - 1;
     const day = Number(matchedDate[3]);
-    return new Date(year, month, day, 23, 59, 59, 999);
+    const parsed = new Date(year, month, day, 23, 59, 59, 999);
+
+    if (
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month ||
+      parsed.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return parsed;
   }
 
   const parsed = new Date(trimmed);
