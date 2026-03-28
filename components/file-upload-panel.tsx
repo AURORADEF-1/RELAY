@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ChangeEvent } from "react";
 import { getAttachmentValidationError } from "@/lib/relay-ticketing";
 
 type FileUploadPanelProps = {
@@ -49,7 +50,7 @@ export function FileUploadPanel({
     };
   }, [items]);
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const nextFiles = Array.from(event.target.files ?? []);
     const limitedFiles =
       typeof maxFiles === "number" ? nextFiles.slice(0, maxFiles) : nextFiles;
@@ -95,16 +96,18 @@ export function FileUploadPanel({
   }
 
   return (
-    <div className="aurora-panel p-5">
-      <div className="space-y-2">
-        <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">{label}</p>
-        <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">{helperText}</p>
-      </div>
+    <div className="aurora-panel rounded-[1.6rem] border-[color:var(--border-strong)] bg-[color:var(--background-panel-strong)] p-4 sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1.5">
+          <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">{label}</p>
+          <p className="max-w-2xl text-sm leading-6 text-[color:var(--foreground-muted)]">
+            {helperText}
+          </p>
+        </div>
 
-      <div className="mt-4">
         <label
           htmlFor={inputId}
-          className="aurora-button-secondary cursor-pointer"
+          className="aurora-button-secondary w-full cursor-pointer sm:w-auto"
         >
           {buttonLabel}
         </label>
@@ -131,20 +134,22 @@ export function FileUploadPanel({
       ) : null}
 
       {items.length === 0 ? (
-        <p className="mt-4 text-sm text-[color:var(--foreground-muted)]">{emptyText}</p>
+        <div className="mt-4 rounded-[1.2rem] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--background-muted)] px-4 py-5 text-sm text-[color:var(--foreground-muted)]">
+          {emptyText}
+        </div>
       ) : (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {items.map((item) => (
             <div
               key={`${item.file.name}-${item.file.lastModified}`}
-              className="rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] p-3"
+              className="rounded-[1.2rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] p-3"
             >
               {item.previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={item.previewUrl}
                   alt={item.file.name}
-                  className="h-32 w-full rounded-xl object-cover"
+                  className="h-32 w-full rounded-[0.95rem] object-cover"
                 />
               ) : null}
               <div className="mt-3 space-y-1">

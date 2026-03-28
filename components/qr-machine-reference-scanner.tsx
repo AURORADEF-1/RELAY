@@ -159,30 +159,34 @@ export function QrMachineReferenceScanner({
       <button
         type="button"
         onClick={openScanner}
-        className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+        className="aurora-button-secondary w-full sm:w-auto"
       >
         Scan Machine QR
       </button>
 
       {isOpen ? (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/72 px-4 py-6">
-          <div className="w-full max-w-2xl rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.45)] sm:p-7">
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/72 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-[1.75rem] border border-[color:var(--border-strong)] bg-[color:var(--background-panel)] p-5 shadow-[0_32px_90px_-38px_rgba(0,0,0,0.68)] backdrop-blur-xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--foreground-subtle)]">
                   QR Intake
                 </p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground-strong)]">
                   Scan Machine Reference
                 </h2>
-                <p className="mt-2 text-sm leading-7 text-slate-600">
-                  Point the camera at a QR code containing <span className="font-semibold text-slate-950">Machine Reference XXXXX</span>.
+                <p className="mt-2 text-sm leading-6 text-[color:var(--foreground-muted)]">
+                  Point the camera at a QR code containing{" "}
+                  <span className="font-semibold text-[color:var(--foreground-strong)]">
+                    Machine Reference XXXXX
+                  </span>
+                  .
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closeScanner}
-                className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)] transition hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--foreground-strong)]"
               >
                 Close
               </button>
@@ -190,7 +194,7 @@ export function QrMachineReferenceScanner({
 
             {!scannedMachineReference ? (
               <div className="mt-5 space-y-4">
-                <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-950">
+                <div className="overflow-hidden rounded-[1.5rem] border border-[color:var(--border)] bg-black">
                   <video
                     ref={videoRef}
                     autoPlay
@@ -202,37 +206,37 @@ export function QrMachineReferenceScanner({
                 <canvas ref={canvasRef} className="hidden" />
 
                 {isCameraLoading ? (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <div className="rounded-[1rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] px-4 py-3 text-sm text-[color:var(--foreground-muted)]">
                     Opening camera...
                   </div>
                 ) : null}
 
                 {errorMessage ? (
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  <div className="aurora-alert aurora-alert-error">
                     {errorMessage}
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  <div className="rounded-[1rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] px-4 py-3 text-sm text-[color:var(--foreground-muted)]">
                     The scanner will keep reading frames until it finds a valid machine reference QR code.
                   </div>
                 )}
               </div>
             ) : (
-              <div className="mt-5 rounded-[1.5rem] border border-cyan-200 bg-cyan-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
+              <div className="mt-5 rounded-[1.5rem] border border-[color:var(--success)] bg-[color:var(--success-soft)] p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--success)]">
                   Machine Detected
                 </p>
-                <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground-strong)]">
                   {scannedMachineReference}
                 </p>
-                <p className="mt-3 text-sm leading-7 text-slate-700">
+                <p className="mt-3 text-sm leading-6 text-[color:var(--foreground-muted)]">
                   Use this machine reference to prefill the parts request form.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <button
                     type="button"
                     onClick={handleUseMachineReference}
-                    className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className="aurora-button"
                   >
                     Use Machine Reference
                   </button>
@@ -243,7 +247,7 @@ export function QrMachineReferenceScanner({
                       setErrorMessage("");
                       setIsCameraLoading(false);
                     }}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                    className="aurora-button-secondary"
                   >
                     Scan Again
                   </button>
