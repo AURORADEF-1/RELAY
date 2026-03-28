@@ -18,6 +18,7 @@ import {
   isRequesterReturnComment,
   REQUESTER_COLLECTED_COMMENT,
 } from "@/lib/requester-ticket-actions";
+import { formatOperationalDate } from "@/lib/ticket-operational";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -33,6 +34,8 @@ type Ticket = {
   status: string | null;
   updated_at: string | null;
   assigned_to?: string | null;
+  expected_delivery_date?: string | null;
+  bin_location?: string | null;
 };
 
 const REQUESTS_VIEW_STORAGE_KEY = "relay-requester-requests-view-mode";
@@ -83,7 +86,7 @@ export default function RequestsPage() {
     let query = supabase
       .from("tickets")
       .select(
-        "id, user_id, requester_name, machine_reference, job_number, request_summary, request_details, status, updated_at, assigned_to",
+        "id, user_id, requester_name, machine_reference, job_number, request_summary, request_details, status, updated_at, assigned_to, expected_delivery_date, bin_location",
       )
       .in("status", activeTicketStatuses)
       .order("updated_at", { ascending: false });
@@ -473,6 +476,16 @@ export default function RequestsPage() {
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600">
                         {ticket.assigned_to ?? "Stores queue"}
                       </span>
+                      {ticket.expected_delivery_date ? (
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                          Expected {formatOperationalDate(ticket.expected_delivery_date)}
+                        </span>
+                      ) : null}
+                      {ticket.bin_location ? (
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                          Bin {ticket.bin_location}
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="mt-5 flex items-center justify-between gap-3">
@@ -623,6 +636,16 @@ export default function RequestsPage() {
                           <td className="px-6 py-5 text-sm text-slate-500">
                             <div className="space-y-2">
                               <p>{ticket.assigned_to ?? "Stores queue"}</p>
+                              {ticket.expected_delivery_date ? (
+                                <p className="text-xs text-slate-500">
+                                  Expected {formatOperationalDate(ticket.expected_delivery_date)}
+                                </p>
+                              ) : null}
+                              {ticket.bin_location ? (
+                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                                  Bin {ticket.bin_location}
+                                </p>
+                              ) : null}
                               {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) && !returnedTicketIds.has(ticket.id) ? (
                                 <div className="flex flex-wrap gap-2">
                                   <button
@@ -735,6 +758,12 @@ export default function RequestsPage() {
                       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium uppercase tracking-wide text-slate-500">
                         <span>Updated {formatDate(ticket.updated_at)}</span>
                         <span>Handled by {ticket.assigned_to ?? "Stores queue"}</span>
+                        {ticket.expected_delivery_date ? (
+                          <span>Expected {formatOperationalDate(ticket.expected_delivery_date)}</span>
+                        ) : null}
+                        {ticket.bin_location ? (
+                          <span className="text-emerald-700">Bin {ticket.bin_location}</span>
+                        ) : null}
                       </div>
                       {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) && !returnedTicketIds.has(ticket.id) ? (
                         <div className="mt-4 flex flex-wrap gap-2">

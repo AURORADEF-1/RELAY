@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildRequesterReadyNotificationLine } from "@/lib/ticket-operational";
 
 export type RelayNotificationType =
   | "new_ticket"
@@ -127,6 +128,7 @@ export async function notifyRequesterStatusChanged(
     nextStatus: string;
     requestSummary: string | null;
     assignedTo?: string | null;
+    binLocation?: string | null;
   },
 ) {
   if (!payload.userId) {
@@ -141,13 +143,14 @@ export async function notifyRequesterStatusChanged(
       : payload.jobNumber
         ? `Status updated: ${payload.jobNumber}`
         : "Request status updated";
+  const readyBinLine = buildRequesterReadyNotificationLine(payload.binLocation);
   const body =
     payload.nextStatus === "IN_PROGRESS"
       ? payload.assignedTo?.trim()
         ? `${payload.requestSummary?.trim() || "Your parts request"} is now IN_PROGRESS: ${payload.assignedTo.trim()}.`
         : `${payload.requestSummary?.trim() || "Your parts request"} is now IN_PROGRESS.`
       : payload.nextStatus === "READY"
-        ? `${payload.requestSummary?.trim() || "Your request"} is READY. Please collect from Stores.`
+        ? `${payload.requestSummary?.trim() || "Your request"} is READY. Please collect from Stores.${readyBinLine ? ` ${readyBinLine}` : ""}`
         : payload.requestSummary?.trim()
           ? `${payload.requestSummary.trim()} is now ${payload.nextStatus}.`
           : `Your request is now ${payload.nextStatus}.`;

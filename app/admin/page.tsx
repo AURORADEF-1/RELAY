@@ -10,6 +10,8 @@ import { LogoutButton } from "@/components/logout-button";
 import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
+import { OverdueOrderedRemindersModal } from "@/components/overdue-ordered-reminders-modal";
+import { TicketStatusWorkflowModal } from "@/components/ticket-status-workflow-modal";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import {
   ADMIN_OPERATOR_OPTIONS,
@@ -32,6 +34,14 @@ import {
   notifyRequesterOfOperatorMessage,
   notifyRequesterStatusChanged,
 } from "@/lib/notifications";
+import {
+  buildOrderedWorkflowComment,
+  buildReadyWorkflowComment,
+  formatOperationalDate,
+  getStatusWorkflowRequirement,
+  isTicketOrderOverdue,
+  toDateInputValue,
+} from "@/lib/ticket-operational";
 import { fetchProfileAvatarUrls } from "@/lib/profile-settings";
 import {
   fetchProfileDisplayNamesByUserId,
@@ -71,8 +81,27 @@ type Ticket = {
   status: TicketStatus | null;
   assigned_to: string | null;
   notes: string | null;
+  expected_delivery_date?: string | null;
+  lead_time_note?: string | null;
+  ordered_at?: string | null;
+  ordered_by?: string | null;
+  bin_location?: string | null;
+  ready_at?: string | null;
+  ready_by?: string | null;
+  overdue_reminder_dismissed_at?: string | null;
+  overdue_reminder_dismissed_by?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+};
+
+type StatusWorkflowDialogState = {
+  ticketId: string;
+  mode: "ordered" | "ready";
+  nextStatus: TicketStatus;
+  expectedDeliveryDate: string;
+  leadTimeNote: string;
+  binLocation: string;
+  errorMessage: string;
 };
 
 export default function AdminPage() {
@@ -135,6 +164,8 @@ export default function AdminPage() {
   );
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
   const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
+  const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
+  const [dismissingOverdueTicketId, setDismissingOverdueTicketId] = useState<string | null>(null);
 
   function updateTicketDraft(ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) {
     setDrafts((current) => ({
@@ -249,7 +280,7 @@ export default function AdminPage() {
     const { data, error } = await supabase
       .from("tickets")
       .select(
-        "id, user_id, requester_name, department, location_lat, location_lng, location_summary, location_confirmed, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, created_at, updated_at",
+        "id, user_id, requester_name, department, location_lat, location_lng, location_summary, location_confirmed, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, expected_delivery_date, lead_time_note, ordered_at, ordered_by, bin_location, ready_at, ready_by, overdue_reminder_dismissed_at, overdue_reminder_dismissed_by, created_at, updated_at",
       )
       .in("status", activeTicketStatuses)
       .order("updated_at", { ascending: false });
@@ -578,21 +609,113 @@ export default function AdminPage() {
     loadTicketMessages();
   }, [activeSelectedChatTicketId]);
 
-  async function handleStatusChange(ticketId: string, nextStatus: TicketStatus) {
+  const overdueOrderedTickets = useMemo(
+    () => tickets.filter((ticket) => isTicketOrderOverdue(ticket)),
+    [tickets],
+  );
+
+  function openStatusWorkflowDialog(ticket: Ticket, nextStatus: TicketStatus) {
+    const mode = getStatusWorkflowRequirement(ticket.status, nextStatus);
+
+    if (!mode) {
+      return false;
+    }
+
+    setStatusWorkflowDialog({
+      ticketId: ticket.id,
+      mode,
+      nextStatus,
+      expectedDeliveryDate: toDateInputValue(ticket.expected_delivery_date),
+      leadTimeNote: ticket.lead_time_note ?? "",
+      binLocation: ticket.bin_location ?? "",
+      errorMessage: "",
+    });
+
+    return true;
+  }
+
+  async function dismissOverdueReminder(ticketId: string) {
+    const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
+
+    if (!currentTicket || dismissingOverdueTicketId === ticketId) {
+      return;
+    }
+
+    let supabase: ReturnType<typeof getSupabaseClient>;
+
+    try {
+      supabase = await verifyAdminActionAccess();
+    } catch (error) {
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Admin access is required for this action."),
+      );
+      return;
+    }
+
+    const dismissedAt = new Date().toISOString();
+    const dismissedBy = currentUserDisplayName || currentUserId || "Administrator";
+
+    setDismissingOverdueTicketId(ticketId);
+
+    const { error } = await supabase
+      .from("tickets")
+      .update({
+        overdue_reminder_dismissed_at: dismissedAt,
+        overdue_reminder_dismissed_by: dismissedBy,
+        updated_at: currentTicket.updated_at ?? dismissedAt,
+      })
+      .eq("id", ticketId);
+
+    if (error) {
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Unable to dismiss the overdue reminder."),
+      );
+      setDismissingOverdueTicketId(null);
+      return;
+    }
+
+    setTickets((current) =>
+      current.map((ticket) =>
+        ticket.id === ticketId
+          ? {
+              ...ticket,
+              overdue_reminder_dismissed_at: dismissedAt,
+              overdue_reminder_dismissed_by: dismissedBy,
+            }
+          : ticket,
+      ),
+    );
+    setDismissingOverdueTicketId(null);
+  }
+
+  async function commitStatusChange(
+    ticketId: string,
+    nextStatus: TicketStatus,
+    workflow?: {
+      expectedDeliveryDate?: string;
+      leadTimeNote?: string;
+      binLocation?: string;
+    },
+  ): Promise<boolean> {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
     const draft = drafts[ticketId];
 
     if (!currentTicket || currentTicket.status === nextStatus || activeTicketOperationIds.has(ticketId)) {
-      return;
+      return false;
     }
 
     const nextAssignedTo = draft?.assigned_to.trim() ?? currentTicket.assigned_to?.trim() ?? "";
     const nextNotes = draft?.notes.trim() ?? currentTicket.notes?.trim() ?? "";
     const currentNotes = currentTicket.notes?.trim() ?? "";
     const notesChanged = nextNotes !== currentNotes;
+    const actorName = currentUserDisplayName || currentUserId || "Stores Operator";
+    const nextUpdatedAt = new Date().toISOString();
+    const wasOrdered = currentTicket.status === "ORDERED";
+    const movingOrderedToReady = wasOrdered && nextStatus === "READY";
+    const leavingOrdered = wasOrdered && nextStatus !== "ORDERED";
 
     if (!beginTicketOperation(ticketId)) {
-      return;
+      return false;
     }
 
     setUpdatingTicketId(ticketId);
@@ -608,18 +731,37 @@ export default function AdminPage() {
       );
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
-      return;
+      return false;
     }
 
-    const nextUpdatedAt = new Date().toISOString();
+    const updatePayload: Record<string, string | null> = {
+      status: nextStatus,
+      assigned_to: nextAssignedTo || null,
+      notes: nextNotes || null,
+      updated_at: nextUpdatedAt,
+    };
+
+    if (nextStatus === "ORDERED") {
+      updatePayload.expected_delivery_date = workflow?.expectedDeliveryDate?.trim() || null;
+      updatePayload.lead_time_note = workflow?.leadTimeNote?.trim() || null;
+      updatePayload.ordered_at = nextUpdatedAt;
+      updatePayload.ordered_by = actorName;
+      updatePayload.overdue_reminder_dismissed_at = null;
+      updatePayload.overdue_reminder_dismissed_by = null;
+    } else if (movingOrderedToReady) {
+      updatePayload.bin_location = workflow?.binLocation?.trim() || null;
+      updatePayload.ready_at = nextUpdatedAt;
+      updatePayload.ready_by = actorName;
+      updatePayload.overdue_reminder_dismissed_at = null;
+      updatePayload.overdue_reminder_dismissed_by = null;
+    } else if (leavingOrdered) {
+      updatePayload.overdue_reminder_dismissed_at = null;
+      updatePayload.overdue_reminder_dismissed_by = null;
+    }
+
     let updateQuery = supabase
       .from("tickets")
-      .update({
-        status: nextStatus,
-        assigned_to: nextAssignedTo || null,
-        notes: nextNotes || null,
-        updated_at: nextUpdatedAt,
-      })
+      .update(updatePayload)
       .eq("id", ticketId);
 
     if (currentTicket.updated_at) {
@@ -636,7 +778,7 @@ export default function AdminPage() {
       );
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
-      return;
+      return false;
     }
 
     if (!updatedTicket) {
@@ -644,12 +786,44 @@ export default function AdminPage() {
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
       void loadTickets();
-      return;
+      return false;
+    }
+
+    const ticketUpdateRows: Array<{ ticket_id: string; status?: string; comment?: string }> = [
+      { ticket_id: ticketId, status: nextStatus },
+    ];
+
+    if (nextStatus === "ORDERED" && workflow?.expectedDeliveryDate) {
+      ticketUpdateRows.push({
+        ticket_id: ticketId,
+        comment: buildOrderedWorkflowComment({
+          expectedDeliveryDate: workflow.expectedDeliveryDate,
+          leadTimeNote: workflow.leadTimeNote,
+          actorName,
+        }),
+      });
+    }
+
+    if (movingOrderedToReady && workflow?.binLocation?.trim()) {
+      ticketUpdateRows.push({
+        ticket_id: ticketId,
+        comment: buildReadyWorkflowComment({
+          binLocation: workflow.binLocation,
+          actorName,
+        }),
+      });
+    }
+
+    if (notesChanged && nextNotes) {
+      ticketUpdateRows.push({
+        ticket_id: ticketId,
+        comment: nextNotes,
+      });
     }
 
     const { error: insertError } = await supabase
       .from("ticket_updates")
-      .insert({ ticket_id: ticketId, status: nextStatus });
+      .insert(ticketUpdateRows);
 
     if (insertError) {
       setErrorMessage(
@@ -657,23 +831,7 @@ export default function AdminPage() {
       );
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
-      return;
-    }
-
-    if (notesChanged && nextNotes) {
-      const { error: noteInsertError } = await supabase.from("ticket_updates").insert({
-        ticket_id: ticketId,
-        comment: nextNotes,
-      });
-
-      if (noteInsertError) {
-        setErrorMessage(
-          sanitizeUserFacingError(noteInsertError, "Unable to save the ticket note."),
-        );
-        setUpdatingTicketId(null);
-        finishTicketOperation(ticketId);
-        return;
-      }
+      return false;
     }
 
     setTickets((current) =>
@@ -686,6 +844,40 @@ export default function AdminPage() {
                   status: nextStatus,
                   assigned_to: nextAssignedTo || null,
                   notes: nextNotes || null,
+                  expected_delivery_date:
+                    nextStatus === "ORDERED"
+                      ? workflow?.expectedDeliveryDate?.trim() || null
+                      : ticket.expected_delivery_date ?? null,
+                  lead_time_note:
+                    nextStatus === "ORDERED"
+                      ? workflow?.leadTimeNote?.trim() || null
+                      : ticket.lead_time_note ?? null,
+                  ordered_at: nextStatus === "ORDERED" ? nextUpdatedAt : ticket.ordered_at ?? null,
+                  ordered_by: nextStatus === "ORDERED" ? actorName : ticket.ordered_by ?? null,
+                  bin_location:
+                    movingOrderedToReady
+                      ? workflow?.binLocation?.trim() || null
+                      : ticket.bin_location ?? null,
+                  ready_at:
+                    movingOrderedToReady
+                      ? nextUpdatedAt
+                      : ticket.ready_at ?? null,
+                  ready_by:
+                    movingOrderedToReady
+                      ? actorName
+                      : ticket.ready_by ?? null,
+                  overdue_reminder_dismissed_at:
+                    nextStatus === "ORDERED"
+                      ? null
+                      : leavingOrdered
+                        ? null
+                        : ticket.overdue_reminder_dismissed_at ?? null,
+                  overdue_reminder_dismissed_by:
+                    nextStatus === "ORDERED"
+                      ? null
+                      : leavingOrdered
+                        ? null
+                        : ticket.overdue_reminder_dismissed_by ?? null,
                   updated_at: updatedTicket.updated_at ?? nextUpdatedAt,
                 }
               : ticket,
@@ -703,6 +895,10 @@ export default function AdminPage() {
       nextStatus,
       requestSummary: currentTicket.request_summary ?? currentTicket.request_details,
       assignedTo: nextAssignedTo || currentTicket.assigned_to,
+      binLocation:
+        movingOrderedToReady
+          ? workflow?.binLocation?.trim() || null
+          : currentTicket.bin_location ?? null,
     }).catch((notificationError) => {
       console.error("Failed to notify requester about status change", notificationError);
     });
@@ -712,6 +908,22 @@ export default function AdminPage() {
         console.error("Failed to delete completed ticket attachments", attachmentError);
       });
     }
+
+    return true;
+  }
+
+  async function handleStatusChange(ticketId: string, nextStatus: TicketStatus) {
+    const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
+
+    if (!currentTicket || currentTicket.status === nextStatus || activeTicketOperationIds.has(ticketId)) {
+      return;
+    }
+
+    if (openStatusWorkflowDialog(currentTicket, nextStatus)) {
+      return;
+    }
+
+    await commitStatusChange(ticketId, nextStatus);
   }
 
   async function handleTicketSave(ticketId: string) {
@@ -1152,6 +1364,82 @@ export default function AdminPage() {
         </nav>
 
         <AuthGuard requiredRole="admin">
+          <>
+          {overdueOrderedTickets.length > 0 ? (
+            <OverdueOrderedRemindersModal
+              tickets={overdueOrderedTickets.map((ticket) => ({
+                id: ticket.id,
+                jobNumber: ticket.job_number ?? null,
+                requestSummary: ticket.request_summary ?? ticket.request_details ?? null,
+                expectedDeliveryDate: formatOperationalDate(ticket.expected_delivery_date),
+              }))}
+              dismissingTicketId={dismissingOverdueTicketId}
+              onDismissTicket={(ticketId) => void dismissOverdueReminder(ticketId)}
+            />
+          ) : null}
+
+          {statusWorkflowDialog ? (
+            <TicketStatusWorkflowModal
+              mode={statusWorkflowDialog.mode}
+              isSubmitting={updatingTicketId === statusWorkflowDialog.ticketId}
+              expectedDeliveryDate={statusWorkflowDialog.expectedDeliveryDate}
+              leadTimeNote={statusWorkflowDialog.leadTimeNote}
+              binLocation={statusWorkflowDialog.binLocation}
+              errorMessage={statusWorkflowDialog.errorMessage}
+              onExpectedDeliveryDateChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, expectedDeliveryDate: value, errorMessage: "" } : current,
+                )
+              }
+              onLeadTimeNoteChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, leadTimeNote: value, errorMessage: "" } : current,
+                )
+              }
+              onBinLocationChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, binLocation: value, errorMessage: "" } : current,
+                )
+              }
+              onCancel={() => setStatusWorkflowDialog(null)}
+              onConfirm={() => {
+                const dialog = statusWorkflowDialog;
+
+                if (!dialog) {
+                  return;
+                }
+
+                if (dialog.mode === "ordered" && !dialog.expectedDeliveryDate.trim()) {
+                  setStatusWorkflowDialog((current) =>
+                    current
+                      ? { ...current, errorMessage: "Expected delivery date is required before saving ORDERED." }
+                      : current,
+                  );
+                  return;
+                }
+
+                if (dialog.mode === "ready" && !dialog.binLocation.trim()) {
+                  setStatusWorkflowDialog((current) =>
+                    current
+                      ? { ...current, errorMessage: "Bin location required before marking this ticket READY." }
+                      : current,
+                  );
+                  return;
+                }
+
+                void commitStatusChange(dialog.ticketId, dialog.nextStatus, {
+                  expectedDeliveryDate: dialog.expectedDeliveryDate,
+                  leadTimeNote: dialog.leadTimeNote,
+                  binLocation: dialog.binLocation,
+                }).then((didSave) => {
+                  if (didSave) {
+                    setStatusWorkflowDialog(null);
+                  }
+                });
+              }}
+            />
+          ) : null}
+
           <section className="aurora-section sm:p-10">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl space-y-5">
@@ -1692,6 +1980,7 @@ export default function AdminPage() {
                           <td className="px-6 py-5 text-sm leading-7 text-slate-600">
                             <div className="space-y-2">
                               <p>{ticket.request_summary ?? ticket.request_details ?? "-"}</p>
+                              <TicketOperationalSummary ticket={ticket} compact />
                               {returnedTicketReasonById[ticket.id] ? (
                                 <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
                               ) : null}
@@ -1840,6 +2129,9 @@ export default function AdminPage() {
                         <p className="mt-1 text-sm leading-7 text-slate-600">
                           {ticket.request_summary ?? ticket.request_details ?? "-"}
                         </p>
+                        <div className="mt-3">
+                          <TicketOperationalSummary ticket={ticket} />
+                        </div>
                         {returnedTicketReasonById[ticket.id] ? (
                           <div className="mt-3">
                             <ReturnedBadge reason={returnedTicketReasonById[ticket.id]} />
@@ -1970,6 +2262,9 @@ export default function AdminPage() {
                               <p className="mt-4 text-sm leading-6 text-slate-700">
                                 {ticket.request_summary ?? ticket.request_details ?? "-"}
                               </p>
+                              <div className="mt-4">
+                                <TicketOperationalSummary ticket={ticket} />
+                              </div>
                               <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
                                 <div>
                                   <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -2048,6 +2343,9 @@ export default function AdminPage() {
                       <p className="mt-4 text-sm leading-7 text-slate-700">
                         {ticket.request_summary ?? ticket.request_details ?? "-"}
                       </p>
+                      <div className="mt-4">
+                        <TicketOperationalSummary ticket={ticket} />
+                      </div>
                       <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
                         <div>
                           <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Job Number</dt>
@@ -2111,6 +2409,7 @@ export default function AdminPage() {
               </div>
             )}
           </section>
+          </>
         </AuthGuard>
       </div>
     </main>
@@ -2408,6 +2707,54 @@ function StatusSelect({
       ))}
       <option value="COMPLETED">COMPLETED</option>
     </select>
+  );
+}
+
+function TicketOperationalSummary({
+  ticket,
+  compact = false,
+}: {
+  ticket: Ticket;
+  compact?: boolean;
+}) {
+  const hasExpectedDelivery = Boolean(ticket.expected_delivery_date?.trim());
+  const hasBinLocation = Boolean(ticket.bin_location?.trim());
+  const hasLeadTimeNote = Boolean(ticket.lead_time_note?.trim());
+  const isOverdue = isTicketOrderOverdue(ticket);
+
+  if (!hasExpectedDelivery && !hasBinLocation && !hasLeadTimeNote) {
+    return null;
+  }
+
+  return (
+    <div className={`space-y-2 ${compact ? "" : "rounded-2xl border border-slate-200 bg-white/75 p-3"}`}>
+      {hasExpectedDelivery ? (
+        <p className="text-xs text-slate-500">
+          Expected delivery{" "}
+          <span className="font-semibold text-slate-700">
+            {formatOperationalDate(ticket.expected_delivery_date)}
+          </span>
+          {isOverdue ? (
+            <span className="ml-2 inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-800">
+              Overdue
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+      {hasBinLocation ? (
+        <p className="text-xs text-slate-500">
+          Bin{" "}
+          <span className="font-semibold text-emerald-700">
+            {ticket.bin_location}
+          </span>
+        </p>
+      ) : null}
+      {hasLeadTimeNote ? (
+        <p className="text-xs leading-5 text-slate-500">
+          {ticket.lead_time_note}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

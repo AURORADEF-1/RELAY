@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
+import { TicketStatusWorkflowModal } from "@/components/ticket-status-workflow-modal";
 import { TicketAttachmentGallery } from "@/components/ticket-attachment-gallery";
 import {
   type ChatMessage,
@@ -19,6 +20,7 @@ import {
   notifyAdminsOfPartCollected,
   notifyAdminsOfPartReturned,
   notifyAdminsOfRequesterMessage,
+  notifyRequesterStatusChanged,
 } from "@/lib/notifications";
 import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
 import {
@@ -37,6 +39,13 @@ import {
   isRequesterReturnComment,
   REQUESTER_COLLECTED_COMMENT,
 } from "@/lib/requester-ticket-actions";
+import {
+  buildOrderedWorkflowComment,
+  buildReadyWorkflowComment,
+  formatOperationalDate,
+  getStatusWorkflowRequirement,
+  toDateInputValue,
+} from "@/lib/ticket-operational";
 import {
   fetchProfileDisplayNamesByUserId,
   getCurrentUserWithRole,
@@ -66,6 +75,15 @@ type TicketRecord = {
   status: string | null;
   assigned_to: string | null;
   notes: string | null;
+  expected_delivery_date?: string | null;
+  lead_time_note?: string | null;
+  ordered_at?: string | null;
+  ordered_by?: string | null;
+  bin_location?: string | null;
+  ready_at?: string | null;
+  ready_by?: string | null;
+  overdue_reminder_dismissed_at?: string | null;
+  overdue_reminder_dismissed_by?: string | null;
   updated_at: string | null;
   created_at: string | null;
 };
@@ -88,6 +106,17 @@ type TicketEditDraft = {
   status: string;
   assigned_to: string;
   notes: string;
+  expected_delivery_date: string;
+  lead_time_note: string;
+  bin_location: string;
+};
+
+type StatusWorkflowDialogState = {
+  mode: "ordered" | "ready";
+  expectedDeliveryDate: string;
+  leadTimeNote: string;
+  binLocation: string;
+  errorMessage: string;
 };
 
 export default function TicketDetailPage() {
@@ -119,6 +148,7 @@ export default function TicketDetailPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [editDraft, setEditDraft] = useState<TicketEditDraft | null>(null);
+  const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
 
   const loadTicket = useCallback(async () => {
     setIsLoading(true);
@@ -403,7 +433,11 @@ export default function TicketDetailPage() {
     }
   }
 
-  async function handleSaveTicketEdit() {
+  async function handleSaveTicketEdit(confirmedWorkflow?: {
+    expectedDeliveryDate: string;
+    leadTimeNote: string;
+    binLocation: string;
+  }) {
     if (!ticket || !editDraft) {
       return;
     }
@@ -423,6 +457,46 @@ export default function TicketDetailPage() {
     setIsSavingEdit(true);
     setErrorMessage("");
 
+    const workflowRequirement = getStatusWorkflowRequirement(ticket.status, editDraft.status);
+    const nextExpectedDeliveryDate =
+      confirmedWorkflow?.expectedDeliveryDate ?? editDraft.expected_delivery_date;
+    const nextLeadTimeNote = confirmedWorkflow?.leadTimeNote ?? editDraft.lead_time_note;
+    const nextBinLocation = confirmedWorkflow?.binLocation ?? editDraft.bin_location;
+    const expectedDateChanged =
+      toDateInputValue(ticket.expected_delivery_date) !== nextExpectedDeliveryDate.trim();
+
+    if (workflowRequirement && !confirmedWorkflow) {
+      setStatusWorkflowDialog({
+        mode: workflowRequirement,
+        expectedDeliveryDate: nextExpectedDeliveryDate,
+        leadTimeNote: nextLeadTimeNote,
+        binLocation: nextBinLocation,
+        errorMessage: "",
+      });
+      setIsSavingEdit(false);
+      return;
+    }
+
+    if (workflowRequirement === "ordered" && !nextExpectedDeliveryDate.trim()) {
+      setStatusWorkflowDialog((current) =>
+        current
+          ? { ...current, errorMessage: "Expected delivery date is required before saving ORDERED." }
+          : current,
+      );
+      setIsSavingEdit(false);
+      return;
+    }
+
+    if (workflowRequirement === "ready" && !nextBinLocation.trim()) {
+      setStatusWorkflowDialog((current) =>
+        current
+          ? { ...current, errorMessage: "Bin location required before marking this ticket READY." }
+          : current,
+      );
+      setIsSavingEdit(false);
+      return;
+    }
+
     const ticketPatch = {
       requester_name: editDraft.requester_name.trim() || null,
       department: editDraft.department.trim() || null,
@@ -433,6 +507,29 @@ export default function TicketDetailPage() {
       status: editDraft.status.trim() || null,
       assigned_to: editDraft.assigned_to.trim() || null,
       notes: editDraft.notes.trim() || null,
+      expected_delivery_date: nextExpectedDeliveryDate.trim() || null,
+      lead_time_note: nextLeadTimeNote.trim() || null,
+      bin_location: nextBinLocation.trim() || null,
+      ordered_at:
+        workflowRequirement === "ordered" ? new Date().toISOString() : ticket.ordered_at ?? null,
+      ordered_by:
+        workflowRequirement === "ordered"
+          ? currentUserDisplayName || currentUserId || "Stores Operator"
+          : ticket.ordered_by ?? null,
+      ready_at:
+        workflowRequirement === "ready" ? new Date().toISOString() : ticket.ready_at ?? null,
+      ready_by:
+        workflowRequirement === "ready"
+          ? currentUserDisplayName || currentUserId || "Stores Operator"
+          : ticket.ready_by ?? null,
+      overdue_reminder_dismissed_at:
+        editDraft.status === "ORDERED" && expectedDateChanged
+          ? null
+          : ticket.overdue_reminder_dismissed_at ?? null,
+      overdue_reminder_dismissed_by:
+        editDraft.status === "ORDERED" && expectedDateChanged
+          ? null
+          : ticket.overdue_reminder_dismissed_by ?? null,
       updated_at: new Date().toISOString(),
     };
 
@@ -450,11 +547,36 @@ export default function TicketDetailPage() {
     }
 
     if (ticket.status !== ticketPatch.status) {
-      const { error: statusError } = await supabase.from("ticket_updates").insert({
-        ticket_id: ticket.id,
-        status: ticketPatch.status,
-        comment: `Status updated to ${ticketPatch.status}.`,
-      });
+      const ticketUpdateRows: Array<{ ticket_id: string; status?: string | null; comment?: string }> = [
+        {
+          ticket_id: ticket.id,
+          status: ticketPatch.status,
+          comment: `Status updated to ${ticketPatch.status}.`,
+        },
+      ];
+
+      if (workflowRequirement === "ordered" && ticketPatch.expected_delivery_date) {
+        ticketUpdateRows.push({
+          ticket_id: ticket.id,
+          comment: buildOrderedWorkflowComment({
+            expectedDeliveryDate: ticketPatch.expected_delivery_date,
+            leadTimeNote: ticketPatch.lead_time_note,
+            actorName: currentUserDisplayName || currentUserId || "Stores Operator",
+          }),
+        });
+      }
+
+      if (workflowRequirement === "ready" && ticketPatch.bin_location) {
+        ticketUpdateRows.push({
+          ticket_id: ticket.id,
+          comment: buildReadyWorkflowComment({
+            binLocation: ticketPatch.bin_location,
+            actorName: currentUserDisplayName || currentUserId || "Stores Operator",
+          }),
+        });
+      }
+
+      const { error: statusError } = await supabase.from("ticket_updates").insert(ticketUpdateRows);
 
       if (statusError) {
         setErrorMessage(
@@ -488,11 +610,35 @@ export default function TicketDetailPage() {
           }
         : current,
     );
+    setEditDraft((current) =>
+      current
+        ? {
+            ...current,
+            expected_delivery_date: nextExpectedDeliveryDate,
+            lead_time_note: nextLeadTimeNote,
+            bin_location: nextBinLocation,
+          }
+        : current,
+    );
     setIsEditing(false);
     setIsSavingEdit(false);
+    setStatusWorkflowDialog(null);
     if (ticketPatch.status === "COMPLETED") {
       void deleteTicketAttachmentsForTicket(supabase, ticket.id).catch((attachmentError) => {
         console.error("Failed to delete completed ticket attachments", attachmentError);
+      });
+    }
+    if (ticket.status !== ticketPatch.status) {
+      void notifyRequesterStatusChanged(supabase, {
+        userId: ticket.user_id,
+        ticketId: ticket.id,
+        jobNumber: ticket.job_number,
+        nextStatus: ticketPatch.status ?? "PENDING",
+        requestSummary: ticket.request_summary ?? ticket.request_details,
+        assignedTo: ticketPatch.assigned_to,
+        binLocation: ticketPatch.bin_location,
+      }).catch((notificationError) => {
+        console.error("Failed to notify requester about status change", notificationError);
       });
     }
     void loadTicket();
@@ -729,6 +875,45 @@ export default function TicketDetailPage() {
         </nav>
 
         <AuthGuard>
+          {statusWorkflowDialog ? (
+            <TicketStatusWorkflowModal
+              mode={statusWorkflowDialog.mode}
+              isSubmitting={isSavingEdit}
+              expectedDeliveryDate={statusWorkflowDialog.expectedDeliveryDate}
+              leadTimeNote={statusWorkflowDialog.leadTimeNote}
+              binLocation={statusWorkflowDialog.binLocation}
+              errorMessage={statusWorkflowDialog.errorMessage}
+              onExpectedDeliveryDateChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, expectedDeliveryDate: value, errorMessage: "" } : current,
+                )
+              }
+              onLeadTimeNoteChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, leadTimeNote: value, errorMessage: "" } : current,
+                )
+              }
+              onBinLocationChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, binLocation: value, errorMessage: "" } : current,
+                )
+              }
+              onCancel={() => setStatusWorkflowDialog(null)}
+              onConfirm={() => {
+                const dialog = statusWorkflowDialog;
+
+                if (!dialog) {
+                  return;
+                }
+
+                void handleSaveTicketEdit({
+                  expectedDeliveryDate: dialog.expectedDeliveryDate,
+                  leadTimeNote: dialog.leadTimeNote,
+                  binLocation: dialog.binLocation,
+                });
+              }}
+            />
+          ) : null}
           <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
             <div className="flex flex-col gap-8 lg:flex-row lg:justify-between">
               <div className="space-y-5">
@@ -890,6 +1075,25 @@ export default function TicketDetailPage() {
                               )
                             }
                           />
+                          <EditField
+                            label="Expected Delivery"
+                            type="date"
+                            value={editDraft.expected_delivery_date}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, expected_delivery_date: value } : current,
+                              )
+                            }
+                          />
+                          <EditField
+                            label="Bin Location"
+                            value={editDraft.bin_location}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, bin_location: value } : current,
+                              )
+                            }
+                          />
                         </div>
 
                         <EditArea
@@ -916,6 +1120,15 @@ export default function TicketDetailPage() {
                           onChange={(value) =>
                             setEditDraft((current) =>
                               current ? { ...current, notes: value } : current,
+                            )
+                          }
+                        />
+                        <EditArea
+                          label="Lead Time Note"
+                          value={editDraft.lead_time_note}
+                          onChange={(value) =>
+                            setEditDraft((current) =>
+                              current ? { ...current, lead_time_note: value } : current,
                             )
                           }
                         />
@@ -949,6 +1162,9 @@ export default function TicketDetailPage() {
                           <DetailItem label="Machine" value={ticket.machine_reference} />
                           <DetailItem label="Job Number" value={ticket.job_number} />
                           <DetailItem label="Assigned User" value={ticket.assigned_to} />
+                          <DetailItem label="Expected Delivery" value={formatOperationalDate(ticket.expected_delivery_date)} />
+                          <DetailItem label="Bin Location" value={ticket.bin_location} />
+                          <DetailItem label="Lead Time Note" value={ticket.lead_time_note} />
                           <DetailItem
                             label="Updated"
                             value={formatDate(ticket.updated_at)}
@@ -968,6 +1184,16 @@ export default function TicketDetailPage() {
                           />
                           <DetailBlock label="Admin Notes" value={ticket.notes} />
                         </div>
+                        {!isAdmin && ticket.status === "READY" && ticket.bin_location?.trim() ? (
+                          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                              Collection Bin
+                            </p>
+                            <p className="mt-2 text-lg font-semibold text-emerald-900">
+                              {ticket.bin_location}
+                            </p>
+                          </div>
+                        ) : null}
                         {!isAdmin && ticket.status === "READY" ? (
                           <div className="mt-6">
                             {hasRequesterCollected ? (
@@ -1242,6 +1468,9 @@ function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
     status: ticket.status ?? "PENDING",
     assigned_to: ticket.assigned_to ?? "",
     notes: ticket.notes ?? "",
+    expected_delivery_date: toDateInputValue(ticket.expected_delivery_date),
+    lead_time_note: ticket.lead_time_note ?? "",
+    bin_location: ticket.bin_location ?? "",
   };
 }
 
@@ -1265,10 +1494,12 @@ function DetailItem({
 function EditField({
   label,
   value,
+  type = "text",
   onChange,
 }: {
   label: string;
   value: string;
+  type?: "text" | "date";
   onChange: (value: string) => void;
 }) {
   return (
@@ -1277,6 +1508,7 @@ function EditField({
         {label}
       </span>
       <input
+        type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-slate-400"
