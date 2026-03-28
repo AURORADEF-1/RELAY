@@ -57,23 +57,32 @@ declare global {
 
 const LEAFLET_CSS_ID = "relay-leaflet-css";
 const LEAFLET_SCRIPT_ID = "relay-leaflet-script";
+const ONSITE_MAP_REFRESH_INTERVAL_MS = 30000;
 
 export default function WorkshopControlMapPage() {
   const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
   const [tickets, setTickets] = useState<OnsiteTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<LeafletMap | null>(null);
 
-  const loadTickets = useCallback(async () => {
+  const loadTickets = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
+      if (silent) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+
       const supabase = getSupabaseClient();
 
       if (!supabase) {
         setErrorMessage("Supabase environment variables are not configured.");
         setIsLoading(false);
+        setIsRefreshing(false);
         return;
       }
 
@@ -82,6 +91,7 @@ export default function WorkshopControlMapPage() {
       if (!user || !isAdmin) {
         setErrorMessage("Admin access is required to view the onsite map.");
         setIsLoading(false);
+        setIsRefreshing(false);
         return;
       }
 
@@ -104,11 +114,13 @@ export default function WorkshopControlMapPage() {
       setLastUpdatedAt(new Date().toISOString());
       setErrorMessage("");
       setIsLoading(false);
+      setIsRefreshing(false);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Unable to load onsite jobs.",
       );
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -118,6 +130,58 @@ export default function WorkshopControlMapPage() {
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
+  }, [loadTickets]);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    const refreshTickets = () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
+      void loadTickets({ silent: true });
+    };
+
+    const refreshIntervalId = window.setInterval(
+      refreshTickets,
+      ONSITE_MAP_REFRESH_INTERVAL_MS,
+    );
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshTickets();
+      }
+    };
+
+    window.addEventListener("focus", refreshTickets);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    const channel = supabase
+      .channel("onsite-map-tickets")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tickets",
+        },
+        () => {
+          refreshTickets();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      window.clearInterval(refreshIntervalId);
+      window.removeEventListener("focus", refreshTickets);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      void supabase.removeChannel(channel);
+    };
   }, [loadTickets]);
 
   const liveOnsiteJobs = useMemo(
@@ -274,14 +338,14 @@ export default function WorkshopControlMapPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => void loadTickets()}
+                  onClick={() => void loadTickets({ silent: true })}
                   className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 text-left transition hover:bg-white/15"
                 >
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
                     Control
                   </p>
                   <p className="mt-2 text-xl font-semibold text-white">
-                    Refresh Now
+                    {isRefreshing ? "Refreshing..." : "Refresh Now"}
                   </p>
                 </button>
               </div>
