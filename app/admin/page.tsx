@@ -279,9 +279,7 @@ export default function AdminPage() {
 
     const { data, error } = await supabase
       .from("tickets")
-      .select(
-        "id, user_id, requester_name, department, location_lat, location_lng, location_summary, location_confirmed, machine_reference, job_number, request_summary, request_details, status, assigned_to, notes, expected_delivery_date, lead_time_note, ordered_at, ordered_by, bin_location, ready_at, ready_by, overdue_reminder_dismissed_at, overdue_reminder_dismissed_by, created_at, updated_at",
-      )
+      .select("*")
       .in("status", activeTicketStatuses)
       .order("updated_at", { ascending: false });
 
@@ -292,7 +290,7 @@ export default function AdminPage() {
 
       setTickets([]);
       setErrorMessage(
-        sanitizeUserFacingError(error, "Unable to load live parts requests."),
+        sanitizeUserFacingError(error, "Unable to load the live parts request queue. Refresh and try again."),
       );
       setIsLoading(false);
       return;

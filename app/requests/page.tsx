@@ -85,9 +85,7 @@ export default function RequestsPage() {
 
     let query = supabase
       .from("tickets")
-      .select(
-        "id, user_id, requester_name, machine_reference, job_number, request_summary, request_details, status, updated_at, assigned_to, expected_delivery_date, bin_location",
-      )
+      .select("*")
       .in("status", activeTicketStatuses)
       .order("updated_at", { ascending: false });
 
