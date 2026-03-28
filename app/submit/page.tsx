@@ -858,9 +858,10 @@ function buildTicketInsertPayload(
     request_details: requestDetails,
     request_summary: requestDetails,
     status: "PENDING",
-    location_latitude: locationDraft?.confirmed ? locationDraft.lat : null,
-    location_longitude: locationDraft?.confirmed ? locationDraft.lng : null,
+    location_lat: locationDraft?.confirmed ? locationDraft.lat : null,
+    location_lng: locationDraft?.confirmed ? locationDraft.lng : null,
     location_summary: locationDraft?.confirmed ? locationDraft.summary : null,
+    location_confirmed: Boolean(locationDraft?.confirmed),
   };
 }
 

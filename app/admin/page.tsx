@@ -17,6 +17,10 @@ import {
   ADMIN_OPERATOR_OPTIONS,
 } from "@/lib/admin-operators";
 import {
+  buildOnsiteLocationMapUrl,
+  formatOnsiteLocationSummary,
+} from "@/lib/onsite-location";
+import {
   type ChatMessage,
   TicketChatPanel,
 } from "@/components/ticket-chat-panel";
@@ -65,6 +69,7 @@ import { getSupabaseAccessToken } from "@/lib/supabase";
 
 const ADMIN_CHAT_READ_STORAGE_KEY = "relay-admin-chat-last-opened";
 const ADMIN_DASHBOARD_VIEW_STORAGE_KEY = "relay-admin-dashboard-view-mode";
+const ADMIN_PAGE_SIZE_OPTIONS = [15, 25, 50] as const;
 
 type Ticket = {
   id: string;
@@ -122,6 +127,8 @@ export default function AdminPage() {
   );
   const [departmentFilter, setDepartmentFilter] = useState<"ALL" | "Onsite" | "Yard">("ALL");
   const [statusFilter, setStatusFilter] = useState<ActiveTicketStatusFilter>("ALL");
+  const [pageSize, setPageSize] = useState<(typeof ADMIN_PAGE_SIZE_OPTIONS)[number]>(25);
+  const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"table" | "compact" | "dynamic">(() => {
     if (typeof window === "undefined") {
       return "table";
@@ -467,6 +474,27 @@ export default function AdminPage() {
     });
   }, [assignedUserFilter, dateFilter, departmentFilter, statusFilter, tickets]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [assignedUserFilter, dateFilter, departmentFilter, statusFilter, viewMode, pageSize]);
+
+  const totalFilteredTickets = filteredTickets.length;
+  const totalTicketPages = Math.max(1, Math.ceil(totalFilteredTickets / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalTicketPages);
+  const pagedFilteredTickets = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * pageSize;
+    return filteredTickets.slice(startIndex, startIndex + pageSize);
+  }, [filteredTickets, pageSize, safeCurrentPage]);
+  const pagedTicketRangeLabel = useMemo(() => {
+    if (totalFilteredTickets === 0) {
+      return "0 of 0";
+    }
+
+    const start = (safeCurrentPage - 1) * pageSize + 1;
+    const end = Math.min(start + pageSize - 1, totalFilteredTickets);
+    return `${start}-${end} of ${totalFilteredTickets}`;
+  }, [pageSize, safeCurrentPage, totalFilteredTickets]);
+
   const dashboardMetrics = useMemo(() => {
     const activeTickets = tickets;
     const unassignedCount = activeTickets.filter((ticket) => !ticket.assigned_to?.trim()).length;
@@ -671,10 +699,10 @@ export default function AdminPage() {
   const filteredTicketsByStatus = useMemo(
     () =>
       activeTicketStatuses.reduce<Record<TicketStatus, Ticket[]>>((accumulator, status) => {
-        accumulator[status] = filteredTickets.filter((ticket) => ticket.status === status);
+        accumulator[status] = pagedFilteredTickets.filter((ticket) => ticket.status === status);
         return accumulator;
       }, {} as Record<TicketStatus, Ticket[]>),
-    [filteredTickets],
+    [pagedFilteredTickets],
   );
 
   const openStatusWorkflowDialog = useCallback((ticket: Ticket, nextStatus: TicketStatus) => {
@@ -1850,6 +1878,51 @@ export default function AdminPage() {
               </div>
             ) : null}
 
+            <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-slate-600">
+                Showing <span className="font-semibold text-slate-900">{pagedTicketRangeLabel}</span> in Parts Control.
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-slate-600">
+                  <span>Rows</span>
+                  <select
+                    value={pageSize}
+                    onChange={(event) =>
+                      setPageSize(Number(event.target.value) as (typeof ADMIN_PAGE_SIZE_OPTIONS)[number])
+                    }
+                    className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                  >
+                    {ADMIN_PAGE_SIZE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((current) => Math.max(1, current - 1))}
+                    disabled={safeCurrentPage <= 1}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Previous
+                  </button>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                    Page {safeCurrentPage} / {totalTicketPages}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((current) => Math.min(totalTicketPages, current + 1))}
+                    disabled={safeCurrentPage >= totalTicketPages}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-8 rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div className="space-y-2">
@@ -2001,7 +2074,7 @@ export default function AdminPage() {
                           Loading tickets...
                         </td>
                       </tr>
-                    ) : filteredTickets.length === 0 ? (
+                    ) : pagedFilteredTickets.length === 0 ? (
                       <tr>
                         <td
                           colSpan={8}
@@ -2011,7 +2084,7 @@ export default function AdminPage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredTickets.map((ticket) => (
+                      pagedFilteredTickets.map((ticket) => (
                         <AdminTicketTableRow
                           key={ticket.id}
                           ticket={ticket}
@@ -2034,12 +2107,12 @@ export default function AdminPage() {
                   <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
                     Loading tickets...
                   </div>
-                ) : filteredTickets.length === 0 ? (
+                ) : pagedFilteredTickets.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
                     No tickets match the current status filter.
                   </div>
                 ) : (
-                  filteredTickets.map((ticket) => (
+                  pagedFilteredTickets.map((ticket) => (
                     <article
                       key={ticket.id}
                       className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
@@ -2282,12 +2355,12 @@ export default function AdminPage() {
                   <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
                     Loading active jobs...
                   </div>
-                ) : filteredTickets.length === 0 ? (
+                ) : pagedFilteredTickets.length === 0 ? (
                   <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
                     No active tickets match the current status filter.
                   </div>
                 ) : (
-                  filteredTickets.map((ticket) => (
+                  pagedFilteredTickets.map((ticket) => (
                     <AdminCompactTicketCard
                       key={ticket.id}
                       ticket={ticket}
@@ -2737,33 +2810,11 @@ function AdminLocationLink({
 }
 
 function formatAdminLocationSummary(ticket: Ticket) {
-  if (ticket.location_summary?.trim()) {
-    return ticket.location_summary.trim();
-  }
-
-  if (
-    typeof ticket.location_lat === "number" &&
-    typeof ticket.location_lng === "number"
-  ) {
-    return `${ticket.location_lat.toFixed(5)}, ${ticket.location_lng.toFixed(5)}`;
-  }
-
-  return null;
+  return formatOnsiteLocationSummary(ticket);
 }
 
 function buildAdminMapUrl(ticket: Ticket) {
-  if (
-    typeof ticket.location_lat === "number" &&
-    typeof ticket.location_lng === "number"
-  ) {
-    return `https://www.google.com/maps?q=${ticket.location_lat},${ticket.location_lng}`;
-  }
-
-  if (ticket.location_summary?.trim()) {
-    return `https://www.google.com/maps?q=${encodeURIComponent(ticket.location_summary.trim())}`;
-  }
-
-  return null;
+  return buildOnsiteLocationMapUrl(ticket);
 }
 
 function resolveSenderName(

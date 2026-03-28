@@ -17,6 +17,10 @@ import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import {
+  buildOnsiteLocationMapUrl,
+  formatOnsiteLocationSummary,
+} from "@/lib/onsite-location";
+import {
   notifyAdminsOfPartCollected,
   notifyAdminsOfPartReturned,
   notifyAdminsOfRequesterMessage,
@@ -1663,25 +1667,9 @@ function isOnsiteTicket(ticket: TicketRecord) {
 }
 
 function formatLocationSummary(ticket: TicketRecord) {
-  if (ticket.location_summary?.trim()) {
-    return ticket.location_summary.trim();
-  }
-
-  if (ticket.location_lat != null && ticket.location_lng != null) {
-    return `Coordinates: ${ticket.location_lat.toFixed(5)}, ${ticket.location_lng.toFixed(5)}`;
-  }
-
-  return null;
+  return formatOnsiteLocationSummary(ticket);
 }
 
 function buildMapUrl(ticket: TicketRecord) {
-  if (ticket.location_lat != null && ticket.location_lng != null) {
-    return `https://www.google.com/maps?q=${ticket.location_lat},${ticket.location_lng}`;
-  }
-
-  if (ticket.location_summary?.trim()) {
-    return `https://www.google.com/maps?q=${encodeURIComponent(ticket.location_summary.trim())}`;
-  }
-
-  return null;
+  return buildOnsiteLocationMapUrl(ticket);
 }
