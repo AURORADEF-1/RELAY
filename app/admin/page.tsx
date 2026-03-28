@@ -105,6 +105,9 @@ type StatusWorkflowDialogState = {
   errorMessage: string;
 };
 
+const ORDERED_WORKFLOW_MIGRATION_HINT =
+  "ORDERED workflow fields are not available in the database yet. Apply docs/tickets-ordered-ready-operational-fields-2026-03-28.sql and try again.";
+
 export default function AdminPage() {
   const router = useRouter();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
@@ -227,6 +230,28 @@ export default function AdminPage() {
         notes: nextTicket.notes ?? "",
       },
     }));
+  }
+
+  function toOrderedWorkflowErrorMessage(error: unknown, fallbackMessage: string) {
+    const baseMessage = sanitizeUserFacingError(error, fallbackMessage);
+    const normalized = baseMessage.toLowerCase();
+
+    if (
+      normalized.includes("expected_delivery_date") ||
+      normalized.includes("lead_time_note") ||
+      normalized.includes("ordered_at") ||
+      normalized.includes("ordered_by") ||
+      normalized.includes("bin_location") ||
+      normalized.includes("ready_at") ||
+      normalized.includes("ready_by") ||
+      normalized.includes("overdue_reminder_dismissed_at") ||
+      normalized.includes("overdue_reminder_dismissed_by") ||
+      normalized.includes("schema cache")
+    ) {
+      return ORDERED_WORKFLOW_MIGRATION_HINT;
+    }
+
+    return baseMessage;
   }
 
   async function verifyAdminActionAccess() {
@@ -643,6 +668,14 @@ export default function AdminPage() {
     () => tickets.filter((ticket) => isTicketOrderOverdue(ticket)),
     [tickets],
   );
+  const filteredTicketsByStatus = useMemo(
+    () =>
+      activeTicketStatuses.reduce<Record<TicketStatus, Ticket[]>>((accumulator, status) => {
+        accumulator[status] = filteredTickets.filter((ticket) => ticket.status === status);
+        return accumulator;
+      }, {} as Record<TicketStatus, Ticket[]>),
+    [filteredTickets],
+  );
 
   function openStatusWorkflowDialog(ticket: Ticket, nextStatus: TicketStatus) {
     const mode = getStatusWorkflowRequirement(ticket.status, nextStatus);
@@ -823,7 +856,7 @@ export default function AdminPage() {
       .maybeSingle();
 
     if (updateError) {
-      const message = sanitizeUserFacingError(updateError, "Unable to update ticket status.");
+      const message = toOrderedWorkflowErrorMessage(updateError, "Unable to update ticket status.");
       setErrorMessage(message);
       setStatusWorkflowError(ticketId, message);
       setUpdatingTicketId(null);
@@ -1763,7 +1796,7 @@ export default function AdminPage() {
                   </p>
                   <div className="mt-4 space-y-3">
                     {activeTicketStatuses.map((status) => {
-                      const count = tickets.filter((ticket) => ticket.status === status).length;
+                      const count = dashboardMetrics.statusCounts[status] ?? 0;
                       const width = (count / Math.max(1, tickets.length)) * 100;
 
                       return (
@@ -2198,9 +2231,7 @@ export default function AdminPage() {
             ) : viewMode === "dynamic" ? (
               <div className="mt-8 grid gap-4 xl:grid-cols-3">
                 {activeTicketStatuses.map((status) => {
-                  const ticketsInLane = filteredTickets.filter(
-                    (ticket) => ticket.status === status,
-                  );
+                  const ticketsInLane = filteredTicketsByStatus[status] ?? [];
 
                   return (
                     <section
