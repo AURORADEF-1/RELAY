@@ -5,6 +5,7 @@ import { buildSupplierOrderMailto } from "@/lib/order-communications";
 import {
   buildOrdersSnapshot,
   formatSupplierSpend,
+  type MonthlySupplierSpendSnapshot,
   type OrdersFilterKey,
   type SupplierOrderSummary,
 } from "@/lib/order-analytics";
@@ -29,24 +30,34 @@ export function PartsOrdersDashboard({
   errorMessage,
   notice,
   activeFilter,
+  monthlySpendSnapshots,
+  selectedSpendMonth,
   isRefreshing,
   onFilterChange,
+  onSelectedSpendMonthChange,
   onRefresh,
   onExportReadyCsv,
   onEmailReadyOrders,
+  onExportMonthlySpendCsv,
 }: {
   orders: OrderTicket[];
   isLoading: boolean;
   errorMessage: string;
   notice: { type: "success" | "error"; message: string } | null;
   activeFilter: OrdersFilterKey;
+  monthlySpendSnapshots: MonthlySupplierSpendSnapshot[];
+  selectedSpendMonth: string;
   isRefreshing: boolean;
   onFilterChange: (filter: OrdersFilterKey) => void;
+  onSelectedSpendMonthChange: (month: string) => void;
   onRefresh: () => void;
   onExportReadyCsv: () => void;
   onEmailReadyOrders: () => void;
+  onExportMonthlySpendCsv: () => void;
 }) {
   const snapshot = buildOrdersSnapshot(orders);
+  const availableMonths = Array.from(new Set(monthlySpendSnapshots.map((item) => item.month_start)));
+  const selectedMonthRows = monthlySpendSnapshots.filter((item) => item.month_start === selectedSpendMonth);
 
   return (
     <section className="mt-6 space-y-6">
@@ -152,6 +163,71 @@ export function PartsOrdersDashboard({
           {notice.message}
         </div>
       ) : null}
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Historical Supplier Spend
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Persisted monthly supplier spend snapshots for reporting and export.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={selectedSpendMonth}
+              onChange={(event) => onSelectedSpendMonthChange(event.target.value)}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+            >
+              <option value="">Select month</option>
+              {availableMonths.map((month) => (
+                <option key={month} value={month}>
+                  {month}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={onExportMonthlySpendCsv}
+              disabled={!selectedSpendMonth}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Export Month CSV
+            </button>
+          </div>
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <th className="pb-3 pr-4">Supplier</th>
+                <th className="pb-3 pr-4">Orders</th>
+                <th className="pb-3 pr-4">Spend</th>
+                <th className="pb-3">Generated</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {selectedMonthRows.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-6 text-slate-500">
+                    Select a month to view its saved supplier spend report.
+                  </td>
+                </tr>
+              ) : (
+                selectedMonthRows.map((row) => (
+                  <tr key={`${row.month_start}-${row.supplier_name_normalized}`}>
+                    <td className="py-4 pr-4 font-semibold text-slate-900">{row.supplier_name}</td>
+                    <td className="py-4 pr-4 text-slate-700">{row.order_count}</td>
+                    <td className="py-4 pr-4 text-slate-700">{formatSupplierSpend(Number(row.total_spend))}</td>
+                    <td className="py-4 text-slate-700">{formatOperationalDate(row.generated_at)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
         <section className="rounded-3xl border border-slate-200 bg-white p-5">

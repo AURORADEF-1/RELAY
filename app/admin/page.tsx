@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AdminOversightInbox, type AdminOversightItem } from "@/components/admin-oversight-inbox";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -26,6 +27,10 @@ import {
   buildReadyOrdersMailto,
   buildSupplierOrderMailto,
 } from "@/lib/order-communications";
+import {
+  fetchMonthlySupplierSpendSnapshots,
+  syncMonthlySupplierSpendSnapshotsForMonth,
+} from "@/lib/monthly-supplier-spend";
 import {
   type ChatMessage,
   TicketChatPanel,
@@ -70,6 +75,7 @@ import {
   REQUESTER_COLLECTED_COMMENT,
 } from "@/lib/requester-ticket-actions";
 import { sanitizeUserFacingError } from "@/lib/security";
+import { formatSupplierDisplayName, normalizeSupplierEmail } from "@/lib/suppliers";
 import {
   activeTicketStatusOptions,
   activeTicketStatuses,
@@ -202,6 +208,19 @@ export default function AdminPage() {
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const [monthlySpendSnapshots, setMonthlySpendSnapshots] = useState<
+    Array<{
+      id?: string;
+      month_start: string;
+      supplier_name: string;
+      supplier_name_normalized: string;
+      order_count: number;
+      total_spend: number;
+      generated_at: string;
+    }>
+  >([]);
+  const [selectedSpendMonth, setSelectedSpendMonth] = useState<string>("");
+  const [dismissedOversightIds, setDismissedOversightIds] = useState<string[]>([]);
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
   const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
@@ -356,6 +375,26 @@ export default function AdminPage() {
     setResourceTab("operations");
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !currentUserId) {
+      return;
+    }
+
+    const stored = window.sessionStorage.getItem(`relay-admin-oversight-${currentUserId}`);
+
+    if (!stored) {
+      setDismissedOversightIds([]);
+      return;
+    }
+
+    try {
+      setDismissedOversightIds(JSON.parse(stored) as string[]);
+    } catch {
+      setDismissedOversightIds([]);
+      window.sessionStorage.removeItem(`relay-admin-oversight-${currentUserId}`);
+    }
+  }, [currentUserId]);
+
   const loadOrders = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!silent) {
       setIsOrdersLoading(true);
@@ -367,20 +406,28 @@ export default function AdminPage() {
     try {
       const supabase = await verifyAdminActionAccess();
       const statuses = getOrdersFilterStatuses(ordersFilter);
-      const { data, error } = await supabase
-        .from("tickets")
-        .select("*")
-        .in("status", [...statuses])
-        .order("ordered_at", { ascending: false, nullsFirst: false })
-        .order("updated_at", { ascending: false });
+      const [ordersResult, snapshotsResult] = await Promise.all([
+        supabase
+          .from("tickets")
+          .select("*")
+          .in("status", [...statuses])
+          .order("ordered_at", { ascending: false, nullsFirst: false })
+          .order("updated_at", { ascending: false }),
+        fetchMonthlySupplierSpendSnapshots(supabase),
+      ]);
 
-      if (error) {
-        throw error;
+      if (ordersResult.error) {
+        throw ordersResult.error;
       }
 
-      setOrders(((data ?? []) as Ticket[]).filter((ticket) => isTrackedOrderRecord(ticket)));
+      setOrders(((ordersResult.data ?? []) as Ticket[]).filter((ticket) => isTrackedOrderRecord(ticket)));
+      setMonthlySpendSnapshots(snapshotsResult);
+      setSelectedSpendMonth((current) =>
+        current || snapshotsResult[0]?.month_start || "",
+      );
     } catch (error) {
       setOrders([]);
+      setMonthlySpendSnapshots([]);
       setOrdersErrorMessage(
         toOrderedWorkflowErrorMessage(error, "Unable to load the orders register."),
       );
@@ -817,6 +864,89 @@ export default function AdminPage() {
     () => orders.filter((ticket) => ticket.status === "READY"),
     [orders],
   );
+  const selectedMonthSnapshots = useMemo(
+    () =>
+      monthlySpendSnapshots.filter((snapshot) => snapshot.month_start === selectedSpendMonth),
+    [monthlySpendSnapshots, selectedSpendMonth],
+  );
+  const oversightItems = useMemo<AdminOversightItem[]>(() => {
+    const pendingTickets = tickets.filter((ticket) => ticket.status === "PENDING");
+    const unassignedTickets = tickets.filter(
+      (ticket) =>
+        ticket.status !== "COMPLETED" &&
+        !ticket.assigned_to?.trim(),
+    );
+    const collectedReadyTickets = tickets.filter(
+      (ticket) => ticket.status === "READY" && collectedTicketIds.has(ticket.id),
+    );
+
+    const nextItems: Array<AdminOversightItem | null> = [
+      pendingTickets.length > 0
+        ? {
+            id: "pending-queue",
+            title: `${pendingTickets.length} job${pendingTickets.length === 1 ? "" : "s"} waiting in PENDING`,
+            body: "Review the pending queue and move tickets into active ownership.",
+            href: "/admin",
+          }
+        : null,
+      unassignedTickets.length > 0
+        ? {
+            id: "unassigned-active",
+            title: `${unassignedTickets.length} active job${unassignedTickets.length === 1 ? "" : "s"} unassigned`,
+            body: "Assign ownership to stop requests sitting without an operator.",
+            href: "/admin",
+          }
+        : null,
+      collectedReadyTickets.length > 0
+        ? {
+            id: "collected-ready",
+            title: `${collectedReadyTickets.length} READY job${collectedReadyTickets.length === 1 ? "" : "s"} already collected`,
+            body: "Collected parts are still sitting in READY. Review and complete those jobs.",
+            href: "/admin",
+          }
+        : null,
+    ];
+
+    return nextItems
+      .filter((item): item is AdminOversightItem => Boolean(item))
+      .filter((item) => !dismissedOversightIds.includes(item.id));
+  }, [collectedTicketIds, dismissedOversightIds, tickets]);
+
+  const exportMonthlySpendCsv = useCallback(() => {
+    if (selectedMonthSnapshots.length === 0 || !selectedSpendMonth) {
+      setOrdersNotice({
+        type: "error",
+        message: "There is no monthly supplier spend report to export for the selected month.",
+      });
+      return;
+    }
+
+    const csvRows = [
+      ["month_start", "supplier_name", "order_count", "total_spend", "generated_at"],
+      ...selectedMonthSnapshots.map((snapshot) => [
+        snapshot.month_start,
+        snapshot.supplier_name,
+        String(snapshot.order_count),
+        String(snapshot.total_spend),
+        snapshot.generated_at,
+      ]),
+    ];
+    const csvContent = csvRows
+      .map((row) => row.map((value) => `"${String(value).replaceAll("\"", "\"\"")}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = `relay-supplier-spend-${selectedSpendMonth}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(downloadUrl);
+
+    setOrdersNotice({
+      type: "success",
+      message: `Exported supplier spend report for ${selectedSpendMonth}.`,
+    });
+  }, [selectedMonthSnapshots, selectedSpendMonth]);
 
   const exportReadyOrdersCsv = useCallback(() => {
     if (readyOrders.length === 0) {
@@ -857,6 +987,22 @@ export default function AdminPage() {
       message: "Prepared ready orders email in your mail client.",
     });
   }, [readyOrders]);
+
+  const dismissOversightItem = useCallback((itemId: string) => {
+    setDismissedOversightIds((current) => {
+      if (current.includes(itemId)) {
+        return current;
+      }
+
+      const next = [...current, itemId];
+
+      if (typeof window !== "undefined" && currentUserId) {
+        window.sessionStorage.setItem(`relay-admin-oversight-${currentUserId}`, JSON.stringify(next));
+      }
+
+      return next;
+    });
+  }, [currentUserId]);
 
   const openStatusWorkflowDialog = useCallback((ticket: Ticket, nextStatus: TicketStatus) => {
     const mode = getStatusWorkflowRequirement(ticket.status, nextStatus);
@@ -982,8 +1128,12 @@ export default function AdminPage() {
     const normalizedExpectedDeliveryDate = workflow?.expectedDeliveryDate?.trim() || "";
     const normalizedLeadTimeNote = workflow?.leadTimeNote?.trim() || "";
     const normalizedPurchaseOrderNumber = workflow?.purchaseOrderNumber?.trim() || "";
-    const normalizedSupplierName = workflow?.supplierName?.trim() || "";
-    const normalizedSupplierEmail = workflow?.supplierEmail?.trim() || "";
+    const normalizedSupplierName = workflow?.supplierName?.trim()
+      ? formatSupplierDisplayName(workflow.supplierName)
+      : "";
+    const normalizedSupplierEmail = workflow?.supplierEmail?.trim()
+      ? normalizeSupplierEmail(workflow.supplierEmail)
+      : "";
     const normalizedOrderAmountInput = workflow?.orderAmount?.trim() || "";
     const parsedOrderAmount = parseOrderAmountInput(normalizedOrderAmountInput);
     const normalizedBinLocation = workflow?.binLocation?.trim() || "";
@@ -1167,6 +1317,21 @@ export default function AdminPage() {
       syncTicketIntoState(updatedTicket as Ticket);
     }
     syncTicketIntoOrdersState(updatedTicket as Ticket);
+    const updatedOrderMonth = (updatedTicket as Ticket).ordered_at?.slice(0, 7);
+    if (updatedOrderMonth) {
+      void syncMonthlySupplierSpendSnapshotsForMonth(
+        supabase,
+        `${updatedOrderMonth}-01`,
+      )
+        .then(() => fetchMonthlySupplierSpendSnapshots(supabase))
+        .then((snapshots) => {
+          setMonthlySpendSnapshots(snapshots);
+          setSelectedSpendMonth((current) => current || snapshots[0]?.month_start || "");
+        })
+        .catch((snapshotError) => {
+          console.error("Failed to refresh monthly supplier spend snapshots", snapshotError);
+        });
+    }
     if (selectedChatTicketId === ticketId && nextStatus === "COMPLETED") {
       setSelectedChatTicketId(null);
     }
@@ -2004,16 +2169,21 @@ export default function AdminPage() {
                 errorMessage={ordersErrorMessage}
                 notice={ordersNotice}
                 activeFilter={ordersFilter}
+                monthlySpendSnapshots={monthlySpendSnapshots}
+                selectedSpendMonth={selectedSpendMonth}
                 isRefreshing={isOrdersLoading}
                 onFilterChange={setOrdersFilter}
+                onSelectedSpendMonthChange={setSelectedSpendMonth}
                 onRefresh={() => void loadOrders()}
                 onExportReadyCsv={exportReadyOrdersCsv}
                 onEmailReadyOrders={emailReadyOrders}
+                onExportMonthlySpendCsv={exportMonthlySpendCsv}
               />
             ) : null}
 
             {resourceTab === "operations" ? (
               <>
+            <AdminOversightInbox items={oversightItems} onDismiss={dismissOversightItem} />
             <div className="mt-6 flex justify-end">
               <button
                 type="button"

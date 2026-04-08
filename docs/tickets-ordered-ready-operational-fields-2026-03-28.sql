@@ -18,3 +18,19 @@ on public.tickets (status, expected_delivery_date);
 
 create index if not exists tickets_supplier_name_idx
 on public.tickets (supplier_name);
+
+create table if not exists public.supplier_monthly_spend_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  month_start date not null,
+  supplier_name text not null,
+  supplier_name_normalized text not null,
+  order_count integer not null default 0,
+  total_spend numeric(12,2) not null default 0,
+  generated_at timestamptz not null default now()
+);
+
+create unique index if not exists supplier_monthly_spend_snapshots_month_supplier_idx
+on public.supplier_monthly_spend_snapshots (month_start, supplier_name_normalized);
+
+create index if not exists supplier_monthly_spend_snapshots_month_idx
+on public.supplier_monthly_spend_snapshots (month_start desc);

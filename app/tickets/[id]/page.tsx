@@ -20,6 +20,7 @@ import {
   buildOnsiteLocationMapUrl,
   formatOnsiteLocationSummary,
 } from "@/lib/onsite-location";
+import { syncMonthlySupplierSpendSnapshotsForMonth } from "@/lib/monthly-supplier-spend";
 import {
   notifyAdminsOfPartCollected,
   notifyAdminsOfPartReturned,
@@ -53,6 +54,7 @@ import {
   parseDueDateToEndOfDay,
   toDateInputValue,
 } from "@/lib/ticket-operational";
+import { formatSupplierDisplayName, normalizeSupplierEmail } from "@/lib/suppliers";
 import {
   fetchProfileDisplayNamesByUserId,
   getCurrentUserWithRole,
@@ -488,8 +490,14 @@ export default function TicketDetailPage() {
       confirmedWorkflow?.purchaseOrderNumber ?? editDraft.purchase_order_number;
     const nextSupplierName =
       confirmedWorkflow?.supplierName ?? editDraft.supplier_name;
+    const normalizedSupplierName = nextSupplierName.trim()
+      ? formatSupplierDisplayName(nextSupplierName)
+      : "";
     const nextSupplierEmail =
       confirmedWorkflow?.supplierEmail ?? editDraft.supplier_email;
+    const normalizedSupplierEmail = nextSupplierEmail.trim()
+      ? normalizeSupplierEmail(nextSupplierEmail)
+      : "";
     const nextOrderAmountInput =
       confirmedWorkflow?.orderAmount ?? editDraft.order_amount;
     const parsedOrderAmount = parseOrderAmountInput(nextOrderAmountInput);
@@ -503,8 +511,8 @@ export default function TicketDetailPage() {
         expectedDeliveryDate: nextExpectedDeliveryDate,
         leadTimeNote: nextLeadTimeNote,
         purchaseOrderNumber: nextPurchaseOrderNumber,
-        supplierName: nextSupplierName,
-        supplierEmail: nextSupplierEmail,
+        supplierName: normalizedSupplierName,
+        supplierEmail: normalizedSupplierEmail,
         orderAmount: nextOrderAmountInput,
         binLocation: nextBinLocation,
         errorMessage: "",
@@ -543,7 +551,7 @@ export default function TicketDetailPage() {
       return;
     }
 
-    if (workflowRequirement === "ordered" && !nextSupplierName.trim()) {
+    if (workflowRequirement === "ordered" && !normalizedSupplierName.trim()) {
       setStatusWorkflowDialog((current) =>
         current
           ? { ...current, errorMessage: "Supplier is required before saving ORDERED." }
@@ -599,8 +607,8 @@ export default function TicketDetailPage() {
       expected_delivery_date: nextExpectedDeliveryDate.trim() || null,
       lead_time_note: nextLeadTimeNote.trim() || null,
       purchase_order_number: nextPurchaseOrderNumber.trim() || null,
-      supplier_name: nextSupplierName.trim() || null,
-      supplier_email: nextSupplierEmail.trim() || null,
+      supplier_name: normalizedSupplierName || null,
+      supplier_email: normalizedSupplierEmail || null,
       order_amount:
         parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
           ? parsedOrderAmount
@@ -717,13 +725,19 @@ export default function TicketDetailPage() {
             expected_delivery_date: nextExpectedDeliveryDate,
             lead_time_note: nextLeadTimeNote,
             purchase_order_number: nextPurchaseOrderNumber,
-            supplier_name: nextSupplierName,
-            supplier_email: nextSupplierEmail,
+            supplier_name: normalizedSupplierName,
+            supplier_email: normalizedSupplierEmail,
             order_amount: nextOrderAmountInput,
             bin_location: nextBinLocation,
           }
         : current,
     );
+    const updatedOrderMonth = ticketPatch.ordered_at?.slice(0, 7);
+    if (updatedOrderMonth) {
+      void syncMonthlySupplierSpendSnapshotsForMonth(supabase, `${updatedOrderMonth}-01`).catch((snapshotError) => {
+        console.error("Failed to refresh monthly supplier spend snapshots", snapshotError);
+      });
+    }
     setIsEditing(false);
     setIsSavingEdit(false);
     setStatusWorkflowDialog(null);

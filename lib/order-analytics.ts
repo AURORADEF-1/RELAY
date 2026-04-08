@@ -5,6 +5,7 @@ import {
   isTrackedOrderRecord,
   type TicketOperationalRecord,
 } from "@/lib/ticket-operational";
+import { normalizeSupplierName } from "@/lib/suppliers";
 
 export type SupplierOrderSummary = {
   supplierName: string;
@@ -87,6 +88,60 @@ export function buildOrdersSnapshot(tickets: TicketOperationalRecord[]): OrdersS
   };
 }
 
+export type MonthlySupplierSpendSnapshot = {
+  id?: string;
+  month_start: string;
+  supplier_name: string;
+  supplier_name_normalized: string;
+  order_count: number;
+  total_spend: number;
+  generated_at: string;
+};
+
+export function buildMonthlySupplierSpendSnapshots(tickets: TicketOperationalRecord[]) {
+  const monthMap = new Map<string, Map<string, MonthlySupplierSpendSnapshot>>();
+
+  tickets
+    .filter(isTrackedOrderRecord)
+    .forEach((ticket) => {
+      const supplierName = ticket.supplier_name?.trim();
+      const orderedAt = ticket.ordered_at ?? ticket.updated_at ?? ticket.created_at;
+
+      if (!supplierName || !orderedAt) {
+        return;
+      }
+
+      const orderedDate = new Date(orderedAt);
+
+      if (Number.isNaN(orderedDate.getTime())) {
+        return;
+      }
+
+      const monthStart = `${orderedDate.getFullYear()}-${String(orderedDate.getMonth() + 1).padStart(2, "0")}-01`;
+      const normalizedSupplierName = normalizeSupplierName(supplierName);
+      const monthEntries = monthMap.get(monthStart) ?? new Map<string, MonthlySupplierSpendSnapshot>();
+      const existing = monthEntries.get(normalizedSupplierName);
+      const orderAmount = typeof ticket.order_amount === "number" ? ticket.order_amount : 0;
+
+      monthEntries.set(normalizedSupplierName, {
+        month_start: monthStart,
+        supplier_name: existing?.supplier_name ?? supplierName,
+        supplier_name_normalized: normalizedSupplierName,
+        order_count: (existing?.order_count ?? 0) + 1,
+        total_spend: Number(((existing?.total_spend ?? 0) + orderAmount).toFixed(2)),
+        generated_at: new Date().toISOString(),
+      });
+
+      monthMap.set(monthStart, monthEntries);
+    });
+
+  return Array.from(monthMap.entries())
+    .sort(([left], [right]) => right.localeCompare(left))
+    .flatMap(([, monthEntries]) =>
+      Array.from(monthEntries.values()).sort((left, right) => right.total_spend - left.total_spend),
+    );
+}
+
 export function formatSupplierSpend(value: number) {
   return formatOrderAmount(value);
 }
@@ -105,10 +160,6 @@ export function getOrdersFilterStatuses(filter: OrdersFilterKey) {
 }
 
 export type OrdersFilterKey = "all" | "live" | "ready" | "completed";
-
-function normalizeSupplierName(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
-}
 
 function getOrderSortTime(ticket: TicketOperationalRecord) {
   const source = ticket.ordered_at ?? ticket.updated_at ?? ticket.created_at;
