@@ -8,6 +8,7 @@ export type AdminOversightItem = {
   title: string;
   body: string;
   href?: string;
+  actionLabel?: string;
 };
 
 export function AdminOversightInbox({
@@ -110,7 +111,7 @@ export function AdminOversightInbox({
                             onClick={() => setIsOpen(false)}
                             className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                           >
-                            Review
+                            {item.actionLabel ?? "Review"}
                           </Link>
                         ) : null}
                         <button

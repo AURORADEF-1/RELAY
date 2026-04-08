@@ -895,30 +895,42 @@ export default function AdminPage() {
     const collectedReadyTickets = tickets.filter(
       (ticket) => ticket.status === "READY" && collectedTicketIds.has(ticket.id),
     );
+    const formatOversightTicketLabel = (ticket: Ticket) =>
+      ticket.job_number?.trim()
+        ? `Job ${ticket.job_number.trim()}`
+        : ticket.machine_reference?.trim()
+          ? ticket.machine_reference.trim()
+          : "ticket";
+    const firstPendingTicket = pendingTickets[0];
+    const firstUnassignedTicket = unassignedTickets[0];
+    const firstCollectedReadyTicket = collectedReadyTickets[0];
 
     const nextItems: Array<AdminOversightItem | null> = [
       pendingTickets.length > 0
         ? {
             id: "pending-queue",
             title: `${pendingTickets.length} job${pendingTickets.length === 1 ? "" : "s"} waiting in PENDING`,
-            body: "Review the pending queue and move tickets into active ownership.",
-            href: "/admin",
+            body: `Review ${formatOversightTicketLabel(firstPendingTicket!)} and move it into active ownership.`,
+            href: `/tickets/${firstPendingTicket!.id}`,
+            actionLabel: `Open ${formatOversightTicketLabel(firstPendingTicket!)}`,
           }
         : null,
       unassignedTickets.length > 0
         ? {
             id: "unassigned-active",
             title: `${unassignedTickets.length} active job${unassignedTickets.length === 1 ? "" : "s"} unassigned`,
-            body: "Assign ownership to stop requests sitting without an operator.",
-            href: "/admin",
+            body: `Assign ${formatOversightTicketLabel(firstUnassignedTicket!)} to stop requests sitting without an operator.`,
+            href: `/tickets/${firstUnassignedTicket!.id}`,
+            actionLabel: `Open ${formatOversightTicketLabel(firstUnassignedTicket!)}`,
           }
         : null,
       collectedReadyTickets.length > 0
         ? {
             id: "collected-ready",
             title: `${collectedReadyTickets.length} READY job${collectedReadyTickets.length === 1 ? "" : "s"} already collected`,
-            body: "Collected parts are still sitting in READY. Review and complete those jobs.",
-            href: "/admin",
+            body: `Collected parts are still sitting in READY. Review ${formatOversightTicketLabel(firstCollectedReadyTicket!)} and complete it if appropriate.`,
+            href: `/tickets/${firstCollectedReadyTicket!.id}`,
+            actionLabel: `Open ${formatOversightTicketLabel(firstCollectedReadyTicket!)}`,
           }
         : null,
     ];
