@@ -31,6 +31,45 @@ export async function fetchMonthlySupplierSpendSnapshots(
   return (data ?? []) as MonthlySupplierSpendSnapshot[];
 }
 
+export async function backfillMonthlySupplierSpendSnapshots(
+  supabase: SupabaseClient,
+) {
+  const { data, error } = await supabase
+    .from("tickets")
+    .select("id, ordered_at, updated_at, created_at, supplier_name, order_amount, purchase_order_number, status")
+    .in("status", ["ORDERED", "READY", "COMPLETED"])
+    .not("supplier_name", "is", null);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const snapshots = buildMonthlySupplierSpendSnapshots((data ?? []) as TicketSnapshotRow[]);
+
+  const { error: deleteError } = await supabase
+    .from("supplier_monthly_spend_snapshots")
+    .delete()
+    .not("month_start", "is", null);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  if (snapshots.length === 0) {
+    return [];
+  }
+
+  const { error: insertError } = await supabase
+    .from("supplier_monthly_spend_snapshots")
+    .insert(snapshots);
+
+  if (insertError) {
+    throw new Error(insertError.message);
+  }
+
+  return snapshots;
+}
+
 export async function syncMonthlySupplierSpendSnapshotsForMonth(
   supabase: SupabaseClient,
   monthStart: string,

@@ -28,6 +28,7 @@ import {
   buildSupplierOrderMailto,
 } from "@/lib/order-communications";
 import {
+  backfillMonthlySupplierSpendSnapshots,
   fetchMonthlySupplierSpendSnapshots,
   syncMonthlySupplierSpendSnapshotsForMonth,
 } from "@/lib/monthly-supplier-spend";
@@ -221,6 +222,7 @@ export default function AdminPage() {
   >([]);
   const [selectedSpendMonth, setSelectedSpendMonth] = useState<string>("");
   const [dismissedOversightIds, setDismissedOversightIds] = useState<string[]>([]);
+  const [isBackfillingMonthlySpend, setIsBackfillingMonthlySpend] = useState(false);
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
   const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
@@ -420,10 +422,24 @@ export default function AdminPage() {
         throw ordersResult.error;
       }
 
-      setOrders(((ordersResult.data ?? []) as Ticket[]).filter((ticket) => isTrackedOrderRecord(ticket)));
-      setMonthlySpendSnapshots(snapshotsResult);
+      const trackedOrders = ((ordersResult.data ?? []) as Ticket[]).filter((ticket) => isTrackedOrderRecord(ticket));
+      let nextSnapshots = snapshotsResult;
+
+      if (trackedOrders.length > 0 && nextSnapshots.length === 0 && !isBackfillingMonthlySpend) {
+        setIsBackfillingMonthlySpend(true);
+        try {
+          nextSnapshots = await backfillMonthlySupplierSpendSnapshots(supabase);
+        } finally {
+          setIsBackfillingMonthlySpend(false);
+        }
+      }
+
+      setOrders(trackedOrders);
+      setMonthlySpendSnapshots(nextSnapshots);
       setSelectedSpendMonth((current) =>
-        current || snapshotsResult[0]?.month_start || "",
+        current && nextSnapshots.some((snapshot) => snapshot.month_start === current)
+          ? current
+          : nextSnapshots[0]?.month_start || "",
       );
     } catch (error) {
       setOrders([]);
@@ -434,7 +450,7 @@ export default function AdminPage() {
     } finally {
       setIsOrdersLoading(false);
     }
-  }, [ordersFilter, toOrderedWorkflowErrorMessage, verifyAdminActionAccess]);
+  }, [isBackfillingMonthlySpend, ordersFilter, toOrderedWorkflowErrorMessage, verifyAdminActionAccess]);
 
   useEffect(() => {
     if (resourceTab !== "orders") {
@@ -1991,6 +2007,10 @@ export default function AdminPage() {
             />
           ) : null}
 
+          {resourceTab === "operations" ? (
+            <AdminOversightInbox items={oversightItems} onDismiss={dismissOversightItem} />
+          ) : null}
+
           <section className="aurora-section sm:p-10">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl space-y-5">
@@ -2183,7 +2203,6 @@ export default function AdminPage() {
 
             {resourceTab === "operations" ? (
               <>
-            <AdminOversightInbox items={oversightItems} onDismiss={dismissOversightItem} />
             <div className="mt-6 flex justify-end">
               <button
                 type="button"
