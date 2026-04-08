@@ -7,6 +7,7 @@ export type TicketOperationalFields = {
   ordered_by?: string | null;
   purchase_order_number?: string | null;
   supplier_name?: string | null;
+  supplier_email?: string | null;
   order_amount?: number | null;
   bin_location?: string | null;
   ready_at?: string | null;
@@ -54,11 +55,15 @@ export function toDateInputValue(value?: string | null) {
 }
 
 export function isTicketOrderOverdue(ticket: TicketOperationalRecord) {
-  if (ticket.status !== "ORDERED" || !ticket.expected_delivery_date?.trim()) {
+  if (ticket.status !== "ORDERED") {
     return false;
   }
 
-  if (ticket.overdue_reminder_dismissed_at) {
+  return isTicketPastExpectedDelivery(ticket);
+}
+
+export function isTicketPastExpectedDelivery(ticket: TicketOperationalRecord) {
+  if (!ticket.expected_delivery_date?.trim()) {
     return false;
   }
 
@@ -149,6 +154,7 @@ export function isTrackedOrderRecord(ticket: TicketOperationalRecord) {
       ticket.expected_delivery_date?.trim() ||
       ticket.purchase_order_number?.trim() ||
       ticket.supplier_name?.trim() ||
+      ticket.supplier_email?.trim() ||
       typeof ticket.order_amount === "number" ||
       ticket.status === "ORDERED",
   );
@@ -159,6 +165,7 @@ export function buildOrderedWorkflowComment(payload: {
   leadTimeNote?: string | null;
   purchaseOrderNumber?: string | null;
   supplierName?: string | null;
+  supplierEmail?: string | null;
   orderAmount?: number | null;
   actorName?: string | null;
 }) {
@@ -168,6 +175,9 @@ export function buildOrderedWorkflowComment(payload: {
     : "";
   const supplier = payload.supplierName?.trim()
     ? ` Supplier ${payload.supplierName.trim()}.`
+    : "";
+  const supplierEmail = payload.supplierEmail?.trim()
+    ? ` Supplier email ${payload.supplierEmail.trim()}.`
     : "";
   const amount =
     typeof payload.orderAmount === "number" && !Number.isNaN(payload.orderAmount)
@@ -180,7 +190,7 @@ export function buildOrderedWorkflowComment(payload: {
     ? ` Ordered by ${payload.actorName.trim()}.`
     : "";
 
-  return `${base}${poNumber}${supplier}${amount}${leadTime}${actor}`.trim();
+  return `${base}${poNumber}${supplier}${supplierEmail}${amount}${leadTime}${actor}`.trim();
 }
 
 export function buildReadyWorkflowComment(payload: {

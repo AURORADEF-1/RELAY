@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 type PartsControlTab = "operations" | "orders" | "completed" | "guide" | "faq";
+type PartsControlInlineTab = Exclude<PartsControlTab, "completed">;
 
 const tabs: Array<{
   key: PartsControlTab;
@@ -18,8 +19,10 @@ const tabs: Array<{
 
 export function PartsControlTabs({
   activeTab,
+  onTabChange,
 }: {
   activeTab: PartsControlTab;
+  onTabChange?: (tab: PartsControlInlineTab) => void;
 }) {
   return (
     <div className="aurora-pill-group w-full">
@@ -28,6 +31,11 @@ export function PartsControlTabs({
           <Link
             key={tab.key}
             href={tab.href}
+            onClick={() => {
+              if (tab.key !== "completed") {
+                onTabChange?.(tab.key);
+              }
+            }}
             className={`aurora-pill ${
               activeTab === tab.key
                 ? "aurora-pill-active"

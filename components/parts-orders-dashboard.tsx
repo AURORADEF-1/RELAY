@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { buildSupplierOrderMailto } from "@/lib/order-communications";
 import {
   buildOrdersSnapshot,
   formatSupplierSpend,
+  type OrdersFilterKey,
   type SupplierOrderSummary,
 } from "@/lib/order-analytics";
 import {
   formatOperationalDate,
   formatOrderAmount,
-  isTicketOrderOverdue,
+  isTicketPastExpectedDelivery,
   type TicketOperationalRecord,
 } from "@/lib/ticket-operational";
 
@@ -25,14 +27,24 @@ export function PartsOrdersDashboard({
   orders,
   isLoading,
   errorMessage,
+  notice,
+  activeFilter,
   isRefreshing,
+  onFilterChange,
   onRefresh,
+  onExportReadyCsv,
+  onEmailReadyOrders,
 }: {
   orders: OrderTicket[];
   isLoading: boolean;
   errorMessage: string;
+  notice: { type: "success" | "error"; message: string } | null;
+  activeFilter: OrdersFilterKey;
   isRefreshing: boolean;
+  onFilterChange: (filter: OrdersFilterKey) => void;
   onRefresh: () => void;
+  onExportReadyCsv: () => void;
+  onEmailReadyOrders: () => void;
 }) {
   const snapshot = buildOrdersSnapshot(orders);
 
@@ -55,6 +67,44 @@ export function PartsOrdersDashboard({
         >
           {isRefreshing ? "Refreshing..." : "Refresh Orders"}
         </button>
+      </div>
+
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {ORDER_FILTER_OPTIONS.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => onFilterChange(option.key)}
+              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                activeFilter === option.key
+                  ? "border-slate-950 bg-slate-950 text-white"
+                  : "border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onExportReadyCsv}
+            disabled={activeFilter !== "ready" && activeFilter !== "all"}
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Export Ready CSV
+          </button>
+          <button
+            type="button"
+            onClick={onEmailReadyOrders}
+            disabled={activeFilter !== "ready" && activeFilter !== "all"}
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Email Ready List
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -89,6 +139,17 @@ export function PartsOrdersDashboard({
       {errorMessage ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {errorMessage}
+        </div>
+      ) : null}
+      {notice ? (
+        <div
+          className={`rounded-2xl px-4 py-3 text-sm ${
+            notice.type === "error"
+              ? "border border-rose-200 bg-rose-50 text-rose-700"
+              : "border border-emerald-200 bg-emerald-50 text-emerald-700"
+          }`}
+        >
+          {notice.message}
         </div>
       ) : null}
 
@@ -242,14 +303,26 @@ export function PartsOrdersDashboard({
                     <td className="py-4 pr-4 text-slate-700">{formatOrderAmount(ticket.order_amount)}</td>
                     <td className="py-4 pr-4 text-slate-700">
                       <span>{formatOperationalDate(ticket.expected_delivery_date)}</span>
-                      {isTicketOrderOverdue(ticket) ? (
+                      {isTicketPastExpectedDelivery(ticket) ? (
                         <span className="ml-2 inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-800">
                           Overdue
                         </span>
                       ) : null}
                     </td>
                     <td className="py-4 pr-4 text-slate-700">{ticket.status ?? "-"}</td>
-                    <td className="py-4 text-slate-700">{formatOperationalDate(ticket.ordered_at)}</td>
+                    <td className="py-4 text-slate-700">
+                      <div className="flex flex-col gap-2">
+                        <span>{formatOperationalDate(ticket.ordered_at)}</span>
+                        {ticket.supplier_email?.trim() ? (
+                          <a
+                            href={buildSupplierOrderMailto(ticket)}
+                            className="text-xs font-semibold text-sky-700 transition hover:text-sky-900"
+                          >
+                            Email Supplier
+                          </a>
+                        ) : null}
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -260,6 +333,13 @@ export function PartsOrdersDashboard({
     </section>
   );
 }
+
+const ORDER_FILTER_OPTIONS: Array<{ key: OrdersFilterKey; label: string }> = [
+  { key: "live", label: "Live Orders" },
+  { key: "ready", label: "Ready Orders" },
+  { key: "completed", label: "Completed Orders" },
+  { key: "all", label: "All Tracked" },
+];
 
 function OrdersMetricCard({
   label,

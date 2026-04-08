@@ -88,6 +88,7 @@ type TicketRecord = {
   ordered_by?: string | null;
   purchase_order_number?: string | null;
   supplier_name?: string | null;
+  supplier_email?: string | null;
   order_amount?: number | null;
   bin_location?: string | null;
   ready_at?: string | null;
@@ -120,6 +121,7 @@ type TicketEditDraft = {
   lead_time_note: string;
   purchase_order_number: string;
   supplier_name: string;
+  supplier_email: string;
   order_amount: string;
   bin_location: string;
 };
@@ -130,6 +132,7 @@ type StatusWorkflowDialogState = {
   leadTimeNote: string;
   purchaseOrderNumber: string;
   supplierName: string;
+  supplierEmail: string;
   orderAmount: string;
   binLocation: string;
   errorMessage: string;
@@ -454,6 +457,7 @@ export default function TicketDetailPage() {
     leadTimeNote: string;
     purchaseOrderNumber: string;
     supplierName: string;
+    supplierEmail: string;
     orderAmount: string;
     binLocation: string;
   }) {
@@ -484,6 +488,8 @@ export default function TicketDetailPage() {
       confirmedWorkflow?.purchaseOrderNumber ?? editDraft.purchase_order_number;
     const nextSupplierName =
       confirmedWorkflow?.supplierName ?? editDraft.supplier_name;
+    const nextSupplierEmail =
+      confirmedWorkflow?.supplierEmail ?? editDraft.supplier_email;
     const nextOrderAmountInput =
       confirmedWorkflow?.orderAmount ?? editDraft.order_amount;
     const parsedOrderAmount = parseOrderAmountInput(nextOrderAmountInput);
@@ -498,6 +504,7 @@ export default function TicketDetailPage() {
         leadTimeNote: nextLeadTimeNote,
         purchaseOrderNumber: nextPurchaseOrderNumber,
         supplierName: nextSupplierName,
+        supplierEmail: nextSupplierEmail,
         orderAmount: nextOrderAmountInput,
         binLocation: nextBinLocation,
         errorMessage: "",
@@ -593,6 +600,7 @@ export default function TicketDetailPage() {
       lead_time_note: nextLeadTimeNote.trim() || null,
       purchase_order_number: nextPurchaseOrderNumber.trim() || null,
       supplier_name: nextSupplierName.trim() || null,
+      supplier_email: nextSupplierEmail.trim() || null,
       order_amount:
         parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
           ? parsedOrderAmount
@@ -651,6 +659,7 @@ export default function TicketDetailPage() {
             leadTimeNote: ticketPatch.lead_time_note,
             purchaseOrderNumber: ticketPatch.purchase_order_number,
             supplierName: ticketPatch.supplier_name,
+            supplierEmail: ticketPatch.supplier_email,
             orderAmount: ticketPatch.order_amount,
             actorName: currentUserDisplayName || currentUserId || "Stores Operator",
           }),
@@ -709,6 +718,7 @@ export default function TicketDetailPage() {
             lead_time_note: nextLeadTimeNote,
             purchase_order_number: nextPurchaseOrderNumber,
             supplier_name: nextSupplierName,
+            supplier_email: nextSupplierEmail,
             order_amount: nextOrderAmountInput,
             bin_location: nextBinLocation,
           }
@@ -977,6 +987,7 @@ export default function TicketDetailPage() {
               leadTimeNote={statusWorkflowDialog.leadTimeNote}
               purchaseOrderNumber={statusWorkflowDialog.purchaseOrderNumber}
               supplierName={statusWorkflowDialog.supplierName}
+              supplierEmail={statusWorkflowDialog.supplierEmail}
               orderAmount={statusWorkflowDialog.orderAmount}
               binLocation={statusWorkflowDialog.binLocation}
               errorMessage={statusWorkflowDialog.errorMessage}
@@ -998,6 +1009,11 @@ export default function TicketDetailPage() {
               onSupplierNameChange={(value) =>
                 setStatusWorkflowDialog((current) =>
                   current ? { ...current, supplierName: value, errorMessage: "" } : current,
+                )
+              }
+              onSupplierEmailChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, supplierEmail: value, errorMessage: "" } : current,
                 )
               }
               onOrderAmountChange={(value) =>
@@ -1023,6 +1039,7 @@ export default function TicketDetailPage() {
                   leadTimeNote: dialog.leadTimeNote,
                   purchaseOrderNumber: dialog.purchaseOrderNumber,
                   supplierName: dialog.supplierName,
+                  supplierEmail: dialog.supplierEmail,
                   orderAmount: dialog.orderAmount,
                   binLocation: dialog.binLocation,
                 });
@@ -1219,6 +1236,15 @@ export default function TicketDetailPage() {
                             }
                           />
                           <EditField
+                            label="Supplier Email"
+                            value={editDraft.supplier_email}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, supplier_email: value } : current,
+                              )
+                            }
+                          />
+                          <EditField
                             label="Order Amount"
                             type="number"
                             value={editDraft.order_amount}
@@ -1308,6 +1334,7 @@ export default function TicketDetailPage() {
                           <DetailItem label="Expected Delivery" value={formatOperationalDate(ticket.expected_delivery_date)} />
                           <DetailItem label="PO Number" value={ticket.purchase_order_number} />
                           <DetailItem label="Supplier" value={ticket.supplier_name} />
+                          <DetailItem label="Supplier Email" value={ticket.supplier_email} />
                           <DetailItem label="Order Amount" value={formatOrderAmount(ticket.order_amount)} />
                           <DetailItem label="Bin Location" value={ticket.bin_location} />
                           <DetailItem label="Lead Time Note" value={ticket.lead_time_note} />
@@ -1618,6 +1645,7 @@ function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
     lead_time_note: ticket.lead_time_note ?? "",
     purchase_order_number: ticket.purchase_order_number ?? "",
     supplier_name: ticket.supplier_name ?? "",
+    supplier_email: ticket.supplier_email ?? "",
     order_amount:
       typeof ticket.order_amount === "number" && !Number.isNaN(ticket.order_amount)
         ? String(ticket.order_amount)

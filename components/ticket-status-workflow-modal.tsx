@@ -7,6 +7,7 @@ type TicketStatusWorkflowModalProps = {
   leadTimeNote: string;
   purchaseOrderNumber: string;
   supplierName: string;
+  supplierEmail: string;
   orderAmount: string;
   binLocation: string;
   errorMessage?: string;
@@ -14,9 +15,11 @@ type TicketStatusWorkflowModalProps = {
   onLeadTimeNoteChange: (value: string) => void;
   onPurchaseOrderNumberChange: (value: string) => void;
   onSupplierNameChange: (value: string) => void;
+  onSupplierEmailChange: (value: string) => void;
   onOrderAmountChange: (value: string) => void;
   onBinLocationChange: (value: string) => void;
   onConfirm: () => void;
+  onConfirmAndEmailSupplier?: () => void;
   onCancel: () => void;
 };
 
@@ -27,6 +30,7 @@ export function TicketStatusWorkflowModal({
   leadTimeNote,
   purchaseOrderNumber,
   supplierName,
+  supplierEmail,
   orderAmount,
   binLocation,
   errorMessage,
@@ -34,9 +38,11 @@ export function TicketStatusWorkflowModal({
   onLeadTimeNoteChange,
   onPurchaseOrderNumberChange,
   onSupplierNameChange,
+  onSupplierEmailChange,
   onOrderAmountChange,
   onBinLocationChange,
   onConfirm,
+  onConfirmAndEmailSupplier,
   onCancel,
 }: TicketStatusWorkflowModalProps) {
   return (
@@ -111,6 +117,19 @@ export function TicketStatusWorkflowModal({
 
               <label className="block space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                  Supplier Email
+                </span>
+                <input
+                  type="email"
+                  value={supplierEmail}
+                  onChange={(event) => onSupplierEmailChange(event.target.value)}
+                  placeholder="supplier@example.com"
+                  className="aurora-input"
+                />
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
                   Order Amount
                 </span>
                 <input
@@ -175,6 +194,16 @@ export function TicketStatusWorkflowModal({
           >
             {isSubmitting ? "Saving..." : mode === "ordered" ? "Save ORDERED" : "Save READY"}
           </button>
+          {mode === "ordered" && onConfirmAndEmailSupplier ? (
+            <button
+              type="button"
+              onClick={onConfirmAndEmailSupplier}
+              disabled={isSubmitting || !supplierEmail.trim()}
+              className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmitting ? "Saving..." : "Save + Email Supplier"}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ alter table public.tickets
   add column if not exists ordered_by text,
   add column if not exists purchase_order_number text,
   add column if not exists supplier_name text,
+  add column if not exists supplier_email text,
   add column if not exists order_amount numeric(12,2),
   add column if not exists bin_location text,
   add column if not exists ready_at timestamptz,

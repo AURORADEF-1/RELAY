@@ -1,6 +1,7 @@
 import {
   formatOrderAmount,
   isTicketOrderOverdue,
+  isTicketPastExpectedDelivery,
   isTrackedOrderRecord,
   type TicketOperationalRecord,
 } from "@/lib/ticket-operational";
@@ -56,7 +57,7 @@ export function buildOrdersSnapshot(tickets: TicketOperationalRecord[]): OrdersS
       normalizedSupplierName,
       orderCount: (existing?.orderCount ?? 0) + 1,
       overdueCount:
-        (existing?.overdueCount ?? 0) + (isTicketOrderOverdue(ticket) ? 1 : 0),
+        (existing?.overdueCount ?? 0) + (isTicketPastExpectedDelivery(ticket) ? 1 : 0),
       totalSpend: Number(((existing?.totalSpend ?? 0) + orderAmount).toFixed(2)),
       lastOrderedAt,
     });
@@ -89,6 +90,21 @@ export function buildOrdersSnapshot(tickets: TicketOperationalRecord[]): OrdersS
 export function formatSupplierSpend(value: number) {
   return formatOrderAmount(value);
 }
+
+export function getOrdersFilterStatuses(filter: OrdersFilterKey) {
+  switch (filter) {
+    case "live":
+      return ["ORDERED"] as const;
+    case "ready":
+      return ["READY"] as const;
+    case "completed":
+      return ["COMPLETED"] as const;
+    default:
+      return ["ORDERED", "READY", "COMPLETED"] as const;
+  }
+}
+
+export type OrdersFilterKey = "all" | "live" | "ready" | "completed";
 
 function normalizeSupplierName(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();

@@ -22,6 +22,11 @@ import {
   formatOnsiteLocationSummary,
 } from "@/lib/onsite-location";
 import {
+  buildOrdersCsvContent,
+  buildReadyOrdersMailto,
+  buildSupplierOrderMailto,
+} from "@/lib/order-communications";
+import {
   type ChatMessage,
   TicketChatPanel,
 } from "@/components/ticket-chat-panel";
@@ -51,6 +56,10 @@ import {
   parseDueDateToEndOfDay,
   toDateInputValue,
 } from "@/lib/ticket-operational";
+import {
+  getOrdersFilterStatuses,
+  type OrdersFilterKey,
+} from "@/lib/order-analytics";
 import { fetchProfileAvatarUrls } from "@/lib/profile-settings";
 import {
   fetchProfileDisplayNamesByUserId,
@@ -97,6 +106,7 @@ type Ticket = {
   ordered_by?: string | null;
   purchase_order_number?: string | null;
   supplier_name?: string | null;
+  supplier_email?: string | null;
   order_amount?: number | null;
   bin_location?: string | null;
   ready_at?: string | null;
@@ -115,6 +125,7 @@ type StatusWorkflowDialogState = {
   leadTimeNote: string;
   purchaseOrderNumber: string;
   supplierName: string;
+  supplierEmail: string;
   orderAmount: string;
   binLocation: string;
   errorMessage: string;
@@ -184,9 +195,13 @@ export default function AdminPage() {
     "operations",
   );
   const [orders, setOrders] = useState<Ticket[]>([]);
+  const [ordersFilter, setOrdersFilter] = useState<OrdersFilterKey>("live");
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [ordersErrorMessage, setOrdersErrorMessage] = useState("");
-  const [hasLoadedOrders, setHasLoadedOrders] = useState(false);
+  const [ordersNotice, setOrdersNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
   const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
@@ -256,13 +271,20 @@ export default function AdminPage() {
   const syncTicketIntoOrdersState = useCallback((nextTicket: Ticket) => {
     setOrders((current) => {
       const nextIsTrackedOrder = isTrackedOrderRecord(nextTicket);
+      const allowedStatuses = new Set(getOrdersFilterStatuses(ordersFilter));
+      const matchesCurrentOrdersFilter =
+        nextTicket.status === "ORDERED" ||
+        nextTicket.status === "READY" ||
+        nextTicket.status === "COMPLETED"
+          ? allowedStatuses.has(nextTicket.status)
+          : false;
       const existingIndex = current.findIndex((ticket) => ticket.id === nextTicket.id);
 
-      if (!nextIsTrackedOrder && existingIndex === -1) {
+      if ((!nextIsTrackedOrder || !matchesCurrentOrdersFilter) && existingIndex === -1) {
         return current;
       }
 
-      if (!nextIsTrackedOrder && existingIndex >= 0) {
+      if ((!nextIsTrackedOrder || !matchesCurrentOrdersFilter) && existingIndex >= 0) {
         return current.filter((ticket) => ticket.id !== nextTicket.id);
       }
 
@@ -276,7 +298,7 @@ export default function AdminPage() {
 
       return current.map((ticket) => (ticket.id === nextTicket.id ? { ...ticket, ...nextTicket } : ticket));
     });
-  }, []);
+  }, [ordersFilter]);
 
   const toOrderedWorkflowErrorMessage = useCallback((error: unknown, fallbackMessage: string) => {
     const baseMessage = sanitizeUserFacingError(error, fallbackMessage);
@@ -289,6 +311,7 @@ export default function AdminPage() {
       normalized.includes("ordered_by") ||
       normalized.includes("purchase_order_number") ||
       normalized.includes("supplier_name") ||
+      normalized.includes("supplier_email") ||
       normalized.includes("order_amount") ||
       normalized.includes("bin_location") ||
       normalized.includes("ready_at") ||
@@ -339,13 +362,15 @@ export default function AdminPage() {
     }
 
     setOrdersErrorMessage("");
+    setOrdersNotice(null);
 
     try {
       const supabase = await verifyAdminActionAccess();
+      const statuses = getOrdersFilterStatuses(ordersFilter);
       const { data, error } = await supabase
         .from("tickets")
         .select("*")
-        .in("status", ["ORDERED", "READY", "COMPLETED"])
+        .in("status", [...statuses])
         .order("ordered_at", { ascending: false, nullsFirst: false })
         .order("updated_at", { ascending: false });
 
@@ -354,7 +379,6 @@ export default function AdminPage() {
       }
 
       setOrders(((data ?? []) as Ticket[]).filter((ticket) => isTrackedOrderRecord(ticket)));
-      setHasLoadedOrders(true);
     } catch (error) {
       setOrders([]);
       setOrdersErrorMessage(
@@ -363,15 +387,15 @@ export default function AdminPage() {
     } finally {
       setIsOrdersLoading(false);
     }
-  }, [toOrderedWorkflowErrorMessage, verifyAdminActionAccess]);
+  }, [ordersFilter, toOrderedWorkflowErrorMessage, verifyAdminActionAccess]);
 
   useEffect(() => {
-    if (resourceTab !== "orders" || hasLoadedOrders || isOrdersLoading) {
+    if (resourceTab !== "orders" || isOrdersLoading) {
       return;
     }
 
     void loadOrders();
-  }, [hasLoadedOrders, isOrdersLoading, loadOrders, resourceTab]);
+  }, [isOrdersLoading, loadOrders, ordersFilter, resourceTab]);
 
   useEffect(() => {
     const storedState = window.sessionStorage.getItem(ADMIN_CHAT_READ_STORAGE_KEY);
@@ -775,7 +799,10 @@ export default function AdminPage() {
   }, [activeSelectedChatTicketId]);
 
   const overdueOrderedTickets = useMemo(
-    () => tickets.filter((ticket) => isTicketOrderOverdue(ticket)),
+    () =>
+      tickets.filter(
+        (ticket) => isTicketOrderOverdue(ticket) && !ticket.overdue_reminder_dismissed_at,
+      ),
     [tickets],
   );
   const filteredTicketsByStatus = useMemo(
@@ -786,6 +813,50 @@ export default function AdminPage() {
       }, {} as Record<TicketStatus, Ticket[]>),
     [pagedFilteredTickets],
   );
+  const readyOrders = useMemo(
+    () => orders.filter((ticket) => ticket.status === "READY"),
+    [orders],
+  );
+
+  const exportReadyOrdersCsv = useCallback(() => {
+    if (readyOrders.length === 0) {
+      setOrdersNotice({
+        type: "error",
+        message: "There are no ready orders to export.",
+      });
+      return;
+    }
+
+    const csvContent = buildOrdersCsvContent(readyOrders);
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = `relay-ready-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(downloadUrl);
+
+    setOrdersNotice({
+      type: "success",
+      message: `Exported ${readyOrders.length} ready order${readyOrders.length === 1 ? "" : "s"}.`,
+    });
+  }, [readyOrders]);
+
+  const emailReadyOrders = useCallback(() => {
+    if (readyOrders.length === 0) {
+      setOrdersNotice({
+        type: "error",
+        message: "There are no ready orders to email.",
+      });
+      return;
+    }
+
+    window.location.href = buildReadyOrdersMailto(readyOrders);
+    setOrdersNotice({
+      type: "success",
+      message: "Prepared ready orders email in your mail client.",
+    });
+  }, [readyOrders]);
 
   const openStatusWorkflowDialog = useCallback((ticket: Ticket, nextStatus: TicketStatus) => {
     const mode = getStatusWorkflowRequirement(ticket.status, nextStatus);
@@ -802,6 +873,7 @@ export default function AdminPage() {
       leadTimeNote: ticket.lead_time_note ?? "",
       purchaseOrderNumber: ticket.purchase_order_number ?? "",
       supplierName: ticket.supplier_name ?? "",
+      supplierEmail: ticket.supplier_email ?? "",
       orderAmount:
         typeof ticket.order_amount === "number" && !Number.isNaN(ticket.order_amount)
           ? String(ticket.order_amount)
@@ -886,15 +958,16 @@ export default function AdminPage() {
       leadTimeNote?: string;
       purchaseOrderNumber?: string;
       supplierName?: string;
+      supplierEmail?: string;
       orderAmount?: string;
       binLocation?: string;
     },
-  ): Promise<boolean> => {
+  ): Promise<Ticket | null> => {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
     const draft = drafts[ticketId];
 
     if (!currentTicket || currentTicket.status === nextStatus || activeTicketOperationIds.has(ticketId)) {
-      return false;
+      return null;
     }
 
     const nextAssignedTo = draft?.assigned_to.trim() ?? currentTicket.assigned_to?.trim() ?? "";
@@ -910,6 +983,7 @@ export default function AdminPage() {
     const normalizedLeadTimeNote = workflow?.leadTimeNote?.trim() || "";
     const normalizedPurchaseOrderNumber = workflow?.purchaseOrderNumber?.trim() || "";
     const normalizedSupplierName = workflow?.supplierName?.trim() || "";
+    const normalizedSupplierEmail = workflow?.supplierEmail?.trim() || "";
     const normalizedOrderAmountInput = workflow?.orderAmount?.trim() || "";
     const parsedOrderAmount = parseOrderAmountInput(normalizedOrderAmountInput);
     const normalizedBinLocation = workflow?.binLocation?.trim() || "";
@@ -917,42 +991,42 @@ export default function AdminPage() {
     if (nextStatus === "ORDERED") {
       if (!normalizedExpectedDeliveryDate) {
         setStatusWorkflowError(ticketId, "Expected delivery date is required before saving ORDERED.");
-        return false;
+        return null;
       }
 
       if (!parseDueDateToEndOfDay(normalizedExpectedDeliveryDate)) {
         setStatusWorkflowError(ticketId, "Enter a valid expected delivery date before saving ORDERED.");
-        return false;
+        return null;
       }
 
       if (!normalizedPurchaseOrderNumber) {
         setStatusWorkflowError(ticketId, "PO number is required before saving ORDERED.");
-        return false;
+        return null;
       }
 
       if (!normalizedSupplierName) {
         setStatusWorkflowError(ticketId, "Supplier is required before saving ORDERED.");
-        return false;
+        return null;
       }
 
       if (!normalizedOrderAmountInput) {
         setStatusWorkflowError(ticketId, "Order amount is required before saving ORDERED.");
-        return false;
+        return null;
       }
 
       if (parsedOrderAmount == null || Number.isNaN(parsedOrderAmount)) {
         setStatusWorkflowError(ticketId, "Enter a valid non-negative order amount before saving ORDERED.");
-        return false;
+        return null;
       }
     }
 
     if (movingOrderedToReady && !normalizedBinLocation) {
       setStatusWorkflowError(ticketId, "Bin location required before marking this ticket READY.");
-      return false;
+      return null;
     }
 
     if (!beginTicketOperation(ticketId)) {
-      return false;
+      return null;
     }
 
     setUpdatingTicketId(ticketId);
@@ -968,7 +1042,7 @@ export default function AdminPage() {
       );
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
-      return false;
+      return null;
     }
 
     const updatePayload: Record<string, string | null> = {
@@ -985,6 +1059,7 @@ export default function AdminPage() {
       updatePayload.ordered_by = actorName;
       updatePayload.purchase_order_number = normalizedPurchaseOrderNumber || null;
       updatePayload.supplier_name = normalizedSupplierName || null;
+      updatePayload.supplier_email = normalizedSupplierEmail || null;
       updatePayload.order_amount =
         parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
           ? String(parsedOrderAmount)
@@ -1021,7 +1096,7 @@ export default function AdminPage() {
       setStatusWorkflowError(ticketId, message);
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
-      return false;
+      return null;
     }
 
     if (!updatedTicket) {
@@ -1031,7 +1106,7 @@ export default function AdminPage() {
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
       void loadTickets();
-      return false;
+      return null;
     }
 
     const ticketUpdateRows: Array<{ ticket_id: string; status?: string; comment?: string }> = [
@@ -1046,6 +1121,7 @@ export default function AdminPage() {
           leadTimeNote: normalizedLeadTimeNote,
           purchaseOrderNumber: normalizedPurchaseOrderNumber,
           supplierName: normalizedSupplierName,
+          supplierEmail: normalizedSupplierEmail,
           orderAmount:
             parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
               ? parsedOrderAmount
@@ -1082,7 +1158,7 @@ export default function AdminPage() {
       setStatusWorkflowError(ticketId, message);
       setUpdatingTicketId(null);
       finishTicketOperation(ticketId);
-      return false;
+      return null;
     }
 
     if (nextStatus === "COMPLETED") {
@@ -1117,7 +1193,7 @@ export default function AdminPage() {
       });
     }
 
-    return true;
+    return updatedTicket as Ticket;
   }, [
     activeTicketOperationIds,
     beginTicketOperation,
@@ -1617,6 +1693,7 @@ export default function AdminPage() {
               leadTimeNote={statusWorkflowDialog.leadTimeNote}
               purchaseOrderNumber={statusWorkflowDialog.purchaseOrderNumber}
               supplierName={statusWorkflowDialog.supplierName}
+              supplierEmail={statusWorkflowDialog.supplierEmail}
               orderAmount={statusWorkflowDialog.orderAmount}
               binLocation={statusWorkflowDialog.binLocation}
               errorMessage={statusWorkflowDialog.errorMessage}
@@ -1638,6 +1715,11 @@ export default function AdminPage() {
               onSupplierNameChange={(value) =>
                 setStatusWorkflowDialog((current) =>
                   current ? { ...current, supplierName: value, errorMessage: "" } : current,
+                )
+              }
+              onSupplierEmailChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, supplierEmail: value, errorMessage: "" } : current,
                 )
               }
               onOrderAmountChange={(value) =>
@@ -1708,12 +1790,37 @@ export default function AdminPage() {
                   leadTimeNote: dialog.leadTimeNote,
                   purchaseOrderNumber: dialog.purchaseOrderNumber,
                   supplierName: dialog.supplierName,
+                  supplierEmail: dialog.supplierEmail,
                   orderAmount: dialog.orderAmount,
                   binLocation: dialog.binLocation,
-                }).then((didSave) => {
-                  if (didSave) {
+                }).then((updatedTicket) => {
+                  if (updatedTicket) {
                     setStatusWorkflowDialog(null);
                   }
+                });
+              }}
+              onConfirmAndEmailSupplier={() => {
+                const dialog = statusWorkflowDialog;
+
+                if (!dialog) {
+                  return;
+                }
+
+                void commitStatusChange(dialog.ticketId, dialog.nextStatus, {
+                  expectedDeliveryDate: dialog.expectedDeliveryDate,
+                  leadTimeNote: dialog.leadTimeNote,
+                  purchaseOrderNumber: dialog.purchaseOrderNumber,
+                  supplierName: dialog.supplierName,
+                  supplierEmail: dialog.supplierEmail,
+                  orderAmount: dialog.orderAmount,
+                  binLocation: dialog.binLocation,
+                }).then((updatedTicket) => {
+                  if (!updatedTicket) {
+                    return;
+                  }
+
+                  setStatusWorkflowDialog(null);
+                  window.location.href = buildSupplierOrderMailto(updatedTicket);
                 });
               }}
             />
@@ -1819,7 +1926,7 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-8">
-              <PartsControlTabs activeTab={resourceTab} />
+              <PartsControlTabs activeTab={resourceTab} onTabChange={setResourceTab} />
             </div>
 
             {resourceTab === "guide" ? (
@@ -1895,8 +2002,13 @@ export default function AdminPage() {
                 orders={orders}
                 isLoading={isOrdersLoading}
                 errorMessage={ordersErrorMessage}
+                notice={ordersNotice}
+                activeFilter={ordersFilter}
                 isRefreshing={isOrdersLoading}
+                onFilterChange={setOrdersFilter}
                 onRefresh={() => void loadOrders()}
+                onExportReadyCsv={exportReadyOrdersCsv}
+                onEmailReadyOrders={emailReadyOrders}
               />
             ) : null}
 
