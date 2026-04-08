@@ -90,6 +90,8 @@ import { getSupabaseAccessToken } from "@/lib/supabase";
 const ADMIN_CHAT_READ_STORAGE_KEY = "relay-admin-chat-last-opened";
 const ADMIN_DASHBOARD_VIEW_STORAGE_KEY = "relay-admin-dashboard-view-mode";
 const ADMIN_PAGE_SIZE_OPTIONS = [15, 25, 50] as const;
+const OVERSIGHT_PENDING_DELAY_MS = 60_000;
+const OVERSIGHT_TIMER_INTERVAL_MS = 30_000;
 
 type Ticket = {
   id: string;
@@ -223,6 +225,7 @@ export default function AdminPage() {
   const [selectedSpendMonth, setSelectedSpendMonth] = useState<string>("");
   const [dismissedOversightIds, setDismissedOversightIds] = useState<string[]>([]);
   const [isBackfillingMonthlySpend, setIsBackfillingMonthlySpend] = useState(false);
+  const [oversightNow, setOversightNow] = useState(() => Date.now());
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
   const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
@@ -396,6 +399,19 @@ export default function AdminPage() {
       window.sessionStorage.removeItem(`relay-admin-oversight-${currentUserId}`);
     }
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (resourceTab !== "operations") {
+      return;
+    }
+
+    setOversightNow(Date.now());
+    const intervalId = window.setInterval(() => {
+      setOversightNow(Date.now());
+    }, OVERSIGHT_TIMER_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [resourceTab]);
 
   const loadOrders = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!silent) {
@@ -886,11 +902,23 @@ export default function AdminPage() {
     [monthlySpendSnapshots, selectedSpendMonth],
   );
   const oversightItems = useMemo<AdminOversightItem[]>(() => {
-    const pendingTickets = tickets.filter((ticket) => ticket.status === "PENDING");
+    const isOlderThanOversightDelay = (ticket: Ticket) => {
+      const createdTime = ticket.created_at ? new Date(ticket.created_at).getTime() : 0;
+
+      if (!Number.isFinite(createdTime) || createdTime <= 0) {
+        return false;
+      }
+
+      return oversightNow - createdTime >= OVERSIGHT_PENDING_DELAY_MS;
+    };
+    const pendingTickets = tickets.filter(
+      (ticket) => ticket.status === "PENDING" && isOlderThanOversightDelay(ticket),
+    );
     const unassignedTickets = tickets.filter(
       (ticket) =>
         ticket.status !== "COMPLETED" &&
-        !ticket.assigned_to?.trim(),
+        !ticket.assigned_to?.trim() &&
+        isOlderThanOversightDelay(ticket),
     );
     const collectedReadyTickets = tickets.filter(
       (ticket) => ticket.status === "READY" && collectedTicketIds.has(ticket.id),
@@ -938,7 +966,7 @@ export default function AdminPage() {
     return nextItems
       .filter((item): item is AdminOversightItem => Boolean(item))
       .filter((item) => !dismissedOversightIds.includes(item.id));
-  }, [collectedTicketIds, dismissedOversightIds, tickets]);
+  }, [collectedTicketIds, dismissedOversightIds, oversightNow, tickets]);
 
   const exportMonthlySpendCsv = useCallback(() => {
     if (selectedMonthSnapshots.length === 0 || !selectedSpendMonth) {
