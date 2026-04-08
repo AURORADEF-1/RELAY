@@ -390,12 +390,12 @@ export default function AdminPage() {
   }, [ordersFilter, toOrderedWorkflowErrorMessage, verifyAdminActionAccess]);
 
   useEffect(() => {
-    if (resourceTab !== "orders" || isOrdersLoading) {
+    if (resourceTab !== "orders") {
       return;
     }
 
     void loadOrders();
-  }, [isOrdersLoading, loadOrders, ordersFilter, resourceTab]);
+  }, [loadOrders, ordersFilter, resourceTab]);
 
   useEffect(() => {
     const storedState = window.sessionStorage.getItem(ADMIN_CHAT_READ_STORAGE_KEY);
