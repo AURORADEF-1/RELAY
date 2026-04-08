@@ -936,7 +936,7 @@ export default function AdminPage() {
     const nextItems: Array<AdminOversightItem | null> = [
       pendingTickets.length > 0
         ? {
-            id: "pending-queue",
+            id: `pending-${firstPendingTicket!.id}`,
             title: `${pendingTickets.length} job${pendingTickets.length === 1 ? "" : "s"} waiting in PENDING`,
             body: `Review ${formatOversightTicketLabel(firstPendingTicket!)} and move it into active ownership.`,
             href: `/tickets/${firstPendingTicket!.id}`,
@@ -945,7 +945,7 @@ export default function AdminPage() {
         : null,
       unassignedTickets.length > 0
         ? {
-            id: "unassigned-active",
+            id: `unassigned-${firstUnassignedTicket!.id}`,
             title: `${unassignedTickets.length} active job${unassignedTickets.length === 1 ? "" : "s"} unassigned`,
             body: `Assign ${formatOversightTicketLabel(firstUnassignedTicket!)} to stop requests sitting without an operator.`,
             href: `/tickets/${firstUnassignedTicket!.id}`,
@@ -954,7 +954,7 @@ export default function AdminPage() {
         : null,
       collectedReadyTickets.length > 0
         ? {
-            id: "collected-ready",
+            id: `collected-ready-${firstCollectedReadyTicket!.id}`,
             title: `${collectedReadyTickets.length} READY job${collectedReadyTickets.length === 1 ? "" : "s"} already collected`,
             body: `Collected parts are still sitting in READY. Review ${formatOversightTicketLabel(firstCollectedReadyTicket!)} and complete it if appropriate.`,
             href: `/tickets/${firstCollectedReadyTicket!.id}`,
