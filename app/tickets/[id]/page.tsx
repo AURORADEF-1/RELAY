@@ -47,7 +47,10 @@ import {
   buildOrderedWorkflowComment,
   buildReadyWorkflowComment,
   formatOperationalDate,
+  formatOrderAmount,
   getStatusWorkflowRequirement,
+  parseOrderAmountInput,
+  parseDueDateToEndOfDay,
   toDateInputValue,
 } from "@/lib/ticket-operational";
 import {
@@ -83,6 +86,9 @@ type TicketRecord = {
   lead_time_note?: string | null;
   ordered_at?: string | null;
   ordered_by?: string | null;
+  purchase_order_number?: string | null;
+  supplier_name?: string | null;
+  order_amount?: number | null;
   bin_location?: string | null;
   ready_at?: string | null;
   ready_by?: string | null;
@@ -112,6 +118,9 @@ type TicketEditDraft = {
   notes: string;
   expected_delivery_date: string;
   lead_time_note: string;
+  purchase_order_number: string;
+  supplier_name: string;
+  order_amount: string;
   bin_location: string;
 };
 
@@ -119,6 +128,9 @@ type StatusWorkflowDialogState = {
   mode: "ordered" | "ready";
   expectedDeliveryDate: string;
   leadTimeNote: string;
+  purchaseOrderNumber: string;
+  supplierName: string;
+  orderAmount: string;
   binLocation: string;
   errorMessage: string;
 };
@@ -440,6 +452,9 @@ export default function TicketDetailPage() {
   async function handleSaveTicketEdit(confirmedWorkflow?: {
     expectedDeliveryDate: string;
     leadTimeNote: string;
+    purchaseOrderNumber: string;
+    supplierName: string;
+    orderAmount: string;
     binLocation: string;
   }) {
     if (!ticket || !editDraft) {
@@ -465,6 +480,13 @@ export default function TicketDetailPage() {
     const nextExpectedDeliveryDate =
       confirmedWorkflow?.expectedDeliveryDate ?? editDraft.expected_delivery_date;
     const nextLeadTimeNote = confirmedWorkflow?.leadTimeNote ?? editDraft.lead_time_note;
+    const nextPurchaseOrderNumber =
+      confirmedWorkflow?.purchaseOrderNumber ?? editDraft.purchase_order_number;
+    const nextSupplierName =
+      confirmedWorkflow?.supplierName ?? editDraft.supplier_name;
+    const nextOrderAmountInput =
+      confirmedWorkflow?.orderAmount ?? editDraft.order_amount;
+    const parsedOrderAmount = parseOrderAmountInput(nextOrderAmountInput);
     const nextBinLocation = confirmedWorkflow?.binLocation ?? editDraft.bin_location;
     const expectedDateChanged =
       toDateInputValue(ticket.expected_delivery_date) !== nextExpectedDeliveryDate.trim();
@@ -474,6 +496,9 @@ export default function TicketDetailPage() {
         mode: workflowRequirement,
         expectedDeliveryDate: nextExpectedDeliveryDate,
         leadTimeNote: nextLeadTimeNote,
+        purchaseOrderNumber: nextPurchaseOrderNumber,
+        supplierName: nextSupplierName,
+        orderAmount: nextOrderAmountInput,
         binLocation: nextBinLocation,
         errorMessage: "",
       });
@@ -485,6 +510,59 @@ export default function TicketDetailPage() {
       setStatusWorkflowDialog((current) =>
         current
           ? { ...current, errorMessage: "Expected delivery date is required before saving ORDERED." }
+          : current,
+      );
+      setIsSavingEdit(false);
+      return;
+    }
+
+    if (workflowRequirement === "ordered" && !parseDueDateToEndOfDay(nextExpectedDeliveryDate.trim())) {
+      setStatusWorkflowDialog((current) =>
+        current
+          ? { ...current, errorMessage: "Enter a valid expected delivery date before saving ORDERED." }
+          : current,
+      );
+      setIsSavingEdit(false);
+      return;
+    }
+
+    if (workflowRequirement === "ordered" && !nextPurchaseOrderNumber.trim()) {
+      setStatusWorkflowDialog((current) =>
+        current
+          ? { ...current, errorMessage: "PO number is required before saving ORDERED." }
+          : current,
+      );
+      setIsSavingEdit(false);
+      return;
+    }
+
+    if (workflowRequirement === "ordered" && !nextSupplierName.trim()) {
+      setStatusWorkflowDialog((current) =>
+        current
+          ? { ...current, errorMessage: "Supplier is required before saving ORDERED." }
+          : current,
+      );
+      setIsSavingEdit(false);
+      return;
+    }
+
+    if (workflowRequirement === "ordered" && !nextOrderAmountInput.trim()) {
+      setStatusWorkflowDialog((current) =>
+        current
+          ? { ...current, errorMessage: "Order amount is required before saving ORDERED." }
+          : current,
+      );
+      setIsSavingEdit(false);
+      return;
+    }
+
+    if (
+      workflowRequirement === "ordered" &&
+      (parsedOrderAmount == null || Number.isNaN(parsedOrderAmount))
+    ) {
+      setStatusWorkflowDialog((current) =>
+        current
+          ? { ...current, errorMessage: "Enter a valid non-negative order amount before saving ORDERED." }
           : current,
       );
       setIsSavingEdit(false);
@@ -513,6 +591,12 @@ export default function TicketDetailPage() {
       notes: editDraft.notes.trim() || null,
       expected_delivery_date: nextExpectedDeliveryDate.trim() || null,
       lead_time_note: nextLeadTimeNote.trim() || null,
+      purchase_order_number: nextPurchaseOrderNumber.trim() || null,
+      supplier_name: nextSupplierName.trim() || null,
+      order_amount:
+        parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
+          ? parsedOrderAmount
+          : null,
       bin_location: nextBinLocation.trim() || null,
       ordered_at:
         workflowRequirement === "ordered" ? new Date().toISOString() : ticket.ordered_at ?? null,
@@ -565,6 +649,9 @@ export default function TicketDetailPage() {
           comment: buildOrderedWorkflowComment({
             expectedDeliveryDate: ticketPatch.expected_delivery_date,
             leadTimeNote: ticketPatch.lead_time_note,
+            purchaseOrderNumber: ticketPatch.purchase_order_number,
+            supplierName: ticketPatch.supplier_name,
+            orderAmount: ticketPatch.order_amount,
             actorName: currentUserDisplayName || currentUserId || "Stores Operator",
           }),
         });
@@ -620,6 +707,9 @@ export default function TicketDetailPage() {
             ...current,
             expected_delivery_date: nextExpectedDeliveryDate,
             lead_time_note: nextLeadTimeNote,
+            purchase_order_number: nextPurchaseOrderNumber,
+            supplier_name: nextSupplierName,
+            order_amount: nextOrderAmountInput,
             bin_location: nextBinLocation,
           }
         : current,
@@ -885,6 +975,9 @@ export default function TicketDetailPage() {
               isSubmitting={isSavingEdit}
               expectedDeliveryDate={statusWorkflowDialog.expectedDeliveryDate}
               leadTimeNote={statusWorkflowDialog.leadTimeNote}
+              purchaseOrderNumber={statusWorkflowDialog.purchaseOrderNumber}
+              supplierName={statusWorkflowDialog.supplierName}
+              orderAmount={statusWorkflowDialog.orderAmount}
               binLocation={statusWorkflowDialog.binLocation}
               errorMessage={statusWorkflowDialog.errorMessage}
               onExpectedDeliveryDateChange={(value) =>
@@ -895,6 +988,21 @@ export default function TicketDetailPage() {
               onLeadTimeNoteChange={(value) =>
                 setStatusWorkflowDialog((current) =>
                   current ? { ...current, leadTimeNote: value, errorMessage: "" } : current,
+                )
+              }
+              onPurchaseOrderNumberChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, purchaseOrderNumber: value, errorMessage: "" } : current,
+                )
+              }
+              onSupplierNameChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, supplierName: value, errorMessage: "" } : current,
+                )
+              }
+              onOrderAmountChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, orderAmount: value, errorMessage: "" } : current,
                 )
               }
               onBinLocationChange={(value) =>
@@ -913,6 +1021,9 @@ export default function TicketDetailPage() {
                 void handleSaveTicketEdit({
                   expectedDeliveryDate: dialog.expectedDeliveryDate,
                   leadTimeNote: dialog.leadTimeNote,
+                  purchaseOrderNumber: dialog.purchaseOrderNumber,
+                  supplierName: dialog.supplierName,
+                  orderAmount: dialog.orderAmount,
                   binLocation: dialog.binLocation,
                 });
               }}
@@ -1090,6 +1201,34 @@ export default function TicketDetailPage() {
                             }
                           />
                           <EditField
+                            label="PO Number"
+                            value={editDraft.purchase_order_number}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, purchase_order_number: value } : current,
+                              )
+                            }
+                          />
+                          <EditField
+                            label="Supplier"
+                            value={editDraft.supplier_name}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, supplier_name: value } : current,
+                              )
+                            }
+                          />
+                          <EditField
+                            label="Order Amount"
+                            type="number"
+                            value={editDraft.order_amount}
+                            onChange={(value) =>
+                              setEditDraft((current) =>
+                                current ? { ...current, order_amount: value } : current,
+                              )
+                            }
+                          />
+                          <EditField
                             label="Bin Location"
                             value={editDraft.bin_location}
                             onChange={(value) =>
@@ -1167,6 +1306,9 @@ export default function TicketDetailPage() {
                           <DetailItem label="Job Number" value={ticket.job_number} />
                           <DetailItem label="Assigned User" value={ticket.assigned_to} />
                           <DetailItem label="Expected Delivery" value={formatOperationalDate(ticket.expected_delivery_date)} />
+                          <DetailItem label="PO Number" value={ticket.purchase_order_number} />
+                          <DetailItem label="Supplier" value={ticket.supplier_name} />
+                          <DetailItem label="Order Amount" value={formatOrderAmount(ticket.order_amount)} />
                           <DetailItem label="Bin Location" value={ticket.bin_location} />
                           <DetailItem label="Lead Time Note" value={ticket.lead_time_note} />
                           <DetailItem
@@ -1474,6 +1616,12 @@ function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
     notes: ticket.notes ?? "",
     expected_delivery_date: toDateInputValue(ticket.expected_delivery_date),
     lead_time_note: ticket.lead_time_note ?? "",
+    purchase_order_number: ticket.purchase_order_number ?? "",
+    supplier_name: ticket.supplier_name ?? "",
+    order_amount:
+      typeof ticket.order_amount === "number" && !Number.isNaN(ticket.order_amount)
+        ? String(ticket.order_amount)
+        : "",
     bin_location: ticket.bin_location ?? "",
   };
 }
@@ -1503,7 +1651,7 @@ function EditField({
 }: {
   label: string;
   value: string;
-  type?: "text" | "date";
+  type?: "text" | "date" | "number";
   onChange: (value: string) => void;
 }) {
   return (

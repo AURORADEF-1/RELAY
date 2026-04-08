@@ -5,10 +5,16 @@ type TicketStatusWorkflowModalProps = {
   isSubmitting?: boolean;
   expectedDeliveryDate: string;
   leadTimeNote: string;
+  purchaseOrderNumber: string;
+  supplierName: string;
+  orderAmount: string;
   binLocation: string;
   errorMessage?: string;
   onExpectedDeliveryDateChange: (value: string) => void;
   onLeadTimeNoteChange: (value: string) => void;
+  onPurchaseOrderNumberChange: (value: string) => void;
+  onSupplierNameChange: (value: string) => void;
+  onOrderAmountChange: (value: string) => void;
   onBinLocationChange: (value: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -19,10 +25,16 @@ export function TicketStatusWorkflowModal({
   isSubmitting = false,
   expectedDeliveryDate,
   leadTimeNote,
+  purchaseOrderNumber,
+  supplierName,
+  orderAmount,
   binLocation,
   errorMessage,
   onExpectedDeliveryDateChange,
   onLeadTimeNoteChange,
+  onPurchaseOrderNumberChange,
+  onSupplierNameChange,
+  onOrderAmountChange,
   onBinLocationChange,
   onConfirm,
   onCancel,
@@ -36,11 +48,11 @@ export function TicketStatusWorkflowModal({
               Status Control
             </p>
             <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground-strong)]">
-              {mode === "ordered" ? "ORDERED requires expected delivery" : "READY requires bin location"}
+              {mode === "ordered" ? "ORDERED requires supplier details" : "READY requires bin location"}
             </h2>
             <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">
               {mode === "ordered"
-                ? "Set the expected delivery date before saving this ticket as ORDERED."
+                ? "Set expected delivery, PO, supplier, and order value before saving this ticket as ORDERED."
                 : "Enter the collection bin location before marking this ticket READY."}
             </p>
           </div>
@@ -65,6 +77,50 @@ export function TicketStatusWorkflowModal({
                   type="date"
                   value={expectedDeliveryDate}
                   onChange={(event) => onExpectedDeliveryDateChange(event.target.value)}
+                  className="aurora-input"
+                />
+              </label>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                    PO Number
+                  </span>
+                  <input
+                    type="text"
+                    value={purchaseOrderNumber}
+                    onChange={(event) => onPurchaseOrderNumberChange(event.target.value)}
+                    placeholder="Enter purchase order number"
+                    className="aurora-input"
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                    Supplier
+                  </span>
+                  <input
+                    type="text"
+                    value={supplierName}
+                    onChange={(event) => onSupplierNameChange(event.target.value)}
+                    placeholder="Enter supplier name"
+                    className="aurora-input"
+                  />
+                </label>
+              </div>
+
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                  Order Amount
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={orderAmount}
+                  onChange={(event) => onOrderAmountChange(event.target.value)}
+                  placeholder="0.00"
                   className="aurora-input"
                 />
               </label>

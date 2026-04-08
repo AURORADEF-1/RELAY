@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-type PartsControlTab = "operations" | "completed" | "guide" | "faq";
+type PartsControlTab = "operations" | "orders" | "completed" | "guide" | "faq";
 
 const tabs: Array<{
   key: PartsControlTab;
@@ -10,6 +10,7 @@ const tabs: Array<{
   href: string;
 }> = [
   { key: "operations", label: "Operations", href: "/admin" },
+  { key: "orders", label: "Orders", href: "/admin?tab=orders" },
   { key: "completed", label: "Completed Jobs", href: "/completed" },
   { key: "guide", label: "User Guide", href: "/admin?tab=guide" },
   { key: "faq", label: "FAQ", href: "/admin?tab=faq" },

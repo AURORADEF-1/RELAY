@@ -7,6 +7,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
+import { PartsOrdersDashboard } from "@/components/parts-orders-dashboard";
 import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
@@ -42,8 +43,11 @@ import {
   buildOrderedWorkflowComment,
   buildReadyWorkflowComment,
   formatOperationalDate,
+  formatOrderAmount,
   getStatusWorkflowRequirement,
   isTicketOrderOverdue,
+  isTrackedOrderRecord,
+  parseOrderAmountInput,
   parseDueDateToEndOfDay,
   toDateInputValue,
 } from "@/lib/ticket-operational";
@@ -91,6 +95,9 @@ type Ticket = {
   lead_time_note?: string | null;
   ordered_at?: string | null;
   ordered_by?: string | null;
+  purchase_order_number?: string | null;
+  supplier_name?: string | null;
+  order_amount?: number | null;
   bin_location?: string | null;
   ready_at?: string | null;
   ready_by?: string | null;
@@ -106,6 +113,9 @@ type StatusWorkflowDialogState = {
   nextStatus: TicketStatus;
   expectedDeliveryDate: string;
   leadTimeNote: string;
+  purchaseOrderNumber: string;
+  supplierName: string;
+  orderAmount: string;
   binLocation: string;
   errorMessage: string;
 };
@@ -170,9 +180,13 @@ export default function AdminPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
-  const [resourceTab, setResourceTab] = useState<"operations" | "guide" | "faq">(
+  const [resourceTab, setResourceTab] = useState<"operations" | "orders" | "guide" | "faq">(
     "operations",
   );
+  const [orders, setOrders] = useState<Ticket[]>([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(false);
+  const [ordersErrorMessage, setOrdersErrorMessage] = useState("");
+  const [hasLoadedOrders, setHasLoadedOrders] = useState(false);
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string | null>>({});
   const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
@@ -239,6 +253,31 @@ export default function AdminPage() {
     }));
   }, []);
 
+  const syncTicketIntoOrdersState = useCallback((nextTicket: Ticket) => {
+    setOrders((current) => {
+      const nextIsTrackedOrder = isTrackedOrderRecord(nextTicket);
+      const existingIndex = current.findIndex((ticket) => ticket.id === nextTicket.id);
+
+      if (!nextIsTrackedOrder && existingIndex === -1) {
+        return current;
+      }
+
+      if (!nextIsTrackedOrder && existingIndex >= 0) {
+        return current.filter((ticket) => ticket.id !== nextTicket.id);
+      }
+
+      if (existingIndex === -1) {
+        return [nextTicket, ...current].sort((left, right) => {
+          const leftTime = new Date(left.ordered_at ?? left.updated_at ?? left.created_at ?? 0).getTime();
+          const rightTime = new Date(right.ordered_at ?? right.updated_at ?? right.created_at ?? 0).getTime();
+          return rightTime - leftTime;
+        });
+      }
+
+      return current.map((ticket) => (ticket.id === nextTicket.id ? { ...ticket, ...nextTicket } : ticket));
+    });
+  }, []);
+
   const toOrderedWorkflowErrorMessage = useCallback((error: unknown, fallbackMessage: string) => {
     const baseMessage = sanitizeUserFacingError(error, fallbackMessage);
     const normalized = baseMessage.toLowerCase();
@@ -248,6 +287,9 @@ export default function AdminPage() {
       normalized.includes("lead_time_note") ||
       normalized.includes("ordered_at") ||
       normalized.includes("ordered_by") ||
+      normalized.includes("purchase_order_number") ||
+      normalized.includes("supplier_name") ||
+      normalized.includes("order_amount") ||
       normalized.includes("bin_location") ||
       normalized.includes("ready_at") ||
       normalized.includes("ready_by") ||
@@ -283,13 +325,53 @@ export default function AdminPage() {
     }
 
     const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab === "guide" || tab === "faq") {
+    if (tab === "guide" || tab === "faq" || tab === "orders") {
       setResourceTab(tab);
       return;
     }
 
     setResourceTab("operations");
   }, []);
+
+  const loadOrders = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) {
+      setIsOrdersLoading(true);
+    }
+
+    setOrdersErrorMessage("");
+
+    try {
+      const supabase = await verifyAdminActionAccess();
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("*")
+        .in("status", ["ORDERED", "READY", "COMPLETED"])
+        .order("ordered_at", { ascending: false, nullsFirst: false })
+        .order("updated_at", { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setOrders(((data ?? []) as Ticket[]).filter((ticket) => isTrackedOrderRecord(ticket)));
+      setHasLoadedOrders(true);
+    } catch (error) {
+      setOrders([]);
+      setOrdersErrorMessage(
+        toOrderedWorkflowErrorMessage(error, "Unable to load the orders register."),
+      );
+    } finally {
+      setIsOrdersLoading(false);
+    }
+  }, [toOrderedWorkflowErrorMessage, verifyAdminActionAccess]);
+
+  useEffect(() => {
+    if (resourceTab !== "orders" || hasLoadedOrders || isOrdersLoading) {
+      return;
+    }
+
+    void loadOrders();
+  }, [hasLoadedOrders, isOrdersLoading, loadOrders, resourceTab]);
 
   useEffect(() => {
     const storedState = window.sessionStorage.getItem(ADMIN_CHAT_READ_STORAGE_KEY);
@@ -718,6 +800,12 @@ export default function AdminPage() {
       nextStatus,
       expectedDeliveryDate: toDateInputValue(ticket.expected_delivery_date),
       leadTimeNote: ticket.lead_time_note ?? "",
+      purchaseOrderNumber: ticket.purchase_order_number ?? "",
+      supplierName: ticket.supplier_name ?? "",
+      orderAmount:
+        typeof ticket.order_amount === "number" && !Number.isNaN(ticket.order_amount)
+          ? String(ticket.order_amount)
+          : "",
       binLocation: ticket.bin_location ?? "",
       errorMessage: "",
     });
@@ -776,6 +864,17 @@ export default function AdminPage() {
           : ticket,
       ),
     );
+    setOrders((current) =>
+      current.map((ticket) =>
+        ticket.id === ticketId
+          ? {
+              ...ticket,
+              overdue_reminder_dismissed_at: dismissedAt,
+              overdue_reminder_dismissed_by: dismissedBy,
+            }
+          : ticket,
+      ),
+    );
     setDismissingOverdueTicketId(null);
   }, [currentUserDisplayName, currentUserId, dismissingOverdueTicketId, tickets, verifyAdminActionAccess]);
 
@@ -785,6 +884,9 @@ export default function AdminPage() {
     workflow?: {
       expectedDeliveryDate?: string;
       leadTimeNote?: string;
+      purchaseOrderNumber?: string;
+      supplierName?: string;
+      orderAmount?: string;
       binLocation?: string;
     },
   ): Promise<boolean> => {
@@ -806,6 +908,10 @@ export default function AdminPage() {
     const leavingOrdered = wasOrdered && nextStatus !== "ORDERED";
     const normalizedExpectedDeliveryDate = workflow?.expectedDeliveryDate?.trim() || "";
     const normalizedLeadTimeNote = workflow?.leadTimeNote?.trim() || "";
+    const normalizedPurchaseOrderNumber = workflow?.purchaseOrderNumber?.trim() || "";
+    const normalizedSupplierName = workflow?.supplierName?.trim() || "";
+    const normalizedOrderAmountInput = workflow?.orderAmount?.trim() || "";
+    const parsedOrderAmount = parseOrderAmountInput(normalizedOrderAmountInput);
     const normalizedBinLocation = workflow?.binLocation?.trim() || "";
 
     if (nextStatus === "ORDERED") {
@@ -816,6 +922,26 @@ export default function AdminPage() {
 
       if (!parseDueDateToEndOfDay(normalizedExpectedDeliveryDate)) {
         setStatusWorkflowError(ticketId, "Enter a valid expected delivery date before saving ORDERED.");
+        return false;
+      }
+
+      if (!normalizedPurchaseOrderNumber) {
+        setStatusWorkflowError(ticketId, "PO number is required before saving ORDERED.");
+        return false;
+      }
+
+      if (!normalizedSupplierName) {
+        setStatusWorkflowError(ticketId, "Supplier is required before saving ORDERED.");
+        return false;
+      }
+
+      if (!normalizedOrderAmountInput) {
+        setStatusWorkflowError(ticketId, "Order amount is required before saving ORDERED.");
+        return false;
+      }
+
+      if (parsedOrderAmount == null || Number.isNaN(parsedOrderAmount)) {
+        setStatusWorkflowError(ticketId, "Enter a valid non-negative order amount before saving ORDERED.");
         return false;
       }
     }
@@ -857,6 +983,12 @@ export default function AdminPage() {
       updatePayload.lead_time_note = normalizedLeadTimeNote || null;
       updatePayload.ordered_at = nextUpdatedAt;
       updatePayload.ordered_by = actorName;
+      updatePayload.purchase_order_number = normalizedPurchaseOrderNumber || null;
+      updatePayload.supplier_name = normalizedSupplierName || null;
+      updatePayload.order_amount =
+        parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
+          ? String(parsedOrderAmount)
+          : null;
       updatePayload.overdue_reminder_dismissed_at = null;
       updatePayload.overdue_reminder_dismissed_by = null;
     } else if (movingOrderedToReady) {
@@ -912,6 +1044,12 @@ export default function AdminPage() {
         comment: buildOrderedWorkflowComment({
           expectedDeliveryDate: normalizedExpectedDeliveryDate,
           leadTimeNote: normalizedLeadTimeNote,
+          purchaseOrderNumber: normalizedPurchaseOrderNumber,
+          supplierName: normalizedSupplierName,
+          orderAmount:
+            parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
+              ? parsedOrderAmount
+              : null,
           actorName,
         }),
       });
@@ -952,6 +1090,7 @@ export default function AdminPage() {
     } else {
       syncTicketIntoState(updatedTicket as Ticket);
     }
+    syncTicketIntoOrdersState(updatedTicket as Ticket);
     if (selectedChatTicketId === ticketId && nextStatus === "COMPLETED") {
       setSelectedChatTicketId(null);
     }
@@ -987,6 +1126,7 @@ export default function AdminPage() {
     drafts,
     finishTicketOperation,
     loadTickets,
+    syncTicketIntoOrdersState,
     selectedChatTicketId,
     setStatusWorkflowError,
     syncTicketIntoState,
@@ -1475,6 +1615,9 @@ export default function AdminPage() {
               isSubmitting={updatingTicketId === statusWorkflowDialog.ticketId}
               expectedDeliveryDate={statusWorkflowDialog.expectedDeliveryDate}
               leadTimeNote={statusWorkflowDialog.leadTimeNote}
+              purchaseOrderNumber={statusWorkflowDialog.purchaseOrderNumber}
+              supplierName={statusWorkflowDialog.supplierName}
+              orderAmount={statusWorkflowDialog.orderAmount}
               binLocation={statusWorkflowDialog.binLocation}
               errorMessage={statusWorkflowDialog.errorMessage}
               onExpectedDeliveryDateChange={(value) =>
@@ -1485,6 +1628,21 @@ export default function AdminPage() {
               onLeadTimeNoteChange={(value) =>
                 setStatusWorkflowDialog((current) =>
                   current ? { ...current, leadTimeNote: value, errorMessage: "" } : current,
+                )
+              }
+              onPurchaseOrderNumberChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, purchaseOrderNumber: value, errorMessage: "" } : current,
+                )
+              }
+              onSupplierNameChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, supplierName: value, errorMessage: "" } : current,
+                )
+              }
+              onOrderAmountChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, orderAmount: value, errorMessage: "" } : current,
                 )
               }
               onBinLocationChange={(value) =>
@@ -1509,6 +1667,33 @@ export default function AdminPage() {
                   return;
                 }
 
+                if (dialog.mode === "ordered" && !dialog.purchaseOrderNumber.trim()) {
+                  setStatusWorkflowDialog((current) =>
+                    current
+                      ? { ...current, errorMessage: "PO number is required before saving ORDERED." }
+                      : current,
+                  );
+                  return;
+                }
+
+                if (dialog.mode === "ordered" && !dialog.supplierName.trim()) {
+                  setStatusWorkflowDialog((current) =>
+                    current
+                      ? { ...current, errorMessage: "Supplier is required before saving ORDERED." }
+                      : current,
+                  );
+                  return;
+                }
+
+                if (dialog.mode === "ordered" && !dialog.orderAmount.trim()) {
+                  setStatusWorkflowDialog((current) =>
+                    current
+                      ? { ...current, errorMessage: "Order amount is required before saving ORDERED." }
+                      : current,
+                  );
+                  return;
+                }
+
                 if (dialog.mode === "ready" && !dialog.binLocation.trim()) {
                   setStatusWorkflowDialog((current) =>
                     current
@@ -1521,6 +1706,9 @@ export default function AdminPage() {
                 void commitStatusChange(dialog.ticketId, dialog.nextStatus, {
                   expectedDeliveryDate: dialog.expectedDeliveryDate,
                   leadTimeNote: dialog.leadTimeNote,
+                  purchaseOrderNumber: dialog.purchaseOrderNumber,
+                  supplierName: dialog.supplierName,
+                  orderAmount: dialog.orderAmount,
                   binLocation: dialog.binLocation,
                 }).then((didSave) => {
                   if (didSave) {
@@ -1546,6 +1734,7 @@ export default function AdminPage() {
                 </p>
               </div>
 
+              {resourceTab === "operations" ? (
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <label className="text-sm font-medium text-[color:var(--foreground-muted)]">
                   Filter by status
@@ -1626,6 +1815,7 @@ export default function AdminPage() {
                   </button>
                 ) : null}
               </div>
+              ) : null}
             </div>
 
             <div className="mt-8">
@@ -1700,6 +1890,18 @@ export default function AdminPage() {
               </div>
             ) : null}
 
+            {resourceTab === "orders" ? (
+              <PartsOrdersDashboard
+                orders={orders}
+                isLoading={isOrdersLoading}
+                errorMessage={ordersErrorMessage}
+                isRefreshing={isOrdersLoading}
+                onRefresh={() => void loadOrders()}
+              />
+            ) : null}
+
+            {resourceTab === "operations" ? (
+              <>
             <div className="mt-6 flex justify-end">
               <button
                 type="button"
@@ -2376,6 +2578,8 @@ export default function AdminPage() {
                 )}
               </div>
             )}
+              </>
+            ) : null}
           </section>
           </>
         </AuthGuard>
@@ -2899,9 +3103,12 @@ function TicketOperationalSummary({
   const hasExpectedDelivery = Boolean(ticket.expected_delivery_date?.trim());
   const hasBinLocation = Boolean(ticket.bin_location?.trim());
   const hasLeadTimeNote = Boolean(ticket.lead_time_note?.trim());
+  const hasPurchaseOrderNumber = Boolean(ticket.purchase_order_number?.trim());
+  const hasSupplierName = Boolean(ticket.supplier_name?.trim());
+  const hasOrderAmount = typeof ticket.order_amount === "number" && !Number.isNaN(ticket.order_amount);
   const isOverdue = isTicketOrderOverdue(ticket);
 
-  if (!hasExpectedDelivery && !hasBinLocation && !hasLeadTimeNote) {
+  if (!hasExpectedDelivery && !hasBinLocation && !hasLeadTimeNote && !hasPurchaseOrderNumber && !hasSupplierName && !hasOrderAmount) {
     return null;
   }
 
@@ -2926,6 +3133,25 @@ function TicketOperationalSummary({
           <span className="font-semibold text-emerald-700">
             {ticket.bin_location}
           </span>
+        </p>
+      ) : null}
+      {hasSupplierName || hasPurchaseOrderNumber || hasOrderAmount ? (
+        <p className="text-xs leading-5 text-slate-500">
+          {hasSupplierName ? (
+            <>
+              Supplier <span className="font-semibold text-slate-700">{ticket.supplier_name}</span>
+            </>
+          ) : null}
+          {hasSupplierName && hasPurchaseOrderNumber ? " · " : null}
+          {hasPurchaseOrderNumber ? (
+            <>
+              PO <span className="font-semibold text-slate-700">{ticket.purchase_order_number}</span>
+            </>
+          ) : null}
+          {(hasSupplierName || hasPurchaseOrderNumber) && hasOrderAmount ? " · " : null}
+          {hasOrderAmount ? (
+            <span className="font-semibold text-slate-700">{formatOrderAmount(ticket.order_amount)}</span>
+          ) : null}
         </p>
       ) : null}
       {hasLeadTimeNote ? (

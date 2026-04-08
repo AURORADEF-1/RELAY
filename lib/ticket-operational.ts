@@ -5,6 +5,9 @@ export type TicketOperationalFields = {
   lead_time_note?: string | null;
   ordered_at?: string | null;
   ordered_by?: string | null;
+  purchase_order_number?: string | null;
+  supplier_name?: string | null;
+  order_amount?: number | null;
   bin_location?: string | null;
   ready_at?: string | null;
   ready_by?: string | null;
@@ -15,6 +18,13 @@ export type TicketOperationalFields = {
 export type TicketOperationalRecord = TicketOperationalFields & {
   id: string;
   job_number?: string | null;
+  machine_reference?: string | null;
+  request_summary?: string | null;
+  request_details?: string | null;
+  requester_name?: string | null;
+  assigned_to?: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
   status: string | null;
 };
 
@@ -103,12 +113,66 @@ export function formatOperationalDate(value?: string | null) {
   }).format(new Date(value));
 }
 
+export function parseOrderAmountInput(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = trimmed.replace(/,/g, "");
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return Number.NaN;
+  }
+
+  return Number(parsed.toFixed(2));
+}
+
+export function formatOrderAmount(value?: number | null) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+export function isTrackedOrderRecord(ticket: TicketOperationalRecord) {
+  return Boolean(
+    ticket.ordered_at ||
+      ticket.expected_delivery_date?.trim() ||
+      ticket.purchase_order_number?.trim() ||
+      ticket.supplier_name?.trim() ||
+      typeof ticket.order_amount === "number" ||
+      ticket.status === "ORDERED",
+  );
+}
+
 export function buildOrderedWorkflowComment(payload: {
   expectedDeliveryDate: string;
   leadTimeNote?: string | null;
+  purchaseOrderNumber?: string | null;
+  supplierName?: string | null;
+  orderAmount?: number | null;
   actorName?: string | null;
 }) {
   const base = `Expected delivery set for ${formatOperationalDate(payload.expectedDeliveryDate)}.`;
+  const poNumber = payload.purchaseOrderNumber?.trim()
+    ? ` PO ${payload.purchaseOrderNumber.trim()}.`
+    : "";
+  const supplier = payload.supplierName?.trim()
+    ? ` Supplier ${payload.supplierName.trim()}.`
+    : "";
+  const amount =
+    typeof payload.orderAmount === "number" && !Number.isNaN(payload.orderAmount)
+      ? ` Amount ${formatOrderAmount(payload.orderAmount)}.`
+      : "";
   const leadTime = payload.leadTimeNote?.trim()
     ? ` Lead time note: ${payload.leadTimeNote.trim()}`
     : "";
@@ -116,7 +180,7 @@ export function buildOrderedWorkflowComment(payload: {
     ? ` Ordered by ${payload.actorName.trim()}.`
     : "";
 
-  return `${base}${leadTime}${actor}`.trim();
+  return `${base}${poNumber}${supplier}${amount}${leadTime}${actor}`.trim();
 }
 
 export function buildReadyWorkflowComment(payload: {
