@@ -47,7 +47,7 @@ import {
   uploadTicketAttachments,
 } from "@/lib/relay-ticketing";
 import type { RelayAiContext } from "@/lib/relay-ai";
-import type { SmartSearchResponse, SmartSearchResult } from "@/lib/admin-smart-search";
+import type { SmartSearchResponse, SmartSearchResult, SmartSearchScope } from "@/lib/admin-smart-search";
 import {
   notifyRequesterOfOperatorMessage,
   notifyRequesterStatusChanged,
@@ -207,6 +207,7 @@ export default function AdminPage() {
   );
   const [smartSearchQuery, setSmartSearchQuery] = useState("");
   const [smartSearchResults, setSmartSearchResults] = useState<SmartSearchResult[]>([]);
+  const [smartSearchScope, setSmartSearchScope] = useState<SmartSearchScope>("live");
   const [isSmartSearchLoading, setIsSmartSearchLoading] = useState(false);
   const [smartSearchErrorMessage, setSmartSearchErrorMessage] = useState("");
   const [orders, setOrders] = useState<Ticket[]>([]);
@@ -509,6 +510,7 @@ export default function AdminPage() {
         },
         body: JSON.stringify({
           query: normalizedQuery,
+          scope: smartSearchScope,
         }),
       });
 
@@ -527,7 +529,7 @@ export default function AdminPage() {
     } finally {
       setIsSmartSearchLoading(false);
     }
-  }, [smartSearchQuery]);
+  }, [smartSearchQuery, smartSearchScope]);
 
   useEffect(() => {
     const storedState = window.sessionStorage.getItem(ADMIN_CHAT_READ_STORAGE_KEY);
@@ -2281,8 +2283,15 @@ export default function AdminPage() {
                 isLoading={isSmartSearchLoading}
                 errorMessage={smartSearchErrorMessage}
                 results={smartSearchResults}
+                scope={smartSearchScope}
                 onQueryChange={(value) => {
                   setSmartSearchQuery(value);
+                  if (smartSearchErrorMessage) {
+                    setSmartSearchErrorMessage("");
+                  }
+                }}
+                onScopeChange={(value) => {
+                  setSmartSearchScope(value);
                   if (smartSearchErrorMessage) {
                     setSmartSearchErrorMessage("");
                   }

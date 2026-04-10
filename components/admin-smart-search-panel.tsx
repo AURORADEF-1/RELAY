@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import type { SmartSearchResult } from "@/lib/admin-smart-search";
+import type { SmartSearchResult, SmartSearchScope } from "@/lib/admin-smart-search";
 
 const entityLabels: Record<SmartSearchResult["entity"], string> = {
   ticket: "Tickets",
@@ -18,14 +18,18 @@ export function AdminSmartSearchPanel({
   isLoading,
   errorMessage,
   results,
+  scope,
   onQueryChange,
+  onScopeChange,
   onSearch,
 }: {
   query: string;
   isLoading: boolean;
   errorMessage: string;
   results: SmartSearchResult[];
+  scope: SmartSearchScope;
   onQueryChange: (value: string) => void;
+  onScopeChange: (value: SmartSearchScope) => void;
   onSearch: () => void;
 }) {
   const groupedResults = useMemo(() => {
@@ -51,6 +55,14 @@ export function AdminSmartSearchPanel({
             </p>
           </div>
           <div className="flex w-full max-w-3xl gap-3">
+            <select
+              value={scope}
+              onChange={(event) => onScopeChange(event.target.value as SmartSearchScope)}
+              className="h-12 rounded-2xl border border-slate-300 bg-white px-4 text-sm text-slate-800 outline-none transition focus:border-slate-400"
+            >
+              <option value="live">Live Jobs</option>
+              <option value="completed">Completed Jobs</option>
+            </select>
             <input
               type="search"
               value={query}

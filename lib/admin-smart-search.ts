@@ -1,4 +1,5 @@
 export type SmartSearchEntity = "ticket" | "order" | "update" | "message" | "incident" | "task";
+export type SmartSearchScope = "live" | "completed";
 
 export type SmartSearchResult = {
   entity: SmartSearchEntity;
@@ -13,5 +14,6 @@ export type SmartSearchResult = {
 
 export type SmartSearchResponse = {
   query: string;
+  scope: SmartSearchScope;
   results: SmartSearchResult[];
 };

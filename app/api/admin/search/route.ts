@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { getRelaySessionUserFromRequest } from "@/lib/security";
-import type { SmartSearchResponse, SmartSearchResult } from "@/lib/admin-smart-search";
+import type { SmartSearchResponse, SmartSearchResult, SmartSearchScope } from "@/lib/admin-smart-search";
 
 const MAX_RESULTS_PER_ENTITY = 6;
 
@@ -85,8 +85,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
     }
 
-    const body = (await request.json().catch(() => ({}))) as { query?: string };
+    const body = (await request.json().catch(() => ({}))) as { query?: string; scope?: SmartSearchScope };
     const query = normalizeQuery(body.query ?? "");
+    const scope: SmartSearchScope = body.scope === "completed" ? "completed" : "live";
 
     if (query.length < 2) {
       return NextResponse.json({ error: "Enter at least 2 characters to search." }, { status: 400 });
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     const [ticketRows, updateRows, messageRows, incidentRows, taskRows] = await Promise.all([
       (async () => {
-        const result = await supabase
+        let ticketQuery = supabase
           .from("tickets")
           .select("id,job_number,machine_reference,requester_name,request_summary,request_details,status,department,assigned_to,notes,purchase_order_number,supplier_name,updated_at")
           .or(
@@ -142,7 +143,14 @@ export async function POST(request: NextRequest) {
               ],
               query,
             ),
-          )
+          );
+
+        ticketQuery =
+          scope === "completed"
+            ? ticketQuery.eq("status", "COMPLETED")
+            : ticketQuery.neq("status", "COMPLETED");
+
+        const result = await ticketQuery
           .order("updated_at", { ascending: false })
           .limit(MAX_RESULTS_PER_ENTITY * 2);
 
@@ -332,6 +340,7 @@ export async function POST(request: NextRequest) {
 
     const response: SmartSearchResponse = {
       query,
+      scope,
       results: [
         ...ticketResults,
         ...updateResults,
