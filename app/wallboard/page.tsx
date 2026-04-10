@@ -22,7 +22,8 @@ type WallboardMode = "inbound" | "ready";
 
 const MODE_DURATION_MS = 1000 * 60 * 5;
 const POLL_INTERVAL_MS = 1000 * 30;
-const MAX_VISIBLE_TICKETS = 8;
+const PAGE_DURATION_MS = 1000 * 12;
+const PAGE_SIZE = 12;
 
 export default function WallboardPage() {
   const [tickets, setTickets] = useState<WallboardTicket[]>([]);
@@ -31,13 +32,20 @@ export default function WallboardPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [currentMode, setCurrentMode] = useState<WallboardMode>("inbound");
   const [modeStartedAt, setModeStartedAt] = useState(() => Date.now());
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageStartedAt, setPageStartedAt] = useState(() => Date.now());
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const signatureRef = useRef("");
   const modeStartedAtRef = useRef(modeStartedAt);
+  const pageStartedAtRef = useRef(pageStartedAt);
 
   useEffect(() => {
     modeStartedAtRef.current = modeStartedAt;
   }, [modeStartedAt]);
+
+  useEffect(() => {
+    pageStartedAtRef.current = pageStartedAt;
+  }, [pageStartedAt]);
 
   useEffect(() => {
     let isActive = true;
@@ -108,6 +116,14 @@ export default function WallboardPage() {
       if (now - modeStartedAtRef.current >= MODE_DURATION_MS) {
         setCurrentMode((previousMode) => (previousMode === "inbound" ? "ready" : "inbound"));
         setModeStartedAt(now);
+        setCurrentPage(0);
+        setPageStartedAt(now);
+        return;
+      }
+
+      if (now - pageStartedAtRef.current >= PAGE_DURATION_MS) {
+        setCurrentPage((previousPage) => previousPage + 1);
+        setPageStartedAt(now);
       }
     }, 1000);
 
@@ -129,7 +145,9 @@ export default function WallboardPage() {
 
   const inboundTickets = useMemo(() => {
     return [...tickets]
-      .filter((ticket) => ticket.status !== "READY")
+      .filter(
+        (ticket) => ticket.status === "PENDING" || ticket.status === "IN_PROGRESS",
+      )
       .sort((left, right) => {
         const leftPriority = getInboundPriority(left.status);
         const rightPriority = getInboundPriority(right.status);
@@ -139,21 +157,29 @@ export default function WallboardPage() {
         }
 
         return compareIsoDates(left.created_at, right.created_at);
-      })
-      .slice(0, MAX_VISIBLE_TICKETS);
+      });
   }, [tickets]);
 
   const readyTickets = useMemo(() => {
     return [...tickets]
       .filter((ticket) => ticket.status === "READY")
-      .sort((left, right) => compareIsoDates(left.updated_at, right.updated_at))
-      .slice(0, MAX_VISIBLE_TICKETS);
+      .sort((left, right) => compareIsoDates(left.updated_at, right.updated_at));
   }, [tickets]);
 
-  const visibleTickets = currentMode === "inbound" ? inboundTickets : readyTickets;
+  const activeQueueTickets = currentMode === "inbound" ? inboundTickets : readyTickets;
+  const pageCount = Math.max(1, Math.ceil(activeQueueTickets.length / PAGE_SIZE));
+  const safePageIndex = activeQueueTickets.length === 0 ? 0 : currentPage % pageCount;
+  const visibleTickets = activeQueueTickets.slice(
+    safePageIndex * PAGE_SIZE,
+    safePageIndex * PAGE_SIZE + PAGE_SIZE,
+  );
   const secondsRemaining = Math.max(
     0,
     Math.ceil((MODE_DURATION_MS - (countdownNow - modeStartedAt)) / 1000),
+  );
+  const pageSecondsRemaining = Math.max(
+    0,
+    Math.ceil((PAGE_DURATION_MS - (countdownNow - pageStartedAt)) / 1000),
   );
   const nextModeLabel = currentMode === "inbound" ? "Ready Queue" : "Inbound Queue";
 
@@ -161,31 +187,31 @@ export default function WallboardPage() {
     <AuthGuard requiredRole="admin">
       <main className="aurora-shell overflow-hidden px-8 py-8 text-white">
         <div className="aurora-shell-inner max-w-[120rem] space-y-6">
-          <header className="rounded-[2rem] border border-white/12 bg-black/28 px-8 py-6 backdrop-blur-md">
-            <div className="flex items-center justify-between gap-6">
+          <header className="rounded-[2rem] border border-white/12 bg-black/24 px-7 py-5 backdrop-blur-md">
+            <div className="flex items-center justify-between gap-5">
               <div className="flex items-center gap-5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/aurora-logo-build.gif"
                   alt="Aurora Systems"
-                  className="h-24 w-24 object-contain"
+                  className="h-20 w-20 object-contain"
                 />
                 <div className="space-y-2">
                   <p className="text-sm font-semibold uppercase tracking-[0.38em] text-white/55">
                     Relay Wallboard
                   </p>
-                  <h1 className="text-5xl font-semibold tracking-[0.12em] text-white">
+                  <h1 className="text-4xl font-semibold tracking-[0.12em] text-white xl:text-5xl">
                     {currentMode === "inbound" ? "Inbound Queue" : "Ready Queue"}
                   </h1>
-                  <p className="text-lg text-white/70">
+                  <p className="text-base text-white/70 xl:text-lg">
                     Live office view for the 40&quot; operations screen
                   </p>
                 </div>
               </div>
 
-              <div className="grid min-w-[24rem] grid-cols-3 gap-3">
+              <div className="grid min-w-[31rem] grid-cols-4 gap-3">
                 <WallboardMetric
-                  label="Pending / Attention"
+                  label="Pending / In Progress"
                   value={inboundTickets.length}
                   accent="red"
                 />
@@ -193,6 +219,11 @@ export default function WallboardPage() {
                   label="Ready to Collect"
                   value={readyTickets.length}
                   accent="green"
+                />
+                <WallboardMetric
+                  label="Page"
+                  value={`${activeQueueTickets.length === 0 ? 0 : safePageIndex + 1}/${pageCount}`}
+                  accent="neutral"
                 />
                 <WallboardMetric
                   label={`Next: ${nextModeLabel}`}
@@ -203,7 +234,7 @@ export default function WallboardPage() {
             </div>
           </header>
 
-          <section className="grid min-h-[66vh] gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid min-h-[70vh] auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {visibleTickets.length > 0 ? (
               visibleTickets.map((ticket) => (
                 <article
@@ -215,7 +246,7 @@ export default function WallboardPage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.34em] text-white/45">
                         Job
                       </p>
-                      <p className="mt-2 text-4xl font-semibold tracking-[0.08em] text-white">
+                      <p className="mt-2 text-3xl font-semibold tracking-[0.08em] text-white 2xl:text-4xl">
                         {ticket.job_number ?? "Unassigned"}
                       </p>
                     </div>
@@ -224,28 +255,28 @@ export default function WallboardPage() {
                     </span>
                   </div>
 
-                  <div className="mt-6 space-y-4">
+                  <div className="mt-5 grid gap-3">
                     <WallboardMeta label="Machine" value={ticket.machine_reference ?? "Not set"} />
-                    <WallboardMeta
-                      label="Requested By"
-                      value={ticket.requester_name ?? "Unknown requester"}
-                    />
                     <WallboardMeta
                       label={currentMode === "ready" ? "Prepared By" : "Assigned To"}
                       value={ticket.assigned_to ?? "Awaiting assignment"}
                     />
+                    <WallboardMeta
+                      label="Requested By"
+                      value={ticket.requester_name ?? "Unknown requester"}
+                    />
                   </div>
 
-                  <div className="mt-6">
+                  <div className="mt-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.34em] text-white/45">
                       Request
                     </p>
-                    <p className="mt-3 max-h-[8.5rem] overflow-hidden text-2xl leading-tight text-white/92">
+                    <p className="mt-3 max-h-[6.75rem] overflow-hidden text-xl leading-snug text-white/92 2xl:text-2xl">
                       {ticket.request_summary ?? ticket.request_details ?? "No summary provided"}
                     </p>
                   </div>
 
-                  <div className="mt-auto pt-6 text-sm font-medium uppercase tracking-[0.2em] text-white/52">
+                  <div className="mt-auto pt-5 text-sm font-medium uppercase tracking-[0.2em] text-white/52">
                     {currentMode === "ready" ? "Ready since" : "Waiting since"}{" "}
                     {formatRelativeAge(ticket.updated_at ?? ticket.created_at)}
                   </div>
@@ -269,10 +300,11 @@ export default function WallboardPage() {
 
           <footer className="flex items-center justify-between rounded-[2rem] border border-white/10 bg-black/22 px-6 py-4 text-sm text-white/60 backdrop-blur-sm">
             <p>
-              Refreshes every {Math.floor(POLL_INTERVAL_MS / 1000)} seconds. Designed for low-load
-              TV display in Chrome.
+              Refreshes every {Math.floor(POLL_INTERVAL_MS / 1000)} seconds. Page flips every{" "}
+              {Math.floor(PAGE_DURATION_MS / 1000)} seconds for low-load full-queue coverage.
             </p>
-            <p>
+            <p className="text-right">
+              <span className="mr-5">Next page {formatCountdown(pageSecondsRemaining)}</span>
               {lastUpdatedAt ? `Last synced ${formatClock(lastUpdatedAt)}` : "Waiting for first sync"}
             </p>
           </footer>
@@ -299,9 +331,9 @@ function WallboardMetric({
         : "border-white/10 bg-white/6 text-white";
 
   return (
-    <div className={`rounded-[1.5rem] border px-4 py-4 backdrop-blur-sm ${accentClass}`}>
+    <div className={`rounded-[1.35rem] border px-4 py-3.5 backdrop-blur-sm ${accentClass}`}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-white/55">{label}</p>
-      <p className="mt-3 text-3xl font-semibold tracking-[0.06em]">{value}</p>
+      <p className="mt-2.5 text-3xl font-semibold tracking-[0.06em]">{value}</p>
     </div>
   );
 }
@@ -310,7 +342,7 @@ function WallboardMeta({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/42">{label}</p>
-      <p className="mt-2 text-xl text-white/90">{value}</p>
+      <p className="mt-1.5 text-lg text-white/90 2xl:text-xl">{value}</p>
     </div>
   );
 }
@@ -340,7 +372,7 @@ function compareIsoDates(left: string | null, right: string | null) {
 
 function getWallboardCardClass(status: string | null) {
   const baseClass =
-    "flex min-h-[24rem] flex-col rounded-[2rem] border px-6 py-6 backdrop-blur-sm transition-transform";
+    "flex min-h-[20rem] flex-col rounded-[1.8rem] border px-5 py-5 backdrop-blur-sm transition-transform";
 
   switch (status) {
     case "PENDING":
