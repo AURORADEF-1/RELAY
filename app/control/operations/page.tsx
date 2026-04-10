@@ -22,8 +22,8 @@ export default function OperationsOverviewPage() {
               <Link href="/" className="aurora-link">
                 Home
               </Link>
-              <Link href="/requests" className="aurora-link">
-                My Requests
+              <Link href="/admin?tab=search" className="aurora-link">
+                Smart Search
                 <NotificationBadge count={requesterUnreadCount} />
               </Link>
               <Link href="/incidents" className="aurora-link">

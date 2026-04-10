@@ -1,0 +1,314 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getRelaySessionUserFromRequest, sanitizeUserFacingError } from "@/lib/security";
+import type { SmartSearchResponse, SmartSearchResult } from "@/lib/admin-smart-search";
+
+const MAX_RESULTS_PER_ENTITY = 6;
+
+function getSupabasePublicConfig() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null;
+  }
+
+  return { supabaseUrl, supabaseAnonKey };
+}
+
+function deriveAdminFromUser(user: { email?: string | null }, role: string | null) {
+  const normalizedRole = role?.trim().toLowerCase() ?? "";
+
+  if (normalizedRole === "admin") {
+    return true;
+  }
+
+  const email = (user.email ?? "").trim().toLowerCase();
+  const emailLocalPart = email.split("@")[0] || "";
+
+  return email === "admin@mlp.local" || emailLocalPart.endsWith(".admin");
+}
+
+async function fetchRestRows(
+  request: NextRequest,
+  path: string,
+  searchParams: Record<string, string>,
+) {
+  const config = getSupabasePublicConfig();
+  const authorization = request.headers.get("authorization");
+
+  if (!config || !authorization) {
+    throw new Error("Authentication is required.");
+  }
+
+  const url = new URL(`${config.supabaseUrl}/rest/v1/${path}`);
+
+  Object.entries(searchParams).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      apikey: config.supabaseAnonKey,
+      Authorization: authorization,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Search query failed for ${path}.`);
+  }
+
+  return response.json();
+}
+
+function normalizeQuery(rawValue: string) {
+  return rawValue.trim().replace(/\s+/g, " ");
+}
+
+function buildIlikeOr(fields: string[], query: string) {
+  const escaped = query.replace(/[%]/g, "").replace(/,/g, " ");
+  return fields.map((field) => `${field}.ilike.*${escaped}*`).join(",");
+}
+
+function buildSearchScore(parts: Array<string | null | undefined>, query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const haystack = parts
+    .map((value) => value?.trim().toLowerCase() ?? "")
+    .filter(Boolean)
+    .join(" ");
+
+  if (!haystack || !normalizedQuery) {
+    return 0;
+  }
+
+  if (haystack === normalizedQuery) {
+    return 120;
+  }
+
+  if (haystack.startsWith(normalizedQuery)) {
+    return 90;
+  }
+
+  if (haystack.includes(normalizedQuery)) {
+    return 60;
+  }
+
+  const tokens = normalizedQuery.split(" ").filter(Boolean);
+  return tokens.reduce((score, token) => score + (haystack.includes(token) ? 15 : 0), 0);
+}
+
+function truncateSnippet(value: string | null | undefined, fallback: string) {
+  const normalized = value?.trim() || fallback;
+  return normalized.length > 180 ? `${normalized.slice(0, 177)}...` : normalized;
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getRelaySessionUserFromRequest(request);
+
+    if (!user?.id) {
+      return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+    }
+
+    const body = (await request.json().catch(() => ({}))) as { query?: string };
+    const query = normalizeQuery(body.query ?? "");
+
+    if (query.length < 2) {
+      return NextResponse.json({ error: "Enter at least 2 characters to search." }, { status: 400 });
+    }
+
+    const profileRows = (await fetchRestRows(request, "profiles", {
+      select: "role",
+      id: `eq.${user.id}`,
+      limit: "1",
+    })) as Array<{ role?: string | null }>;
+
+    const role = typeof profileRows[0]?.role === "string" ? profileRows[0].role : null;
+
+    if (!deriveAdminFromUser(user, role)) {
+      return NextResponse.json({ error: "Admin access is required for smart search." }, { status: 403 });
+    }
+
+    const [ticketRows, updateRows, messageRows, incidentRows, taskRows] = await Promise.all([
+      fetchRestRows(request, "tickets", {
+        select:
+          "id,job_number,machine_reference,requester_name,request_summary,request_details,status,department,assigned_to,notes,purchase_order_number,supplier_name,updated_at",
+        or: `(${buildIlikeOr(
+          [
+            "job_number",
+            "machine_reference",
+            "requester_name",
+            "request_summary",
+            "request_details",
+            "notes",
+            "purchase_order_number",
+            "supplier_name",
+            "assigned_to",
+          ],
+          query,
+        )})`,
+        order: "updated_at.desc",
+        limit: String(MAX_RESULTS_PER_ENTITY * 2),
+      }),
+      fetchRestRows(request, "ticket_updates", {
+        select: "id,ticket_id,comment,created_at",
+        or: `(${buildIlikeOr(["comment"], query)})`,
+        order: "created_at.desc",
+        limit: String(MAX_RESULTS_PER_ENTITY),
+      }),
+      fetchRestRows(request, "ticket_messages", {
+        select: "id,ticket_id,message_text,sender_role,created_at",
+        or: `(${buildIlikeOr(["message_text"], query)})`,
+        order: "created_at.desc",
+        limit: String(MAX_RESULTS_PER_ENTITY),
+      }),
+      fetchRestRows(request, "workshop_incidents", {
+        select:
+          "id,job_number,machine_reference,reported_by,description,status,severity,assigned_to,updated_at",
+        or: `(${buildIlikeOr(
+          ["job_number", "machine_reference", "reported_by", "description", "assigned_to"],
+          query,
+        )})`,
+        order: "updated_at.desc",
+        limit: String(MAX_RESULTS_PER_ENTITY),
+      }),
+      fetchRestRows(request, "user_tasks", {
+        select: "id,title,description,status,assigned_to,due_at,updated_at",
+        or: `(${buildIlikeOr(["title", "description", "assigned_to"], query)})`,
+        order: "updated_at.desc",
+        limit: String(MAX_RESULTS_PER_ENTITY),
+      }),
+    ]);
+
+    const ticketResults = ((ticketRows ?? []) as Array<Record<string, string | null>>).flatMap((row) => {
+      const sharedTitle = row.job_number?.trim()
+        ? `Job ${row.job_number.trim()}`
+        : row.machine_reference?.trim() || "Ticket";
+      const sharedSubtitle = [row.status, row.requester_name].filter(Boolean).join(" · ") || "Parts request";
+      const sharedSnippet = truncateSnippet(
+        row.request_summary || row.request_details || row.notes,
+        "No request summary provided.",
+      );
+      const sharedMeta = [row.department, row.assigned_to].filter(Boolean).join(" · ") || "Ticket";
+      const baseScore = buildSearchScore(
+        [
+          row.job_number,
+          row.machine_reference,
+          row.requester_name,
+          row.request_summary,
+          row.request_details,
+          row.notes,
+          row.purchase_order_number,
+          row.supplier_name,
+        ],
+        query,
+      );
+
+      const results: SmartSearchResult[] = [
+        {
+          entity: "ticket",
+          id: String(row.id),
+          title: sharedTitle,
+          subtitle: sharedSubtitle,
+          snippet: sharedSnippet,
+          href: `/tickets/${row.id}`,
+          meta: sharedMeta,
+          score: baseScore + 20,
+        },
+      ];
+
+      if (
+        row.status === "ORDERED" ||
+        row.status === "READY" ||
+        row.status === "COMPLETED" ||
+        row.purchase_order_number?.trim() ||
+        row.supplier_name?.trim()
+      ) {
+        results.push({
+          entity: "order",
+          id: `${row.id}-order`,
+          title: row.purchase_order_number?.trim()
+            ? `PO ${row.purchase_order_number.trim()}`
+            : sharedTitle,
+          subtitle: row.supplier_name?.trim()
+            ? `${row.supplier_name.trim()} · ${row.status ?? "ORDER"}`
+            : row.status ?? "ORDER",
+          snippet: sharedSnippet,
+          href: `/tickets/${row.id}`,
+          meta: [row.purchase_order_number, row.supplier_name].filter(Boolean).join(" · ") || "Order record",
+          score: baseScore + 10,
+        });
+      }
+
+      return results;
+    });
+
+    const updateResults = ((updateRows ?? []) as Array<Record<string, string | null>>).map((row) => ({
+      entity: "update" as const,
+      id: String(row.id),
+      title: `Ticket Update ${String(row.ticket_id).slice(0, 8)}`,
+      subtitle: row.created_at ?? "Recent update",
+      snippet: truncateSnippet(row.comment, "No update text provided."),
+      href: `/tickets/${row.ticket_id}`,
+      meta: "Ticket history",
+      score: buildSearchScore([row.comment], query) + 8,
+    }));
+
+    const messageResults = ((messageRows ?? []) as Array<Record<string, string | null>>).map((row) => ({
+      entity: "message" as const,
+      id: String(row.id),
+      title: `Ticket Message ${String(row.ticket_id).slice(0, 8)}`,
+      subtitle: row.sender_role?.trim() || "Message",
+      snippet: truncateSnippet(row.message_text, "No message text provided."),
+      href: `/tickets/${row.ticket_id}`,
+      meta: row.created_at ?? "Recent message",
+      score: buildSearchScore([row.message_text], query) + 6,
+    }));
+
+    const incidentResults = ((incidentRows ?? []) as Array<Record<string, string | null>>).map((row) => ({
+      entity: "incident" as const,
+      id: String(row.id),
+      title: row.job_number?.trim() ? `Incident Job ${row.job_number.trim()}` : row.machine_reference?.trim() || "Incident",
+      subtitle: [row.status, row.severity].filter(Boolean).join(" · ") || "Workshop incident",
+      snippet: truncateSnippet(row.description, "No incident description provided."),
+      href: `/incidents/${row.id}`,
+      meta: [row.reported_by, row.assigned_to].filter(Boolean).join(" · ") || "Workshop Control",
+      score: buildSearchScore(
+        [row.job_number, row.machine_reference, row.reported_by, row.description, row.assigned_to],
+        query,
+      ) + 12,
+    }));
+
+    const taskResults = ((taskRows ?? []) as Array<Record<string, string | null>>).map((row) => ({
+      entity: "task" as const,
+      id: String(row.id),
+      title: row.title?.trim() || "Task",
+      subtitle: row.status?.trim() || "Task",
+      snippet: truncateSnippet(row.description, "No task description provided."),
+      href: "/incidents/tasks",
+      meta: [row.assigned_to, row.due_at].filter(Boolean).join(" · ") || "Workshop task",
+      score: buildSearchScore([row.title, row.description, row.assigned_to], query) + 4,
+    }));
+
+    const response: SmartSearchResponse = {
+      query,
+      results: [
+        ...ticketResults,
+        ...updateResults,
+        ...messageResults,
+        ...incidentResults,
+        ...taskResults,
+      ]
+        .sort((left, right) => right.score - left.score)
+        .slice(0, 24),
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    return NextResponse.json(
+      { error: sanitizeUserFacingError(error, "Smart search is unavailable right now.") },
+      { status: 500 },
+    );
+  }
+}

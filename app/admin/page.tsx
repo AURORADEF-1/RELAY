@@ -8,6 +8,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
+import { AdminSmartSearchPanel } from "@/components/admin-smart-search-panel";
 import { PartsOrdersDashboard } from "@/components/parts-orders-dashboard";
 import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
@@ -46,6 +47,7 @@ import {
   uploadTicketAttachments,
 } from "@/lib/relay-ticketing";
 import type { RelayAiContext } from "@/lib/relay-ai";
+import type { SmartSearchResponse, SmartSearchResult } from "@/lib/admin-smart-search";
 import {
   notifyRequesterOfOperatorMessage,
   notifyRequesterStatusChanged,
@@ -200,9 +202,13 @@ export default function AdminPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
-  const [resourceTab, setResourceTab] = useState<"operations" | "orders" | "guide" | "faq">(
+  const [resourceTab, setResourceTab] = useState<"operations" | "search" | "orders" | "guide" | "faq">(
     "operations",
   );
+  const [smartSearchQuery, setSmartSearchQuery] = useState("");
+  const [smartSearchResults, setSmartSearchResults] = useState<SmartSearchResult[]>([]);
+  const [isSmartSearchLoading, setIsSmartSearchLoading] = useState(false);
+  const [smartSearchErrorMessage, setSmartSearchErrorMessage] = useState("");
   const [orders, setOrders] = useState<Ticket[]>([]);
   const [ordersFilter, setOrdersFilter] = useState<OrdersFilterKey>("live");
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
@@ -372,7 +378,7 @@ export default function AdminPage() {
     }
 
     const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab === "guide" || tab === "faq" || tab === "orders") {
+    if (tab === "guide" || tab === "faq" || tab === "orders" || tab === "search") {
       setResourceTab(tab);
       return;
     }
@@ -475,6 +481,53 @@ export default function AdminPage() {
 
     void loadOrders();
   }, [loadOrders, ordersFilter, resourceTab]);
+
+  const handleSmartSearch = useCallback(async () => {
+    const normalizedQuery = smartSearchQuery.trim();
+
+    if (normalizedQuery.length < 2) {
+      setSmartSearchErrorMessage("Enter at least 2 characters to search.");
+      setSmartSearchResults([]);
+      return;
+    }
+
+    setIsSmartSearchLoading(true);
+    setSmartSearchErrorMessage("");
+
+    try {
+      const accessToken = await getSupabaseAccessToken();
+
+      if (!accessToken) {
+        throw new Error("Authentication is required.");
+      }
+
+      const response = await fetch("/api/admin/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          query: normalizedQuery,
+        }),
+      });
+
+      const payload = (await response.json()) as SmartSearchResponse & { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Smart search failed.");
+      }
+
+      setSmartSearchResults(payload.results ?? []);
+    } catch (error) {
+      setSmartSearchResults([]);
+      setSmartSearchErrorMessage(
+        sanitizeUserFacingError(error, "Smart search is unavailable right now."),
+      );
+    } finally {
+      setIsSmartSearchLoading(false);
+    }
+  }, [smartSearchQuery]);
 
   useEffect(() => {
     const storedState = window.sessionStorage.getItem(ADMIN_CHAT_READ_STORAGE_KEY);
@@ -1856,10 +1909,10 @@ export default function AdminPage() {
               Submit Ticket
             </Link>
             <Link
-              href="/requests"
+              href="/admin?tab=search"
               className="aurora-link"
             >
-              My Requests
+              Smart Search
               <NotificationBadge count={requesterUnreadCount} />
             </Link>
             <Link href="/tasks" className="aurora-link">
@@ -2220,6 +2273,22 @@ export default function AdminPage() {
               <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 Parts Control is active below. Use live workflow views, filters, chats, and queue tools to manage operational demand.
               </div>
+            ) : null}
+
+            {resourceTab === "search" ? (
+              <AdminSmartSearchPanel
+                query={smartSearchQuery}
+                isLoading={isSmartSearchLoading}
+                errorMessage={smartSearchErrorMessage}
+                results={smartSearchResults}
+                onQueryChange={(value) => {
+                  setSmartSearchQuery(value);
+                  if (smartSearchErrorMessage) {
+                    setSmartSearchErrorMessage("");
+                  }
+                }}
+                onSearch={() => void handleSmartSearch()}
+              />
             ) : null}
 
             {resourceTab === "orders" ? (
