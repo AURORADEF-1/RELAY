@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { getRelaySessionUserFromRequest, sanitizeUserFacingError } from "@/lib/security";
+import { getRelaySessionUserFromRequest } from "@/lib/security";
 import type { SmartSearchResponse, SmartSearchResult } from "@/lib/admin-smart-search";
 
 const MAX_RESULTS_PER_ENTITY = 6;
@@ -120,80 +120,107 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Admin access is required for smart search." }, { status: 403 });
     }
 
+    const warnings: string[] = [];
+
     const [ticketRows, updateRows, messageRows, incidentRows, taskRows] = await Promise.all([
-      supabase
-        .from("tickets")
-        .select("id,job_number,machine_reference,requester_name,request_summary,request_details,status,department,assigned_to,notes,purchase_order_number,supplier_name,updated_at")
-        .or(
-          buildIlikeOr(
-            [
-              "job_number",
-              "machine_reference",
-              "requester_name",
-              "request_summary",
-              "request_details",
-              "notes",
-              "purchase_order_number",
-              "supplier_name",
-              "assigned_to",
-            ],
-            query,
-          ),
-        )
-        .order("updated_at", { ascending: false })
-        .limit(MAX_RESULTS_PER_ENTITY * 2),
-      supabase
-        .from("ticket_updates")
-        .select("id,ticket_id,comment,created_at")
-        .or(buildIlikeOr(["comment"], query))
-        .order("created_at", { ascending: false })
-        .limit(MAX_RESULTS_PER_ENTITY),
-      supabase
-        .from("ticket_messages")
-        .select("id,ticket_id,message_text,sender_role,created_at")
-        .or(buildIlikeOr(["message_text"], query))
-        .order("created_at", { ascending: false })
-        .limit(MAX_RESULTS_PER_ENTITY),
-      supabase
-        .from("workshop_incidents")
-        .select("id,job_number,machine_reference,reported_by,description,status,severity,assigned_to,updated_at")
-        .or(
-          buildIlikeOr(
-            ["job_number", "machine_reference", "reported_by", "description", "assigned_to"],
-            query,
-          ),
-        )
-        .order("updated_at", { ascending: false })
-        .limit(MAX_RESULTS_PER_ENTITY),
-      supabase
-        .from("user_tasks")
-        .select("id,title,description,status,assigned_to,due_at,updated_at")
-        .or(buildIlikeOr(["title", "description", "assigned_to"], query))
-        .order("updated_at", { ascending: false })
-        .limit(MAX_RESULTS_PER_ENTITY),
+      (async () => {
+        const result = await supabase
+          .from("tickets")
+          .select("id,job_number,machine_reference,requester_name,request_summary,request_details,status,department,assigned_to,notes,purchase_order_number,supplier_name,updated_at")
+          .or(
+            buildIlikeOr(
+              [
+                "job_number",
+                "machine_reference",
+                "requester_name",
+                "request_summary",
+                "request_details",
+                "notes",
+                "purchase_order_number",
+                "supplier_name",
+                "assigned_to",
+              ],
+              query,
+            ),
+          )
+          .order("updated_at", { ascending: false })
+          .limit(MAX_RESULTS_PER_ENTITY * 2);
+
+        if (result.error) {
+          warnings.push(`Tickets: ${result.error.message}`);
+          return [];
+        }
+
+        return result.data ?? [];
+      })(),
+      (async () => {
+        const result = await supabase
+          .from("ticket_updates")
+          .select("id,ticket_id,comment,created_at")
+          .or(buildIlikeOr(["comment"], query))
+          .order("created_at", { ascending: false })
+          .limit(MAX_RESULTS_PER_ENTITY);
+
+        if (result.error) {
+          warnings.push(`Updates: ${result.error.message}`);
+          return [];
+        }
+
+        return result.data ?? [];
+      })(),
+      (async () => {
+        const result = await supabase
+          .from("ticket_messages")
+          .select("id,ticket_id,message_text,sender_role,created_at")
+          .or(buildIlikeOr(["message_text"], query))
+          .order("created_at", { ascending: false })
+          .limit(MAX_RESULTS_PER_ENTITY);
+
+        if (result.error) {
+          warnings.push(`Messages: ${result.error.message}`);
+          return [];
+        }
+
+        return result.data ?? [];
+      })(),
+      (async () => {
+        const result = await supabase
+          .from("workshop_incidents")
+          .select("id,job_number,machine_reference,reported_by,description,status,severity,assigned_to,updated_at")
+          .or(
+            buildIlikeOr(
+              ["job_number", "machine_reference", "reported_by", "description", "assigned_to"],
+              query,
+            ),
+          )
+          .order("updated_at", { ascending: false })
+          .limit(MAX_RESULTS_PER_ENTITY);
+
+        if (result.error) {
+          warnings.push(`Incidents: ${result.error.message}`);
+          return [];
+        }
+
+        return result.data ?? [];
+      })(),
+      (async () => {
+        const result = await supabase
+          .from("user_tasks")
+          .select("id,title,description,status,assigned_to,due_at,updated_at")
+          .or(buildIlikeOr(["title", "description", "assigned_to"], query))
+          .order("updated_at", { ascending: false })
+          .limit(MAX_RESULTS_PER_ENTITY);
+
+        if (result.error) {
+          warnings.push(`Tasks: ${result.error.message}`);
+          return [];
+        }
+
+        return result.data ?? [];
+      })(),
     ]);
 
-    if (ticketRows.error) {
-      throw new Error(ticketRows.error.message);
-    }
-
-    if (updateRows.error) {
-      throw new Error(updateRows.error.message);
-    }
-
-    if (messageRows.error) {
-      throw new Error(messageRows.error.message);
-    }
-
-    if (incidentRows.error) {
-      throw new Error(incidentRows.error.message);
-    }
-
-    if (taskRows.error) {
-      throw new Error(taskRows.error.message);
-    }
-
-    const ticketResults = (ticketRows.data ?? []).flatMap((row) => {
+    const ticketResults = (ticketRows ?? []).flatMap((row) => {
       const sharedTitle = row.job_number?.trim()
         ? `Job ${row.job_number.trim()}`
         : row.machine_reference?.trim() || "Ticket";
@@ -256,7 +283,7 @@ export async function POST(request: NextRequest) {
       return results;
     });
 
-    const updateResults: SmartSearchResult[] = (updateRows.data ?? []).map((row) => ({
+    const updateResults: SmartSearchResult[] = (updateRows ?? []).map((row) => ({
       entity: "update",
       id: String(row.id),
       title: `Ticket Update ${String(row.ticket_id).slice(0, 8)}`,
@@ -267,7 +294,7 @@ export async function POST(request: NextRequest) {
       score: buildSearchScore([row.comment], query) + 8,
     }));
 
-    const messageResults: SmartSearchResult[] = (messageRows.data ?? []).map((row) => ({
+    const messageResults: SmartSearchResult[] = (messageRows ?? []).map((row) => ({
       entity: "message",
       id: String(row.id),
       title: `Ticket Message ${String(row.ticket_id).slice(0, 8)}`,
@@ -278,7 +305,7 @@ export async function POST(request: NextRequest) {
       score: buildSearchScore([row.message_text], query) + 6,
     }));
 
-    const incidentResults: SmartSearchResult[] = (incidentRows.data ?? []).map((row) => ({
+    const incidentResults: SmartSearchResult[] = (incidentRows ?? []).map((row) => ({
       entity: "incident",
       id: String(row.id),
       title: row.job_number?.trim() ? `Incident Job ${row.job_number.trim()}` : row.machine_reference?.trim() || "Incident",
@@ -292,7 +319,7 @@ export async function POST(request: NextRequest) {
       ) + 12,
     }));
 
-    const taskResults: SmartSearchResult[] = (taskRows.data ?? []).map((row) => ({
+    const taskResults: SmartSearchResult[] = (taskRows ?? []).map((row) => ({
       entity: "task",
       id: String(row.id),
       title: row.title?.trim() || "Task",
@@ -316,10 +343,19 @@ export async function POST(request: NextRequest) {
         .slice(0, 24),
     };
 
+    if (response.results.length === 0 && warnings.length > 0) {
+      return NextResponse.json(
+        { error: `Smart search partial failure. ${warnings.join(" | ")}` },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json(response);
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Smart search is unavailable right now.";
+    console.error("Admin smart search failed", message);
     return NextResponse.json(
-      { error: sanitizeUserFacingError(error, "Smart search is unavailable right now.") },
+      { error: message },
       { status: 500 },
     );
   }

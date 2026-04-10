@@ -522,7 +522,7 @@ export default function AdminPage() {
     } catch (error) {
       setSmartSearchResults([]);
       setSmartSearchErrorMessage(
-        sanitizeUserFacingError(error, "Smart search is unavailable right now."),
+        error instanceof Error ? error.message : "Smart search is unavailable right now.",
       );
     } finally {
       setIsSmartSearchLoading(false);
