@@ -71,6 +71,7 @@ import {
   fetchProfileDisplayNamesByUserId,
   getCurrentUserWithRole,
 } from "@/lib/profile-access";
+import { getAdaptivePollDelay, usePageActivity } from "@/lib/page-activity";
 import {
   extractRequesterReturnReason,
   REQUESTER_COLLECTED_COMMENT,
@@ -94,6 +95,7 @@ const ADMIN_PAGE_SIZE_OPTIONS = [15, 25, 50] as const;
 const OVERSIGHT_PENDING_DELAY_MS = 60_000;
 const OVERSIGHT_TIMER_INTERVAL_MS = 30_000;
 const ADMIN_REALTIME_BATCH_DELAY_MS = 900;
+const ADMIN_OPERATIONS_FALLBACK_POLL_MS = 20_000;
 
 function isActiveTicketStatusValue(status: TicketStatus | null | undefined): status is ActiveTicketStatus {
   return activeTicketStatuses.includes((status ?? "PENDING") as ActiveTicketStatus);
@@ -163,6 +165,7 @@ const ORDERED_WORKFLOW_MIGRATION_HINT =
 
 export default function AdminPage() {
   const router = useRouter();
+  const { isVisible, isIdle, isInteractive } = usePageActivity();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
   const loadTicketsRequestIdRef = useRef(0);
   const requesterMessagesRequestIdRef = useRef(0);
@@ -1034,6 +1037,58 @@ export default function AdminPage() {
       void supabase.removeChannel(queueChannel);
     };
   }, [loadTickets, resourceTab, scheduleRealtimeBatch]);
+
+  useEffect(() => {
+    if (resourceTab !== "operations") {
+      return;
+    }
+
+    let cancelled = false;
+    let failureCount = 0;
+    let timeoutId: number | null = null;
+
+    const runRefresh = async () => {
+      try {
+        if (!cancelled && isInteractive) {
+          await loadTickets();
+          failureCount = 0;
+        }
+      } catch {
+        failureCount += 1;
+      } finally {
+        if (!cancelled) {
+          const nextDelay = getAdaptivePollDelay(ADMIN_OPERATIONS_FALLBACK_POLL_MS, {
+            isVisible,
+            isIdle,
+            failureCount,
+            maxMs: 90_000,
+          });
+
+          timeoutId = window.setTimeout(() => {
+            void runRefresh();
+          }, nextDelay);
+        }
+      }
+    };
+
+    const initialDelay = getAdaptivePollDelay(ADMIN_OPERATIONS_FALLBACK_POLL_MS, {
+      isVisible,
+      isIdle,
+      maxMs: 90_000,
+    });
+
+    timeoutId = window.setTimeout(() => {
+      void runRefresh();
+    }, initialDelay);
+
+    return () => {
+      cancelled = true;
+
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [isIdle, isInteractive, isVisible, loadTickets, resourceTab]);
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
