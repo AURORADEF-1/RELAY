@@ -7,7 +7,6 @@ import type { SmartSearchResult, SmartSearchScope } from "@/lib/admin-smart-sear
 const entityLabels: Record<SmartSearchResult["entity"], string> = {
   ticket: "Tickets",
   order: "Orders",
-  message: "Messages",
   incident: "Incidents",
   task: "Tasks",
 };
@@ -50,7 +49,7 @@ export function AdminSmartSearchPanel({
               Smart Search
             </p>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Search tickets, orders, chat, incidents, and tasks from one place. Results are fetched only on demand, so there is no background load.
+              Search tickets, orders, incidents, and tasks from one place. Results are fetched only on demand, so there is no background load.
             </p>
           </div>
           <div className="flex w-full max-w-3xl gap-3">
@@ -72,7 +71,7 @@ export function AdminSmartSearchPanel({
                   onSearch();
                 }
               }}
-              placeholder="Search job number, machine ref, requester, PO, supplier, notes, messages..."
+              placeholder="Search job number, machine ref, requester, PO, supplier, notes..."
               className="h-12 flex-1 rounded-2xl border border-slate-300 bg-white px-4 text-sm text-slate-800 outline-none transition focus:border-slate-400"
             />
             <button

@@ -1,4 +1,4 @@
-export type SmartSearchEntity = "ticket" | "order" | "message" | "incident" | "task";
+export type SmartSearchEntity = "ticket" | "order" | "incident" | "task";
 export type SmartSearchScope = "live" | "completed";
 
 export type SmartSearchResult = {

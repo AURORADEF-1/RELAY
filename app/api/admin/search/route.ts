@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     const warnings: string[] = [];
 
-    const [ticketRows, messageRows, incidentRows, taskRows] = await Promise.all([
+    const [ticketRows, incidentRows, taskRows] = await Promise.all([
       (async () => {
         let ticketQuery = supabase
           .from("tickets")
@@ -156,21 +156,6 @@ export async function POST(request: NextRequest) {
 
         if (result.error) {
           warnings.push(`Tickets: ${result.error.message}`);
-          return [];
-        }
-
-        return result.data ?? [];
-      })(),
-      (async () => {
-        const result = await supabase
-          .from("ticket_messages")
-          .select("id,ticket_id,message_text,sender_role,created_at")
-          .or(buildIlikeOr(["message_text"], query))
-          .order("created_at", { ascending: false })
-          .limit(MAX_RESULTS_PER_ENTITY);
-
-        if (result.error) {
-          warnings.push(`Messages: ${result.error.message}`);
           return [];
         }
 
@@ -276,17 +261,6 @@ export async function POST(request: NextRequest) {
       return results;
     });
 
-    const messageResults: SmartSearchResult[] = (messageRows ?? []).map((row) => ({
-      entity: "message",
-      id: String(row.id),
-      title: `Ticket Message ${String(row.ticket_id).slice(0, 8)}`,
-      subtitle: row.sender_role?.trim() || "Message",
-      snippet: truncateSnippet(row.message_text, "No message text provided."),
-      href: `/tickets/${row.ticket_id}`,
-      meta: row.created_at ?? "Recent message",
-      score: buildSearchScore([row.message_text], query) + 6,
-    }));
-
     const incidentResults: SmartSearchResult[] = (incidentRows ?? []).map((row) => ({
       entity: "incident",
       id: String(row.id),
@@ -317,7 +291,6 @@ export async function POST(request: NextRequest) {
       scope,
       results: [
         ...ticketResults,
-        ...messageResults,
         ...incidentResults,
         ...taskResults,
       ]
