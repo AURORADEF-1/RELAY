@@ -211,6 +211,30 @@ select:focus-visible {
   color: var(--accent-foreground);
 }
 
+@keyframes wallboard-alert {
+  0%, 100% {
+    opacity: 1;
+    transform: translateZ(0);
+  }
+
+  50% {
+    opacity: 0.78;
+    transform: translateZ(0) scale(1.01);
+  }
+}
+
+@keyframes wallboard-warning {
+  0%, 100% {
+    opacity: 1;
+    transform: translateZ(0);
+  }
+
+  50% {
+    opacity: 0.84;
+    transform: translateZ(0) scale(1.008);
+  }
+}
+
 .aurora-section {
   border: 1px solid var(--border);
   background: var(--background-panel);

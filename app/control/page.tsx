@@ -49,6 +49,14 @@ export default function ControlPage() {
               >
                 Open Ops View
               </Link>
+              <Link
+                href="/wallboard"
+                target="_blank"
+                rel="noreferrer"
+                className="aurora-link"
+              >
+                TV Wallboard
+              </Link>
               <ThemeToggleButton />
               <LogoutButton />
             </div>

@@ -42,6 +42,14 @@ export default function OperationsOverviewPage() {
               >
                 Ops Overview
               </Link>
+              <Link
+                href="/wallboard"
+                target="_blank"
+                rel="noreferrer"
+                className="aurora-link"
+              >
+                TV Wallboard
+              </Link>
               <ThemeToggleButton />
               <LogoutButton />
             </div>
