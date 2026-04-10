@@ -36,6 +36,7 @@ type OverviewTaskRow = {
 };
 
 type OverviewReturnRow = {
+  id: string;
   ticket_id: string | null;
   comment: string | null;
   created_at: string | null;
@@ -47,6 +48,7 @@ type OverviewSnapshot = {
   openTasks: OverviewTaskRow[];
   activeUsersCount: number;
   returns: Array<{
+    updateId: string;
     ticketId: string;
     jobNumber: string | null;
     reason: string;
@@ -66,6 +68,8 @@ export function AdminOperationsOverview() {
   const [snapshot, setSnapshot] = useState<OverviewSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [deletingReturnUpdateId, setDeletingReturnUpdateId] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   const loadOverview = useCallback(async () => {
@@ -123,7 +127,7 @@ export function AdminOperationsOverview() {
         fetchRecentlyActiveUsers(supabase),
         supabase
           .from("ticket_updates")
-          .select("ticket_id, comment, created_at")
+          .select("id, ticket_id, comment, created_at")
           .like("comment", "Part return requested by requester.%")
           .order("created_at", { ascending: false })
           .limit(8),
@@ -197,12 +201,13 @@ export function AdminOperationsOverview() {
         activeUsersCount: recentUsersResult.length,
         returns: ((recentReturnsResult.data ?? []) as OverviewReturnRow[])
           .map((row) => ({
+            updateId: row.id,
             ticketId: row.ticket_id ?? "",
             jobNumber: row.ticket_id ? (jobNumberByTicketId.get(row.ticket_id) ?? null) : null,
             reason: extractRequesterReturnReason(row.comment) ?? "",
             createdAt: row.created_at ?? null,
           }))
-          .filter((row) => row.ticketId && row.reason),
+          .filter((row) => row.updateId && row.ticketId && row.reason),
         dailySummary: {
           ticketsCreatedToday: ticketsCreatedTodayResult.count ?? 0,
           ticketsCompletedToday: ticketsCompletedTodayResult.count ?? 0,
@@ -222,6 +227,48 @@ export function AdminOperationsOverview() {
       );
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  const handleDeleteReturnedEntry = useCallback(async (updateId: string) => {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setDeletingReturnUpdateId(updateId);
+    setActionMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const { error } = await supabase
+        .from("ticket_updates")
+        .delete()
+        .eq("id", updateId);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      setSnapshot((current) =>
+        current
+          ? {
+              ...current,
+              returns: current.returns.filter((entry) => entry.updateId !== updateId),
+            }
+          : current,
+      );
+      setActionMessage("Returned entry removed from the operations summary.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to remove the returned entry.",
+      );
+    } finally {
+      setDeletingReturnUpdateId(null);
     }
   }, []);
 
@@ -591,6 +638,9 @@ export function AdminOperationsOverview() {
             <p className="aurora-stat-label text-sm">
               Daily KPI Summary
             </p>
+            {actionMessage ? (
+              <p className="mt-3 text-sm leading-6 text-emerald-300">{actionMessage}</p>
+            ) : null}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <OverviewStat label="Tickets Raised Today" value={String(snapshot?.dailySummary.ticketsCreatedToday ?? 0)} />
               <OverviewStat label="Tickets Completed Today" value={String(snapshot?.dailySummary.ticketsCompletedToday ?? 0)} />
@@ -610,21 +660,31 @@ export function AdminOperationsOverview() {
               {snapshot?.returns.length ? (
                 snapshot.returns.map((entry) => (
                   <article
-                    key={`${entry.ticketId}-${entry.createdAt ?? "unknown"}`}
+                    key={entry.updateId}
                     className="rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <Link
-                        href={`/tickets/${entry.ticketId}`}
-                        className="text-sm font-semibold text-[color:var(--foreground-strong)] transition hover:opacity-75"
+                      <div>
+                        <Link
+                          href={`/tickets/${entry.ticketId}`}
+                          className="text-sm font-semibold text-[color:var(--foreground-strong)] transition hover:opacity-75"
+                        >
+                          {entry.jobNumber?.trim()
+                            ? `Job ${entry.jobNumber.trim()}`
+                            : `Ticket ${entry.ticketId.slice(0, 8)}`}
+                        </Link>
+                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
+                          {entry.createdAt ? formatDateTime(entry.createdAt) : "Recent"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteReturnedEntry(entry.updateId)}
+                        disabled={deletingReturnUpdateId === entry.updateId}
+                        className="inline-flex h-9 items-center justify-center rounded-full border border-[color:rgba(248,113,113,0.4)] bg-[color:rgba(127,29,29,0.18)] px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-rose-100 transition hover:bg-[color:rgba(127,29,29,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {entry.jobNumber?.trim()
-                          ? `Job ${entry.jobNumber.trim()}`
-                          : `Ticket ${entry.ticketId.slice(0, 8)}`}
-                      </Link>
-                      <p className="text-xs uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
-                        {entry.createdAt ? formatDateTime(entry.createdAt) : "Recent"}
-                      </p>
+                        {deletingReturnUpdateId === entry.updateId ? "Removing..." : "Delete"}
+                      </button>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-[color:var(--foreground-muted)]">{entry.reason}</p>
                   </article>
