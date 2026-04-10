@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
         const result = await supabase
           .from("user_tasks")
           .select("id,title,description,status,assigned_to,due_at,updated_at")
-          .or(buildIlikeOr(["title", "description", "assigned_to"], query))
+          .or(buildIlikeOr(["title", "description"], query))
           .order("updated_at", { ascending: false })
           .limit(MAX_RESULTS_PER_ENTITY);
 
@@ -283,7 +283,7 @@ export async function POST(request: NextRequest) {
       snippet: truncateSnippet(row.description, "No task description provided."),
       href: "/incidents/tasks",
       meta: [row.assigned_to, row.due_at].filter(Boolean).join(" · ") || "Workshop task",
-      score: buildSearchScore([row.title, row.description, row.assigned_to], query) + 4,
+      score: buildSearchScore([row.title, row.description], query) + 4,
     }));
 
     const response: SmartSearchResponse = {
