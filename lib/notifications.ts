@@ -446,9 +446,30 @@ async function insertNotifications(
     return;
   }
 
-  const { error } = await supabase.from("notifications").insert(notifications);
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  if (error) {
-    throw new Error(error.message);
+  const accessToken = session?.access_token;
+
+  if (!accessToken) {
+    throw new Error("Authentication is required to dispatch notifications.");
+  }
+
+  const response = await fetch("/api/notifications/dispatch", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      notifications,
+    }),
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+  if (!response.ok) {
+    throw new Error(payload.error || "Notification dispatch failed.");
   }
 }
