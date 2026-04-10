@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     const warnings: string[] = [];
 
-    const [ticketRows, updateRows, messageRows, incidentRows, taskRows] = await Promise.all([
+    const [ticketRows, messageRows, incidentRows, taskRows] = await Promise.all([
       (async () => {
         let ticketQuery = supabase
           .from("tickets")
@@ -156,21 +156,6 @@ export async function POST(request: NextRequest) {
 
         if (result.error) {
           warnings.push(`Tickets: ${result.error.message}`);
-          return [];
-        }
-
-        return result.data ?? [];
-      })(),
-      (async () => {
-        const result = await supabase
-          .from("ticket_updates")
-          .select("id,ticket_id,comment,created_at")
-          .or(buildIlikeOr(["comment"], query))
-          .order("created_at", { ascending: false })
-          .limit(MAX_RESULTS_PER_ENTITY);
-
-        if (result.error) {
-          warnings.push(`Updates: ${result.error.message}`);
           return [];
         }
 
@@ -291,17 +276,6 @@ export async function POST(request: NextRequest) {
       return results;
     });
 
-    const updateResults: SmartSearchResult[] = (updateRows ?? []).map((row) => ({
-      entity: "update",
-      id: String(row.id),
-      title: `Ticket Update ${String(row.ticket_id).slice(0, 8)}`,
-      subtitle: row.created_at ?? "Recent update",
-      snippet: truncateSnippet(row.comment, "No update text provided."),
-      href: `/tickets/${row.ticket_id}`,
-      meta: "Ticket history",
-      score: buildSearchScore([row.comment], query) + 8,
-    }));
-
     const messageResults: SmartSearchResult[] = (messageRows ?? []).map((row) => ({
       entity: "message",
       id: String(row.id),
@@ -343,7 +317,6 @@ export async function POST(request: NextRequest) {
       scope,
       results: [
         ...ticketResults,
-        ...updateResults,
         ...messageResults,
         ...incidentResults,
         ...taskResults,
