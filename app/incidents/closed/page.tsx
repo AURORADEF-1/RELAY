@@ -7,6 +7,7 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -17,7 +18,7 @@ import {
 } from "@/lib/workshop-incidents";
 
 export default function ClosedIncidentsPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const { adminBadgeCount, isAdmin } = useNotifications();
   const [incidents, setIncidents] = useState<WorkshopIncidentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [workingIncidentId, setWorkingIncidentId] = useState<string | null>(null);
@@ -218,10 +219,7 @@ export default function ClosedIncidentsPage() {
             <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">Home</Link>
             <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">Legal</Link>
             <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white">Submit Ticket</Link>
-            <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white">
-              My Requests
-              <NotificationBadge count={requesterUnreadCount} />
-            </Link>
+            <RoleAwareRequestsLink className="rounded-full px-4 py-2 hover:bg-white" />
             <Link href="/incidents" className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800">
               Workshop Control
             </Link>

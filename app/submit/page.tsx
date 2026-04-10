@@ -10,6 +10,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { QrMachineReferenceScanner } from "@/components/qr-machine-reference-scanner";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { notifyAdminsOfNewTicket } from "@/lib/notifications";
@@ -46,7 +47,7 @@ const fieldLabels: Record<keyof FormValues, string> = {
 };
 
 export default function SubmitPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState("");
@@ -406,10 +407,7 @@ export default function SubmitPage() {
             <Link href="/settings" className="aurora-link">
               Settings
             </Link>
-            <Link href="/requests" className="aurora-link">
-              My Requests
-              <NotificationBadge count={requesterUnreadCount} />
-            </Link>
+            <RoleAwareRequestsLink className="aurora-link" />
             <Link href="/tasks" className="aurora-link">
               Tasks
               <NotificationBadge count={taskUnreadCount} />

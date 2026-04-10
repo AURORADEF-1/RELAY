@@ -6,6 +6,7 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -52,7 +53,7 @@ const mockUpdates: HomepageUpdate[] = [
 ];
 
 export default function Home() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const [updates, setUpdates] = useState<HomepageUpdate[]>(mockUpdates);
   const [updatesMode, setUpdatesMode] = useState<"live" | "mock">("mock");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -167,13 +168,7 @@ export default function Home() {
                 >
                   Submit Ticket
                 </Link>
-                <Link
-                  href="/requests"
-                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
-                >
-                  My Requests
-                  <NotificationBadge count={requesterUnreadCount} />
-                </Link>
+                <RoleAwareRequestsLink className="rounded-full px-4 py-2 transition hover:bg-slate-100" />
                 <Link
                   href="/tasks"
                   className="rounded-full px-4 py-2 transition hover:bg-slate-100"
@@ -243,13 +238,11 @@ export default function Home() {
                       >
                         Submit Ticket
                       </Link>
-                      <Link
-                        href="/requests"
+                      <RoleAwareRequestsLink
                         className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                      >
-                        View My Requests
-                        <NotificationBadge count={requesterUnreadCount} />
-                      </Link>
+                        userLabel="View My Requests"
+                        adminLabel="Open Smart Search"
+                      />
                       <Link
                         href="/settings"
                         className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"

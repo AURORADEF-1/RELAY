@@ -14,6 +14,7 @@ import {
 } from "@/components/ticket-chat-panel";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { StatusBadge } from "@/components/status-badge";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import {
@@ -141,7 +142,7 @@ type StatusWorkflowDialogState = {
 };
 
 export default function TicketDetailPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const params = useParams<{ id: string }>();
   const ticketId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [ticket, setTicket] = useState<TicketRecord | null>(null);
@@ -957,13 +958,7 @@ export default function TicketDetailPage() {
             <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">
               Settings
             </Link>
-            <Link
-              href="/requests"
-              className="rounded-full px-4 py-2 hover:bg-white"
-            >
-              My Requests
-              <NotificationBadge count={requesterUnreadCount} />
-            </Link>
+            <RoleAwareRequestsLink className="rounded-full px-4 py-2 hover:bg-white" />
             <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
               Tasks
               <NotificationBadge count={taskUnreadCount} />
@@ -1108,12 +1103,12 @@ export default function TicketDetailPage() {
                   >
                     {isLoading ? "Refreshing..." : "Refresh"}
                   </button>
-                  <Link
-                    href="/requests"
+                  <RoleAwareRequestsLink
                     className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                  >
-                    Back to Requests
-                  </Link>
+                    userLabel="Back to Requests"
+                    adminLabel="Back to Smart Search"
+                    showBadge={false}
+                  />
                 </div>
               </div>
             </div>

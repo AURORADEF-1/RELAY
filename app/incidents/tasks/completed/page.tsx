@@ -7,6 +7,7 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -18,7 +19,7 @@ import {
 } from "@/lib/user-tasks";
 
 export default function CompletedTasksPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const { adminBadgeCount, isAdmin } = useNotifications();
   const [tasks, setTasks] = useState<UserTaskRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [workingTaskId, setWorkingTaskId] = useState<string | null>(null);
@@ -153,10 +154,7 @@ export default function CompletedTasksPage() {
             <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">Home</Link>
             <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">Legal</Link>
             <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white">Submit Ticket</Link>
-            <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white">
-              My Requests
-              <NotificationBadge count={requesterUnreadCount} />
-            </Link>
+            <RoleAwareRequestsLink className="rounded-full px-4 py-2 hover:bg-white" />
             <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">Tasks</Link>
             {isAdmin ? (
               <>

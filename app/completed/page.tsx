@@ -9,6 +9,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
+import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { StatusBadge } from "@/components/status-badge";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
@@ -28,7 +29,7 @@ type CompletedTicket = {
 
 export default function CompletedPage() {
   const router = useRouter();
-  const { requesterUnreadCount, adminBadgeCount } = useNotifications();
+  const { adminBadgeCount } = useNotifications();
   const [tickets, setTickets] = useState<CompletedTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingTicketId, setDeletingTicketId] = useState<string | null>(null);
@@ -257,10 +258,7 @@ export default function CompletedPage() {
             <Link href="/submit" className="aurora-link">
               Submit Ticket
             </Link>
-            <Link href="/requests" className="aurora-link">
-              My Requests
-              <NotificationBadge count={requesterUnreadCount} />
-            </Link>
+            <RoleAwareRequestsLink className="aurora-link" />
             <Link href="/incidents" className="aurora-link">
               Workshop Control
             </Link>

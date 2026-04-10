@@ -9,6 +9,7 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -20,7 +21,7 @@ import {
 
 export default function NewTyreIncidentPage() {
   const router = useRouter();
-  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
+  const { adminBadgeCount, isAdmin } = useNotifications();
   const [formState, setFormState] = useState({
     reported_by: "",
     machine_reference: "",
@@ -106,10 +107,7 @@ export default function NewTyreIncidentPage() {
           <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
             <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">Home</Link>
             <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">Legal</Link>
-            <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white">
-              My Requests
-              <NotificationBadge count={requesterUnreadCount} />
-            </Link>
+            <RoleAwareRequestsLink className="rounded-full px-4 py-2 hover:bg-white" />
             {isAdmin ? (
               <>
                 <Link href="/incidents" className="rounded-full bg-slate-950 px-4 py-2 text-white hover:bg-slate-800">

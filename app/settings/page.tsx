@@ -7,6 +7,7 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { useRelayTheme } from "@/components/theme-provider";
 import {
   fetchCurrentProfileSettings,
@@ -17,7 +18,7 @@ import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export default function SettingsPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const { theme, setTheme } = useRelayTheme();
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -155,10 +156,7 @@ export default function SettingsPage() {
           <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
             <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">Home</Link>
             <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">Legal</Link>
-            <Link href="/requests" className="rounded-full px-4 py-2 hover:bg-white">
-              My Requests
-              <NotificationBadge count={requesterUnreadCount} />
-            </Link>
+            <RoleAwareRequestsLink className="rounded-full px-4 py-2 hover:bg-white" />
             <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
               Tasks
               <NotificationBadge count={taskUnreadCount} />

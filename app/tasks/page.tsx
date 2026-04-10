@@ -7,6 +7,7 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { RelayLogo } from "@/components/relay-logo";
+import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -18,7 +19,7 @@ import {
 } from "@/lib/user-tasks";
 
 export default function TasksPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const [tasks, setTasks] = useState<UserTaskRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -92,10 +93,7 @@ export default function TasksPage() {
             <Link href="/legal" className="aurora-link">Legal</Link>
             <Link href="/settings" className="aurora-link">Settings</Link>
             <Link href="/submit" className="aurora-link">Submit Ticket</Link>
-            <Link href="/requests" className="aurora-link">
-              My Requests
-              <NotificationBadge count={requesterUnreadCount} />
-            </Link>
+            <RoleAwareRequestsLink className="aurora-link" />
             <Link href="/tasks" className="aurora-link aurora-link-active">
               Tasks
               <NotificationBadge count={taskUnreadCount} />

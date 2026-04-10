@@ -361,8 +361,8 @@ export default function RequestsPage() {
                 Requester Dashboard
               </div>
               <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
-                My Requests
-                <NotificationBadge count={requesterUnreadCount} />
+                {isAdmin ? "Smart Search" : "My Requests"}
+                <NotificationBadge count={isAdmin ? adminBadgeCount : requesterUnreadCount} />
               </h1>
               <p className="text-base leading-8 text-slate-600">
                 Track active parts requests. Completed jobs are archived and remain
