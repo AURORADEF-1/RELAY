@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { getRelaySessionUserFromRequest, sanitizeUserFacingError } from "@/lib/security";
 import type { SmartSearchResponse, SmartSearchResult } from "@/lib/admin-smart-search";
@@ -26,40 +27,6 @@ function deriveAdminFromUser(user: { email?: string | null }, role: string | nul
   const emailLocalPart = email.split("@")[0] || "";
 
   return email === "admin@mlp.local" || emailLocalPart.endsWith(".admin");
-}
-
-async function fetchRestRows(
-  request: NextRequest,
-  path: string,
-  searchParams: Record<string, string>,
-) {
-  const config = getSupabasePublicConfig();
-  const authorization = request.headers.get("authorization");
-
-  if (!config || !authorization) {
-    throw new Error("Authentication is required.");
-  }
-
-  const url = new URL(`${config.supabaseUrl}/rest/v1/${path}`);
-
-  Object.entries(searchParams).forEach(([key, value]) => {
-    url.searchParams.set(key, value);
-  });
-
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      apikey: config.supabaseAnonKey,
-      Authorization: authorization,
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Search query failed for ${path}.`);
-  }
-
-  return response.json();
 }
 
 function normalizeQuery(rawValue: string) {
@@ -105,6 +72,13 @@ function truncateSnippet(value: string | null | undefined, fallback: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    const config = getSupabasePublicConfig();
+    const authorization = request.headers.get("authorization");
+
+    if (!config || !authorization) {
+      return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+    }
+
     const user = await getRelaySessionUserFromRequest(request);
 
     if (!user?.id) {
@@ -118,70 +92,108 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Enter at least 2 characters to search." }, { status: 400 });
     }
 
-    const profileRows = (await fetchRestRows(request, "profiles", {
-      select: "role",
-      id: `eq.${user.id}`,
-      limit: "1",
-    })) as Array<{ role?: string | null }>;
+    const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authorization,
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
 
-    const role = typeof profileRows[0]?.role === "string" ? profileRows[0].role : null;
+    const { data: profileRow, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle<{ role?: string | null }>();
+
+    if (profileError) {
+      throw new Error(profileError.message);
+    }
+
+    const role = typeof profileRow?.role === "string" ? profileRow.role : null;
 
     if (!deriveAdminFromUser(user, role)) {
       return NextResponse.json({ error: "Admin access is required for smart search." }, { status: 403 });
     }
 
     const [ticketRows, updateRows, messageRows, incidentRows, taskRows] = await Promise.all([
-      fetchRestRows(request, "tickets", {
-        select:
-          "id,job_number,machine_reference,requester_name,request_summary,request_details,status,department,assigned_to,notes,purchase_order_number,supplier_name,updated_at",
-        or: `(${buildIlikeOr(
-          [
-            "job_number",
-            "machine_reference",
-            "requester_name",
-            "request_summary",
-            "request_details",
-            "notes",
-            "purchase_order_number",
-            "supplier_name",
-            "assigned_to",
-          ],
-          query,
-        )})`,
-        order: "updated_at.desc",
-        limit: String(MAX_RESULTS_PER_ENTITY * 2),
-      }),
-      fetchRestRows(request, "ticket_updates", {
-        select: "id,ticket_id,comment,created_at",
-        or: `(${buildIlikeOr(["comment"], query)})`,
-        order: "created_at.desc",
-        limit: String(MAX_RESULTS_PER_ENTITY),
-      }),
-      fetchRestRows(request, "ticket_messages", {
-        select: "id,ticket_id,message_text,sender_role,created_at",
-        or: `(${buildIlikeOr(["message_text"], query)})`,
-        order: "created_at.desc",
-        limit: String(MAX_RESULTS_PER_ENTITY),
-      }),
-      fetchRestRows(request, "workshop_incidents", {
-        select:
-          "id,job_number,machine_reference,reported_by,description,status,severity,assigned_to,updated_at",
-        or: `(${buildIlikeOr(
-          ["job_number", "machine_reference", "reported_by", "description", "assigned_to"],
-          query,
-        )})`,
-        order: "updated_at.desc",
-        limit: String(MAX_RESULTS_PER_ENTITY),
-      }),
-      fetchRestRows(request, "user_tasks", {
-        select: "id,title,description,status,assigned_to,due_at,updated_at",
-        or: `(${buildIlikeOr(["title", "description", "assigned_to"], query)})`,
-        order: "updated_at.desc",
-        limit: String(MAX_RESULTS_PER_ENTITY),
-      }),
+      supabase
+        .from("tickets")
+        .select("id,job_number,machine_reference,requester_name,request_summary,request_details,status,department,assigned_to,notes,purchase_order_number,supplier_name,updated_at")
+        .or(
+          buildIlikeOr(
+            [
+              "job_number",
+              "machine_reference",
+              "requester_name",
+              "request_summary",
+              "request_details",
+              "notes",
+              "purchase_order_number",
+              "supplier_name",
+              "assigned_to",
+            ],
+            query,
+          ),
+        )
+        .order("updated_at", { ascending: false })
+        .limit(MAX_RESULTS_PER_ENTITY * 2),
+      supabase
+        .from("ticket_updates")
+        .select("id,ticket_id,comment,created_at")
+        .or(buildIlikeOr(["comment"], query))
+        .order("created_at", { ascending: false })
+        .limit(MAX_RESULTS_PER_ENTITY),
+      supabase
+        .from("ticket_messages")
+        .select("id,ticket_id,message_text,sender_role,created_at")
+        .or(buildIlikeOr(["message_text"], query))
+        .order("created_at", { ascending: false })
+        .limit(MAX_RESULTS_PER_ENTITY),
+      supabase
+        .from("workshop_incidents")
+        .select("id,job_number,machine_reference,reported_by,description,status,severity,assigned_to,updated_at")
+        .or(
+          buildIlikeOr(
+            ["job_number", "machine_reference", "reported_by", "description", "assigned_to"],
+            query,
+          ),
+        )
+        .order("updated_at", { ascending: false })
+        .limit(MAX_RESULTS_PER_ENTITY),
+      supabase
+        .from("user_tasks")
+        .select("id,title,description,status,assigned_to,due_at,updated_at")
+        .or(buildIlikeOr(["title", "description", "assigned_to"], query))
+        .order("updated_at", { ascending: false })
+        .limit(MAX_RESULTS_PER_ENTITY),
     ]);
 
-    const ticketResults = ((ticketRows ?? []) as Array<Record<string, string | null>>).flatMap((row) => {
+    if (ticketRows.error) {
+      throw new Error(ticketRows.error.message);
+    }
+
+    if (updateRows.error) {
+      throw new Error(updateRows.error.message);
+    }
+
+    if (messageRows.error) {
+      throw new Error(messageRows.error.message);
+    }
+
+    if (incidentRows.error) {
+      throw new Error(incidentRows.error.message);
+    }
+
+    if (taskRows.error) {
+      throw new Error(taskRows.error.message);
+    }
+
+    const ticketResults = (ticketRows.data ?? []).flatMap((row) => {
       const sharedTitle = row.job_number?.trim()
         ? `Job ${row.job_number.trim()}`
         : row.machine_reference?.trim() || "Ticket";
@@ -244,8 +256,8 @@ export async function POST(request: NextRequest) {
       return results;
     });
 
-    const updateResults = ((updateRows ?? []) as Array<Record<string, string | null>>).map((row) => ({
-      entity: "update" as const,
+    const updateResults: SmartSearchResult[] = (updateRows.data ?? []).map((row) => ({
+      entity: "update",
       id: String(row.id),
       title: `Ticket Update ${String(row.ticket_id).slice(0, 8)}`,
       subtitle: row.created_at ?? "Recent update",
@@ -255,8 +267,8 @@ export async function POST(request: NextRequest) {
       score: buildSearchScore([row.comment], query) + 8,
     }));
 
-    const messageResults = ((messageRows ?? []) as Array<Record<string, string | null>>).map((row) => ({
-      entity: "message" as const,
+    const messageResults: SmartSearchResult[] = (messageRows.data ?? []).map((row) => ({
+      entity: "message",
       id: String(row.id),
       title: `Ticket Message ${String(row.ticket_id).slice(0, 8)}`,
       subtitle: row.sender_role?.trim() || "Message",
@@ -266,8 +278,8 @@ export async function POST(request: NextRequest) {
       score: buildSearchScore([row.message_text], query) + 6,
     }));
 
-    const incidentResults = ((incidentRows ?? []) as Array<Record<string, string | null>>).map((row) => ({
-      entity: "incident" as const,
+    const incidentResults: SmartSearchResult[] = (incidentRows.data ?? []).map((row) => ({
+      entity: "incident",
       id: String(row.id),
       title: row.job_number?.trim() ? `Incident Job ${row.job_number.trim()}` : row.machine_reference?.trim() || "Incident",
       subtitle: [row.status, row.severity].filter(Boolean).join(" · ") || "Workshop incident",
@@ -280,8 +292,8 @@ export async function POST(request: NextRequest) {
       ) + 12,
     }));
 
-    const taskResults = ((taskRows ?? []) as Array<Record<string, string | null>>).map((row) => ({
-      entity: "task" as const,
+    const taskResults: SmartSearchResult[] = (taskRows.data ?? []).map((row) => ({
+      entity: "task",
       id: String(row.id),
       title: row.title?.trim() || "Task",
       subtitle: row.status?.trim() || "Task",
