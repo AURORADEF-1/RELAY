@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useNotifications } from "@/components/notification-provider";
 
 export function NotificationToasts() {
+  const pathname = usePathname();
   const { toasts, dismissToast } = useNotifications();
 
-  if (toasts.length === 0) {
+  if (pathname === "/wallboard" || toasts.length === 0) {
     return null;
   }
 

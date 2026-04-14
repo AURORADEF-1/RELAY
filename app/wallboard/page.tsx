@@ -36,12 +36,18 @@ export default function WallboardPage() {
   const [pageStartedAt, setPageStartedAt] = useState(() => Date.now());
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const signatureRef = useRef("");
+  const pendingSignatureRef = useRef("");
   const modeStartedAtRef = useRef(modeStartedAt);
   const pageStartedAtRef = useRef(pageStartedAt);
+  const currentModeRef = useRef(currentMode);
 
   useEffect(() => {
     modeStartedAtRef.current = modeStartedAt;
   }, [modeStartedAt]);
+
+  useEffect(() => {
+    currentModeRef.current = currentMode;
+  }, [currentMode]);
 
   useEffect(() => {
     pageStartedAtRef.current = pageStartedAt;
@@ -88,6 +94,24 @@ export default function WallboardPage() {
           ].join(":"),
         )
         .join("|");
+      const nextPendingSignature = nextTickets
+        .filter((ticket) => ticket.status === "PENDING")
+        .map((ticket) => [ticket.id, ticket.updated_at, ticket.created_at].join(":"))
+        .join("|");
+
+      if (
+        pendingSignatureRef.current &&
+        nextPendingSignature !== pendingSignatureRef.current &&
+        currentModeRef.current !== "inbound"
+      ) {
+        const now = Date.now();
+        setCurrentMode("inbound");
+        setModeStartedAt(now);
+        setCurrentPage(0);
+        setPageStartedAt(now);
+      }
+
+      pendingSignatureRef.current = nextPendingSignature;
 
       if (nextSignature !== signatureRef.current) {
         signatureRef.current = nextSignature;
