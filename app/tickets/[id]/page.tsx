@@ -1714,14 +1714,49 @@ function shouldConfirmAdminEdit(
   currentUserDisplayName: string | null,
 ) {
   const assignedTo = ticket.assigned_to?.trim() ?? "";
-  const normalizedAssignedTo = assignedTo.toLowerCase();
-  const normalizedCurrentUser = currentUserDisplayName?.trim().toLowerCase() ?? "";
+  const normalizedAssignedTo = normalizeOperatorName(assignedTo);
+  const normalizedCurrentUser = normalizeOperatorName(currentUserDisplayName);
 
-  if (assignedTo && normalizedAssignedTo && normalizedAssignedTo !== normalizedCurrentUser) {
+  if (
+    assignedTo &&
+    normalizedAssignedTo &&
+    !isLikelySameOperatorName(normalizedAssignedTo, normalizedCurrentUser)
+  ) {
     return true;
   }
 
   return ticket.status === "IN_PROGRESS" && Boolean(assignedTo);
+}
+
+function normalizeOperatorName(value: string | null | undefined) {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function isLikelySameOperatorName(assignedTo: string, currentUser: string) {
+  if (!assignedTo || !currentUser) {
+    return false;
+  }
+
+  if (assignedTo === currentUser) {
+    return true;
+  }
+
+  const assignedParts = assignedTo.split(" ").filter(Boolean);
+  const currentParts = currentUser.split(" ").filter(Boolean);
+
+  if (assignedParts.length === 1 && currentParts[0] === assignedParts[0]) {
+    return true;
+  }
+
+  if (currentParts.length === 1 && assignedParts[0] === currentParts[0]) {
+    return true;
+  }
+
+  return false;
 }
 
 function AdminEditConflictModal({
