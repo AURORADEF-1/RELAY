@@ -58,6 +58,8 @@ export default function Home() {
   const [updatesMode, setUpdatesMode] = useState<"live" | "mock">("mock");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserIsAdmin, setCurrentUserIsAdmin] = useState(false);
   const [searchTickets, setSearchTickets] = useState<HomepageTicket[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResult, setSearchResult] = useState<{
@@ -65,6 +67,7 @@ export default function Home() {
     detail: string;
     status?: string | null;
   } | null>(null);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -76,7 +79,7 @@ export default function Home() {
         return;
       }
 
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
+      const { user, isAdmin, profile } = await getCurrentUserWithRole(supabase);
 
       if (!isMounted) {
         return;
@@ -84,14 +87,10 @@ export default function Home() {
 
       if (!user) {
         setIsLoggedIn(false);
+        setCurrentUserId(null);
+        setCurrentUserIsAdmin(false);
         return;
       }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
-        .maybeSingle();
 
       const query = supabase
         .from("tickets")
@@ -110,7 +109,9 @@ export default function Home() {
       }
 
       setIsLoggedIn(true);
-      setDisplayName(resolveDisplayName(profile?.full_name, user.email));
+      setCurrentUserId(user.id);
+      setCurrentUserIsAdmin(isAdmin);
+      setDisplayName(resolveDisplayName(profile?.display_name, user.email));
 
       if (!error && data && data.length > 0) {
         const tickets = data as HomepageTicket[];
@@ -127,9 +128,86 @@ export default function Home() {
     };
   }, []);
 
-  function handleQuickSearch(event: React.FormEvent<HTMLFormElement>) {
+  async function handleQuickSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSearchResult(resolveQuickSearch(searchQuery, searchTickets));
+
+    const localResult = resolveQuickSearch(searchQuery, searchTickets);
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      setSearchResult(localResult);
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase || !isLoggedIn) {
+      setSearchResult(localResult);
+      return;
+    }
+
+    setIsSearchLoading(true);
+
+    try {
+      if (!currentUserIsAdmin && !currentUserId) {
+        setSearchResult(localResult);
+        return;
+      }
+
+      const jobNumberMatch = normalizedQuery.match(/[a-z0-9-]{3,}/);
+      const query = supabase
+        .from("tickets")
+        .select(
+          "id, job_number, request_summary, request_details, status, updated_at, assigned_to, requester_name",
+        )
+        .in("status", activeTicketStatuses)
+        .order("updated_at", { ascending: false })
+        .limit(25);
+
+      const scopedQuery = currentUserIsAdmin
+        ? query
+        : query.eq("user_id", currentUserId ?? "");
+      const searchTerms = Array.from(
+        new Set(
+          [
+            normalizedQuery,
+            ...normalizedQuery.split(/\s+/).filter((term) => term.length >= 3),
+            jobNumberMatch?.[0] ?? "",
+          ].filter(Boolean),
+        ),
+      );
+      const searchFilter = searchTerms
+        .map((term) => {
+          const escaped = term.replaceAll(",", " ").replaceAll("%", "");
+          return [
+            `job_number.ilike.%${escaped}%`,
+            `request_summary.ilike.%${escaped}%`,
+            `request_details.ilike.%${escaped}%`,
+            `assigned_to.ilike.%${escaped}%`,
+          ].join(",");
+        })
+        .join(",");
+
+      const { data, error } = searchFilter
+        ? await scopedQuery.or(searchFilter)
+        : await scopedQuery;
+
+      if (error || !data) {
+        setSearchResult(localResult);
+        return;
+      }
+
+      const remoteResult = resolveQuickSearch(
+        searchQuery,
+        data as HomepageTicket[],
+      );
+
+      setSearchResult(remoteResult);
+    } catch {
+      setSearchResult(localResult);
+    } finally {
+      setIsSearchLoading(false);
+    }
   }
 
   return (
@@ -304,9 +382,10 @@ export default function Home() {
                     />
                     <button
                       type="submit"
+                      disabled={isSearchLoading}
                       className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
                     >
-                      Search
+                      {isSearchLoading ? "Searching..." : "Search"}
                     </button>
                   </div>
                   {searchResult ? (

@@ -65,18 +65,26 @@ export async function POST(
   }
 
   try {
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, 15_000);
+
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
+      signal: abortController.signal,
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
         store: false,
         instructions: buildRelayAiInstructions(),
         input: buildRelayAiInput(body.question, body.ticketContext),
       }),
+    }).finally(() => {
+      clearTimeout(timeoutId);
     });
 
     const payload = (await response.json()) as unknown;

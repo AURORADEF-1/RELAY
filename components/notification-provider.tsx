@@ -708,10 +708,6 @@ export function NotificationProvider({
             await syncUnreadNotifications(supabase, user.id, adminUser, {
               showToasts: true,
             });
-
-            if (adminUser) {
-              await refreshPendingTicketCount(adminUser);
-            }
           },
         );
 
