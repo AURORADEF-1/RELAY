@@ -141,6 +141,11 @@ type StatusWorkflowDialogState = {
   errorMessage: string;
 };
 
+type EditConflictDialogState = {
+  assignedTo: string | null;
+  status: string | null;
+};
+
 export default function TicketDetailPage() {
   const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const params = useParams<{ id: string }>();
@@ -171,6 +176,7 @@ export default function TicketDetailPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [editDraft, setEditDraft] = useState<TicketEditDraft | null>(null);
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
+  const [editConflictDialog, setEditConflictDialog] = useState<EditConflictDialogState | null>(null);
 
   const loadTicket = useCallback(async () => {
     setIsLoading(true);
@@ -193,6 +199,7 @@ export default function TicketDetailPage() {
       user?.email?.split("@")[0]?.trim() ||
       null,
     );
+    setEditConflictDialog(null);
 
     const { data: ticketData, error: ticketError } = await supabase
       .from("tickets")
@@ -273,6 +280,37 @@ export default function TicketDetailPage() {
 
     setIsLoading(false);
   }, [ticketId]);
+
+  const openEditMode = useCallback(() => {
+    if (!ticket) {
+      return;
+    }
+
+    setIsEditing(true);
+    setEditDraft(buildTicketEditDraft(ticket));
+  }, [ticket]);
+
+  const handleEditToggle = useCallback(() => {
+    if (isEditing) {
+      setIsEditing(false);
+      setEditDraft(ticket ? buildTicketEditDraft(ticket) : null);
+      setEditConflictDialog(null);
+      return;
+    }
+
+    if (
+      ticket &&
+      shouldConfirmAdminEdit(ticket, currentUserDisplayName)
+    ) {
+      setEditConflictDialog({
+        assignedTo: ticket.assigned_to,
+        status: ticket.status,
+      });
+      return;
+    }
+
+    openEditMode();
+  }, [currentUserDisplayName, isEditing, openEditMode, ticket]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1055,6 +1093,17 @@ export default function TicketDetailPage() {
               }}
             />
           ) : null}
+          {editConflictDialog ? (
+            <AdminEditConflictModal
+              assignedTo={editConflictDialog.assignedTo}
+              status={editConflictDialog.status}
+              onCancel={() => setEditConflictDialog(null)}
+              onConfirm={() => {
+                setEditConflictDialog(null);
+                openEditMode();
+              }}
+            />
+          ) : null}
           <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
             <div className="flex flex-col gap-8 lg:flex-row lg:justify-between">
               <div className="space-y-5">
@@ -1074,10 +1123,7 @@ export default function TicketDetailPage() {
                   {isAdmin ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        setIsEditing((current) => !current);
-                        setEditDraft(ticket ? buildTicketEditDraft(ticket) : null);
-                      }}
+                      onClick={handleEditToggle}
                       className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                     >
                       {isEditing ? "Cancel Edit" : "Edit Ticket"}
@@ -1661,6 +1707,71 @@ function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
         : "",
     bin_location: ticket.bin_location ?? "",
   };
+}
+
+function shouldConfirmAdminEdit(
+  ticket: TicketRecord,
+  currentUserDisplayName: string | null,
+) {
+  const assignedTo = ticket.assigned_to?.trim() ?? "";
+  const normalizedAssignedTo = assignedTo.toLowerCase();
+  const normalizedCurrentUser = currentUserDisplayName?.trim().toLowerCase() ?? "";
+
+  if (assignedTo && normalizedAssignedTo && normalizedAssignedTo !== normalizedCurrentUser) {
+    return true;
+  }
+
+  return ticket.status === "IN_PROGRESS" && Boolean(assignedTo);
+}
+
+function AdminEditConflictModal({
+  assignedTo,
+  status,
+  onCancel,
+  onConfirm,
+}: {
+  assignedTo: string | null;
+  status: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const assignedUserLabel = assignedTo?.trim() || "another operator";
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/72 px-4 py-6 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-[0_36px_100px_-42px_rgba(0,0,0,0.76)]">
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+            Edit Confirmation
+          </p>
+          <h2 className="text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+            This ticket is already being handled
+          </h2>
+          <p className="text-sm leading-6 text-slate-600">
+            This ticket is assigned to <span className="font-semibold text-slate-900">{assignedUserLabel}</span>
+            {status === "IN_PROGRESS" ? " and is currently marked IN_PROGRESS." : "."} Do you want to continue editing?
+          </p>
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Continue Editing
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function DetailItem({
