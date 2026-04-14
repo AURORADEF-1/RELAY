@@ -1716,16 +1716,20 @@ function shouldConfirmAdminEdit(
   const assignedTo = ticket.assigned_to?.trim() ?? "";
   const normalizedAssignedTo = normalizeOperatorName(assignedTo);
   const normalizedCurrentUser = normalizeOperatorName(currentUserDisplayName);
+  const isSameOperator = isLikelySameOperatorName(
+    normalizedAssignedTo,
+    normalizedCurrentUser,
+  );
 
   if (
     assignedTo &&
     normalizedAssignedTo &&
-    !isLikelySameOperatorName(normalizedAssignedTo, normalizedCurrentUser)
+    !isSameOperator
   ) {
     return true;
   }
 
-  return ticket.status === "IN_PROGRESS" && Boolean(assignedTo);
+  return ticket.status === "IN_PROGRESS" && Boolean(assignedTo) && !isSameOperator;
 }
 
 function normalizeOperatorName(value: string | null | undefined) {
