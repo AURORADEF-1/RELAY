@@ -106,246 +106,231 @@ export function TicketChatPanel({
   }
 
   const conversationLabel = ticketLabel?.trim() || "this request";
+  const showQuickActions =
+    Boolean(operatorChatHref) || Boolean(operatorSmsHref) || operatorCallHrefs.length > 0;
 
   return (
     <section className="aurora-section">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <p className="aurora-kicker">
-            Ticket Chat
-          </p>
-          <h2 className="aurora-heading">
-            Request Conversation
-          </h2>
-          <p className="aurora-copy text-sm">
-            This conversation is linked to job number{" "}
-            <span className="font-semibold text-[color:var(--foreground-strong)]">{conversationLabel}</span>.
-          </p>
-        </div>
-
-        <div className="grid gap-3 rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-4 sm:grid-cols-3">
-          <div>
-            <p className="aurora-stat-label">
-              Current Status
+      <div className="rounded-[1.75rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-5 shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <p className="aurora-kicker">Ticket Chat</p>
+            <h2 className="aurora-heading">Request Conversation</h2>
+            <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">
+              Job{" "}
+              <span className="font-semibold text-[color:var(--foreground-strong)]">
+                {conversationLabel}
+              </span>
+              {assignedTo?.trim() ? (
+                <>
+                  {" "}with{" "}
+                  <span className="font-semibold text-[color:var(--foreground-strong)]">
+                    {assignedTo.trim()}
+                  </span>
+                </>
+              ) : null}
             </p>
-            <div className="mt-2">
-              <StatusBadge status={ticketStatus} />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={ticketStatus} />
+            <div className="rounded-full border border-[color:var(--border)] bg-[color:var(--background-muted)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
+              Live thread
             </div>
           </div>
-          <div>
-            <p className="aurora-stat-label">
-              Latest Update
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[color:var(--foreground-muted)]">{latestUpdate}</p>
-          </div>
-          <div>
-            <p className="aurora-stat-label">
-              Assigned User
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[color:var(--foreground-muted)]">
-              {assignedTo || "Stores queue"}
-            </p>
-          </div>
         </div>
-      </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.36fr]">
-        <div className="space-y-4">
-          <div className="rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-4 shadow-[var(--shadow-soft)]">
-            <div className="space-y-3">
-              {sortedMessages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`rounded-[1.25rem] border p-4 ${senderTone[message.senderRole]}`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
-                        {message.senderName}
-                      </p>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
-                        {message.isAiMessage ? "AI Assistant" : message.senderRole}
-                      </p>
-                    </div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-[color:var(--foreground-subtle)]">
-                      {formatDateTime(message.createdAt)}
-                    </p>
-                  </div>
+        <p className="mt-4 text-sm leading-6 text-[color:var(--foreground-muted)]">
+          {latestUpdate}
+        </p>
 
-                  {message.messageText ? (
-                    <p className="mt-4 text-sm leading-7 text-[color:var(--foreground-muted)]">
-                      {message.messageText}
-                    </p>
-                  ) : null}
+        <div className="mt-5 rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] p-3">
+          <div className="flex max-h-[32rem] flex-col gap-3 overflow-y-auto pr-1">
+            {sortedMessages.length === 0 ? (
+              <div className="flex min-h-40 items-center justify-center rounded-[1.25rem] border border-dashed border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-6 text-center text-sm text-[color:var(--foreground-subtle)]">
+                No chat messages yet. Start with a short update or add a photo.
+              </div>
+            ) : (
+              sortedMessages.map((message) => {
+                const alignRight =
+                  mode === "operator"
+                    ? message.senderRole === "operator" || message.senderRole === "admin"
+                    : message.senderRole === "requester";
 
-                  {message.attachmentUrl || message.attachmentName ? (
-                    <div className="mt-4 overflow-hidden rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)]">
-                      {message.attachmentUrl ? (
-                        <>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={message.attachmentUrl}
-                            alt={message.attachmentName ?? "Chat attachment"}
-                            className="h-48 w-full object-cover"
-                          />
-                        </>
-                      ) : (
-                        <div className="flex h-48 items-center justify-center bg-[color:var(--background-muted)] px-6 text-center text-sm text-[color:var(--foreground-subtle)]">
-                          Preview unavailable for this attachment.
+                return (
+                  <article
+                    key={message.id}
+                    className={`flex ${alignRight ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`w-full max-w-2xl rounded-[1.25rem] border px-4 py-3 ${senderTone[message.senderRole]}`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-[color:var(--foreground-strong)]">
+                            {message.senderName}
+                          </p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
+                            {message.isAiMessage ? "AI Assistant" : message.senderRole}
+                          </p>
                         </div>
-                      )}
-                      <p className="px-4 py-3 text-sm font-medium text-[color:var(--foreground-muted)]">
-                        {message.attachmentName ?? "Attachment"}
-                      </p>
-                    </div>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          </div>
+                        <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--foreground-subtle)]">
+                          {formatDateTime(message.createdAt)}
+                        </p>
+                      </div>
 
-          <div className="rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-5 shadow-[var(--shadow-soft)]">
-            <div className="space-y-2">
+                      {message.messageText ? (
+                        <p className="mt-3 text-sm leading-7 text-[color:var(--foreground-muted)]">
+                          {message.messageText}
+                        </p>
+                      ) : null}
+
+                      {message.attachmentUrl || message.attachmentName ? (
+                        <div className="mt-3 overflow-hidden rounded-[1rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)]">
+                          {message.attachmentUrl ? (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={message.attachmentUrl}
+                                alt={message.attachmentName ?? "Chat attachment"}
+                                className="h-44 w-full object-cover"
+                              />
+                            </>
+                          ) : (
+                            <div className="flex h-40 items-center justify-center bg-[color:var(--background-muted)] px-6 text-center text-sm text-[color:var(--foreground-subtle)]">
+                              Preview unavailable for this attachment.
+                            </div>
+                          )}
+                          <p className="px-4 py-3 text-sm font-medium text-[color:var(--foreground-muted)]">
+                            {message.attachmentName ?? "Attachment"}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
               <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
                 {mode === "operator" ? "Reply as Stores / Operator" : "Message about this request"}
               </p>
-              <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">
-                Messages, photos, and AI responses will stay linked to job number{" "}
-                <span className="font-semibold text-[color:var(--foreground-strong)]">{conversationLabel}</span>.
+              <p className="mt-1 text-sm leading-6 text-[color:var(--foreground-muted)]">
+                Keep replies short and specific. Images stay attached to this ticket.
               </p>
             </div>
-
-            <textarea
-              rows={5}
-              value={draftMessage}
-              onChange={(event) => setDraftMessage(event.target.value)}
-              placeholder={
-                mode === "operator"
-                  ? "Reply to the requester or add a Stores update..."
-                  : "Ask Stores about this ticket or request an update..."
-              }
-              className="aurora-textarea mt-4"
-            />
-
-            <div className="mt-4">
-              <FileUploadPanel
-                key={uploadResetKey}
-                label="Attach image to message"
-                helperText="Upload photos of the issue, reference images, or diagrams for this ticket chat."
-                inputId={`chat-upload-${ticketId}-${mode}`}
-                buttonLabel={mode === "operator" ? "Upload diagram or photo" : "Upload image"}
-                emptyText="No chat images queued yet."
-                onFilesChange={setQueuedImages}
-              />
-            </div>
-
-            {notice ? (
-              <div
-                className={`mt-4 ${
-                  notice.type === "success"
-                    ? "aurora-alert aurora-alert-success"
-                    : "aurora-alert aurora-alert-error"
-                }`}
-              >
-                {notice.message}
-              </div>
+            {queuedImages.length > 0 ? (
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--foreground-subtle)]">
+                {queuedImages.length} image{queuedImages.length > 1 ? "s" : ""} queued
+              </p>
             ) : null}
-
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={isSending}
-                className="aurora-button px-5"
-              >
-                {isSending
-                  ? "Sending..."
-                  : mode === "operator"
-                    ? "Send Reply"
-                    : "Send Message"}
-              </button>
-              <button
-                type="button"
-                onClick={handleAskAi}
-                disabled={isAiLoading}
-                className="aurora-button-secondary px-5"
-              >
-                {isAiLoading ? "Asking AI..." : "Ask AI About This Ticket"}
-              </button>
-              {queuedImages.length > 0 ? (
-                <p className="self-center text-xs font-medium uppercase tracking-wide text-[color:var(--foreground-subtle)]">
-                  {queuedImages.length} image{queuedImages.length > 1 ? "s" : ""} queued
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        <aside className="space-y-4">
-          <div className="aurora-panel p-5">
-            <p className="aurora-stat-label text-sm">
-              AI Assistant
-            </p>
-            <p className="mt-3 text-sm leading-7 text-[color:var(--foreground-muted)]">
-              The RELAY assistant will answer questions using only this ticket’s
-              request data, status history, messages, and attachments.
-            </p>
-            <div className="mt-4 space-y-3 rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
-                Example grounded prompts
-              </p>
-              <ul className="space-y-2 text-sm leading-6 text-[color:var(--foreground-muted)]">
-                <li>&ldquo;What is the status of this order?&rdquo;</li>
-                <li>&ldquo;Has this part been ordered?&rdquo;</li>
-                <li>&ldquo;Summarise the history of this request.&rdquo;</li>
-              </ul>
-            </div>
           </div>
 
-          <div className="aurora-panel p-5">
-            <p className="aurora-stat-label text-sm">
-              Escalation
-            </p>
-            <p className="mt-3 text-sm leading-7 text-[color:var(--foreground-muted)]">
-              Escalate this ticket directly from the support thread.
-            </p>
-            <div className="mt-4 grid gap-3">
-              <a
-                href={operatorChatHref ?? undefined}
-                target="_blank"
-                rel="noreferrer"
-                aria-disabled={!operatorChatHref}
-                className="aurora-button-secondary"
-              >
-                Chat with Operator
-              </a>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {operatorCallHrefs.map((callOption) => (
-                  <a
-                    key={callOption.href}
-                    href={callOption.href}
-                    className="aurora-button-secondary"
-                  >
-                    {callOption.label}
-                  </a>
-                ))}
+          <textarea
+            rows={4}
+            value={draftMessage}
+            onChange={(event) => setDraftMessage(event.target.value)}
+            placeholder={
+              mode === "operator"
+                ? "Reply to the requester or add a Stores update..."
+                : "Ask Stores about this ticket or request an update..."
+            }
+            className="aurora-textarea mt-4"
+          />
+
+          <div className="mt-4">
+            <FileUploadPanel
+              key={uploadResetKey}
+              label="Attach image"
+              helperText="Optional: add a photo, diagram, or reference image."
+              inputId={`chat-upload-${ticketId}-${mode}`}
+              buttonLabel={mode === "operator" ? "Upload image" : "Add image"}
+              emptyText="No images queued."
+              onFilesChange={setQueuedImages}
+            />
+          </div>
+
+          {notice ? (
+            <div
+              className={`mt-4 ${
+                notice.type === "success"
+                  ? "aurora-alert aurora-alert-success"
+                  : "aurora-alert aurora-alert-error"
+              }`}
+            >
+              {notice.message}
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={isSending}
+              className="aurora-button px-5"
+            >
+              {isSending
+                ? "Sending..."
+                : mode === "operator"
+                  ? "Send Reply"
+                  : "Send Message"}
+            </button>
+            <button
+              type="button"
+              onClick={handleAskAi}
+              disabled={isAiLoading}
+              className="aurora-button-secondary px-5"
+            >
+              {isAiLoading ? "Asking AI..." : "Ask AI"}
+            </button>
+          </div>
+
+          {showQuickActions ? (
+            <div className="mt-5 rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
+                    Quick Actions
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-[color:var(--foreground-muted)]">
+                    Use direct contact only if chat is not enough to move the request forward.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {operatorChatHref ? (
+                    <a
+                      href={operatorChatHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="aurora-button-secondary"
+                    >
+                      Chat with Operator
+                    </a>
+                  ) : null}
+                  {operatorCallHrefs.map((callOption) => (
+                    <a
+                      key={callOption.href}
+                      href={callOption.href}
+                      className="aurora-button-secondary"
+                    >
+                      {callOption.label}
+                    </a>
+                  ))}
+                  {!operatorChatHref && operatorSmsHref ? (
+                    <a href={operatorSmsHref} className="aurora-button-secondary">
+                      SMS Fallback
+                    </a>
+                  ) : null}
+                </div>
               </div>
-              {!operatorChatHref ? (
-                <p className="text-xs leading-6 text-[color:var(--foreground-subtle)]">
-                  Operator contact options will appear when request details are
-                  available on this ticket.
-                </p>
-              ) : operatorSmsHref ? (
-                <a
-                  href={operatorSmsHref}
-                  className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)] transition hover:text-[color:var(--foreground-strong)]"
-                >
-                  SMS fallback
-                </a>
-              ) : null}
             </div>
-          </div>
-        </aside>
+          ) : null}
+        </div>
       </div>
     </section>
   );
