@@ -208,7 +208,7 @@ export async function notifyRequesterOfOperatorMessage(
     ticketId: string;
     jobNumber: string | null;
     assignedTo: string | null;
-    requestSummary: string | null;
+    messageText?: string | null;
   },
 ) {
   if (!payload.userId) {
@@ -216,11 +216,12 @@ export async function notifyRequesterOfOperatorMessage(
   }
 
   const title = payload.jobNumber
-    ? `Operator update: ${payload.jobNumber}`
-    : "New operator message";
-  const body = payload.assignedTo?.trim()
-    ? `${payload.assignedTo.trim()} replied about ${payload.requestSummary?.trim() || "your request"}.`
-    : `Stores replied about ${payload.requestSummary?.trim() || "your request"}.`;
+    ? `Admin reply: ${payload.jobNumber}`
+    : "New admin reply";
+  const senderLabel = payload.assignedTo?.trim() || "Stores";
+  const body = payload.messageText?.trim()
+    ? `${senderLabel}: ${clampNotificationText(payload.messageText, 240)}`
+    : `${senderLabel} sent a new reply.`;
 
   await insertNotifications(supabase, [
     {

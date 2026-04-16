@@ -1845,8 +1845,7 @@ export default function AdminPage() {
         ticketId: selectedChatTicket.id,
         jobNumber: selectedChatTicket.job_number,
         assignedTo: selectedChatTicket.assigned_to,
-        requestSummary:
-          selectedChatTicket.request_summary ?? selectedChatTicket.request_details,
+        messageText: payload.messageText,
       }).catch((notificationError) => {
         console.error("Failed to notify requester about operator reply", notificationError);
       });
