@@ -187,6 +187,7 @@ export function NotificationProvider({
   const currentIsAdminRef = useRef(false);
   const lastSoundAtRef = useRef(0);
   const knownUnreadIdsRef = useRef<Set<string>>(new Set());
+  const unreadNotificationsInitializedRef = useRef(false);
   const unreadSyncInFlightRef = useRef<Promise<void> | null>(null);
   const pendingCountInFlightRef = useRef<Promise<void> | null>(null);
   const latestPendingTicketIdRef = useRef<string | null>(null);
@@ -379,7 +380,10 @@ export function NotificationProvider({
         );
         const nextUnreadIds = new Set(unreadNotifications.map((notification) => notification.id));
 
-        if (options?.showToasts) {
+        const shouldShowToasts =
+          options?.showToasts && unreadNotificationsInitializedRef.current;
+
+        if (shouldShowToasts) {
           const nextToasts = unreadNotifications
             .filter((notification) => !knownUnreadIdsRef.current.has(notification.id))
             .sort(
@@ -420,6 +424,7 @@ export function NotificationProvider({
         }
 
         knownUnreadIdsRef.current = nextUnreadIds;
+        unreadNotificationsInitializedRef.current = true;
 
         if (adminUser) {
           setAdminUnreadCount(unreadNotifications.length);
@@ -554,6 +559,7 @@ export function NotificationProvider({
       latestPendingTicketIdRef.current = null;
       pendingTicketsInitializedRef.current = false;
       knownUnreadIdsRef.current = new Set();
+      unreadNotificationsInitializedRef.current = false;
       setRequesterUnreadCount(0);
       setAdminUnreadCount(0);
       setPendingTicketCount(0);
