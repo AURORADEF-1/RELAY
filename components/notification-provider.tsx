@@ -81,7 +81,8 @@ const NOTIFICATION_POLL_INTERVAL_MS = 30000;
 const SESSION_CONTROL_POLL_INTERVAL_MS = 45000;
 const PRESENCE_LEADER_STORAGE_KEY = "relay-presence-leader";
 const PRESENCE_LEASE_TTL_MS = 90_000;
-const ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-admin-browser-notification-prompted";
+const ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-browser-notification-prompted-admin";
+const REQUESTER_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-browser-notification-prompted-requester";
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
   "operator_message",
@@ -101,6 +102,21 @@ function shouldTrackUserPresence(pathname: string, adminUser: boolean) {
     pathname === "/wallboard" ||
     pathname.startsWith("/incidents")
   );
+}
+
+function shouldPromptBrowserNotifications(pathname: string, adminUser: boolean) {
+  if (adminUser) {
+    return (
+      pathname === "/admin" ||
+      pathname === "/completed" ||
+      pathname === "/control" ||
+      pathname === "/wallboard" ||
+      pathname.startsWith("/incidents") ||
+      pathname.startsWith("/tickets/")
+    );
+  }
+
+  return pathname === "/requests" || pathname.startsWith("/tickets/");
 }
 
 function acquirePresenceLease(tabId: string) {
@@ -617,14 +633,18 @@ export function NotificationProvider({
         presenceFailureCountRef.current = 0;
         sessionControlFailureCountRef.current = 0;
 
+        const browserNotificationPromptKey = adminUser
+          ? ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY
+          : REQUESTER_BROWSER_NOTIFICATION_PROMPT_KEY;
+
         if (
-          adminUser &&
+          shouldPromptBrowserNotifications(pathnameRef.current, adminUser) &&
           typeof window !== "undefined" &&
           typeof Notification !== "undefined" &&
           Notification.permission === "default" &&
-          !window.localStorage.getItem(ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY)
+          !window.localStorage.getItem(browserNotificationPromptKey)
         ) {
-          window.localStorage.setItem(ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY, "1");
+          window.localStorage.setItem(browserNotificationPromptKey, "1");
           void Notification.requestPermission().catch(() => {});
         }
 
