@@ -384,9 +384,21 @@ export function NotificationProvider({
               tone: "success",
               notificationId: notification.id,
               persistent:
+                notification.type === "operator_message" ||
                 notification.type === "ready_reminder" ||
                 notification.type === "ready_for_collection",
             });
+            if (
+              notification.type === "operator_message" ||
+              notification.type === "ready_reminder" ||
+              notification.type === "ready_for_collection"
+            ) {
+              pushBrowserNotification({
+                title: notification.title,
+                body: notification.body ?? "New RELAY activity.",
+                href: notification.ticket_id ? `/tickets/${notification.ticket_id}` : undefined,
+              });
+            }
             playNotificationSound();
           }
         }
@@ -412,7 +424,7 @@ export function NotificationProvider({
       unreadSyncInFlightRef.current = request;
       return request;
     },
-    [playNotificationSound, pushToast],
+    [playNotificationSound, pushBrowserNotification, pushToast],
   );
 
   const markPathNotificationsRead = useCallback(
@@ -454,6 +466,7 @@ export function NotificationProvider({
             : unreadNotifications.filter(
                 (notification) =>
                   REQUEST_NOTIFICATION_TYPES.has(notification.type) &&
+                  notification.type !== "operator_message" &&
                   notification.type !== "ready_reminder" &&
                   notification.type !== "ready_for_collection",
               );
