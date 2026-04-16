@@ -94,6 +94,17 @@ const ADMIN_DASHBOARD_VIEW_STORAGE_KEY = "relay-admin-dashboard-view-mode";
 const ADMIN_PAGE_SIZE_OPTIONS = [15, 25, 50] as const;
 const OVERSIGHT_PENDING_DELAY_MS = 60_000;
 const OVERSIGHT_TIMER_INTERVAL_MS = 30_000;
+const REQUESTER_MESSAGE_OVERSIGHT_PREFIX = "requester-message";
+
+function clampOversightMessage(value: string, maxLength: number) {
+  const trimmed = value.trim();
+
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
 
 type Ticket = {
   id: string;
@@ -956,73 +967,6 @@ export default function AdminPage() {
       monthlySpendSnapshots.filter((snapshot) => snapshot.month_start === selectedSpendMonth),
     [monthlySpendSnapshots, selectedSpendMonth],
   );
-  const oversightItems = useMemo<AdminOversightItem[]>(() => {
-    const isOlderThanOversightDelay = (ticket: Ticket) => {
-      const createdTime = ticket.created_at ? new Date(ticket.created_at).getTime() : 0;
-
-      if (!Number.isFinite(createdTime) || createdTime <= 0) {
-        return false;
-      }
-
-      return oversightNow - createdTime >= OVERSIGHT_PENDING_DELAY_MS;
-    };
-    const pendingTickets = tickets.filter(
-      (ticket) => ticket.status === "PENDING" && isOlderThanOversightDelay(ticket),
-    );
-    const unassignedTickets = tickets.filter(
-      (ticket) =>
-        ticket.status !== "COMPLETED" &&
-        !ticket.assigned_to?.trim() &&
-        isOlderThanOversightDelay(ticket),
-    );
-    const collectedReadyTickets = tickets.filter(
-      (ticket) => ticket.status === "READY" && collectedTicketIds.has(ticket.id),
-    );
-    const formatOversightTicketLabel = (ticket: Ticket) =>
-      ticket.job_number?.trim()
-        ? `Job ${ticket.job_number.trim()}`
-        : ticket.machine_reference?.trim()
-          ? ticket.machine_reference.trim()
-          : "ticket";
-    const firstPendingTicket = pendingTickets[0];
-    const firstUnassignedTicket = unassignedTickets[0];
-    const firstCollectedReadyTicket = collectedReadyTickets[0];
-
-    const nextItems: Array<AdminOversightItem | null> = [
-      pendingTickets.length > 0
-        ? {
-            id: `pending-${firstPendingTicket!.id}`,
-            title: `${pendingTickets.length} job${pendingTickets.length === 1 ? "" : "s"} waiting in PENDING`,
-            body: `Review ${formatOversightTicketLabel(firstPendingTicket!)} and move it into active ownership.`,
-            href: `/tickets/${firstPendingTicket!.id}`,
-            actionLabel: `Open ${formatOversightTicketLabel(firstPendingTicket!)}`,
-          }
-        : null,
-      unassignedTickets.length > 0
-        ? {
-            id: `unassigned-${firstUnassignedTicket!.id}`,
-            title: `${unassignedTickets.length} active job${unassignedTickets.length === 1 ? "" : "s"} unassigned`,
-            body: `Assign ${formatOversightTicketLabel(firstUnassignedTicket!)} to stop requests sitting without an operator.`,
-            href: `/tickets/${firstUnassignedTicket!.id}`,
-            actionLabel: `Open ${formatOversightTicketLabel(firstUnassignedTicket!)}`,
-          }
-        : null,
-      collectedReadyTickets.length > 0
-        ? {
-            id: `collected-ready-${firstCollectedReadyTicket!.id}`,
-            title: `${collectedReadyTickets.length} READY job${collectedReadyTickets.length === 1 ? "" : "s"} already collected`,
-            body: `Collected parts are still sitting in READY. Review ${formatOversightTicketLabel(firstCollectedReadyTicket!)} and complete it if appropriate.`,
-            href: `/tickets/${firstCollectedReadyTicket!.id}`,
-            actionLabel: `Open ${formatOversightTicketLabel(firstCollectedReadyTicket!)}`,
-          }
-        : null,
-    ];
-
-    return nextItems
-      .filter((item): item is AdminOversightItem => Boolean(item))
-      .filter((item) => !dismissedOversightIds.includes(item.id));
-  }, [collectedTicketIds, dismissedOversightIds, oversightNow, tickets]);
-
   const exportMonthlySpendCsv = useCallback(() => {
     if (selectedMonthSnapshots.length === 0 || !selectedSpendMonth) {
       setOrdersNotice({
@@ -1098,22 +1042,6 @@ export default function AdminPage() {
       message: "Prepared ready orders email in your mail client.",
     });
   }, [readyOrders]);
-
-  const dismissOversightItem = useCallback((itemId: string) => {
-    setDismissedOversightIds((current) => {
-      if (current.includes(itemId)) {
-        return current;
-      }
-
-      const next = [...current, itemId];
-
-      if (typeof window !== "undefined" && currentUserId) {
-        window.sessionStorage.setItem(`relay-admin-oversight-${currentUserId}`, JSON.stringify(next));
-      }
-
-      return next;
-    });
-  }, [currentUserId]);
 
   const openStatusWorkflowDialog = useCallback((ticket: Ticket, nextStatus: TicketStatus) => {
     const mode = getStatusWorkflowRequirement(ticket.status, nextStatus);
@@ -1661,6 +1589,39 @@ export default function AdminPage() {
     });
   }, [requesterMessagesByTicket]);
 
+  const dismissOversightItem = useCallback((itemId: string) => {
+    if (itemId.startsWith(`${REQUESTER_MESSAGE_OVERSIGHT_PREFIX}::`)) {
+      const [, ticketId] = itemId.split("::");
+
+      if (ticketId) {
+        markTicketChatRead(ticketId);
+      }
+
+      return;
+    }
+
+    setDismissedOversightIds((current) => {
+      if (current.includes(itemId)) {
+        return current;
+      }
+
+      const next = [...current, itemId];
+
+      if (typeof window !== "undefined" && currentUserId) {
+        window.sessionStorage.setItem(`relay-admin-oversight-${currentUserId}`, JSON.stringify(next));
+      }
+
+      return next;
+    });
+  }, [currentUserId, markTicketChatRead]);
+
+  const openRequesterChatFromInbox = useCallback((ticketId: string) => {
+    setSelectedChatTicketId(ticketId);
+    setResourceTab("operations");
+    setIsChatCollapsed(false);
+    markTicketChatRead(ticketId);
+  }, [markTicketChatRead]);
+
   const unreadRequesterCountsByTicket = useMemo(
     () =>
       Object.fromEntries(
@@ -1703,6 +1664,123 @@ export default function AdminPage() {
       );
     });
   }, [filteredTickets, unreadRequesterCountsByTicket]);
+
+  const requesterInboxItems = useMemo<
+    Array<AdminOversightItem & { createdAt: string | null }>
+  >(
+    () =>
+      tickets
+        .flatMap((ticket) => {
+          const latestRequesterMessage = requesterMessagesByTicket[ticket.id]?.[0];
+          const unreadCount = unreadRequesterCountsByTicket[ticket.id] ?? 0;
+
+          if (!latestRequesterMessage || unreadCount <= 0) {
+            return [];
+          }
+
+          const ticketLabel = ticket.job_number?.trim()
+            ? `Job ${ticket.job_number.trim()}`
+            : ticket.machine_reference?.trim()
+              ? ticket.machine_reference.trim()
+              : "Ticket";
+          const requesterLabel = ticket.requester_name?.trim() || "Requester";
+          const messageSummary = latestRequesterMessage.message_text?.trim()
+            ? `"${clampOversightMessage(latestRequesterMessage.message_text, 120)}"`
+            : "Sent an attachment.";
+
+          return [
+            {
+              id: `${REQUESTER_MESSAGE_OVERSIGHT_PREFIX}::${ticket.id}::${latestRequesterMessage.id}`,
+              title: `${ticketLabel}: ${requesterLabel}`,
+              body:
+                unreadCount > 1
+                  ? `${messageSummary} ${unreadCount} unread messages.`
+                  : messageSummary,
+              actionLabel: "Open Chat",
+              onAction: () => openRequesterChatFromInbox(ticket.id),
+              createdAt: latestRequesterMessage.created_at ?? null,
+            },
+          ];
+        })
+        .sort(
+          (left, right) =>
+            new Date(right.createdAt ?? 0).getTime() - new Date(left.createdAt ?? 0).getTime(),
+        ),
+    [
+      openRequesterChatFromInbox,
+      requesterMessagesByTicket,
+      tickets,
+      unreadRequesterCountsByTicket,
+    ],
+  );
+
+  const oversightItems = useMemo<AdminOversightItem[]>(() => {
+    const isOlderThanOversightDelay = (ticket: Ticket) => {
+      const createdTime = ticket.created_at ? new Date(ticket.created_at).getTime() : 0;
+
+      if (!Number.isFinite(createdTime) || createdTime <= 0) {
+        return false;
+      }
+
+      return oversightNow - createdTime >= OVERSIGHT_PENDING_DELAY_MS;
+    };
+    const pendingTickets = tickets.filter(
+      (ticket) => ticket.status === "PENDING" && isOlderThanOversightDelay(ticket),
+    );
+    const unassignedTickets = tickets.filter(
+      (ticket) =>
+        ticket.status !== "COMPLETED" &&
+        !ticket.assigned_to?.trim() &&
+        isOlderThanOversightDelay(ticket),
+    );
+    const collectedReadyTickets = tickets.filter(
+      (ticket) => ticket.status === "READY" && collectedTicketIds.has(ticket.id),
+    );
+    const formatOversightTicketLabel = (ticket: Ticket) =>
+      ticket.job_number?.trim()
+        ? `Job ${ticket.job_number.trim()}`
+        : ticket.machine_reference?.trim()
+          ? ticket.machine_reference.trim()
+          : "ticket";
+    const firstPendingTicket = pendingTickets[0];
+    const firstUnassignedTicket = unassignedTickets[0];
+    const firstCollectedReadyTicket = collectedReadyTickets[0];
+
+    const nextItems: Array<AdminOversightItem | null> = [
+      ...requesterInboxItems,
+      pendingTickets.length > 0
+        ? {
+            id: `pending-${firstPendingTicket!.id}`,
+            title: `${pendingTickets.length} job${pendingTickets.length === 1 ? "" : "s"} waiting in PENDING`,
+            body: `Review ${formatOversightTicketLabel(firstPendingTicket!)} and move it into active ownership.`,
+            href: `/tickets/${firstPendingTicket!.id}`,
+            actionLabel: `Open ${formatOversightTicketLabel(firstPendingTicket!)}`,
+          }
+        : null,
+      unassignedTickets.length > 0
+        ? {
+            id: `unassigned-${firstUnassignedTicket!.id}`,
+            title: `${unassignedTickets.length} active job${unassignedTickets.length === 1 ? "" : "s"} unassigned`,
+            body: `Assign ${formatOversightTicketLabel(firstUnassignedTicket!)} to stop requests sitting without an operator.`,
+            href: `/tickets/${firstUnassignedTicket!.id}`,
+            actionLabel: `Open ${formatOversightTicketLabel(firstUnassignedTicket!)}`,
+          }
+        : null,
+      collectedReadyTickets.length > 0
+        ? {
+            id: `collected-ready-${firstCollectedReadyTicket!.id}`,
+            title: `${collectedReadyTickets.length} READY job${collectedReadyTickets.length === 1 ? "" : "s"} already collected`,
+            body: `Collected parts are still sitting in READY. Review ${formatOversightTicketLabel(firstCollectedReadyTicket!)} and complete it if appropriate.`,
+            href: `/tickets/${firstCollectedReadyTicket!.id}`,
+            actionLabel: `Open ${formatOversightTicketLabel(firstCollectedReadyTicket!)}`,
+          }
+        : null,
+    ];
+
+    return nextItems
+      .filter((item): item is AdminOversightItem => Boolean(item))
+      .filter((item) => !dismissedOversightIds.includes(item.id));
+  }, [collectedTicketIds, dismissedOversightIds, oversightNow, requesterInboxItems, tickets]);
 
   const totalUnreadChatCount = useMemo(
     () => Object.values(unreadRequesterCountsByTicket).reduce((sum, count) => sum + count, 0),

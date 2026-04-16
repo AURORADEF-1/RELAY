@@ -9,6 +9,7 @@ export type AdminOversightItem = {
   body: string;
   href?: string;
   actionLabel?: string;
+  onAction?: () => void;
 };
 
 export function AdminOversightInbox({
@@ -105,7 +106,18 @@ export function AdminOversightInbox({
                         <p className="mt-2 text-sm leading-7 text-slate-600">{item.body}</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {item.href ? (
+                        {item.onAction ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              item.onAction?.();
+                              setIsOpen(false);
+                            }}
+                            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                          >
+                            {item.actionLabel ?? "Review"}
+                          </button>
+                        ) : item.href ? (
                           <Link
                             href={item.href}
                             onClick={() => setIsOpen(false)}
