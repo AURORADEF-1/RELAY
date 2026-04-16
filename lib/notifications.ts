@@ -470,7 +470,42 @@ async function insertNotifications(
 
   const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
-  if (!response.ok) {
-    throw new Error(payload.error || "Notification dispatch failed.");
+  if (response.ok) {
+    return;
+  }
+
+  const dispatchErrorMessage = payload.error || "Notification dispatch failed.";
+  const currentUserId = session?.user?.id ?? null;
+  const isSelfNotificationTarget =
+    currentUserId !== null &&
+    notifications.every((notification) => notification.user_id === currentUserId);
+
+  let canUseDirectInsertFallback = isSelfNotificationTarget;
+
+  if (!canUseDirectInsertFallback && currentUserId) {
+    const { data: currentProfile, error: currentProfileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", currentUserId)
+      .maybeSingle<{ role?: string | null }>();
+
+    if (currentProfileError) {
+      throw new Error(dispatchErrorMessage);
+    }
+
+    canUseDirectInsertFallback =
+      (currentProfile?.role ?? "").trim().toLowerCase() === "admin";
+  }
+
+  if (!canUseDirectInsertFallback) {
+    throw new Error(dispatchErrorMessage);
+  }
+
+  const { error: directInsertError } = await supabase
+    .from("notifications")
+    .insert(notifications);
+
+  if (directInsertError) {
+    throw new Error(`${dispatchErrorMessage} Direct insert fallback failed: ${directInsertError.message}`);
   }
 }
