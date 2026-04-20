@@ -40,8 +40,6 @@ const POLL_INTERVAL_MS = 1000 * 30;
 const PAGE_DURATION_MS = 1000 * 30;
 const PAGE_SIZE = 12;
 const REALTIME_REFRESH_DEBOUNCE_MS = 500;
-const AUTO_SCROLL_PIXELS_PER_SECOND = 8;
-const AUTO_SCROLL_EDGE_PAUSE_MS = 2500;
 
 export default function WallboardPage() {
   const [tickets, setTickets] = useState<WallboardTicket[]>([]);
@@ -54,7 +52,6 @@ export default function WallboardPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [pageStartedAt, setPageStartedAt] = useState(() => Date.now());
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
-  const [autoScrollOffset, setAutoScrollOffset] = useState(0);
   const signatureRef = useRef("");
   const supplierSpendSignatureRef = useRef("");
   const supplierSpendTicketsRef = useRef<SupplierSpendTicket[]>([]);
@@ -62,8 +59,6 @@ export default function WallboardPage() {
   const modeStartedAtRef = useRef(modeStartedAt);
   const pageStartedAtRef = useRef(pageStartedAt);
   const currentModeRef = useRef(currentMode);
-  const scrollViewportRef = useRef<HTMLDivElement | null>(null);
-  const scrollContentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     modeStartedAtRef.current = modeStartedAt;
@@ -351,80 +346,6 @@ export default function WallboardPage() {
     safePageIndex * PAGE_SIZE + PAGE_SIZE,
   );
 
-  useEffect(() => {
-    const viewport = scrollViewportRef.current;
-    const content = scrollContentRef.current;
-
-    if (!viewport || !content) {
-      return;
-    }
-
-    let direction: 1 | -1 = 1;
-    let pauseUntil = Date.now() + AUTO_SCROLL_EDGE_PAUSE_MS;
-    let lastFrameAt = performance.now();
-    let animationFrameId = 0;
-    let currentOffset = 0;
-
-    const step = (frameTime: number) => {
-      const currentViewport = scrollViewportRef.current;
-      const currentContent = scrollContentRef.current;
-
-      if (!currentViewport || !currentContent) {
-        animationFrameId = window.requestAnimationFrame(step);
-        return;
-      }
-
-      const maxScrollTop = currentContent.scrollHeight - currentViewport.clientHeight;
-
-      if (maxScrollTop <= 4) {
-        currentOffset = 0;
-        setAutoScrollOffset(0);
-        lastFrameAt = frameTime;
-        animationFrameId = window.requestAnimationFrame(step);
-        return;
-      }
-
-      const now = Date.now();
-
-      if (now < pauseUntil) {
-        lastFrameAt = frameTime;
-        animationFrameId = window.requestAnimationFrame(step);
-        return;
-      }
-
-      const elapsedSeconds = Math.max(0, (frameTime - lastFrameAt) / 1000);
-      lastFrameAt = frameTime;
-      const nextTop =
-        currentOffset + direction * AUTO_SCROLL_PIXELS_PER_SECOND * elapsedSeconds;
-
-      if (nextTop >= maxScrollTop) {
-        currentOffset = maxScrollTop;
-        setAutoScrollOffset(maxScrollTop);
-        direction = -1;
-        pauseUntil = now + AUTO_SCROLL_EDGE_PAUSE_MS;
-        animationFrameId = window.requestAnimationFrame(step);
-        return;
-      }
-
-      if (nextTop <= 0) {
-        currentOffset = 0;
-        setAutoScrollOffset(0);
-        direction = 1;
-        pauseUntil = now + AUTO_SCROLL_EDGE_PAUSE_MS;
-        animationFrameId = window.requestAnimationFrame(step);
-        return;
-      }
-
-      currentOffset = nextTop;
-      setAutoScrollOffset(nextTop);
-      animationFrameId = window.requestAnimationFrame(step);
-    };
-
-    animationFrameId = window.requestAnimationFrame(step);
-
-    return () => window.cancelAnimationFrame(animationFrameId);
-  }, [currentMode, safePageIndex]);
-
   const secondsRemaining = Math.max(
     0,
     Math.ceil((MODE_DURATION_MS - (countdownNow - modeStartedAt)) / 1000),
@@ -437,15 +358,8 @@ export default function WallboardPage() {
 
   return (
     <AuthGuard requiredRole="admin">
-      <main
-        ref={scrollViewportRef}
-        className="aurora-shell h-screen overflow-hidden px-8 py-8 text-white"
-      >
-        <div
-          ref={scrollContentRef}
-          className="aurora-shell-inner max-w-[120rem] space-y-6 pb-8 will-change-transform"
-          style={{ transform: `translate3d(0, -${autoScrollOffset}px, 0)` }}
-        >
+      <main className="aurora-shell min-h-screen px-8 py-8 text-white">
+        <div className="aurora-shell-inner max-w-[120rem] space-y-6 pb-8">
           <header className="rounded-[2rem] border border-white/12 bg-black/24 px-7 py-5 backdrop-blur-md">
             <div className="flex items-center justify-between gap-5">
               <div className="flex items-center gap-5">
