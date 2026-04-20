@@ -59,7 +59,6 @@ export default function WallboardPage() {
   const modeStartedAtRef = useRef(modeStartedAt);
   const pageStartedAtRef = useRef(pageStartedAt);
   const currentModeRef = useRef(currentMode);
-  const hasPendingTicketsRef = useRef(false);
 
   useEffect(() => {
     modeStartedAtRef.current = modeStartedAt;
@@ -146,22 +145,11 @@ export default function WallboardPage() {
           ].join(":"),
         )
         .join("|");
-      const hasPendingTickets = nextTickets.some((ticket) => ticket.status === "PENDING");
-      hasPendingTicketsRef.current = hasPendingTickets;
-
       if (
         pendingSignatureRef.current &&
         nextPendingSignature !== pendingSignatureRef.current &&
         currentModeRef.current !== "inbound"
       ) {
-        const now = Date.now();
-        setCurrentMode("inbound");
-        setModeStartedAt(now);
-        setCurrentPage(0);
-        setPageStartedAt(now);
-      }
-
-      if (hasPendingTickets && currentModeRef.current !== "inbound") {
         const now = Date.now();
         setCurrentMode("inbound");
         setModeStartedAt(now);
@@ -223,18 +211,7 @@ export default function WallboardPage() {
       const now = Date.now();
       setCountdownNow(now);
 
-      if (hasPendingTicketsRef.current && currentModeRef.current !== "inbound") {
-        setCurrentMode("inbound");
-        setModeStartedAt(now);
-        setCurrentPage(0);
-        setPageStartedAt(now);
-        return;
-      }
-
-      if (
-        now - modeStartedAtRef.current >= MODE_DURATION_MS &&
-        !(hasPendingTicketsRef.current && currentModeRef.current === "inbound")
-      ) {
+      if (now - modeStartedAtRef.current >= MODE_DURATION_MS) {
         setCurrentMode((previousMode) => getNextWallboardMode(previousMode));
         setModeStartedAt(now);
         setCurrentPage(0);
