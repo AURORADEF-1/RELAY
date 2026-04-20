@@ -35,14 +35,13 @@ type SupplierSpendTicket = {
 type WallboardMode = "inbound" | "ready" | "operators" | "suppliers";
 
 const ROTATION_MODES: WallboardMode[] = ["inbound", "ready", "operators", "suppliers"];
-const MODE_DURATION_MS = 1000 * 45;
+const MODE_DURATION_MS = 1000 * 60;
 const POLL_INTERVAL_MS = 1000 * 30;
-const PAGE_DURATION_MS = 1000 * 12;
+const PAGE_DURATION_MS = 1000 * 30;
 const PAGE_SIZE = 12;
 const REALTIME_REFRESH_DEBOUNCE_MS = 500;
-const AUTO_SCROLL_INTERVAL_MS = 80;
-const AUTO_SCROLL_STEP_PX = 1;
-const AUTO_SCROLL_EDGE_PAUSE_MS = 1800;
+const AUTO_SCROLL_PIXELS_PER_SECOND = 8;
+const AUTO_SCROLL_EDGE_PAUSE_MS = 2500;
 
 export default function WallboardPage() {
   const [tickets, setTickets] = useState<WallboardTicket[]>([]);
@@ -360,11 +359,14 @@ export default function WallboardPage() {
     viewport.scrollTo({ top: 0 });
     let direction: 1 | -1 = 1;
     let pauseUntil = Date.now() + AUTO_SCROLL_EDGE_PAUSE_MS;
+    let lastFrameAt = performance.now();
+    let animationFrameId = 0;
 
-    const intervalId = window.setInterval(() => {
+    const step = (frameTime: number) => {
       const currentViewport = scrollViewportRef.current;
 
       if (!currentViewport) {
+        animationFrameId = window.requestAnimationFrame(step);
         return;
       }
 
@@ -372,21 +374,30 @@ export default function WallboardPage() {
 
       if (maxScrollTop <= 4) {
         currentViewport.scrollTo({ top: 0 });
+        lastFrameAt = frameTime;
+        animationFrameId = window.requestAnimationFrame(step);
         return;
       }
 
       const now = Date.now();
 
       if (now < pauseUntil) {
+        lastFrameAt = frameTime;
+        animationFrameId = window.requestAnimationFrame(step);
         return;
       }
 
-      const nextTop = currentViewport.scrollTop + direction * AUTO_SCROLL_STEP_PX;
+      const elapsedSeconds = Math.max(0, (frameTime - lastFrameAt) / 1000);
+      lastFrameAt = frameTime;
+      const nextTop =
+        currentViewport.scrollTop +
+        direction * AUTO_SCROLL_PIXELS_PER_SECOND * elapsedSeconds;
 
       if (nextTop >= maxScrollTop) {
         currentViewport.scrollTop = maxScrollTop;
         direction = -1;
         pauseUntil = now + AUTO_SCROLL_EDGE_PAUSE_MS;
+        animationFrameId = window.requestAnimationFrame(step);
         return;
       }
 
@@ -394,13 +405,17 @@ export default function WallboardPage() {
         currentViewport.scrollTop = 0;
         direction = 1;
         pauseUntil = now + AUTO_SCROLL_EDGE_PAUSE_MS;
+        animationFrameId = window.requestAnimationFrame(step);
         return;
       }
 
       currentViewport.scrollTop = nextTop;
-    }, AUTO_SCROLL_INTERVAL_MS);
+      animationFrameId = window.requestAnimationFrame(step);
+    };
 
-    return () => window.clearInterval(intervalId);
+    animationFrameId = window.requestAnimationFrame(step);
+
+    return () => window.cancelAnimationFrame(animationFrameId);
   }, [currentMode, safePageIndex]);
 
   const secondsRemaining = Math.max(
