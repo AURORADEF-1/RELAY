@@ -40,6 +40,9 @@ const POLL_INTERVAL_MS = 1000 * 30;
 const PAGE_DURATION_MS = 1000 * 12;
 const PAGE_SIZE = 12;
 const REALTIME_REFRESH_DEBOUNCE_MS = 500;
+const AUTO_SCROLL_INTERVAL_MS = 80;
+const AUTO_SCROLL_STEP_PX = 1;
+const AUTO_SCROLL_EDGE_PAUSE_MS = 1800;
 
 export default function WallboardPage() {
   const [tickets, setTickets] = useState<WallboardTicket[]>([]);
@@ -59,6 +62,7 @@ export default function WallboardPage() {
   const modeStartedAtRef = useRef(modeStartedAt);
   const pageStartedAtRef = useRef(pageStartedAt);
   const currentModeRef = useRef(currentMode);
+  const scrollViewportRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     modeStartedAtRef.current = modeStartedAt;
@@ -345,6 +349,60 @@ export default function WallboardPage() {
     safePageIndex * PAGE_SIZE,
     safePageIndex * PAGE_SIZE + PAGE_SIZE,
   );
+
+  useEffect(() => {
+    const viewport = scrollViewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    viewport.scrollTo({ top: 0 });
+    let direction: 1 | -1 = 1;
+    let pauseUntil = Date.now() + AUTO_SCROLL_EDGE_PAUSE_MS;
+
+    const intervalId = window.setInterval(() => {
+      const currentViewport = scrollViewportRef.current;
+
+      if (!currentViewport) {
+        return;
+      }
+
+      const maxScrollTop = currentViewport.scrollHeight - currentViewport.clientHeight;
+
+      if (maxScrollTop <= 4) {
+        currentViewport.scrollTo({ top: 0 });
+        return;
+      }
+
+      const now = Date.now();
+
+      if (now < pauseUntil) {
+        return;
+      }
+
+      const nextTop = currentViewport.scrollTop + direction * AUTO_SCROLL_STEP_PX;
+
+      if (nextTop >= maxScrollTop) {
+        currentViewport.scrollTop = maxScrollTop;
+        direction = -1;
+        pauseUntil = now + AUTO_SCROLL_EDGE_PAUSE_MS;
+        return;
+      }
+
+      if (nextTop <= 0) {
+        currentViewport.scrollTop = 0;
+        direction = 1;
+        pauseUntil = now + AUTO_SCROLL_EDGE_PAUSE_MS;
+        return;
+      }
+
+      currentViewport.scrollTop = nextTop;
+    }, AUTO_SCROLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [currentMode, safePageIndex]);
+
   const secondsRemaining = Math.max(
     0,
     Math.ceil((MODE_DURATION_MS - (countdownNow - modeStartedAt)) / 1000),
@@ -357,8 +415,8 @@ export default function WallboardPage() {
 
   return (
     <AuthGuard requiredRole="admin">
-      <main className="aurora-shell overflow-hidden px-8 py-8 text-white">
-        <div className="aurora-shell-inner max-w-[120rem] space-y-6">
+      <main className="aurora-shell h-screen overflow-hidden px-8 py-8 text-white">
+        <div className="aurora-shell-inner flex h-full max-w-[120rem] flex-col gap-6 overflow-hidden">
           <header className="rounded-[2rem] border border-white/12 bg-black/24 px-7 py-5 backdrop-blur-md">
             <div className="flex items-center justify-between gap-5">
               <div className="flex items-center gap-5">
@@ -406,77 +464,82 @@ export default function WallboardPage() {
             </div>
           </header>
 
-          {currentMode === "operators" ? (
-            <OperatorKpiScreen operatorMetrics={operatorMetrics} tickets={tickets} />
-          ) : currentMode === "suppliers" ? (
-            <SupplierSpendScreen summary={supplierSpendSummary} />
-          ) : (
-            <section className="grid min-h-[70vh] auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {visibleTickets.length > 0 ? (
-              visibleTickets.map((ticket) => (
-                <article
-                  key={`${currentMode}-${ticket.id}`}
-                  className={getWallboardCardClass(ticket.status)}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.34em] text-white/45">
-                        Job
+          <div
+            ref={scrollViewportRef}
+            className="min-h-0 flex-1 overflow-y-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {currentMode === "operators" ? (
+              <OperatorKpiScreen operatorMetrics={operatorMetrics} tickets={tickets} />
+            ) : currentMode === "suppliers" ? (
+              <SupplierSpendScreen summary={supplierSpendSummary} />
+            ) : (
+              <section className="grid min-h-full auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {visibleTickets.length > 0 ? (
+                  visibleTickets.map((ticket) => (
+                    <article
+                      key={`${currentMode}-${ticket.id}`}
+                      className={getWallboardCardClass(ticket.status)}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.34em] text-white/45">
+                            Job
+                          </p>
+                          <p className="mt-2 text-3xl font-semibold tracking-[0.08em] text-white 2xl:text-4xl">
+                            {ticket.job_number ?? "Unassigned"}
+                          </p>
+                        </div>
+                        <span className={getStatusBadgeClass(ticket.status)}>
+                          {ticket.status ?? "UNKNOWN"}
+                        </span>
+                      </div>
+
+                      <div className="mt-5 grid gap-3">
+                        <WallboardMeta label="Machine" value={ticket.machine_reference ?? "Not set"} />
+                        <WallboardMeta
+                          label={currentMode === "ready" ? "Prepared By" : "Assigned To"}
+                          value={ticket.assigned_to ?? "Awaiting assignment"}
+                        />
+                        <WallboardMeta
+                          label="Requested By"
+                          value={ticket.requester_name ?? "Unknown requester"}
+                        />
+                      </div>
+
+                      <div className="mt-5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.34em] text-white/45">
+                          Request
+                        </p>
+                        <p className="mt-3 max-h-[6.75rem] overflow-hidden text-xl leading-snug text-white/92 2xl:text-2xl">
+                          {ticket.request_summary ?? ticket.request_details ?? "No summary provided"}
+                        </p>
+                      </div>
+
+                      <div className="mt-auto pt-5 text-sm font-medium uppercase tracking-[0.2em] text-white/52">
+                        {currentMode === "ready" ? "Ready since" : "Waiting since"}{" "}
+                        {formatRelativeAge(ticket.updated_at ?? ticket.created_at)}
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="col-span-full flex min-h-[50vh] items-center justify-center rounded-[2rem] border border-white/10 bg-black/20 px-8 py-12 text-center backdrop-blur-sm">
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold uppercase tracking-[0.38em] text-white/45">
+                        {currentMode === "inbound" ? "Inbound Queue" : "Ready Queue"}
                       </p>
-                      <p className="mt-2 text-3xl font-semibold tracking-[0.08em] text-white 2xl:text-4xl">
-                        {ticket.job_number ?? "Unassigned"}
+                      <p className="text-4xl font-semibold text-white">
+                        {isLoading
+                          ? "Loading live tickets..."
+                          : loadError ?? "No live tickets in this queue right now"}
                       </p>
                     </div>
-                    <span className={getStatusBadgeClass(ticket.status)}>
-                      {ticket.status ?? "UNKNOWN"}
-                    </span>
                   </div>
+                )}
+              </section>
+            )}
+          </div>
 
-                  <div className="mt-5 grid gap-3">
-                    <WallboardMeta label="Machine" value={ticket.machine_reference ?? "Not set"} />
-                    <WallboardMeta
-                      label={currentMode === "ready" ? "Prepared By" : "Assigned To"}
-                      value={ticket.assigned_to ?? "Awaiting assignment"}
-                    />
-                    <WallboardMeta
-                      label="Requested By"
-                      value={ticket.requester_name ?? "Unknown requester"}
-                    />
-                  </div>
-
-                  <div className="mt-5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.34em] text-white/45">
-                      Request
-                    </p>
-                    <p className="mt-3 max-h-[6.75rem] overflow-hidden text-xl leading-snug text-white/92 2xl:text-2xl">
-                      {ticket.request_summary ?? ticket.request_details ?? "No summary provided"}
-                    </p>
-                  </div>
-
-                  <div className="mt-auto pt-5 text-sm font-medium uppercase tracking-[0.2em] text-white/52">
-                    {currentMode === "ready" ? "Ready since" : "Waiting since"}{" "}
-                    {formatRelativeAge(ticket.updated_at ?? ticket.created_at)}
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div className="col-span-full flex min-h-[50vh] items-center justify-center rounded-[2rem] border border-white/10 bg-black/20 px-8 py-12 text-center backdrop-blur-sm">
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold uppercase tracking-[0.38em] text-white/45">
-                    {currentMode === "inbound" ? "Inbound Queue" : "Ready Queue"}
-                  </p>
-                  <p className="text-4xl font-semibold text-white">
-                    {isLoading
-                      ? "Loading live tickets..."
-                      : loadError ?? "No live tickets in this queue right now"}
-                  </p>
-                </div>
-              </div>
-              )}
-            </section>
-          )}
-
-          <footer className="flex items-center justify-between rounded-[2rem] border border-white/10 bg-black/22 px-6 py-4 text-sm text-white/60 backdrop-blur-sm">
+          <footer className="shrink-0 flex items-center justify-between rounded-[2rem] border border-white/10 bg-black/22 px-6 py-4 text-sm text-white/60 backdrop-blur-sm">
             <p>
               Refreshes every {Math.floor(POLL_INTERVAL_MS / 1000)} seconds. Page flips every{" "}
               {Math.floor(PAGE_DURATION_MS / 1000)} seconds for low-load full-queue coverage.
