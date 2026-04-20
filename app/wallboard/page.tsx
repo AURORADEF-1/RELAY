@@ -430,8 +430,11 @@ export default function WallboardPage() {
 
   return (
     <AuthGuard requiredRole="admin">
-      <main className="aurora-shell h-screen overflow-hidden px-8 py-8 text-white">
-        <div className="aurora-shell-inner flex h-full max-w-[120rem] flex-col gap-6 overflow-hidden">
+      <main
+        ref={scrollViewportRef}
+        className="aurora-shell h-screen overflow-y-auto px-8 py-8 text-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        <div className="aurora-shell-inner max-w-[120rem] space-y-6 pb-8">
           <header className="rounded-[2rem] border border-white/12 bg-black/24 px-7 py-5 backdrop-blur-md">
             <div className="flex items-center justify-between gap-5">
               <div className="flex items-center gap-5">
@@ -479,10 +482,7 @@ export default function WallboardPage() {
             </div>
           </header>
 
-          <div
-            ref={scrollViewportRef}
-            className="min-h-0 flex-1 overflow-y-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
+          <div>
             {currentMode === "operators" ? (
               <OperatorKpiScreen operatorMetrics={operatorMetrics} tickets={tickets} />
             ) : currentMode === "suppliers" ? (
@@ -554,7 +554,7 @@ export default function WallboardPage() {
             )}
           </div>
 
-          <footer className="shrink-0 flex items-center justify-between rounded-[2rem] border border-white/10 bg-black/22 px-6 py-4 text-sm text-white/60 backdrop-blur-sm">
+          <footer className="flex items-center justify-between rounded-[2rem] border border-white/10 bg-black/22 px-6 py-4 text-sm text-white/60 backdrop-blur-sm">
             <p>
               Refreshes every {Math.floor(POLL_INTERVAL_MS / 1000)} seconds. Page flips every{" "}
               {Math.floor(PAGE_DURATION_MS / 1000)} seconds for low-load full-queue coverage.
