@@ -416,7 +416,7 @@ export default function WallboardPage() {
                   accent="green"
                 />
                 <WallboardMetric
-                  label="Operators Active"
+                  label="Jobs Active"
                   value={operatorMetrics.reduce((sum, operator) => sum + operator.total, 0)}
                   accent="blue"
                 />
