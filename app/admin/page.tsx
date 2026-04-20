@@ -94,6 +94,7 @@ const ADMIN_DASHBOARD_VIEW_STORAGE_KEY = "relay-admin-dashboard-view-mode";
 const ADMIN_PAGE_SIZE_OPTIONS = [15, 25, 50] as const;
 const OVERSIGHT_PENDING_DELAY_MS = 60_000;
 const OVERSIGHT_TIMER_INTERVAL_MS = 30_000;
+const ADMIN_TICKET_REFRESH_DEBOUNCE_MS = 500;
 const REQUESTER_MESSAGE_OVERSIGHT_PREFIX = "requester-message";
 
 function clampOversightMessage(value: string, maxLength: number) {
@@ -162,6 +163,7 @@ export default function AdminPage() {
   const loadTicketsRequestIdRef = useRef(0);
   const requesterMessagesRequestIdRef = useRef(0);
   const chatLoadRequestIdRef = useRef(0);
+  const adminTicketRefreshTimeoutRef = useRef<number | null>(null);
   const activeTicketOperationIdsRef = useRef<Set<string>>(new Set());
   const [isKpiMinimized, setIsKpiMinimized] = useState(false);
   const [assignedUserFilter, setAssignedUserFilter] = useState("");
@@ -698,6 +700,47 @@ export default function AdminPage() {
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
+  }, [loadTickets]);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    const channel = supabase.channel("relay-admin-ticket-refresh");
+    const scheduleTicketRefresh = () => {
+      if (adminTicketRefreshTimeoutRef.current) {
+        window.clearTimeout(adminTicketRefreshTimeoutRef.current);
+      }
+
+      adminTicketRefreshTimeoutRef.current = window.setTimeout(() => {
+        adminTicketRefreshTimeoutRef.current = null;
+        void loadTickets();
+      }, ADMIN_TICKET_REFRESH_DEBOUNCE_MS);
+    };
+
+    channel.on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "tickets",
+      },
+      scheduleTicketRefresh,
+    );
+
+    channel.subscribe();
+
+    return () => {
+      if (adminTicketRefreshTimeoutRef.current) {
+        window.clearTimeout(adminTicketRefreshTimeoutRef.current);
+        adminTicketRefreshTimeoutRef.current = null;
+      }
+
+      void supabase.removeChannel(channel);
+    };
   }, [loadTickets]);
 
   const filteredTickets = useMemo(() => {
@@ -1724,9 +1767,13 @@ export default function AdminPage() {
 
       return oversightNow - createdTime >= OVERSIGHT_PENDING_DELAY_MS;
     };
-    const pendingTickets = tickets.filter(
-      (ticket) => ticket.status === "PENDING" && isOlderThanOversightDelay(ticket),
-    );
+    const pendingTickets = tickets
+      .filter((ticket) => ticket.status === "PENDING")
+      .sort(
+        (left, right) =>
+          new Date(right.created_at ?? 0).getTime() -
+          new Date(left.created_at ?? 0).getTime(),
+      );
     const unassignedTickets = tickets.filter(
       (ticket) =>
         ticket.status !== "COMPLETED" &&
@@ -1785,6 +1832,10 @@ export default function AdminPage() {
   const totalUnreadChatCount = useMemo(
     () => Object.values(unreadRequesterCountsByTicket).reduce((sum, count) => sum + count, 0),
     [unreadRequesterCountsByTicket],
+  );
+  const pendingRequestBannerItem = useMemo(
+    () => oversightItems.find((item) => item.id.startsWith("pending-")) ?? null,
+    [oversightItems],
   );
 
   async function handleSendChatMessage(payload: { messageText: string; files: File[] }) {
@@ -2189,6 +2240,13 @@ export default function AdminPage() {
 
           {resourceTab === "operations" ? (
             <AdminOversightInbox items={oversightItems} onDismiss={dismissOversightItem} />
+          ) : null}
+
+          {resourceTab === "operations" && pendingRequestBannerItem ? (
+            <PendingRequestBanner
+              item={pendingRequestBannerItem}
+              onDismiss={dismissOversightItem}
+            />
           ) : null}
 
           <section className="aurora-section sm:p-10">
@@ -3324,6 +3382,49 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
     </article>
   );
 });
+
+function PendingRequestBanner({
+  item,
+  onDismiss,
+}: {
+  item: AdminOversightItem;
+  onDismiss: (id: string) => void;
+}) {
+  return (
+    <section className="aurora-section border-amber-200 bg-amber-50/90 p-5 shadow-[0_20px_60px_-42px_rgba(15,23,42,0.45)] sm:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-3xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-800">
+            New Requests
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-slate-950">
+            {item.title}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-700">
+            {item.body}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {item.href ? (
+            <Link
+              href={item.href}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-950 bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              {item.actionLabel ?? "Open Request"}
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => onDismiss(item.id)}
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-900 transition hover:border-amber-400 hover:bg-amber-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function mapMessagesToChat(
   messages: TicketMessageRecord[],

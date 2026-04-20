@@ -83,6 +83,8 @@ const PRESENCE_LEADER_STORAGE_KEY = "relay-presence-leader";
 const PRESENCE_LEASE_TTL_MS = 90_000;
 const ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-browser-notification-prompted-admin";
 const REQUESTER_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-browser-notification-prompted-requester";
+const TOASTED_NOTIFICATION_IDS_STORAGE_PREFIX = "relay-toasted-notification-ids";
+const MAX_STORED_TOASTED_NOTIFICATION_IDS = 120;
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
   "operator_message",
@@ -106,17 +108,55 @@ function shouldTrackUserPresence(pathname: string, adminUser: boolean) {
 
 function shouldPromptBrowserNotifications(pathname: string, adminUser: boolean) {
   if (adminUser) {
-    return (
-      pathname === "/admin" ||
-      pathname === "/completed" ||
-      pathname === "/control" ||
-      pathname === "/wallboard" ||
-      pathname.startsWith("/incidents") ||
-      pathname.startsWith("/tickets/")
-    );
+    return false;
   }
 
   return pathname === "/requests" || pathname.startsWith("/tickets/");
+}
+
+function getToastedNotificationStorageKey(userId: string) {
+  return `${TOASTED_NOTIFICATION_IDS_STORAGE_PREFIX}-${userId}`;
+}
+
+function readToastedNotificationIds(userId: string) {
+  if (typeof window === "undefined") {
+    return new Set<string>();
+  }
+
+  const rawValue = window.sessionStorage.getItem(getToastedNotificationStorageKey(userId));
+
+  if (!rawValue) {
+    return new Set<string>();
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return new Set<string>();
+    }
+
+    return new Set(parsed.filter((id): id is string => typeof id === "string"));
+  } catch {
+    window.sessionStorage.removeItem(getToastedNotificationStorageKey(userId));
+    return new Set<string>();
+  }
+}
+
+function rememberToastedNotificationIds(userId: string, notificationIds: string[]) {
+  if (typeof window === "undefined" || notificationIds.length === 0) {
+    return;
+  }
+
+  const nextIds = [
+    ...notificationIds,
+    ...Array.from(readToastedNotificationIds(userId)),
+  ].slice(0, MAX_STORED_TOASTED_NOTIFICATION_IDS);
+
+  window.sessionStorage.setItem(
+    getToastedNotificationStorageKey(userId),
+    JSON.stringify(Array.from(new Set(nextIds))),
+  );
 }
 
 function acquirePresenceLease(tabId: string) {
@@ -321,34 +361,8 @@ export function NotificationProvider({
           return;
         }
 
-        if (
-          latestPendingTicket?.id &&
-          latestPendingTicket.id !== previousPendingTicketId
-        ) {
-          pushToast({
-            title: latestPendingTicket.job_number?.trim()
-              ? `New pending job: ${latestPendingTicket.job_number.trim()}`
-              : "New pending job received",
-            description:
-              latestPendingTicket.request_summary?.trim() ||
-              latestPendingTicket.requester_name?.trim() ||
-              "A new Stores request is waiting in the pending queue.",
-            href: `/tickets/${latestPendingTicket.id}`,
-            tone: "success",
-            variant: "panel",
-            persistent: true,
-          });
-          pushBrowserNotification({
-            title: latestPendingTicket.job_number?.trim()
-              ? `New pending job: ${latestPendingTicket.job_number.trim()}`
-              : "New pending job received",
-            body:
-              latestPendingTicket.request_summary?.trim() ||
-              latestPendingTicket.requester_name?.trim() ||
-              "A new Stores request is waiting in the pending queue.",
-            href: `/tickets/${latestPendingTicket.id}`,
-          });
-          playNotificationSound();
+        if (latestPendingTicket?.id && latestPendingTicket.id !== previousPendingTicketId) {
+          return;
         }
       }
     })().finally(() => {
@@ -357,7 +371,7 @@ export function NotificationProvider({
 
     pendingCountInFlightRef.current = request;
     return request;
-  }, [playNotificationSound, pushBrowserNotification, pushToast]);
+  }, []);
 
   const syncUnreadNotifications = useCallback(
     async (
@@ -381,11 +395,22 @@ export function NotificationProvider({
         const nextUnreadIds = new Set(unreadNotifications.map((notification) => notification.id));
 
         const shouldShowToasts =
-          options?.showToasts && unreadNotificationsInitializedRef.current;
+          options?.showToasts &&
+          !adminUser &&
+          unreadNotificationsInitializedRef.current;
+
+        if (adminUser) {
+          setToasts((current) => (current.length > 0 ? [] : current));
+        }
 
         if (shouldShowToasts) {
+          const toastedNotificationIds = readToastedNotificationIds(userId);
           const nextToasts = unreadNotifications
-            .filter((notification) => !knownUnreadIdsRef.current.has(notification.id))
+            .filter(
+              (notification) =>
+                !knownUnreadIdsRef.current.has(notification.id) &&
+                !toastedNotificationIds.has(notification.id),
+            )
             .sort(
               (left, right) =>
                 new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
@@ -421,6 +446,11 @@ export function NotificationProvider({
             }
             playNotificationSound();
           }
+
+          rememberToastedNotificationIds(
+            userId,
+            nextToasts.map((notification) => notification.id),
+          );
         }
 
         knownUnreadIdsRef.current = nextUnreadIds;

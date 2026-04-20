@@ -19,7 +19,7 @@ export function AdminOversightInbox({
   items: AdminOversightItem[];
   onDismiss: (id: string) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const primaryItem = items[0] ?? null;
   const inboxLabel = useMemo(
     () => `${items.length} message${items.length === 1 ? "" : "s"}`,
