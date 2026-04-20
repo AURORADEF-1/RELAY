@@ -54,6 +54,7 @@ export default function WallboardPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [pageStartedAt, setPageStartedAt] = useState(() => Date.now());
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
+  const [autoScrollOffset, setAutoScrollOffset] = useState(0);
   const signatureRef = useRef("");
   const supplierSpendSignatureRef = useRef("");
   const supplierSpendTicketsRef = useRef<SupplierSpendTicket[]>([]);
@@ -62,6 +63,7 @@ export default function WallboardPage() {
   const pageStartedAtRef = useRef(pageStartedAt);
   const currentModeRef = useRef(currentMode);
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
+  const scrollContentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     modeStartedAtRef.current = modeStartedAt;
@@ -351,29 +353,32 @@ export default function WallboardPage() {
 
   useEffect(() => {
     const viewport = scrollViewportRef.current;
+    const content = scrollContentRef.current;
 
-    if (!viewport) {
+    if (!viewport || !content) {
       return;
     }
 
-    viewport.scrollTo({ top: 0 });
     let direction: 1 | -1 = 1;
     let pauseUntil = Date.now() + AUTO_SCROLL_EDGE_PAUSE_MS;
     let lastFrameAt = performance.now();
     let animationFrameId = 0;
+    let currentOffset = 0;
 
     const step = (frameTime: number) => {
       const currentViewport = scrollViewportRef.current;
+      const currentContent = scrollContentRef.current;
 
-      if (!currentViewport) {
+      if (!currentViewport || !currentContent) {
         animationFrameId = window.requestAnimationFrame(step);
         return;
       }
 
-      const maxScrollTop = currentViewport.scrollHeight - currentViewport.clientHeight;
+      const maxScrollTop = currentContent.scrollHeight - currentViewport.clientHeight;
 
       if (maxScrollTop <= 4) {
-        currentViewport.scrollTo({ top: 0 });
+        currentOffset = 0;
+        setAutoScrollOffset(0);
         lastFrameAt = frameTime;
         animationFrameId = window.requestAnimationFrame(step);
         return;
@@ -390,11 +395,11 @@ export default function WallboardPage() {
       const elapsedSeconds = Math.max(0, (frameTime - lastFrameAt) / 1000);
       lastFrameAt = frameTime;
       const nextTop =
-        currentViewport.scrollTop +
-        direction * AUTO_SCROLL_PIXELS_PER_SECOND * elapsedSeconds;
+        currentOffset + direction * AUTO_SCROLL_PIXELS_PER_SECOND * elapsedSeconds;
 
       if (nextTop >= maxScrollTop) {
-        currentViewport.scrollTop = maxScrollTop;
+        currentOffset = maxScrollTop;
+        setAutoScrollOffset(maxScrollTop);
         direction = -1;
         pauseUntil = now + AUTO_SCROLL_EDGE_PAUSE_MS;
         animationFrameId = window.requestAnimationFrame(step);
@@ -402,14 +407,16 @@ export default function WallboardPage() {
       }
 
       if (nextTop <= 0) {
-        currentViewport.scrollTop = 0;
+        currentOffset = 0;
+        setAutoScrollOffset(0);
         direction = 1;
         pauseUntil = now + AUTO_SCROLL_EDGE_PAUSE_MS;
         animationFrameId = window.requestAnimationFrame(step);
         return;
       }
 
-      currentViewport.scrollTop = nextTop;
+      currentOffset = nextTop;
+      setAutoScrollOffset(nextTop);
       animationFrameId = window.requestAnimationFrame(step);
     };
 
@@ -432,9 +439,13 @@ export default function WallboardPage() {
     <AuthGuard requiredRole="admin">
       <main
         ref={scrollViewportRef}
-        className="aurora-shell h-screen overflow-y-auto px-8 py-8 text-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="aurora-shell h-screen overflow-hidden px-8 py-8 text-white"
       >
-        <div className="aurora-shell-inner max-w-[120rem] space-y-6 pb-8">
+        <div
+          ref={scrollContentRef}
+          className="aurora-shell-inner max-w-[120rem] space-y-6 pb-8 will-change-transform"
+          style={{ transform: `translate3d(0, -${autoScrollOffset}px, 0)` }}
+        >
           <header className="rounded-[2rem] border border-white/12 bg-black/24 px-7 py-5 backdrop-blur-md">
             <div className="flex items-center justify-between gap-5">
               <div className="flex items-center gap-5">
