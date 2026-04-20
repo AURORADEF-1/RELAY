@@ -710,6 +710,72 @@ export default function AdminPage() {
     }
 
     const channel = supabase.channel("relay-admin-ticket-refresh");
+    const syncRealtimeTicket = (payload: {
+      eventType: string;
+      new: Record<string, unknown>;
+      old: Record<string, unknown>;
+    }) => {
+      const nextTicket = payload.new as Partial<Ticket>;
+      const previousTicket = payload.old as Partial<Ticket>;
+      const ticketId =
+        typeof nextTicket.id === "string"
+          ? nextTicket.id
+          : typeof previousTicket.id === "string"
+            ? previousTicket.id
+            : null;
+
+      if (!ticketId) {
+        return;
+      }
+
+      if (payload.eventType === "DELETE") {
+        setTickets((current) => current.filter((ticket) => ticket.id !== ticketId));
+        return;
+      }
+
+      if (!nextTicket.id || typeof nextTicket.id !== "string") {
+        return;
+      }
+
+      setTickets((current) => {
+        const hydratedTicket = nextTicket as Ticket;
+        const nextStatus = hydratedTicket.status ?? null;
+        const shouldTrackTicket =
+          nextStatus !== null &&
+          nextStatus !== "COMPLETED" &&
+          activeTicketStatuses.some((status) => status === nextStatus);
+
+        if (!shouldTrackTicket) {
+          return current.filter((ticket) => ticket.id !== hydratedTicket.id);
+        }
+
+        const existingTicket = current.find((ticket) => ticket.id === hydratedTicket.id);
+        const nextTickets = existingTicket
+          ? current.map((ticket) =>
+              ticket.id === hydratedTicket.id
+                ? { ...ticket, ...hydratedTicket }
+                : ticket,
+            )
+          : [hydratedTicket, ...current];
+
+        return nextTickets.sort(
+          (left, right) =>
+            new Date(right.updated_at ?? right.created_at ?? 0).getTime() -
+            new Date(left.updated_at ?? left.created_at ?? 0).getTime(),
+        );
+      });
+
+      setDrafts((current) => ({
+        ...current,
+        [ticketId]: {
+          assigned_to:
+            typeof nextTicket.assigned_to === "string"
+              ? nextTicket.assigned_to
+              : "",
+          notes: typeof nextTicket.notes === "string" ? nextTicket.notes : "",
+        },
+      }));
+    };
     const scheduleTicketRefresh = () => {
       if (adminTicketRefreshTimeoutRef.current) {
         window.clearTimeout(adminTicketRefreshTimeoutRef.current);
@@ -728,7 +794,10 @@ export default function AdminPage() {
         schema: "public",
         table: "tickets",
       },
-      scheduleTicketRefresh,
+      (payload) => {
+        syncRealtimeTicket(payload);
+        scheduleTicketRefresh();
+      },
     );
 
     channel.subscribe();

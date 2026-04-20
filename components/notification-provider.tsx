@@ -108,7 +108,7 @@ function shouldTrackUserPresence(pathname: string, adminUser: boolean) {
 
 function shouldPromptBrowserNotifications(pathname: string, adminUser: boolean) {
   if (adminUser) {
-    return false;
+    return pathname === "/admin";
   }
 
   return pathname === "/requests" || pathname.startsWith("/tickets/");
@@ -362,6 +362,17 @@ export function NotificationProvider({
         }
 
         if (latestPendingTicket?.id && latestPendingTicket.id !== previousPendingTicketId) {
+          pushBrowserNotification({
+            title: latestPendingTicket.job_number?.trim()
+              ? `New pending job: ${latestPendingTicket.job_number.trim()}`
+              : "New pending job received",
+            body:
+              latestPendingTicket.request_summary?.trim() ||
+              latestPendingTicket.requester_name?.trim() ||
+              "A new Stores request is waiting in the pending queue.",
+            href: `/tickets/${latestPendingTicket.id}`,
+          });
+          playNotificationSound();
           return;
         }
       }
@@ -371,7 +382,7 @@ export function NotificationProvider({
 
     pendingCountInFlightRef.current = request;
     return request;
-  }, []);
+  }, [playNotificationSound, pushBrowserNotification]);
 
   const syncUnreadNotifications = useCallback(
     async (
