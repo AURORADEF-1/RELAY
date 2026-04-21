@@ -106,7 +106,7 @@ export async function POST(
       const abortController = new AbortController();
       const timeoutId = setTimeout(() => {
         abortController.abort();
-      }, 30_000);
+      }, 90_000);
 
       const message = await askOdin(
         body.question,
