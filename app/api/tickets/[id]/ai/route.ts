@@ -11,6 +11,57 @@ import {
   requestCanAccessTicket,
 } from "@/lib/security";
 
+type OdinChatCompletionPayload = {
+  choices?: Array<{
+    message?: {
+      content?: unknown;
+    };
+  }>;
+};
+
+function extractOdinResponseText(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const candidate = payload as OdinChatCompletionPayload;
+  const content = candidate.choices?.[0]?.message?.content;
+
+  return typeof content === "string" && content.trim() ? content.trim() : null;
+}
+
+async function askOdin(
+  question: string,
+  ticketContext: RelayAiContext,
+  signal: AbortSignal,
+) {
+  const baseUrl = process.env.RELAY_ODIN_BASE_URL || "http://192.168.1.181:5050";
+  const model = process.env.RELAY_ODIN_MODEL || "llama3.2:1b";
+  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.RELAY_ODIN_API_KEY || "iodin-local"}`,
+    },
+    signal,
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: buildRelayAiInstructions() },
+        { role: "user", content: buildRelayAiInput(question, ticketContext) },
+      ],
+    }),
+  });
+
+  const payload = (await response.json()) as unknown;
+
+  if (!response.ok) {
+    throw new Error("ODIN local AI request failed.");
+  }
+
+  return extractOdinResponseText(payload);
+}
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
@@ -47,7 +98,50 @@ export async function POST(
     return NextResponse.json({ error: "You do not have access to this ticket." }, { status: 403 });
   }
 
+  const aiProvider = process.env.RELAY_AI_PROVIDER || "openai";
   const apiKey = process.env.OPENAI_API_KEY;
+
+  if (aiProvider === "odin") {
+    try {
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        abortController.abort();
+      }, 30_000);
+
+      const message = await askOdin(
+        body.question,
+        body.ticketContext,
+        abortController.signal,
+      ).finally(() => {
+        clearTimeout(timeoutId);
+      });
+
+      return NextResponse.json({
+        message:
+          message ||
+          buildRelayAiPlaceholderResponse(body.question, body.ticketContext),
+        ticketId: id,
+        grounded: true,
+        source: message ? "odin-local" : "odin-local-placeholder",
+      });
+    } catch (error) {
+      console.error("RELAY ODIN route failed", {
+        ticketId: id,
+        userId: sessionUser.id,
+        message: error instanceof Error ? error.message : "Unknown ODIN route failure",
+      });
+
+      return NextResponse.json({
+        message: buildRelayAiPlaceholderResponse(
+          body.question,
+          body.ticketContext,
+        ),
+        ticketId: id,
+        grounded: true,
+        source: "odin-unavailable-placeholder",
+      });
+    }
+  }
 
   // Safeguard: never attempt a paid OpenAI request when the API key is missing.
   if (!apiKey) {
