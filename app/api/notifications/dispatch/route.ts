@@ -23,6 +23,13 @@ const allowedNotificationTypes = new Set<RelayNotificationType>([
   "part_returned",
 ]);
 
+const requesterAdminNotificationTypes = new Set<RelayNotificationType>([
+  "new_ticket",
+  "requester_message",
+  "part_collected",
+  "part_returned",
+]);
+
 function getSupabaseConfig() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -63,6 +70,21 @@ function isValidNotificationPayload(value: unknown): value is NotificationInsert
     typeof record.title === "string" &&
     typeof record.body === "string"
   );
+}
+
+function getUniqueStringValues(values: string[]) {
+  return Array.from(new Set(values.filter((value) => typeof value === "string" && value.trim())));
+}
+
+function hasExactAdminRecipientSet(
+  requestedUserIds: string[],
+  adminUserIds: Set<string>,
+) {
+  if (requestedUserIds.length !== adminUserIds.size) {
+    return false;
+  }
+
+  return requestedUserIds.every((userId) => adminUserIds.has(userId));
 }
 
 export async function POST(request: NextRequest) {
@@ -130,6 +152,23 @@ export async function POST(request: NextRequest) {
         .map((profile) => profile.id)
         .filter((id): id is string => typeof id === "string"),
     );
+    const requestedUserIds = getUniqueStringValues(
+      notifications.map((notification) => notification.user_id),
+    );
+
+    if (
+      !isAdmin &&
+      (!hasExactAdminRecipientSet(requestedUserIds, adminUserIds) ||
+        notifications.some(
+          (notification) =>
+            !requesterAdminNotificationTypes.has(notification.type),
+        ))
+    ) {
+      return NextResponse.json(
+        { error: "You do not have permission to dispatch those notifications." },
+        { status: 403 },
+      );
+    }
 
     const isAllowed = notifications.every((notification) => {
       if (isAdmin) {
