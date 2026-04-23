@@ -164,6 +164,7 @@ export default function AdminPage() {
   const requesterMessagesRequestIdRef = useRef(0);
   const chatLoadRequestIdRef = useRef(0);
   const adminTicketRefreshTimeoutRef = useRef<number | null>(null);
+  const requesterMessageRefreshTimeoutRef = useRef<number | null>(null);
   const activeTicketOperationIdsRef = useRef<Set<string>>(new Set());
   const [isKpiMinimized, setIsKpiMinimized] = useState(false);
   const [assignedUserFilter, setAssignedUserFilter] = useState("");
@@ -927,47 +928,115 @@ export default function AdminPage() {
   );
   const activeSelectedChatTicketId = selectedChatTicket?.id ?? null;
 
-  useEffect(() => {
-    async function loadRequesterMessages() {
-      const requestId = ++requesterMessagesRequestIdRef.current;
-      const ticketIds = ticketIdsKey ? ticketIdsKey.split("|") : [];
+  const refreshRequesterMessages = useCallback(async () => {
+    const requestId = ++requesterMessagesRequestIdRef.current;
+    const ticketIds = ticketIdsKey ? ticketIdsKey.split("|") : [];
 
-      if (ticketIds.length === 0) {
-        setRequesterMessagesByTicket({});
-        return;
-      }
-
-      const supabase = getSupabaseClient();
-
-      if (!supabase) {
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("ticket_messages")
-        .select(
-          "id, ticket_id, sender_user_id, sender_role, message_text, attachment_url, attachment_type, is_ai_message, created_at",
-        )
-        .in("ticket_id", ticketIds)
-        .eq("sender_role", "requester")
-        .order("created_at", { ascending: false });
-
-      if (requestId !== requesterMessagesRequestIdRef.current || error) {
-        return;
-      }
-
-      const grouped = ((data ?? []) as TicketMessageRecord[]).reduce<
-        Record<string, TicketMessageRecord[]>
-      >((accumulator, message) => {
-        accumulator[message.ticket_id] = [...(accumulator[message.ticket_id] ?? []), message];
-        return accumulator;
-      }, {});
-
-      setRequesterMessagesByTicket(grouped);
+    if (ticketIds.length === 0) {
+      setRequesterMessagesByTicket({});
+      return;
     }
 
-    loadRequesterMessages();
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("ticket_messages")
+      .select(
+        "id, ticket_id, sender_user_id, sender_role, message_text, attachment_url, attachment_type, is_ai_message, created_at",
+      )
+      .in("ticket_id", ticketIds)
+      .eq("sender_role", "requester")
+      .order("created_at", { ascending: false });
+
+    if (requestId !== requesterMessagesRequestIdRef.current || error) {
+      return;
+    }
+
+    const grouped = ((data ?? []) as TicketMessageRecord[]).reduce<
+      Record<string, TicketMessageRecord[]>
+    >((accumulator, message) => {
+      accumulator[message.ticket_id] = [...(accumulator[message.ticket_id] ?? []), message];
+      return accumulator;
+    }, {});
+
+    setRequesterMessagesByTicket(grouped);
   }, [ticketIdsKey]);
+
+  useEffect(() => {
+    void refreshRequesterMessages();
+  }, [refreshRequesterMessages]);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    const ticketIds = new Set(ticketIdsKey ? ticketIdsKey.split("|").filter(Boolean) : []);
+
+    if (ticketIds.size === 0) {
+      return;
+    }
+
+    const scheduleRequesterMessageRefresh = () => {
+      if (requesterMessageRefreshTimeoutRef.current) {
+        window.clearTimeout(requesterMessageRefreshTimeoutRef.current);
+      }
+
+      requesterMessageRefreshTimeoutRef.current = window.setTimeout(() => {
+        requesterMessageRefreshTimeoutRef.current = null;
+        void refreshRequesterMessages();
+      }, ADMIN_TICKET_REFRESH_DEBOUNCE_MS);
+    };
+
+    const channel = supabase.channel("relay-admin-requester-messages");
+    channel.on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "ticket_messages",
+      },
+      (payload) => {
+        const nextRecord =
+          payload.new && typeof payload.new === "object"
+            ? (payload.new as Record<string, unknown>)
+            : null;
+        const previousRecord =
+          payload.old && typeof payload.old === "object"
+            ? (payload.old as Record<string, unknown>)
+            : null;
+        const senderRole =
+          (nextRecord?.sender_role as string | undefined) ??
+          (previousRecord?.sender_role as string | undefined);
+        const ticketId =
+          (nextRecord?.ticket_id as string | undefined) ??
+          (previousRecord?.ticket_id as string | undefined);
+
+        if (senderRole !== "requester" || !ticketId || !ticketIds.has(ticketId)) {
+          return;
+        }
+
+        scheduleRequesterMessageRefresh();
+      },
+    );
+
+    channel.subscribe();
+
+    return () => {
+      if (requesterMessageRefreshTimeoutRef.current) {
+        window.clearTimeout(requesterMessageRefreshTimeoutRef.current);
+        requesterMessageRefreshTimeoutRef.current = null;
+      }
+
+      void supabase.removeChannel(channel);
+    };
+  }, [refreshRequesterMessages, ticketIdsKey]);
 
   useEffect(() => {
     if (isChatCollapsed || !activeSelectedChatTicketId) {
