@@ -31,6 +31,7 @@
 }
 
 html[data-theme="dark"] {
+  color-scheme: dark;
   --background: #05070b;
   --background-elevated: rgba(10, 14, 20, 0.86);
   --background-panel: rgba(13, 18, 26, 0.92);
@@ -55,9 +56,9 @@ html[data-theme="dark"] {
   --shadow-soft: 0 28px 80px -44px rgba(0, 0, 0, 0.65);
   --shadow-panel: 0 42px 110px -50px rgba(0, 0, 0, 0.72);
   --ring: 0 0 0 1px rgba(148, 163, 184, 0.24), 0 0 0 4px rgba(148, 163, 184, 0.12);
-  --scrollbar-thumb: rgba(255, 255, 255, 0.18);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
-  --scrollbar-track: rgba(255, 255, 255, 0.04);
+  --scrollbar-thumb: rgba(15, 18, 24, 0.78);
+  --scrollbar-thumb-hover: rgba(9, 12, 18, 0.92);
+  --scrollbar-track: rgba(255, 255, 255, 0.035);
 }
 
 @theme inline {
@@ -73,6 +74,10 @@ html {
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
 }
 
 body {
@@ -102,17 +107,30 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), var(--scrollbar-thumb));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), var(--scrollbar-thumb));
   border: 2px solid transparent;
   border-radius: 999px;
   background-clip: content-box;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), var(--scrollbar-thumb-hover));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), var(--scrollbar-thumb-hover));
   border: 2px solid transparent;
   background-clip: content-box;
+}
+
+html[data-theme="dark"] *::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(10, 12, 16, 0.84));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(0, 0, 0, 0.48);
+}
+
+html[data-theme="dark"] *::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(3, 5, 8, 0.96));
 }
 
 *::-webkit-scrollbar-corner {
