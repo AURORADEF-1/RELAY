@@ -252,6 +252,14 @@ export default function AdminPage() {
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
   const [dismissingOverdueTicketId, setDismissingOverdueTicketId] = useState<string | null>(null);
 
+  const getLatestRequesterMessage = useCallback(
+    (ticketId: string) => {
+      const messages = requesterMessagesByTicket[ticketId] ?? [];
+      return messages[messages.length - 1] ?? null;
+    },
+    [requesterMessagesByTicket],
+  );
+
   const updateTicketDraft = useCallback((ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) => {
     setDrafts((current) => ({
       ...current,
@@ -1044,7 +1052,7 @@ export default function AdminPage() {
     }
 
     const latestRequesterMessage =
-      requesterMessagesByTicket[activeSelectedChatTicketId]?.[0]?.created_at;
+      getLatestRequesterMessage(activeSelectedChatTicketId)?.created_at;
 
     if (!latestRequesterMessage) {
       return;
@@ -1067,7 +1075,7 @@ export default function AdminPage() {
 
       return nextState;
     });
-  }, [activeSelectedChatTicketId, isChatCollapsed, requesterMessagesByTicket]);
+  }, [activeSelectedChatTicketId, getLatestRequesterMessage, isChatCollapsed]);
 
   useEffect(() => {
     async function loadTicketMessages() {
@@ -1749,7 +1757,7 @@ export default function AdminPage() {
   }
 
   const markTicketChatRead = useCallback((ticketId: string) => {
-    const latestRequesterMessage = requesterMessagesByTicket[ticketId]?.[0]?.created_at;
+    const latestRequesterMessage = getLatestRequesterMessage(ticketId)?.created_at;
 
     if (!latestRequesterMessage) {
       return;
@@ -1768,7 +1776,7 @@ export default function AdminPage() {
 
       return nextState;
     });
-  }, [requesterMessagesByTicket]);
+  }, [getLatestRequesterMessage]);
 
   const dismissOversightItem = useCallback((itemId: string) => {
     if (itemId.startsWith(`${REQUESTER_MESSAGE_OVERSIGHT_PREFIX}::`)) {
@@ -1850,9 +1858,9 @@ export default function AdminPage() {
     Array<AdminOversightItem & { createdAt: string | null }>
   >(
     () =>
-      tickets
+        tickets
         .flatMap((ticket) => {
-          const latestRequesterMessage = requesterMessagesByTicket[ticket.id]?.[0];
+          const latestRequesterMessage = getLatestRequesterMessage(ticket.id);
           const unreadCount = unreadRequesterCountsByTicket[ticket.id] ?? 0;
 
           if (!latestRequesterMessage || unreadCount <= 0) {
@@ -1887,12 +1895,7 @@ export default function AdminPage() {
           (left, right) =>
             new Date(right.createdAt ?? 0).getTime() - new Date(left.createdAt ?? 0).getTime(),
         ),
-    [
-      openRequesterChatFromInbox,
-      requesterMessagesByTicket,
-      tickets,
-      unreadRequesterCountsByTicket,
-    ],
+    [getLatestRequesterMessage, openRequesterChatFromInbox, tickets, unreadRequesterCountsByTicket],
   );
 
   const oversightItems = useMemo<AdminOversightItem[]>(() => {
@@ -2144,8 +2147,8 @@ export default function AdminPage() {
   const handleReadAllMessages = useCallback(() => {
     const nextState = Object.fromEntries(
       Object.entries(requesterMessagesByTicket)
-        .filter(([, messages]) => messages[0]?.created_at)
-        .map(([ticketId, messages]) => [ticketId, messages[0]?.created_at as string]),
+        .filter(([, messages]) => messages[messages.length - 1]?.created_at)
+        .map(([ticketId, messages]) => [ticketId, messages[messages.length - 1]?.created_at as string]),
     );
 
     setReadRequesterMessageByTicket(nextState);
