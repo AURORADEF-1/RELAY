@@ -29,6 +29,7 @@ import {
   getPresenceHeartbeatMs,
   upsertUserPresence,
 } from "@/lib/user-tasks";
+import { activeTicketStatuses } from "@/lib/statuses";
 import {
   fetchSessionControlState,
   shouldForceLogoutUser,
@@ -92,7 +93,7 @@ const REQUEST_NOTIFICATION_TYPES = new Set([
   "ready_for_collection",
 ]);
 
-async function clearCompletedTicketNotifications(
+async function clearArchivedTicketNotifications(
   supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
   userId: string,
   notifications: Array<{ id: string; ticket_id: string | null }>,
@@ -113,25 +114,42 @@ async function clearCompletedTicketNotifications(
     .from("tickets")
     .select("id")
     .eq("user_id", userId)
-    .eq("status", "COMPLETED")
+    .in("status", activeTicketStatuses)
     .in("id", ticketIds);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  const completedTicketIds = new Set(
+  const activeTicketIds = new Set(
     (data ?? [])
       .map((ticket) => ticket.id)
       .filter((id): id is string => typeof id === "string"),
   );
 
-  if (completedTicketIds.size === 0) {
+  if (activeTicketIds.size === 0) {
+    if (ticketIds.length === 0) {
+      return new Set<string>();
+    }
+
+    const archivedNotificationIds = notifications
+      .filter((notification) => notification.ticket_id)
+      .map((notification) => notification.id);
+
+    if (archivedNotificationIds.length === 0) {
+      return new Set<string>();
+    }
+
+    await markNotificationsRead(supabase, archivedNotificationIds);
+    return new Set(archivedNotificationIds);
+  }
+
+  if (activeTicketIds.size === ticketIds.length) {
     return new Set<string>();
   }
 
   const completedNotificationIds = notifications
-    .filter((notification) => notification.ticket_id && completedTicketIds.has(notification.ticket_id))
+    .filter((notification) => notification.ticket_id && !activeTicketIds.has(notification.ticket_id))
     .map((notification) => notification.id);
 
   if (completedNotificationIds.length === 0) {
@@ -449,7 +467,7 @@ export function NotificationProvider({
         const unreadNotifications = await fetchUnreadNotifications(supabase, userId);
         const completedNotificationIds = adminUser
           ? new Set<string>()
-          : await clearCompletedTicketNotifications(supabase, userId, unreadNotifications);
+          : await clearArchivedTicketNotifications(supabase, userId, unreadNotifications);
         const activeUnreadNotifications = unreadNotifications.filter(
           (notification) => !completedNotificationIds.has(notification.id),
         );
