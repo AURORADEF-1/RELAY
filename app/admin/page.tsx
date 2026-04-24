@@ -256,7 +256,7 @@ export default function AdminPage() {
   const getLatestRequesterMessage = useCallback(
     (ticketId: string) => {
       const messages = requesterMessagesByTicket[ticketId] ?? [];
-      return messages[messages.length - 1] ?? null;
+      return messages[0] ?? null;
     },
     [requesterMessagesByTicket],
   );
@@ -2148,8 +2148,8 @@ export default function AdminPage() {
   const handleReadAllMessages = useCallback(() => {
     const nextState = Object.fromEntries(
       Object.entries(requesterMessagesByTicket)
-        .filter(([, messages]) => messages[messages.length - 1]?.created_at)
-        .map(([ticketId, messages]) => [ticketId, messages[messages.length - 1]?.created_at as string]),
+        .filter(([, messages]) => messages[0]?.created_at)
+        .map(([ticketId, messages]) => [ticketId, messages[0]?.created_at as string]),
     );
 
     setReadRequesterMessageByTicket(nextState);
