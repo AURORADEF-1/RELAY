@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-type PartsControlTab = "operations" | "search" | "orders" | "completed" | "guide" | "faq";
+type PartsControlTab = "operations" | "search" | "orders" | "queries" | "completed" | "guide" | "faq";
 type PartsControlInlineTab = Exclude<PartsControlTab, "completed">;
 
 const tabs: Array<{
@@ -13,6 +13,7 @@ const tabs: Array<{
   { key: "operations", label: "Operations", href: "/admin" },
   { key: "search", label: "Smart Search", href: "/admin?tab=search" },
   { key: "orders", label: "Orders", href: "/admin?tab=orders" },
+  { key: "queries", label: "Parts Queries", href: "/admin?tab=queries" },
   { key: "completed", label: "Completed Jobs", href: "/completed" },
   { key: "guide", label: "User Guide", href: "/admin?tab=guide" },
   { key: "faq", label: "FAQ", href: "/admin?tab=faq" },

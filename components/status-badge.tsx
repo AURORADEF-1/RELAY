@@ -1,4 +1,6 @@
 const statusTones: Record<string, string> = {
+  OPEN: "border-[color:rgba(4,120,87,0.28)] bg-[color:rgba(4,120,87,0.1)] text-[color:var(--success)]",
+  CLOSED: "border-[color:var(--border)] bg-[color:var(--background-muted)] text-[color:var(--foreground-muted)]",
   PENDING: "border-[color:rgba(180,83,9,0.28)] bg-[color:rgba(180,83,9,0.1)] text-[color:var(--warning)]",
   ESTIMATE: "border-[color:rgba(124,58,237,0.28)] bg-[color:rgba(124,58,237,0.1)] text-violet-500",
   QUOTE: "border-[color:rgba(192,38,211,0.28)] bg-[color:rgba(192,38,211,0.1)] text-fuchsia-500",
@@ -10,6 +12,8 @@ const statusTones: Record<string, string> = {
 };
 
 const statusDots: Record<string, string> = {
+  OPEN: "bg-emerald-500",
+  CLOSED: "bg-slate-500",
   PENDING: "bg-amber-500",
   ESTIMATE: "bg-violet-500",
   QUOTE: "bg-fuchsia-500",

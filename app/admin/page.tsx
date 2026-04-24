@@ -10,6 +10,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { AdminSmartSearchPanel } from "@/components/admin-smart-search-panel";
 import { PartsOrdersDashboard } from "@/components/parts-orders-dashboard";
+import { PartsQueriesPanel } from "@/components/parts-queries-panel";
 import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
@@ -216,7 +217,7 @@ export default function AdminPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
-  const [resourceTab, setResourceTab] = useState<"operations" | "search" | "orders" | "guide" | "faq">(
+  const [resourceTab, setResourceTab] = useState<"operations" | "search" | "orders" | "queries" | "guide" | "faq">(
     "operations",
   );
   const [smartSearchQuery, setSmartSearchQuery] = useState("");
@@ -401,7 +402,7 @@ export default function AdminPage() {
     }
 
     const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab === "guide" || tab === "faq" || tab === "orders" || tab === "search") {
+    if (tab === "guide" || tab === "faq" || tab === "orders" || tab === "queries" || tab === "search") {
       setResourceTab(tab);
       return;
     }
@@ -2524,6 +2525,11 @@ export default function AdminPage() {
                       body:
                         "Once marked COMPLETED, the request is removed from the active boards and moved to Completed Jobs for admin-only review.",
                     },
+                    {
+                      heading: "How parts queries work",
+                      body:
+                        "Use Parts Queries to log parts that came off a job, were left unfitted, or need a follow-up record even if there is no job number yet. Capture the part price, fitter, workshop response, and close it once the issue is resolved.",
+                    },
                   ]}
                 />
               </div>
@@ -2602,6 +2608,8 @@ export default function AdminPage() {
                 onExportMonthlySpendCsv={exportMonthlySpendCsv}
               />
             ) : null}
+
+            {resourceTab === "queries" ? <PartsQueriesPanel /> : null}
 
             {resourceTab === "operations" ? (
               <>
