@@ -6,9 +6,15 @@ import { getCurrentUserWithRole } from "@/lib/profile-access";
 import {
   buildEmptyPartsQueryDraft,
   buildPartsQueryDraft,
+  buildPartsQueriesCsvContent,
+  closePartsQuery,
   createPartsQuery,
   fetchPartsQueries,
+  formatPartsQueryCloseReason,
+  partsQueryCloseReasons,
+  reopenPartsQuery,
   type PartsQueryDraft,
+  type PartsQueryCloseReason,
   type PartsQueryJobStatus,
   type PartsQueryRecord,
   updatePartsQuery,
@@ -27,6 +33,12 @@ const PARTS_QUERIES_MIGRATION_HINT = "Apply docs/parts-queries-schema.sql and tr
 
 const blankDraft = buildEmptyPartsQueryDraft();
 
+type CloseDialogState = {
+  queryId: string;
+  closeReason: PartsQueryCloseReason | "";
+  jobNumber: string;
+};
+
 export function PartsQueriesPanel() {
   const [queries, setQueries] = useState<PartsQueryRecord[]>([]);
   const [draftsById, setDraftsById] = useState<Record<string, PartsQueryDraft>>({});
@@ -36,6 +48,9 @@ export function PartsQueriesPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [savingQueryId, setSavingQueryId] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [closeDialog, setCloseDialog] = useState<CloseDialogState | null>(null);
+  const [closingQueryId, setClosingQueryId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{
     type: "success" | "error";
     message: string;
@@ -294,6 +309,129 @@ export function PartsQueriesPanel() {
     [currentUserId, draftsById],
   );
 
+  const handleExportCsv = useCallback(() => {
+    setIsExporting(true);
+
+    try {
+      const csvContent = buildPartsQueriesCsvContent(visibleQueries);
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `parts-queries-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [visibleQueries]);
+
+  const openCloseDialog = useCallback((query: PartsQueryRecord) => {
+    setNotice(null);
+    setCloseDialog({
+      queryId: query.id,
+      closeReason: "",
+      jobNumber: query.job_number ?? "",
+    });
+  }, []);
+
+  const handleCloseQuery = useCallback(async () => {
+    const supabase = getSupabaseClient();
+
+    if (!supabase || !currentUserId || !closeDialog) {
+      setNotice({
+        type: "error",
+        message: "Unable to close the query right now.",
+      });
+      return;
+    }
+
+    if (!closeDialog.closeReason) {
+      setNotice({
+        type: "error",
+        message: "Choose how the query was resolved.",
+      });
+      return;
+    }
+
+    setClosingQueryId(closeDialog.queryId);
+    setNotice(null);
+
+    try {
+      const updated = await closePartsQuery(supabase, closeDialog.queryId, {
+        updatedBy: currentUserId,
+        closeReason: closeDialog.closeReason,
+        jobNumber: closeDialog.jobNumber,
+      });
+
+      setQueries((current) =>
+        current.map((record) => (record.id === updated.id ? updated : record)),
+      );
+      setDraftsById((current) => ({
+        ...current,
+        [updated.id]: buildPartsQueryDraft(updated),
+      }));
+      setCloseDialog(null);
+      setNotice({
+        type: "success",
+        message: "Parts query closed.",
+      });
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: formatPartsQueriesError(error, "Unable to close the parts query."),
+      });
+    } finally {
+      setClosingQueryId(null);
+    }
+  }, [closeDialog, currentUserId]);
+
+  const handleReopenQuery = useCallback(
+    async (queryId: string) => {
+      const supabase = getSupabaseClient();
+
+      if (!supabase || !currentUserId) {
+        setNotice({
+          type: "error",
+          message: "Unable to reopen the query right now.",
+        });
+        return;
+      }
+
+      setSavingQueryId(queryId);
+      setNotice(null);
+
+      try {
+        const updated = await reopenPartsQuery(supabase, queryId, {
+          updatedBy: currentUserId,
+        });
+
+        setQueries((current) =>
+          current.map((record) => (record.id === updated.id ? updated : record)),
+        );
+        setDraftsById((current) => ({
+          ...current,
+          [updated.id]: buildPartsQueryDraft(updated),
+        }));
+        setNotice({
+          type: "success",
+          message: "Parts query reopened.",
+        });
+      } catch (error) {
+        setNotice({
+          type: "error",
+          message: formatPartsQueriesError(error, "Unable to reopen the parts query."),
+        });
+      } finally {
+        setSavingQueryId(null);
+      }
+    },
+    [currentUserId],
+  );
+
   return (
     <section className="aurora-section mt-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -305,14 +443,24 @@ export function PartsQueriesPanel() {
             no job number. Track price, fitter, workshop response, and whether the job is still open.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadPartsQueries()}
-          disabled={isLoading}
-          className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isLoading ? "Refreshing..." : "Refresh Queries"}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={isExporting || visibleQueries.length === 0}
+            className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isExporting ? "Exporting..." : "Export CSV"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void loadPartsQueries()}
+            disabled={isLoading}
+            className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoading ? "Refreshing..." : "Refresh Queries"}
+          </button>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -560,19 +708,28 @@ export function PartsQueriesPanel() {
                       · {query.ordered_for_job ? "Ordered for job" : "Not marked as ordered"}
                       {typeof query.part_price === "number" ? ` · ${formatOrderAmount(query.part_price)}` : ""}
                     </p>
+                    {query.job_status === "CLOSED" ? (
+                      <p className="text-sm text-[color:var(--foreground-muted)]">
+                        Closed as {formatPartsQueryCloseReason(query.close_reason)}
+                        {query.closed_job_number?.trim()
+                          ? ` · Job ${query.closed_job_number.trim()}`
+                          : ""}
+                        {query.closed_at ? ` · ${formatPartsQueryDateTime(query.closed_at)}` : ""}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() =>
-                        updateDraft(query.id, {
-                          job_status: query.job_status === "OPEN" ? "CLOSED" : "OPEN",
-                        })
+                        query.job_status === "OPEN"
+                          ? openCloseDialog(query)
+                          : void handleReopenQuery(query.id)
                       }
                       className="aurora-button-secondary"
                     >
-                      {query.job_status === "OPEN" ? "Close" : "Reopen"}
+                      {query.job_status === "OPEN" ? "Close Query" : "Reopen"}
                     </button>
                     <button
                       type="button"
@@ -698,6 +855,118 @@ export function PartsQueriesPanel() {
           })
         )}
       </div>
+
+      {closeDialog ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-sm"
+          role="presentation"
+          onClick={() => setCloseDialog(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="parts-query-close-title"
+            className="w-full max-w-xl rounded-[1.75rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-6 shadow-[0_28px_100px_-50px_rgba(15,23,42,0.9)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="aurora-kicker">Close Query</p>
+                <h3 id="parts-query-close-title" className="mt-4 text-2xl font-semibold text-[color:var(--foreground-strong)]">
+                  How was this part resolved?
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-[color:var(--foreground-muted)]">
+                  Choose the final outcome. If it was fitted to a job, enter the job number that received it.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCloseDialog(null)}
+                className="aurora-button-secondary h-10 w-10 rounded-full p-0"
+                aria-label="Close dialog"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              {partsQueryCloseReasons.map((reason) => {
+                const isSelected = closeDialog.closeReason === reason;
+
+                return (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() =>
+                      setCloseDialog((current) =>
+                        current
+                          ? {
+                              ...current,
+                              closeReason: reason,
+                              jobNumber:
+                                reason === "FITTED_TO_JOB"
+                                  ? current.jobNumber
+                                  : current.jobNumber,
+                            }
+                          : current,
+                      )
+                    }
+                    className={`flex w-full items-center justify-between rounded-2xl border px-4 py-4 text-left transition ${
+                      isSelected
+                        ? "border-[color:var(--accent)] bg-[color:var(--background-muted)]"
+                        : "border-[color:var(--border)] bg-[color:var(--background-panel)] hover:bg-[color:var(--background-muted)]"
+                    }`}
+                  >
+                    <span className="text-sm font-semibold text-[color:var(--foreground-strong)]">
+                      {formatPartsQueryCloseReason(reason)}
+                    </span>
+                    <span className="text-xs uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
+                      Select
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {closeDialog.closeReason === "FITTED_TO_JOB" ? (
+              <label className="mt-5 grid gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
+                  Job Number
+                </span>
+                <input
+                  type="text"
+                  value={closeDialog.jobNumber}
+                  onChange={(event) =>
+                    setCloseDialog((current) =>
+                      current ? { ...current, jobNumber: event.target.value } : current,
+                    )
+                  }
+                  placeholder="Enter the fitted job number"
+                  className="aurora-input"
+                />
+              </label>
+            ) : null}
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setCloseDialog(null)}
+                className="aurora-button-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCloseQuery()}
+                disabled={closingQueryId === closeDialog.queryId}
+                className="aurora-button disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {closingQueryId === closeDialog.queryId ? "Closing..." : "Close Query"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

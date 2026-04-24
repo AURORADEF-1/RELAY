@@ -3,8 +3,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const partsQueryJobStatuses = ["OPEN", "CLOSED"] as const;
+export const partsQueryCloseReasons = [
+  "RETURNED_TO_STOCK",
+  "RETURNED_TO_SUPPLIER",
+  "FITTED_TO_JOB",
+] as const;
 
 export type PartsQueryJobStatus = (typeof partsQueryJobStatuses)[number];
+export type PartsQueryCloseReason = (typeof partsQueryCloseReasons)[number];
 
 export type PartsQueryRecord = {
   id: string;
@@ -17,6 +23,10 @@ export type PartsQueryRecord = {
   fitter: string | null;
   workshop_response: string | null;
   job_status: PartsQueryJobStatus;
+  close_reason: PartsQueryCloseReason | null;
+  closed_job_number: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -33,6 +43,10 @@ type PartsQueryRow = {
   fitter: string | null;
   workshop_response: string | null;
   job_status: string | null;
+  close_reason: string | null;
+  closed_job_number: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
   notes: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -73,6 +87,19 @@ export function buildPartsQueryDraft(record: PartsQueryRecord): PartsQueryDraft 
     job_status: record.job_status,
     notes: record.notes ?? "",
   };
+}
+
+export function formatPartsQueryCloseReason(reason: PartsQueryCloseReason | null | undefined) {
+  switch (reason) {
+    case "RETURNED_TO_STOCK":
+      return "Returned to stock";
+    case "RETURNED_TO_SUPPLIER":
+      return "Returned to supplier";
+    case "FITTED_TO_JOB":
+      return "Fitted to job";
+    default:
+      return "-";
+  }
 }
 
 export async function fetchPartsQueries(
@@ -207,6 +234,123 @@ export async function updatePartsQuery(
   return normalizePartsQueryRow(data as PartsQueryRow);
 }
 
+export async function closePartsQuery(
+  supabase: SupabaseClient,
+  queryId: string,
+  payload: {
+    updatedBy: string | null;
+    closeReason: PartsQueryCloseReason;
+    jobNumber?: string | null;
+  },
+) {
+  const nextJobNumber = payload.jobNumber?.trim() || null;
+
+  if (payload.closeReason === "FITTED_TO_JOB" && !nextJobNumber) {
+    throw new Error("A job number is required when marking the query as fitted to a job.");
+  }
+
+  const updatePayload: Record<string, string | number | boolean | null> = {
+    updated_at: new Date().toISOString(),
+    updated_by: payload.updatedBy,
+    job_status: "CLOSED",
+    close_reason: payload.closeReason,
+    closed_job_number: payload.closeReason === "FITTED_TO_JOB" ? nextJobNumber : null,
+    closed_at: new Date().toISOString(),
+    closed_by: payload.updatedBy,
+  };
+
+  if (payload.closeReason === "FITTED_TO_JOB") {
+    updatePayload.job_number = nextJobNumber;
+  }
+
+  const { data, error } = await supabase
+    .from("parts_queries")
+    .update(updatePayload)
+    .eq("id", queryId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return normalizePartsQueryRow(data as PartsQueryRow);
+}
+
+export async function reopenPartsQuery(
+  supabase: SupabaseClient,
+  queryId: string,
+  payload: { updatedBy: string | null },
+) {
+  const { data, error } = await supabase
+    .from("parts_queries")
+    .update({
+      updated_at: new Date().toISOString(),
+      updated_by: payload.updatedBy,
+      job_status: "OPEN",
+      close_reason: null,
+      closed_job_number: null,
+      closed_at: null,
+      closed_by: null,
+    })
+    .eq("id", queryId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return normalizePartsQueryRow(data as PartsQueryRow);
+}
+
+export function buildPartsQueriesCsvContent(queries: PartsQueryRecord[]) {
+  const rows = [
+    [
+      "created_at",
+      "updated_at",
+      "job_status",
+      "close_reason",
+      "closed_job_number",
+      "closed_at",
+      "part_description",
+      "job_number",
+      "part_price",
+      "ordered_for_job",
+      "fitter",
+      "workshop_response",
+      "notes",
+      "created_by",
+      "updated_by",
+    ],
+    ...queries.map((query) => [
+      query.created_at,
+      query.updated_at,
+      query.job_status,
+      query.close_reason ?? "",
+      query.closed_job_number ?? "",
+      query.closed_at ?? "",
+      query.part_description,
+      query.job_number ?? "",
+      typeof query.part_price === "number" ? String(query.part_price) : "",
+      query.ordered_for_job ? "true" : "false",
+      query.fitter ?? "",
+      query.workshop_response ?? "",
+      query.notes ?? "",
+      query.created_by ?? "",
+      query.updated_by ?? "",
+    ]),
+  ];
+
+  return rows
+    .map((row) =>
+      row
+        .map((value) => `"${String(value).replaceAll("\"", "\"\"")}"`)
+        .join(","),
+    )
+    .join("\n");
+}
+
 function normalizePartsQueryRow(row: PartsQueryRow): PartsQueryRecord {
   const normalizedPartPrice =
     typeof row.part_price === "number"
@@ -229,8 +373,28 @@ function normalizePartsQueryRow(row: PartsQueryRow): PartsQueryRecord {
     fitter: row.fitter?.trim() || null,
     workshop_response: row.workshop_response?.trim() || null,
     job_status: row.job_status === "CLOSED" ? "CLOSED" : "OPEN",
+    close_reason: normalizeCloseReason(row.close_reason),
+    closed_job_number: row.closed_job_number?.trim() || null,
+    closed_at: row.closed_at ?? null,
+    closed_by: row.closed_by ?? null,
     notes: row.notes?.trim() || null,
     created_at: row.created_at ?? new Date(0).toISOString(),
     updated_at: row.updated_at ?? new Date(0).toISOString(),
   };
+}
+
+function normalizeCloseReason(value: string | null): PartsQueryCloseReason | null {
+  if (value === "RETURNED_TO_STOCK") {
+    return value;
+  }
+
+  if (value === "RETURNED_TO_SUPPLIER") {
+    return value;
+  }
+
+  if (value === "FITTED_TO_JOB") {
+    return value;
+  }
+
+  return null;
 }
