@@ -92,6 +92,56 @@ const REQUEST_NOTIFICATION_TYPES = new Set([
   "ready_for_collection",
 ]);
 
+async function clearCompletedTicketNotifications(
+  supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  userId: string,
+  notifications: Array<{ id: string; ticket_id: string | null }>,
+) {
+  const ticketIds = Array.from(
+    new Set(
+      notifications
+        .map((notification) => notification.ticket_id)
+        .filter((ticketId): ticketId is string => Boolean(ticketId)),
+    ),
+  );
+
+  if (ticketIds.length === 0) {
+    return new Set<string>();
+  }
+
+  const { data, error } = await supabase
+    .from("tickets")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "COMPLETED")
+    .in("id", ticketIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const completedTicketIds = new Set(
+    (data ?? [])
+      .map((ticket) => ticket.id)
+      .filter((id): id is string => typeof id === "string"),
+  );
+
+  if (completedTicketIds.size === 0) {
+    return new Set<string>();
+  }
+
+  const completedNotificationIds = notifications
+    .filter((notification) => notification.ticket_id && completedTicketIds.has(notification.ticket_id))
+    .map((notification) => notification.id);
+
+  if (completedNotificationIds.length === 0) {
+    return new Set<string>();
+  }
+
+  await markNotificationsRead(supabase, completedNotificationIds);
+  return new Set(completedNotificationIds);
+}
+
 function shouldTrackUserPresence(pathname: string, adminUser: boolean) {
   if (!adminUser) {
     return false;
@@ -397,13 +447,19 @@ export function NotificationProvider({
 
       const request = (async () => {
         const unreadNotifications = await fetchUnreadNotifications(supabase, userId);
-        const unreadTaskNotifications = unreadNotifications.filter(
+        const completedNotificationIds = adminUser
+          ? new Set<string>()
+          : await clearCompletedTicketNotifications(supabase, userId, unreadNotifications);
+        const activeUnreadNotifications = unreadNotifications.filter(
+          (notification) => !completedNotificationIds.has(notification.id),
+        );
+        const unreadTaskNotifications = activeUnreadNotifications.filter(
           (notification) => notification.type === "task_assigned",
         );
-        const unreadRequesterNotifications = unreadNotifications.filter(
+        const unreadRequesterNotifications = activeUnreadNotifications.filter(
           (notification) => REQUEST_NOTIFICATION_TYPES.has(notification.type),
         );
-        const nextUnreadIds = new Set(unreadNotifications.map((notification) => notification.id));
+        const nextUnreadIds = new Set(activeUnreadNotifications.map((notification) => notification.id));
 
         const shouldShowToasts =
           options?.showToasts &&
@@ -416,7 +472,7 @@ export function NotificationProvider({
 
         if (shouldShowToasts) {
           const toastedNotificationIds = readToastedNotificationIds(userId);
-          const nextToasts = unreadNotifications
+          const nextToasts = activeUnreadNotifications
             .filter(
               (notification) =>
                 !knownUnreadIdsRef.current.has(notification.id) &&
@@ -468,7 +524,7 @@ export function NotificationProvider({
         unreadNotificationsInitializedRef.current = true;
 
         if (adminUser) {
-          setAdminUnreadCount(unreadNotifications.length);
+          setAdminUnreadCount(activeUnreadNotifications.length);
         } else {
           setRequesterUnreadCount(unreadRequesterNotifications.length);
           try {
