@@ -470,12 +470,18 @@ export default function TicketDetailPage() {
         throw new Error(payload.error || "AI request failed.");
       }
 
+      const aiSenderUserId = currentUserId ?? ticket.user_id;
+
+      if (!aiSenderUserId) {
+        throw new Error("Unable to resolve a sender for the AI message.");
+      }
+
       setMessages((current) => [
         ...current,
         {
           id: `ai-${Date.now()}`,
           ticket_id: ticket.id,
-          sender_user_id: null,
+          sender_user_id: aiSenderUserId,
           sender_role: "ai",
           message_text: payload.message ?? null,
           attachment_url: null,

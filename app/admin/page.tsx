@@ -256,7 +256,7 @@ export default function AdminPage() {
   const getLatestRequesterMessage = useCallback(
     (ticketId: string) => {
       const messages = requesterMessagesByTicket[ticketId] ?? [];
-      return messages[0] ?? null;
+      return messages[messages.length - 1] ?? null;
     },
     [requesterMessagesByTicket],
   );
@@ -2116,12 +2116,18 @@ export default function AdminPage() {
         throw new Error(payload.error || "AI request failed.");
       }
 
+      const aiSenderUserId = currentUserId ?? selectedChatTicket.user_id;
+
+      if (!aiSenderUserId) {
+        throw new Error("Unable to resolve a sender for the AI message.");
+      }
+
       setChatMessages((current) => [
         ...current,
         {
           id: `ai-${Date.now()}`,
           ticket_id: selectedChatTicket.id,
-          sender_user_id: null,
+          sender_user_id: aiSenderUserId,
           sender_role: "ai",
           message_text: payload.message ?? null,
           attachment_url: null,
@@ -2148,8 +2154,11 @@ export default function AdminPage() {
   const handleReadAllMessages = useCallback(() => {
     const nextState = Object.fromEntries(
       Object.entries(requesterMessagesByTicket)
-        .filter(([, messages]) => messages[0]?.created_at)
-        .map(([ticketId, messages]) => [ticketId, messages[0]?.created_at as string]),
+        .filter(([, messages]) => messages[messages.length - 1]?.created_at)
+        .map(([ticketId, messages]) => [
+          ticketId,
+          messages[messages.length - 1]?.created_at as string,
+        ]),
     );
 
     setReadRequesterMessageByTicket(nextState);

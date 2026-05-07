@@ -304,6 +304,9 @@ export function NotificationProvider({
   const notificationPollFailureCountRef = useRef(0);
   const presenceFailureCountRef = useRef(0);
   const sessionControlFailureCountRef = useRef(0);
+  const isAuthenticatedRef = useRef(false);
+  const notificationLifecycleVersionRef = useRef(0);
+  const notificationSetupInFlightRef = useRef<Promise<void> | null>(null);
   const [presenceTabId] = useState(() =>
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -668,20 +671,10 @@ export function NotificationProvider({
     let sessionControlTimeout: number | null = null;
     let visibilityListener: (() => void) | null = null;
 
-    const clearNotificationState = async () => {
-      currentUserIdRef.current = null;
-      currentIsAdminRef.current = false;
-      latestPendingTicketIdRef.current = null;
-      pendingTicketsInitializedRef.current = false;
-      knownUnreadIdsRef.current = new Set();
-      unreadNotificationsInitializedRef.current = false;
-      setRequesterUnreadCount(0);
-      setAdminUnreadCount(0);
-      setPendingTicketCount(0);
-      setTaskUnreadCount(0);
-      setIsAdmin(false);
-      setIsAuthenticated(false);
-      setToasts([]);
+    const stopNotificationWork = async (options?: { invalidate?: boolean }) => {
+      if (options?.invalidate) {
+        notificationLifecycleVersionRef.current += 1;
+      }
 
       if (activeChannel) {
         await supabase.removeChannel(activeChannel);
@@ -716,22 +709,34 @@ export function NotificationProvider({
       releasePresenceLease(activePresenceTabId);
     };
 
+    const clearNotificationState = async () => {
+      isAuthenticatedRef.current = false;
+      currentUserIdRef.current = null;
+      currentIsAdminRef.current = false;
+      latestPendingTicketIdRef.current = null;
+      pendingTicketsInitializedRef.current = false;
+      knownUnreadIdsRef.current = new Set();
+      unreadNotificationsInitializedRef.current = false;
+      setRequesterUnreadCount(0);
+      setAdminUnreadCount(0);
+      setPendingTicketCount(0);
+      setTaskUnreadCount(0);
+      setIsAdmin(false);
+      setIsAuthenticated(false);
+      setToasts([]);
+
+      await stopNotificationWork({ invalidate: true });
+    };
+
     const setupNotifications = async () => {
+      if (notificationSetupInFlightRef.current) {
+        return notificationSetupInFlightRef.current;
+      }
+
+      const request = (async () => {
       try {
-        if (activeChannel) {
-          await supabase.removeChannel(activeChannel);
-          activeChannel = null;
-        }
-
-        if (activePendingTicketChannel) {
-          await supabase.removeChannel(activePendingTicketChannel);
-          activePendingTicketChannel = null;
-        }
-
-        if (pollTimeout) {
-          window.clearTimeout(pollTimeout);
-          pollTimeout = null;
-        }
+        await stopNotificationWork({ invalidate: true });
+        const lifecycleVersion = notificationLifecycleVersionRef.current;
 
         const { user, isAdmin: adminUser } = await getCurrentUserWithRole(supabase, {
           forceFresh: true,
@@ -747,6 +752,7 @@ export function NotificationProvider({
         }
 
         setIsAuthenticated(true);
+        isAuthenticatedRef.current = true;
         setIsAdmin(adminUser);
         currentUserIdRef.current = user.id;
         currentIsAdminRef.current = adminUser;
@@ -770,19 +776,24 @@ export function NotificationProvider({
         }
 
         const syncPresence = async () => {
+          if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+            return false;
+          }
+
           if (
             !isInteractiveRef.current ||
             !shouldTrackUserPresence(pathnameRef.current, adminUser) ||
             !acquirePresenceLease(activePresenceTabId)
           ) {
-            return;
+            return false;
           }
 
           await upsertUserPresence(supabase, user.id);
+          return true;
         };
 
         const schedulePresenceSync = () => {
-          if (!isMounted) {
+          if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
             return;
           }
 
@@ -796,14 +807,18 @@ export function NotificationProvider({
           presenceTimeout = window.setTimeout(() => {
             void (async () => {
               try {
-                await syncPresence();
-                presenceFailureCountRef.current = 0;
+                const updatedPresence = await syncPresence();
+                if (updatedPresence) {
+                  presenceFailureCountRef.current = 0;
+                }
               } catch (presenceError) {
                 presenceFailureCountRef.current += 1;
                 console.error("Failed to update RELAY user presence", presenceError);
                 recordAdminHealthEvent("presence", "Failed to update user presence.");
               } finally {
-                schedulePresenceSync();
+                if (isMounted && notificationLifecycleVersionRef.current === lifecycleVersion) {
+                  schedulePresenceSync();
+                }
               }
             })();
           }, nextDelay);
@@ -813,6 +828,10 @@ export function NotificationProvider({
           await syncPresence();
           presenceFailureCountRef.current = 0;
           visibilityListener = () => {
+            if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+              return;
+            }
+
             if (document.hidden) {
               releasePresenceLease(activePresenceTabId);
               return;
@@ -859,6 +878,10 @@ export function NotificationProvider({
             filter: `user_id=eq.${user.id}`,
           },
           async () => {
+            if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+              return;
+            }
+
             await syncUnreadNotifications(supabase, user.id, adminUser, {
               showToasts: true,
             });
@@ -880,6 +903,10 @@ export function NotificationProvider({
               filter: "status=eq.PENDING",
             },
             async () => {
+              if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+                return;
+              }
+
               await refreshPendingTicketCount(adminUser);
             },
           );
@@ -888,7 +915,7 @@ export function NotificationProvider({
         }
 
         const scheduleNotificationSync = () => {
-          if (!isMounted) {
+          if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
             return;
           }
 
@@ -902,7 +929,10 @@ export function NotificationProvider({
           pollTimeout = window.setTimeout(() => {
             void (async () => {
               try {
-                if (isInteractiveRef.current) {
+                if (
+                  isInteractiveRef.current &&
+                  notificationLifecycleVersionRef.current === lifecycleVersion
+                ) {
                   await syncUnreadNotifications(supabase, user.id, adminUser, {
                     showToasts: true,
                   });
@@ -918,14 +948,16 @@ export function NotificationProvider({
                 console.error("Failed to refresh RELAY notifications", pollError);
                 recordAdminHealthEvent("notifications", "Failed to refresh notifications.");
               } finally {
-                scheduleNotificationSync();
+                if (isMounted && notificationLifecycleVersionRef.current === lifecycleVersion) {
+                  scheduleNotificationSync();
+                }
               }
             })();
           }, nextDelay);
         };
 
         const scheduleSessionControlCheck = () => {
-          if (!isMounted) {
+          if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
             return;
           }
 
@@ -939,7 +971,10 @@ export function NotificationProvider({
           sessionControlTimeout = window.setTimeout(() => {
             void (async () => {
               try {
-                if (isInteractiveRef.current) {
+                if (
+                  isInteractiveRef.current &&
+                  notificationLifecycleVersionRef.current === lifecycleVersion
+                ) {
                   const sessionControl = await fetchSessionControlState(supabase, user.id);
 
                   if (shouldForceLogoutUser(user, sessionControl)) {
@@ -957,7 +992,9 @@ export function NotificationProvider({
                 console.error("Failed to check RELAY session controls", sessionControlError);
                 recordAdminHealthEvent("session_control", "Failed to check session controls.");
               } finally {
-                scheduleSessionControlCheck();
+                if (isMounted && notificationLifecycleVersionRef.current === lifecycleVersion) {
+                  scheduleSessionControlCheck();
+                }
               }
             })();
           }, nextDelay);
@@ -969,6 +1006,12 @@ export function NotificationProvider({
         console.error("Failed to initialise notifications", error);
         recordAdminHealthEvent("notifications", "Failed to initialise notification services.");
       }
+      })().finally(() => {
+        notificationSetupInFlightRef.current = null;
+      });
+
+      notificationSetupInFlightRef.current = request;
+      return request;
     };
 
     void setupNotifications();
@@ -988,6 +1031,10 @@ export function NotificationProvider({
           return;
         }
 
+        if (isAuthenticatedRef.current && currentUserIdRef.current === session.user.id) {
+          return;
+        }
+
         void setupNotifications();
       },
     );
@@ -996,31 +1043,7 @@ export function NotificationProvider({
       isMounted = false;
       subscription.unsubscribe();
 
-      if (pollTimeout) {
-        window.clearTimeout(pollTimeout);
-      }
-
-      if (presenceTimeout) {
-        window.clearTimeout(presenceTimeout);
-      }
-
-      if (sessionControlTimeout) {
-        window.clearTimeout(sessionControlTimeout);
-      }
-
-      if (visibilityListener) {
-        document.removeEventListener("visibilitychange", visibilityListener);
-      }
-
-      releasePresenceLease(activePresenceTabId);
-
-      if (activeChannel) {
-        void supabase.removeChannel(activeChannel);
-      }
-
-      if (activePendingTicketChannel) {
-        void supabase.removeChannel(activePendingTicketChannel);
-      }
+      void stopNotificationWork({ invalidate: true });
     };
   }, [
     markPathNotificationsRead,
