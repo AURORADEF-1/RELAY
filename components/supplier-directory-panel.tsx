@@ -44,6 +44,7 @@ export function SupplierDirectoryPanel() {
   const [supplierOptions, setSupplierOptions] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSupplierName, setSelectedSupplierName] = useState<string>("");
+  const [supplierNameDraft, setSupplierNameDraft] = useState("");
   const [draft, setDraft] = useState<SupplierContactDraft>(DEFAULT_DRAFT);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -107,15 +108,18 @@ export function SupplierDirectoryPanel() {
 
       if (nextSelected) {
         setSelectedSupplierName(nextSelected.supplierName);
+        setSupplierNameDraft(nextSelected.supplierName);
         setDraftFromSupplier(nextSelected);
       } else {
         setSelectedSupplierName("");
+        setSupplierNameDraft("");
         setDraft(DEFAULT_DRAFT);
       }
     } catch (error) {
       setSuppliers([]);
       setSupplierOptions([]);
       setSelectedSupplierName("");
+      setSupplierNameDraft("");
       setDraft(DEFAULT_DRAFT);
       setErrorMessage(
         error instanceof Error ? error.message : "Unable to load the supplier directory.",
@@ -158,19 +162,26 @@ export function SupplierDirectoryPanel() {
   }, [searchTerm, suppliers]);
 
   const selectedSupplier = useMemo(() => {
-    return (
-      suppliers.find((supplier) => supplier.supplierName === selectedSupplierName) ??
-      filteredSuppliers[0] ??
-      suppliers[0] ??
-      null
-    );
-  }, [filteredSuppliers, selectedSupplierName, suppliers]);
+    const exactSelected =
+      suppliers.find((supplier) => supplier.supplierName === selectedSupplierName) ?? null;
+
+    if (exactSelected) {
+      return exactSelected;
+    }
+
+    if (searchTerm.trim()) {
+      return filteredSuppliers[0] ?? null;
+    }
+
+    return suppliers[0] ?? null;
+  }, [filteredSuppliers, searchTerm, selectedSupplierName, suppliers]);
 
   useEffect(() => {
     if (!selectedSupplier) {
       return;
     }
 
+    setSupplierNameDraft(selectedSupplier.supplierName);
     setDraftFromSupplier(selectedSupplier);
   }, [selectedSupplier, setDraftFromSupplier]);
 
@@ -180,10 +191,13 @@ export function SupplierDirectoryPanel() {
   );
 
   const handleSave = useCallback(async () => {
-    if (!selectedSupplier) {
+    const originalSupplierName = selectedSupplier?.supplierName?.trim() || supplierNameDraft.trim();
+    const nextSupplierName = supplierNameDraft.trim();
+
+    if (!nextSupplierName) {
       setNotice({
         type: "error",
-        message: "Select a supplier first.",
+        message: "Supplier name is required.",
       });
       return;
     }
@@ -205,7 +219,8 @@ export function SupplierDirectoryPanel() {
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          supplierName: selectedSupplier.supplierName,
+          originalSupplierName,
+          supplierName: nextSupplierName,
           contactEmail: draft.contactEmail,
           contactPhone: draft.contactPhone,
           whatsappNumber: draft.whatsappNumber,
@@ -225,20 +240,37 @@ export function SupplierDirectoryPanel() {
       }
 
       if (payload.supplier) {
-        setSuppliers((current) =>
-          current.map((supplier) =>
-            supplier.normalizedSupplierName === payload.supplier?.normalizedSupplierName
-              ? payload.supplier as SupplierDirectoryEntry
-              : supplier,
-          ),
+        const previousSupplierName = originalSupplierName.trim();
+        setSuppliers((current) => {
+          const nextEntry = payload.supplier as SupplierDirectoryEntry;
+          const withoutPrevious = current.filter(
+            (supplier) =>
+              normalizeSelectionKey(supplier.supplierName) !==
+              normalizeSelectionKey(previousSupplierName),
+          );
+          const withoutDuplicate = withoutPrevious.filter(
+            (supplier) => supplier.normalizedSupplierName !== nextEntry.normalizedSupplierName,
+          );
+
+          return [nextEntry, ...withoutDuplicate];
+        });
+        setSupplierOptions((current) =>
+          buildSupplierSuggestionOptions([
+            payload.supplier?.supplierName ?? nextSupplierName,
+            ...current.filter(
+              (option) =>
+                normalizeSelectionKey(option) !== normalizeSelectionKey(previousSupplierName),
+            ),
+          ]),
         );
         setSelectedSupplierName(payload.supplier.supplierName);
+        setSupplierNameDraft(payload.supplier.supplierName);
         setDraftFromSupplier(payload.supplier);
       }
 
       setNotice({
         type: "success",
-        message: `Saved contact details for ${selectedSupplier.supplierName}.`,
+        message: `Saved supplier ${nextSupplierName}.`,
       });
     } catch (error) {
       setNotice({
@@ -248,7 +280,160 @@ export function SupplierDirectoryPanel() {
     } finally {
       setIsSaving(false);
     }
-  }, [draft, selectedSupplier, setDraftFromSupplier]);
+  }, [draft, selectedSupplier, setDraftFromSupplier, supplierNameDraft]);
+
+  const handleCreate = useCallback(async () => {
+    const nextSupplierName = supplierNameDraft.trim();
+
+    if (!nextSupplierName) {
+      setNotice({
+        type: "error",
+        message: "Supplier name is required.",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    setNotice(null);
+
+    try {
+      const accessToken = await getSupabaseAccessToken();
+
+      if (!accessToken) {
+        throw new Error("Authentication is required.");
+      }
+
+      const response = await fetch("/api/admin/suppliers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          supplierName: nextSupplierName,
+          contactEmail: draft.contactEmail,
+          contactPhone: draft.contactPhone,
+          whatsappNumber: draft.whatsappNumber,
+          preferredContactMethod: draft.preferredContactMethod || null,
+          workflowStage: draft.workflowStage || null,
+          notes: draft.notes,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        supplier?: SupplierDirectoryEntry;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to create supplier.");
+      }
+
+      if (payload.supplier) {
+        setSuppliers((current) => {
+          const withoutExisting = current.filter(
+            (supplier) =>
+              supplier.normalizedSupplierName !== payload.supplier?.normalizedSupplierName,
+          );
+          return [payload.supplier as SupplierDirectoryEntry, ...withoutExisting];
+        });
+        setSupplierOptions((current) =>
+          buildSupplierSuggestionOptions([
+            payload.supplier?.supplierName ?? nextSupplierName,
+            ...current,
+          ]),
+        );
+        setSelectedSupplierName(payload.supplier.supplierName);
+        setSupplierNameDraft(payload.supplier.supplierName);
+        setDraftFromSupplier(payload.supplier);
+      }
+
+      setNotice({
+        type: "success",
+        message: `Created supplier ${nextSupplierName}.`,
+      });
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: error instanceof Error ? error.message : "Unable to create supplier.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [draft, setDraftFromSupplier, supplierNameDraft]);
+
+  const handleDelete = useCallback(async () => {
+    const nextSupplierName = supplierNameDraft.trim();
+
+    if (!selectedSupplier || !nextSupplierName) {
+      setNotice({
+        type: "error",
+        message: "Select a supplier before deleting it.",
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete supplier ${selectedSupplier.supplierName}? This will remove the supplier from the directory and clear the linked supplier name from matching tickets.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsSaving(true);
+    setNotice(null);
+
+    try {
+      const accessToken = await getSupabaseAccessToken();
+
+      if (!accessToken) {
+        throw new Error("Authentication is required.");
+      }
+
+      const response = await fetch("/api/admin/suppliers", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          supplierName: nextSupplierName,
+        }),
+      });
+
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to delete supplier.");
+      }
+
+      setSuppliers((current) =>
+        current.filter((supplier) => supplier.normalizedSupplierName !== normalizeSelectionKey(nextSupplierName)),
+      );
+      setSupplierOptions((current) =>
+        buildSupplierSuggestionOptions(
+          current.filter(
+            (option) => normalizeSelectionKey(option) !== normalizeSelectionKey(nextSupplierName),
+          ),
+        ),
+      );
+      setSelectedSupplierName("");
+      setSupplierNameDraft("");
+      setDraft(DEFAULT_DRAFT);
+      setNotice({
+        type: "success",
+        message: `Deleted supplier ${nextSupplierName}.`,
+      });
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: error instanceof Error ? error.message : "Unable to delete supplier.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [selectedSupplier, supplierNameDraft]);
 
   const handleCopyBrief = useCallback(async () => {
     if (!selectedSupplier) {
@@ -556,13 +741,23 @@ export function SupplierDirectoryPanel() {
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Supplier Account
                   </p>
-                  <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-slate-950">
-                    {selectedSupplier.supplierName}
-                  </h2>
-                  <p className="mt-2 text-sm text-slate-500">
-                    {selectedSupplier.orderCount} order{selectedSupplier.orderCount === 1 ? "" : "s"} ·{" "}
-                    {formatOrderAmount(selectedSupplier.totalSpend)} total spend
-                  </p>
+                  <div className="mt-3 space-y-2">
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Supplier Name
+                      </span>
+                      <input
+                        value={supplierNameDraft}
+                        onChange={(event) => setSupplierNameDraft(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-base font-semibold text-slate-900 outline-none transition focus:border-slate-400"
+                        placeholder="Enter supplier name"
+                      />
+                    </label>
+                    <p className="text-sm text-slate-500">
+                      {selectedSupplier.orderCount} order{selectedSupplier.orderCount === 1 ? "" : "s"} ·{" "}
+                      {formatOrderAmount(selectedSupplier.totalSpend)} total spend
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -693,6 +888,22 @@ export function SupplierDirectoryPanel() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => void handleCreate()}
+                  disabled={isSaving || supplierNameDraft.trim().length === 0}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSaving ? "Creating..." : "Create Supplier"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  disabled={isSaving}
+                  className="rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:border-rose-400 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSaving ? "Deleting..." : "Delete Supplier"}
+                </button>
+                <button
+                  type="button"
                   onClick={() => void handleCopyBrief()}
                   className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                 >
@@ -800,8 +1011,29 @@ export function SupplierDirectoryPanel() {
               </div>
             </div>
           ) : (
-            <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-              Select a supplier to review account details, spending trends, and follow-up workflow.
+            <div className="space-y-4 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+              <div>Select a supplier to review account details, spending trends, and follow-up workflow.</div>
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  New Supplier Name
+                </span>
+                <input
+                  value={supplierNameDraft}
+                  onChange={(event) => setSupplierNameDraft(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                  placeholder="Type a supplier name to create"
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleCreate()}
+                  disabled={isSaving || supplierNameDraft.trim().length === 0}
+                  className="rounded-xl border border-slate-300 bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSaving ? "Creating..." : "Create Supplier"}
+                </button>
+              </div>
             </div>
           )}
         </section>
