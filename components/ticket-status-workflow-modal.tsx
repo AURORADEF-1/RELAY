@@ -8,6 +8,7 @@ type TicketStatusWorkflowModalProps = {
   purchaseOrderNumber: string;
   supplierName: string;
   supplierEmail: string;
+  supplierSuggestions?: string[];
   orderAmount: string;
   binLocation: string;
   errorMessage?: string;
@@ -31,6 +32,7 @@ export function TicketStatusWorkflowModal({
   purchaseOrderNumber,
   supplierName,
   supplierEmail,
+  supplierSuggestions = [],
   orderAmount,
   binLocation,
   errorMessage,
@@ -109,9 +111,15 @@ export function TicketStatusWorkflowModal({
                     type="text"
                     value={supplierName}
                     onChange={(event) => onSupplierNameChange(event.target.value)}
-                    placeholder="Enter supplier name"
+                    list="supplier-suggestions"
+                    placeholder="Type or select supplier name"
                     className="aurora-input"
                   />
+                  <datalist id="supplier-suggestions">
+                    {supplierSuggestions.map((supplier) => (
+                      <option key={supplier} value={supplier} />
+                    ))}
+                  </datalist>
                 </label>
               </div>
 

@@ -16,6 +16,7 @@ import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { OverdueOrderedRemindersModal } from "@/components/overdue-ordered-reminders-modal";
 import { TicketStatusWorkflowModal } from "@/components/ticket-status-workflow-modal";
+import { SupplierDirectoryPanel } from "@/components/supplier-directory-panel";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import {
   ADMIN_OPERATOR_OPTIONS,
@@ -29,6 +30,7 @@ import {
   buildReadyOrdersMailto,
   buildSupplierOrderMailto,
 } from "@/lib/order-communications";
+import { buildSupplierSuggestionOptions } from "@/lib/supplier-directory";
 import {
   backfillMonthlySupplierSpendSnapshots,
   fetchMonthlySupplierSpendSnapshots,
@@ -217,7 +219,7 @@ export default function AdminPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
-  const [resourceTab, setResourceTab] = useState<"operations" | "search" | "orders" | "queries" | "guide" | "faq">(
+  const [resourceTab, setResourceTab] = useState<"operations" | "search" | "orders" | "suppliers" | "queries" | "guide" | "faq">(
     "operations",
   );
   const [smartSearchQuery, setSmartSearchQuery] = useState("");
@@ -252,6 +254,16 @@ export default function AdminPage() {
   const [activeTicketOperationIds, setActiveTicketOperationIds] = useState<Set<string>>(new Set());
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
   const [dismissingOverdueTicketId, setDismissingOverdueTicketId] = useState<string | null>(null);
+
+  const supplierSuggestions = useMemo(
+    () =>
+      buildSupplierSuggestionOptions([
+        ...tickets.map((ticket) => ticket.supplier_name),
+        ...orders.map((ticket) => ticket.supplier_name),
+        ...monthlySpendSnapshots.map((snapshot) => snapshot.supplier_name),
+      ]),
+    [monthlySpendSnapshots, orders, tickets],
+  );
 
   const getLatestRequesterMessage = useCallback(
     (ticketId: string) => {
@@ -402,7 +414,14 @@ export default function AdminPage() {
     }
 
     const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab === "guide" || tab === "faq" || tab === "orders" || tab === "queries" || tab === "search") {
+    if (
+      tab === "guide" ||
+      tab === "faq" ||
+      tab === "orders" ||
+      tab === "suppliers" ||
+      tab === "queries" ||
+      tab === "search"
+    ) {
       setResourceTab(tab);
       return;
     }
@@ -2254,6 +2273,7 @@ export default function AdminPage() {
               purchaseOrderNumber={statusWorkflowDialog.purchaseOrderNumber}
               supplierName={statusWorkflowDialog.supplierName}
               supplierEmail={statusWorkflowDialog.supplierEmail}
+              supplierSuggestions={supplierSuggestions}
               orderAmount={statusWorkflowDialog.orderAmount}
               binLocation={statusWorkflowDialog.binLocation}
               errorMessage={statusWorkflowDialog.errorMessage}
@@ -2614,6 +2634,8 @@ export default function AdminPage() {
                 onExportMonthlySpendCsv={exportMonthlySpendCsv}
               />
             ) : null}
+
+            {resourceTab === "suppliers" ? <SupplierDirectoryPanel /> : null}
 
             {resourceTab === "queries" ? <PartsQueriesPanel /> : null}
 
