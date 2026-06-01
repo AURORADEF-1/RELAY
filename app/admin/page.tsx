@@ -28,7 +28,8 @@ import {
 import {
   buildOrdersCsvContent,
   buildReadyOrdersMailto,
-  buildSupplierOrderMailto,
+  buildSupplierOrderDispatchPlan,
+  loadSupplierDispatchContact,
 } from "@/lib/order-communications";
 import { buildSupplierSuggestionOptions } from "@/lib/supplier-directory";
 import {
@@ -1565,6 +1566,7 @@ export default function AdminPage() {
       syncTicketIntoState(updatedTicket as Ticket);
     }
     syncTicketIntoOrdersState(updatedTicket as Ticket);
+
     const updatedOrderMonth = (updatedTicket as Ticket).ordered_at?.slice(0, 7);
     if (updatedOrderMonth) {
       void syncMonthlySupplierSpendSnapshotsForMonth(
@@ -1604,6 +1606,29 @@ export default function AdminPage() {
       void deleteTicketAttachmentsForTicket(supabase, ticketId).catch((attachmentError) => {
         console.error("Failed to delete completed ticket attachments", attachmentError);
       });
+    }
+
+    if (nextStatus === "ORDERED") {
+      window.setTimeout(async () => {
+        const supplierContact = await loadSupplierDispatchContact(
+          supabase,
+          updatedTicket.supplier_name?.trim() || normalizedSupplierName || "",
+        );
+        const dispatchPlan = buildSupplierOrderDispatchPlan(
+          updatedTicket as Ticket,
+          supplierContact,
+        );
+
+        if (dispatchPlan.recordsHref && dispatchPlan.channel === "whatsapp") {
+          window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
+        }
+
+        if (dispatchPlan.supplierHref) {
+          window.location.href = dispatchPlan.supplierHref;
+        } else if (dispatchPlan.recordsHref) {
+          window.location.href = dispatchPlan.recordsHref;
+        }
+      }, 0);
     }
 
     return updatedTicket as Ticket;
@@ -2377,30 +2402,6 @@ export default function AdminPage() {
                   if (updatedTicket) {
                     setStatusWorkflowDialog(null);
                   }
-                });
-              }}
-              onConfirmAndEmailSupplier={() => {
-                const dialog = statusWorkflowDialog;
-
-                if (!dialog) {
-                  return;
-                }
-
-                void commitStatusChange(dialog.ticketId, dialog.nextStatus, {
-                  expectedDeliveryDate: dialog.expectedDeliveryDate,
-                  leadTimeNote: dialog.leadTimeNote,
-                  purchaseOrderNumber: dialog.purchaseOrderNumber,
-                  supplierName: dialog.supplierName,
-                  supplierEmail: dialog.supplierEmail,
-                  orderAmount: dialog.orderAmount,
-                  binLocation: dialog.binLocation,
-                }).then((updatedTicket) => {
-                  if (!updatedTicket) {
-                    return;
-                  }
-
-                  setStatusWorkflowDialog(null);
-                  window.location.href = buildSupplierOrderMailto(updatedTicket);
                 });
               }}
             />

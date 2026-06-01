@@ -3,33 +3,37 @@ import {
   formatOrderAmount,
   type TicketOperationalRecord,
 } from "@/lib/ticket-operational";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSupplierName } from "@/lib/suppliers";
 
 type CommunicableOrder = TicketOperationalRecord & {
   request_summary?: string | null;
   request_details?: string | null;
 };
 
+type SupplierDispatchContact = {
+  contact_email: string | null;
+  contact_phone: string | null;
+  whatsapp_number: string | null;
+  preferred_contact_method: "email" | "phone" | "whatsapp" | "manual" | null;
+};
+
+export type SupplierOrderDispatchPlan = {
+  channel: "email" | "whatsapp" | "records";
+  supplierHref: string | null;
+  recordsHref: string | null;
+};
+
+export const PARTS_RECORDS_EMAIL = "Parts@mervynlambert.co.uk";
+
 export function buildSupplierOrderMailto(order: CommunicableOrder) {
   const recipient = order.supplier_email?.trim() ?? "";
-  const poNumber = order.purchase_order_number?.trim() || order.id.slice(0, 8);
-  const subject = `Order: ${poNumber}`;
-  const lines = [
-    `Please supply the following RELAY order.`,
-    "",
-    `PO Number: ${order.purchase_order_number ?? "-"}`,
-    `Supplier: ${order.supplier_name ?? "-"}`,
-    `Expected Delivery: ${formatOperationalDate(order.expected_delivery_date)}`,
-    `Amount: ${formatOrderAmount(order.order_amount)}`,
-    `Job Number: ${order.job_number ?? "-"}`,
-    `Machine Reference: ${order.machine_reference ?? "-"}`,
-    `Request Summary: ${order.request_summary ?? order.request_details ?? "-"}`,
-    "",
-    "Please confirm availability and lead time.",
-  ];
+  const subject = buildSupplierOrderSubject(order);
+  const lines = buildSupplierOrderBodyLines(order);
 
   return `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
     lines.join("\n"),
-  )}`;
+  )}&cc=${encodeURIComponent(PARTS_RECORDS_EMAIL)}`;
 }
 
 export function buildReadyOrdersMailto(orders: CommunicableOrder[]) {
@@ -50,6 +54,123 @@ export function buildReadyOrdersMailto(orders: CommunicableOrder[]) {
   ];
 
   return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
+}
+
+export function buildSupplierOrderSubject(order: CommunicableOrder) {
+  const poNumber = order.purchase_order_number?.trim() || order.id.slice(0, 8).toUpperCase();
+  const shortTicketId = order.id.slice(0, 8).toUpperCase();
+  return `Order ${poNumber} - Parts Required - ${shortTicketId}`;
+}
+
+export function buildSupplierOrderBodyLines(order: CommunicableOrder) {
+  const poNumber = order.purchase_order_number?.trim() || order.id.slice(0, 8).toUpperCase();
+  const shortTicketId = order.id.slice(0, 8).toUpperCase();
+  const partsRequired = order.request_summary?.trim() || order.request_details?.trim() || "-";
+
+  return [
+    `Please supply the following RELAY order.`,
+    "",
+    `Order Number: ${poNumber}`,
+    `Parts Required: ${partsRequired}`,
+    `Ticket ID: ${shortTicketId}`,
+    `Supplier: ${order.supplier_name ?? "-"}`,
+    `Expected Delivery: ${formatOperationalDate(order.expected_delivery_date)}`,
+    `Amount: ${formatOrderAmount(order.order_amount)}`,
+    `Job Number: ${order.job_number ?? "-"}`,
+    `Machine Reference: ${order.machine_reference ?? "-"}`,
+    "",
+    "Please confirm availability and lead time.",
+  ];
+}
+
+export function buildSupplierOrderRecordsMailto(order: CommunicableOrder) {
+  const subject = buildSupplierOrderSubject(order);
+  const body = buildSupplierOrderBodyLines(order).join("\n");
+
+  return `mailto:${encodeURIComponent(PARTS_RECORDS_EMAIL)}?subject=${encodeURIComponent(
+    subject,
+  )}&body=${encodeURIComponent(body)}`;
+}
+
+export function buildSupplierOrderWhatsAppHref(order: CommunicableOrder, recipient: string) {
+  const normalizedRecipient = normalizePhoneNumber(recipient);
+
+  if (!normalizedRecipient) {
+    return null;
+  }
+
+  const message = buildSupplierOrderBodyLines(order).join("\n");
+  return `https://wa.me/${normalizedRecipient}?text=${encodeURIComponent(message)}`;
+}
+
+export async function loadSupplierDispatchContact(
+  supabase: SupabaseClient,
+  supplierName: string,
+) {
+  const normalizedSupplierName = normalizeSupplierName(supplierName);
+
+  if (!normalizedSupplierName) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("supplier_contacts")
+    .select("contact_email, contact_phone, whatsapp_number, preferred_contact_method")
+    .eq("supplier_name_normalized", normalizedSupplierName)
+    .maybeSingle<SupplierDispatchContact>();
+
+  if (error) {
+    return null;
+  }
+
+  return data ?? null;
+}
+
+export function buildSupplierOrderDispatchPlan(
+  order: CommunicableOrder,
+  contact: SupplierDispatchContact | null,
+): SupplierOrderDispatchPlan {
+  const supplierEmail = contact?.contact_email?.trim() || order.supplier_email?.trim() || "";
+  const supplierPhone = contact?.whatsapp_number?.trim() || contact?.contact_phone?.trim() || "";
+  const preferredMethod = contact?.preferred_contact_method ?? "manual";
+
+  if (preferredMethod === "email" && supplierEmail) {
+    return {
+      channel: "email",
+      supplierHref: buildSupplierOrderMailto({ ...order, supplier_email: supplierEmail }),
+      recordsHref: null,
+    };
+  }
+
+  if ((preferredMethod === "whatsapp" || preferredMethod === "phone") && supplierPhone) {
+    return {
+      channel: "whatsapp",
+      supplierHref: buildSupplierOrderWhatsAppHref(order, supplierPhone),
+      recordsHref: buildSupplierOrderRecordsMailto(order),
+    };
+  }
+
+  if (supplierEmail) {
+    return {
+      channel: "email",
+      supplierHref: buildSupplierOrderMailto({ ...order, supplier_email: supplierEmail }),
+      recordsHref: null,
+    };
+  }
+
+  if (supplierPhone) {
+    return {
+      channel: "whatsapp",
+      supplierHref: buildSupplierOrderWhatsAppHref(order, supplierPhone),
+      recordsHref: buildSupplierOrderRecordsMailto(order),
+    };
+  }
+
+  return {
+    channel: "records",
+    supplierHref: null,
+    recordsHref: buildSupplierOrderRecordsMailto(order),
+  };
 }
 
 export function buildOrdersCsvContent(orders: CommunicableOrder[]) {
@@ -91,4 +212,14 @@ export function buildOrdersCsvContent(orders: CommunicableOrder[]) {
         .join(","),
     )
     .join("\n");
+}
+
+function normalizePhoneNumber(value: string) {
+  const digits = value.replace(/[^\d]/g, "");
+
+  if (!digits) {
+    return "";
+  }
+
+  return digits;
 }

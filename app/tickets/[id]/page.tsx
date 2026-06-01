@@ -23,6 +23,10 @@ import {
 } from "@/lib/onsite-location";
 import { syncMonthlySupplierSpendSnapshotsForMonth } from "@/lib/monthly-supplier-spend";
 import {
+  buildSupplierOrderDispatchPlan,
+  loadSupplierDispatchContact,
+} from "@/lib/order-communications";
+import {
   notifyAdminsOfPartCollected,
   notifyAdminsOfPartReturned,
   notifyAdminsOfRequesterMessage,
@@ -803,6 +807,32 @@ export default function TicketDetailPage() {
       }).catch((notificationError) => {
         console.error("Failed to notify requester about status change", notificationError);
       });
+    }
+    if (ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED") {
+      window.setTimeout(async () => {
+        const supplierContact = await loadSupplierDispatchContact(
+          supabase,
+          ticketPatch.supplier_name ?? ticket.supplier_name ?? "",
+        );
+        const dispatchPlan = buildSupplierOrderDispatchPlan(
+          {
+            ...ticket,
+            ...ticketPatch,
+            status: ticketPatch.status,
+          },
+          supplierContact,
+        );
+
+        if (dispatchPlan.recordsHref && dispatchPlan.channel === "whatsapp") {
+          window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
+        }
+
+        if (dispatchPlan.supplierHref) {
+          window.location.href = dispatchPlan.supplierHref;
+        } else if (dispatchPlan.recordsHref) {
+          window.location.href = dispatchPlan.recordsHref;
+        }
+      }, 0);
     }
     void loadTicket();
   }

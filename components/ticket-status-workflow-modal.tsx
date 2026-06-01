@@ -20,7 +20,6 @@ type TicketStatusWorkflowModalProps = {
   onOrderAmountChange: (value: string) => void;
   onBinLocationChange: (value: string) => void;
   onConfirm: () => void;
-  onConfirmAndEmailSupplier?: () => void;
   onCancel: () => void;
 };
 
@@ -44,7 +43,6 @@ export function TicketStatusWorkflowModal({
   onOrderAmountChange,
   onBinLocationChange,
   onConfirm,
-  onConfirmAndEmailSupplier,
   onCancel,
 }: TicketStatusWorkflowModalProps) {
   return (
@@ -60,7 +58,7 @@ export function TicketStatusWorkflowModal({
             </h2>
             <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">
               {mode === "ordered"
-                ? "Set expected delivery, PO, supplier, and order value before saving this ticket as ORDERED."
+                ? "Set expected delivery, PO, supplier, and order value before saving this ticket as ORDERED. Saving will draft the supplier message and email Parts for records."
                 : "Enter the collection bin location before marking this ticket READY."}
             </p>
           </div>
@@ -200,18 +198,8 @@ export function TicketStatusWorkflowModal({
             disabled={isSubmitting}
             className="aurora-button disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Saving..." : mode === "ordered" ? "Save ORDERED" : "Save READY"}
+            {isSubmitting ? "Saving..." : mode === "ordered" ? "Save ORDERED & Send" : "Save READY"}
           </button>
-          {mode === "ordered" && onConfirmAndEmailSupplier ? (
-            <button
-              type="button"
-              onClick={onConfirmAndEmailSupplier}
-              disabled={isSubmitting || !supplierEmail.trim()}
-              className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSubmitting ? "Saving..." : "Save + Email Supplier"}
-            </button>
-          ) : null}
         </div>
       </div>
     </div>
