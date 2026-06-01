@@ -16,13 +16,19 @@ type SupplierContactUpsertBody = {
 
 function getSupabaseConfig() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return null;
   }
 
-  return { supabaseUrl, serviceRoleKey };
+  return { supabaseUrl, supabaseAnonKey };
+}
+
+function getBearerToken(request: NextRequest) {
+  const authorization = request.headers.get("authorization") || "";
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
 }
 
 async function getAdminClient(request: NextRequest) {
@@ -33,12 +39,18 @@ async function getAdminClient(request: NextRequest) {
   }
 
   const user = await getRelaySessionUserFromRequest(request);
+  const accessToken = getBearerToken(request);
 
-  if (!user?.id) {
+  if (!user?.id || !accessToken) {
     return { error: "Authentication is required.", status: 401 as const, supabase: null };
   }
 
-  const supabase = createClient(config.supabaseUrl, config.serviceRoleKey, {
+  const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -98,11 +110,13 @@ export async function GET(request: NextRequest) {
       throw new Error(snapshotsResult.error.message);
     }
 
-    const contactRows = contactsResult.error ? [] : (contactsResult.data ?? []);
-
-    if (contactsResult.error && !isMissingRelationError(contactsResult.error.message)) {
-      throw new Error(contactsResult.error.message);
+    if (contactsResult.error) {
+      if (!isMissingRelationError(contactsResult.error.message)) {
+        throw new Error(contactsResult.error.message);
+      }
     }
+
+    const contactRows = contactsResult.error ? [] : (contactsResult.data ?? []);
 
     const directory = buildSupplierDirectoryEntries({
       tickets: (ticketsResult.data ?? []) as Array<{
