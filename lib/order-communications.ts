@@ -24,7 +24,10 @@ export type SupplierOrderDispatchPlan = {
   recordsHref: string | null;
   summary: string;
   supplierContactSummary: string;
+  openInBrowser: boolean;
 };
+
+export type SupplierOrderDispatchPreference = "none" | "email" | "whatsapp";
 
 export const PARTS_RECORDS_EMAIL = "Parts@mervynlambert.co.uk";
 
@@ -131,10 +134,35 @@ export async function loadSupplierDispatchContact(
 export function buildSupplierOrderDispatchPlan(
   order: CommunicableOrder,
   contact: SupplierDispatchContact | null,
+  preferredChannel: SupplierOrderDispatchPreference = "none",
 ): SupplierOrderDispatchPlan {
   const supplierEmail = contact?.contact_email?.trim() || order.supplier_email?.trim() || "";
   const supplierPhone = contact?.whatsapp_number?.trim() || contact?.contact_phone?.trim() || "";
   const preferredMethod = contact?.preferred_contact_method ?? "manual";
+  const wantsEmail = preferredChannel === "email";
+  const wantsWhatsApp = preferredChannel === "whatsapp";
+
+  if (wantsEmail && supplierEmail) {
+    return {
+      channel: "email",
+      supplierHref: buildSupplierOrderMailto({ ...order, supplier_email: supplierEmail }),
+      recordsHref: null,
+      summary: `Email draft prepared for the supplier and copied to ${PARTS_RECORDS_EMAIL}.`,
+      supplierContactSummary: `Email ${supplierEmail}.`,
+      openInBrowser: true,
+    };
+  }
+
+  if (wantsWhatsApp && supplierPhone) {
+    return {
+      channel: "whatsapp",
+      supplierHref: buildSupplierOrderWhatsAppHref(order, supplierPhone),
+      recordsHref: buildSupplierOrderRecordsMailto(order),
+      summary: `WhatsApp draft prepared for the supplier and a records copy was prepared for ${PARTS_RECORDS_EMAIL}.`,
+      supplierContactSummary: `WhatsApp ${supplierPhone}.`,
+      openInBrowser: true,
+    };
+  }
 
   if (preferredMethod === "email" && supplierEmail) {
     return {
@@ -143,6 +171,7 @@ export function buildSupplierOrderDispatchPlan(
       recordsHref: null,
       summary: `Email draft prepared for the supplier and copied to ${PARTS_RECORDS_EMAIL}.`,
       supplierContactSummary: `Email ${supplierEmail}.`,
+      openInBrowser: true,
     };
   }
 
@@ -153,6 +182,7 @@ export function buildSupplierOrderDispatchPlan(
       recordsHref: buildSupplierOrderRecordsMailto(order),
       summary: `WhatsApp draft prepared for the supplier and a records copy was prepared for ${PARTS_RECORDS_EMAIL}.`,
       supplierContactSummary: `WhatsApp ${supplierPhone}.`,
+      openInBrowser: true,
     };
   }
 
@@ -163,6 +193,7 @@ export function buildSupplierOrderDispatchPlan(
       recordsHref: null,
       summary: `Email draft prepared for the supplier and copied to ${PARTS_RECORDS_EMAIL}.`,
       supplierContactSummary: `Email ${supplierEmail}.`,
+      openInBrowser: true,
     };
   }
 
@@ -173,6 +204,7 @@ export function buildSupplierOrderDispatchPlan(
       recordsHref: buildSupplierOrderRecordsMailto(order),
       summary: `WhatsApp draft prepared for the supplier and a records copy was prepared for ${PARTS_RECORDS_EMAIL}.`,
       supplierContactSummary: `WhatsApp ${supplierPhone}.`,
+      openInBrowser: true,
     };
   }
 
@@ -180,8 +212,12 @@ export function buildSupplierOrderDispatchPlan(
     channel: "records",
     supplierHref: null,
     recordsHref: buildSupplierOrderRecordsMailto(order),
-    summary: `No supplier email or WhatsApp address was available, so a records-only copy was prepared for ${PARTS_RECORDS_EMAIL}.`,
+    summary:
+      preferredChannel === "none"
+        ? `No supplier draft was opened. A records copy was prepared for ${PARTS_RECORDS_EMAIL}.`
+        : `No supplier email or WhatsApp address was available, so a records-only copy was prepared for ${PARTS_RECORDS_EMAIL}.`,
     supplierContactSummary: "No supplier contact address on file.",
+    openInBrowser: preferredChannel !== "none",
   };
 }
 

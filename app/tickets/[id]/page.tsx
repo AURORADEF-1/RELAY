@@ -64,6 +64,7 @@ import {
   fetchProfileDisplayNamesByUserId,
   getCurrentUserWithRole,
 } from "@/lib/profile-access";
+import type { SupplierOrderDispatchPreference } from "@/lib/order-communications";
 import { ticketStatuses } from "@/lib/statuses";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
@@ -142,6 +143,7 @@ type StatusWorkflowDialogState = {
   supplierEmail: string;
   orderAmount: string;
   binLocation: string;
+  dispatchPreference: SupplierOrderDispatchPreference;
   errorMessage: string;
 };
 
@@ -511,6 +513,7 @@ export default function TicketDetailPage() {
     supplierEmail: string;
     orderAmount: string;
     binLocation: string;
+    dispatchPreference: SupplierOrderDispatchPreference;
   }) {
     if (!ticket || !editDraft) {
       return;
@@ -564,6 +567,7 @@ export default function TicketDetailPage() {
         supplierEmail: normalizedSupplierEmail,
         orderAmount: nextOrderAmountInput,
         binLocation: nextBinLocation,
+        dispatchPreference: "none",
         errorMessage: "",
       });
       setIsSavingEdit(false);
@@ -716,6 +720,7 @@ export default function TicketDetailPage() {
                 status: ticketPatch.status,
               },
               supplierDispatchContact,
+              confirmedWorkflow?.dispatchPreference ?? "none",
             )
           : null;
 
@@ -831,6 +836,7 @@ export default function TicketDetailPage() {
               status: ticketPatch.status,
             },
             supplierDispatchContact,
+            confirmedWorkflow?.dispatchPreference ?? "none",
           )
         : null;
     if (ticket.status !== ticketPatch.status) {
@@ -850,14 +856,22 @@ export default function TicketDetailPage() {
       window.setTimeout(async () => {
         const dispatchPlan = supplierDispatchPlan;
 
-        if (dispatchPlan?.recordsHref && dispatchPlan.channel === "whatsapp") {
+        if (dispatchPlan?.openInBrowser && dispatchPlan.recordsHref && dispatchPlan.channel === "whatsapp") {
           window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
         }
 
-        if (dispatchPlan?.supplierHref) {
-          window.location.href = dispatchPlan.supplierHref;
-        } else if (dispatchPlan?.recordsHref) {
-          window.location.href = dispatchPlan.recordsHref;
+        if (dispatchPlan?.openInBrowser && dispatchPlan.supplierHref) {
+          if (dispatchPlan.channel === "whatsapp") {
+            window.open(dispatchPlan.supplierHref, "_blank", "noopener,noreferrer");
+          } else {
+            window.location.href = dispatchPlan.supplierHref;
+          }
+        } else if (dispatchPlan?.openInBrowser && dispatchPlan.recordsHref) {
+          if (dispatchPlan.channel === "whatsapp") {
+            window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
+          } else {
+            window.location.href = dispatchPlan.recordsHref;
+          }
         }
       }, 0);
     }
@@ -1100,6 +1114,7 @@ export default function TicketDetailPage() {
               supplierEmail={statusWorkflowDialog.supplierEmail}
               orderAmount={statusWorkflowDialog.orderAmount}
               binLocation={statusWorkflowDialog.binLocation}
+              dispatchPreference={statusWorkflowDialog.dispatchPreference}
               errorMessage={statusWorkflowDialog.errorMessage}
               onExpectedDeliveryDateChange={(value) =>
                 setStatusWorkflowDialog((current) =>
@@ -1136,6 +1151,11 @@ export default function TicketDetailPage() {
                   current ? { ...current, binLocation: value, errorMessage: "" } : current,
                 )
               }
+              onDispatchPreferenceChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, dispatchPreference: value, errorMessage: "" } : current,
+                )
+              }
               onCancel={() => setStatusWorkflowDialog(null)}
               onConfirm={() => {
                 const dialog = statusWorkflowDialog;
@@ -1152,6 +1172,7 @@ export default function TicketDetailPage() {
                   supplierEmail: dialog.supplierEmail,
                   orderAmount: dialog.orderAmount,
                   binLocation: dialog.binLocation,
+                  dispatchPreference: dialog.dispatchPreference,
                 });
               }}
             />

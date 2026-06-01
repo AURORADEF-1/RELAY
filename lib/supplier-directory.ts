@@ -6,7 +6,9 @@ import {
 import { formatOperationalDate, formatOrderAmount, type TicketOperationalRecord } from "@/lib/ticket-operational";
 import {
   canonicalizeSupplierDisplayName,
+  findBestSupplierMergeTarget,
   normalizeSupplierName,
+  normalizeSupplierSelectionKey,
 } from "@/lib/suppliers";
 
 export type SupplierWorkflowStage =
@@ -188,15 +190,17 @@ export function buildSupplierDirectoryEntries({
     } satisfies SupplierDirectoryEntry;
   });
 
+  const mergedEntries = collapseSupplierDirectoryEntries(entries);
+
   const supplierOptions = Array.from(
     new Set(
-      entries
+      mergedEntries
         .map((entry) => entry.supplierName.trim())
         .filter(Boolean),
     ),
   ).sort((left, right) => left.localeCompare(right));
 
-  entries.sort((left, right) => {
+  mergedEntries.sort((left, right) => {
     if (right.totalSpend !== left.totalSpend) {
       return right.totalSpend - left.totalSpend;
     }
@@ -209,7 +213,7 @@ export function buildSupplierDirectoryEntries({
   });
 
   return {
-    entries,
+    entries: mergedEntries,
     supplierOptions,
     trackedOrders,
     orderSnapshot,
@@ -256,6 +260,137 @@ export function isLikelyInvalidSupplierName(value: string) {
   }
 
   return false;
+}
+
+function collapseSupplierDirectoryEntries(entries: SupplierDirectoryEntry[]) {
+  const sortedEntries = entries.slice().sort((left, right) => {
+    if (right.totalSpend !== left.totalSpend) {
+      return right.totalSpend - left.totalSpend;
+    }
+
+    if (right.orderCount !== left.orderCount) {
+      return right.orderCount - left.orderCount;
+    }
+
+    return left.supplierName.localeCompare(right.supplierName);
+  });
+
+  const mergedEntries: SupplierDirectoryEntry[] = [];
+
+  for (const entry of sortedEntries) {
+    const mergeTarget = findBestSupplierMergeTarget(
+      entry.supplierName,
+      mergedEntries.map((supplier) => supplier.supplierName),
+      entry.supplierName,
+    );
+
+    if (!mergeTarget) {
+      mergedEntries.push(entry);
+      continue;
+    }
+
+    const targetIndex = mergedEntries.findIndex(
+      (supplier) =>
+        normalizeSupplierSelectionKey(supplier.supplierName) ===
+        normalizeSupplierSelectionKey(mergeTarget.supplierName),
+    );
+
+    if (targetIndex === -1) {
+      mergedEntries.push(entry);
+      continue;
+    }
+
+    mergedEntries[targetIndex] = mergeSupplierDirectoryEntries(
+      mergedEntries[targetIndex],
+      entry,
+    );
+  }
+
+  return mergedEntries;
+}
+
+function mergeSupplierDirectoryEntries(
+  target: SupplierDirectoryEntry,
+  source: SupplierDirectoryEntry,
+) {
+  const mergedTrend = mergeTrendRows(target.monthlyTrend, source.monthlyTrend);
+  const mergedRecentOrders = mergeRecentOrders(target.recentOrders, source.recentOrders);
+
+  return {
+    ...target,
+    orderCount: target.orderCount + source.orderCount,
+    overdueCount: target.overdueCount + source.overdueCount,
+    totalSpend: Number((target.totalSpend + source.totalSpend).toFixed(2)),
+    lastOrderedAt: latestTimestamp(target.lastOrderedAt, source.lastOrderedAt),
+    currentMonthOrderCount: target.currentMonthOrderCount + source.currentMonthOrderCount,
+    currentMonthSpend: Number((target.currentMonthSpend + source.currentMonthSpend).toFixed(2)),
+    contactEmail: target.contactEmail ?? source.contactEmail,
+    contactPhone: target.contactPhone ?? source.contactPhone,
+    whatsappNumber: target.whatsappNumber ?? source.whatsappNumber,
+    preferredContactMethod: target.preferredContactMethod ?? source.preferredContactMethod,
+    workflowStage: target.workflowStage ?? source.workflowStage ?? DEFAULT_WORKFLOW_STAGE,
+    notes: target.notes ?? source.notes,
+    lastContactedAt: latestTimestamp(target.lastContactedAt, source.lastContactedAt),
+    latestTicketSupplierEmail: target.latestTicketSupplierEmail ?? source.latestTicketSupplierEmail,
+    monthlyTrend: mergedTrend,
+    recentOrders: mergedRecentOrders,
+  };
+}
+
+function mergeTrendRows(
+  leftRows: SupplierDirectoryTrendRow[],
+  rightRows: SupplierDirectoryTrendRow[],
+) {
+  const rowsByMonth = new Map<string, SupplierDirectoryTrendRow>();
+
+  for (const row of [...leftRows, ...rightRows]) {
+    const existing = rowsByMonth.get(row.month_start);
+
+    rowsByMonth.set(row.month_start, {
+      month_start: row.month_start,
+      order_count: (existing?.order_count ?? 0) + row.order_count,
+      total_spend: Number(((existing?.total_spend ?? 0) + row.total_spend).toFixed(2)),
+    });
+  }
+
+  return Array.from(rowsByMonth.values()).sort((left, right) =>
+    right.month_start.localeCompare(left.month_start),
+  );
+}
+
+function mergeRecentOrders(
+  leftOrders: SupplierDirectoryOrder[],
+  rightOrders: SupplierDirectoryOrder[],
+) {
+  const ordersById = new Map<string, SupplierDirectoryOrder>();
+
+  for (const order of [...leftOrders, ...rightOrders]) {
+    if (!ordersById.has(order.id)) {
+      ordersById.set(order.id, order);
+    }
+  }
+
+  return Array.from(ordersById.values()).sort(
+    (left, right) => getSupplierOrderSortTime(right) - getSupplierOrderSortTime(left),
+  ).slice(0, 5);
+}
+
+function latestTimestamp(left: string | null, right: string | null) {
+  if (!left) {
+    return right;
+  }
+
+  if (!right) {
+    return left;
+  }
+
+  return new Date(left).getTime() >= new Date(right).getTime() ? left : right;
+}
+
+function getSupplierOrderSortTime(order: SupplierDirectoryOrder) {
+  const source = order.ordered_at ?? order.updated_at ?? order.created_at;
+  const time = source ? new Date(source).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
 }
 
 export function buildSupplierBriefText(
@@ -325,10 +460,4 @@ export function normalizePhoneNumber(value: string) {
 function getCurrentMonthKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-function getSupplierOrderSortTime(ticket: SupplierDirectoryOrder) {
-  const source = ticket.ordered_at ?? ticket.updated_at ?? ticket.created_at;
-  const time = source ? new Date(source).getTime() : 0;
-  return Number.isFinite(time) ? time : 0;
 }

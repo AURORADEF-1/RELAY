@@ -29,6 +29,7 @@ import {
   buildOrdersCsvContent,
   buildReadyOrdersMailto,
   buildSupplierOrderDispatchPlan,
+  type SupplierOrderDispatchPreference,
   loadSupplierDispatchContact,
 } from "@/lib/order-communications";
 import { buildSupplierSuggestionOptions } from "@/lib/supplier-directory";
@@ -155,6 +156,7 @@ type StatusWorkflowDialogState = {
   supplierEmail: string;
   orderAmount: string;
   binLocation: string;
+  dispatchPreference: SupplierOrderDispatchPreference;
   errorMessage: string;
 };
 
@@ -1274,6 +1276,7 @@ export default function AdminPage() {
           ? String(ticket.order_amount)
           : "",
       binLocation: ticket.bin_location ?? "",
+      dispatchPreference: "none",
       errorMessage: "",
     });
 
@@ -1356,6 +1359,7 @@ export default function AdminPage() {
       supplierEmail?: string;
       orderAmount?: string;
       binLocation?: string;
+      dispatchPreference?: SupplierOrderDispatchPreference;
     },
   ): Promise<Ticket | null> => {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
@@ -1517,7 +1521,11 @@ export default function AdminPage() {
         : null;
     const supplierDispatchPlan =
       nextStatus === "ORDERED"
-        ? buildSupplierOrderDispatchPlan(updatedTicket as Ticket, supplierDispatchContact)
+        ? buildSupplierOrderDispatchPlan(
+            updatedTicket as Ticket,
+            supplierDispatchContact,
+            workflow?.dispatchPreference ?? "none",
+          )
         : null;
 
     const ticketUpdateRows: Array<{ ticket_id: string; status?: string; comment?: string }> = [
@@ -1625,14 +1633,22 @@ export default function AdminPage() {
       window.setTimeout(async () => {
         const dispatchPlan = supplierDispatchPlan;
 
-        if (dispatchPlan?.recordsHref && dispatchPlan.channel === "whatsapp") {
+        if (dispatchPlan?.openInBrowser && dispatchPlan.recordsHref && dispatchPlan.channel === "whatsapp") {
           window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
         }
 
-        if (dispatchPlan?.supplierHref) {
-          window.location.href = dispatchPlan.supplierHref;
-        } else if (dispatchPlan?.recordsHref) {
-          window.location.href = dispatchPlan.recordsHref;
+        if (dispatchPlan?.openInBrowser && dispatchPlan.supplierHref) {
+          if (dispatchPlan.channel === "whatsapp") {
+            window.open(dispatchPlan.supplierHref, "_blank", "noopener,noreferrer");
+          } else {
+            window.location.href = dispatchPlan.supplierHref;
+          }
+        } else if (dispatchPlan?.openInBrowser && dispatchPlan.recordsHref) {
+          if (dispatchPlan.channel === "whatsapp") {
+            window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
+          } else {
+            window.location.href = dispatchPlan.recordsHref;
+          }
         }
       }, 0);
     }
@@ -2307,6 +2323,7 @@ export default function AdminPage() {
               supplierSuggestions={supplierSuggestions}
               orderAmount={statusWorkflowDialog.orderAmount}
               binLocation={statusWorkflowDialog.binLocation}
+              dispatchPreference={statusWorkflowDialog.dispatchPreference}
               errorMessage={statusWorkflowDialog.errorMessage}
               onExpectedDeliveryDateChange={(value) =>
                 setStatusWorkflowDialog((current) =>
@@ -2341,6 +2358,11 @@ export default function AdminPage() {
               onBinLocationChange={(value) =>
                 setStatusWorkflowDialog((current) =>
                   current ? { ...current, binLocation: value, errorMessage: "" } : current,
+                )
+              }
+              onDispatchPreferenceChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, dispatchPreference: value, errorMessage: "" } : current,
                 )
               }
               onCancel={() => setStatusWorkflowDialog(null)}
@@ -2404,6 +2426,7 @@ export default function AdminPage() {
                   supplierEmail: dialog.supplierEmail,
                   orderAmount: dialog.orderAmount,
                   binLocation: dialog.binLocation,
+                  dispatchPreference: dialog.dispatchPreference,
                 }).then((updatedTicket) => {
                   if (updatedTicket) {
                     setStatusWorkflowDialog(null);

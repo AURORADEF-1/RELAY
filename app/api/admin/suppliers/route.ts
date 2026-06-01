@@ -3,7 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { buildSupplierDirectoryEntries, type SupplierContactRecord } from "@/lib/supplier-directory";
 import { getRelaySessionUserFromRequest } from "@/lib/security";
-import { canonicalizeSupplierDisplayName, normalizeSupplierName } from "@/lib/suppliers";
+import {
+  canonicalizeSupplierDisplayName,
+  findBestSupplierMergeTarget,
+  normalizeSupplierName,
+} from "@/lib/suppliers";
 
 type SupplierContactUpsertBody = {
   originalSupplierName?: string;
@@ -190,13 +194,20 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Supplier name is required." }, { status: 400 });
     }
 
-    const normalizedSupplierName = normalizeSupplierName(supplierName);
+    const currentDirectory = await loadSupplierDirectory(supabase);
+    const mergeTarget = findBestSupplierMergeTarget(
+      supplierName,
+      currentDirectory.directory.entries.map((entry) => entry.supplierName),
+      originalSupplierName,
+    );
+    const resolvedSupplierName = mergeTarget?.supplierName ?? supplierName;
+    const normalizedSupplierName = normalizeSupplierName(resolvedSupplierName);
     const originalNormalizedSupplierName = normalizeSupplierName(originalSupplierName);
     const shouldRenameHistoricalData =
       originalNormalizedSupplierName !== normalizedSupplierName && !body.removeHistoricalData;
     const shouldDeleteHistoricalData = body.removeHistoricalData === true;
     const payload = {
-      supplier_name: canonicalizeSupplierDisplayName(supplierName),
+      supplier_name: canonicalizeSupplierDisplayName(resolvedSupplierName),
       supplier_name_normalized: normalizedSupplierName,
       contact_email: body.contactEmail?.trim() || null,
       contact_phone: body.contactPhone?.trim() || null,
@@ -283,7 +294,7 @@ export async function PATCH(request: NextRequest) {
           const { error: ticketUpdateError } = await supabase
             .from("tickets")
             .update({
-              supplier_name: canonicalizeSupplierDisplayName(supplierName),
+              supplier_name: canonicalizeSupplierDisplayName(resolvedSupplierName),
               updated_at: new Date().toISOString(),
             })
             .in("id", matchingTicketIds);
@@ -332,7 +343,7 @@ export async function PATCH(request: NextRequest) {
               const { error: targetUpdateError } = await supabase
                 .from("supplier_monthly_spend_snapshots")
                 .update({
-                  supplier_name: canonicalizeSupplierDisplayName(supplierName),
+                  supplier_name: canonicalizeSupplierDisplayName(resolvedSupplierName),
                   order_count: targetRow.order_count + snapshotRow.order_count,
                   total_spend: Number(
                     (Number(targetRow.total_spend) + Number(snapshotRow.total_spend)).toFixed(2),
@@ -359,7 +370,7 @@ export async function PATCH(request: NextRequest) {
             const { error: snapshotMoveError } = await supabase
               .from("supplier_monthly_spend_snapshots")
               .update({
-                supplier_name: canonicalizeSupplierDisplayName(supplierName),
+                supplier_name: canonicalizeSupplierDisplayName(resolvedSupplierName),
                 supplier_name_normalized: normalizedSupplierName,
               })
               .eq("id", snapshotRow.id);
@@ -391,6 +402,9 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       supplier,
+      mergedInto: mergeTarget && normalizedSupplierName !== normalizeSupplierName(supplierName)
+        ? resolvedSupplierName
+        : null,
     });
   } catch (error) {
     return NextResponse.json(
@@ -417,9 +431,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Supplier name is required." }, { status: 400 });
     }
 
-    const normalizedSupplierName = normalizeSupplierName(supplierName);
+    const currentDirectory = await loadSupplierDirectory(supabase);
+    const mergeTarget = findBestSupplierMergeTarget(
+      supplierName,
+      currentDirectory.directory.entries.map((entry) => entry.supplierName),
+    );
+    const resolvedSupplierName = mergeTarget?.supplierName ?? supplierName;
+    const normalizedSupplierName = normalizeSupplierName(resolvedSupplierName);
     const payload = {
-      supplier_name: canonicalizeSupplierDisplayName(supplierName),
+      supplier_name: canonicalizeSupplierDisplayName(resolvedSupplierName),
       supplier_name_normalized: normalizedSupplierName,
       contact_email: body.contactEmail?.trim() || null,
       contact_phone: body.contactPhone?.trim() || null,
@@ -449,6 +469,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       supplier,
+      mergedInto: mergeTarget && normalizedSupplierName !== normalizeSupplierName(supplierName)
+        ? resolvedSupplierName
+        : null,
     });
   } catch (error) {
     return NextResponse.json(

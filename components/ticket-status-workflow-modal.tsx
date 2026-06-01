@@ -1,5 +1,7 @@
 "use client";
 
+import type { SupplierOrderDispatchPreference } from "@/lib/order-communications";
+
 type TicketStatusWorkflowModalProps = {
   mode: "ordered" | "ready";
   isSubmitting?: boolean;
@@ -11,6 +13,7 @@ type TicketStatusWorkflowModalProps = {
   supplierSuggestions?: string[];
   orderAmount: string;
   binLocation: string;
+  dispatchPreference: SupplierOrderDispatchPreference;
   errorMessage?: string;
   onExpectedDeliveryDateChange: (value: string) => void;
   onLeadTimeNoteChange: (value: string) => void;
@@ -19,6 +22,7 @@ type TicketStatusWorkflowModalProps = {
   onSupplierEmailChange: (value: string) => void;
   onOrderAmountChange: (value: string) => void;
   onBinLocationChange: (value: string) => void;
+  onDispatchPreferenceChange: (value: SupplierOrderDispatchPreference) => void;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -34,6 +38,7 @@ export function TicketStatusWorkflowModal({
   supplierSuggestions = [],
   orderAmount,
   binLocation,
+  dispatchPreference,
   errorMessage,
   onExpectedDeliveryDateChange,
   onLeadTimeNoteChange,
@@ -42,6 +47,7 @@ export function TicketStatusWorkflowModal({
   onSupplierEmailChange,
   onOrderAmountChange,
   onBinLocationChange,
+  onDispatchPreferenceChange,
   onConfirm,
   onCancel,
 }: TicketStatusWorkflowModalProps) {
@@ -132,6 +138,26 @@ export function TicketStatusWorkflowModal({
                   placeholder="supplier@example.com"
                   className="aurora-input"
                 />
+              </label>
+
+              <label className="block space-y-2 sm:col-span-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                  Send Supplier Draft Now
+                </span>
+                <select
+                  value={dispatchPreference}
+                  onChange={(event) =>
+                    onDispatchPreferenceChange(event.target.value as SupplierOrderDispatchPreference)
+                  }
+                  className="aurora-input"
+                >
+                  <option value="none">Do not send now</option>
+                  <option value="email">Open email draft</option>
+                  <option value="whatsapp">Open WhatsApp in new window</option>
+                </select>
+                <p className="text-xs leading-5 text-[color:var(--foreground-muted)]">
+                  The supplier draft can be opened after saving. WhatsApp opens in a new window so Relay stays open.
+                </p>
               </label>
 
               <label className="block space-y-2">

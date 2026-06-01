@@ -13,6 +13,7 @@ import {
 } from "@/lib/supplier-directory";
 import { formatOperationalDate, formatOrderAmount } from "@/lib/ticket-operational";
 import { getSupabaseAccessToken } from "@/lib/supabase";
+import { findBestSupplierMergeTarget, normalizeSupplierSelectionKey } from "@/lib/suppliers";
 
 type SupplierDirectoryResponse = {
   generatedAt: string;
@@ -104,7 +105,7 @@ export function SupplierDirectoryPanel() {
         payload.suppliers?.find(
           (supplier) =>
             supplier.normalizedSupplierName ===
-            normalizeSelectionKey(selectedSupplierNameRef.current),
+            normalizeSupplierSelectionKey(selectedSupplierNameRef.current),
         ) ?? payload.suppliers?.[0] ?? null;
 
       if (nextSelected) {
@@ -232,28 +233,30 @@ export function SupplierDirectoryPanel() {
     }
 
     const currentDraft = supplierNameDraft.trim() || selectedSupplier.supplierName;
+    const mergeTarget = findBestSupplierMergeTarget(
+      currentDraft,
+      suppliers.map((supplier) => supplier.supplierName),
+      selectedSupplier.supplierName,
+    );
+
+    if (mergeTarget) {
+      return mergeTarget.supplierName;
+    }
+
     const exactDuplicate = suppliers.find(
       (supplier) =>
-        supplier.normalizedSupplierName === normalizeSelectionKey(currentDraft) &&
+        supplier.normalizedSupplierName === normalizeSupplierSelectionKey(currentDraft) &&
         supplier.normalizedSupplierName !== selectedSupplier.normalizedSupplierName,
     );
 
-    if (exactDuplicate) {
-      return exactDuplicate.supplierName;
-    }
-
-    return findClosestSupplierName(
-      currentDraft,
-      suppliers,
-      selectedSupplier.normalizedSupplierName,
-    );
+    return exactDuplicate?.supplierName ?? null;
   }, [isEditingSupplierName, selectedSupplier, supplierNameDraft, suppliers]);
 
   const handleSave = useCallback(async () => {
     const originalSupplierName = selectedSupplier?.supplierName?.trim() || supplierNameDraft.trim();
     const nextSupplierName = supplierNameDraft.trim();
-    const originalNormalizedSupplierName = normalizeSelectionKey(originalSupplierName);
-    const nextNormalizedSupplierName = normalizeSelectionKey(nextSupplierName);
+    const originalNormalizedSupplierName = normalizeSupplierSelectionKey(originalSupplierName);
+    const nextNormalizedSupplierName = normalizeSupplierSelectionKey(nextSupplierName);
 
     if (!nextSupplierName) {
       setNotice({
@@ -294,6 +297,7 @@ export function SupplierDirectoryPanel() {
       const payload = (await response.json()) as {
         error?: string;
         supplier?: SupplierDirectoryEntry;
+        mergedInto?: string | null;
       };
 
       if (!response.ok) {
@@ -306,8 +310,8 @@ export function SupplierDirectoryPanel() {
           const nextEntry = payload.supplier as SupplierDirectoryEntry;
           const withoutPrevious = current.filter(
             (supplier) =>
-              normalizeSelectionKey(supplier.supplierName) !==
-              normalizeSelectionKey(previousSupplierName),
+              normalizeSupplierSelectionKey(supplier.supplierName) !==
+              normalizeSupplierSelectionKey(previousSupplierName),
           );
           const withoutDuplicate = withoutPrevious.filter(
             (supplier) => supplier.normalizedSupplierName !== nextEntry.normalizedSupplierName,
@@ -320,7 +324,8 @@ export function SupplierDirectoryPanel() {
             payload.supplier?.supplierName ?? nextSupplierName,
             ...current.filter(
               (option) =>
-                normalizeSelectionKey(option) !== normalizeSelectionKey(previousSupplierName),
+                normalizeSupplierSelectionKey(option) !==
+                normalizeSupplierSelectionKey(previousSupplierName),
             ),
           ]),
         );
@@ -330,12 +335,17 @@ export function SupplierDirectoryPanel() {
         setDraftFromSupplier(payload.supplier);
       }
 
+      selectedSupplierNameRef.current = payload.supplier?.supplierName ?? nextSupplierName;
+      await loadSuppliers();
+
       setNotice({
         type: "success",
         message:
-          originalNormalizedSupplierName !== nextNormalizedSupplierName
-            ? `Merged supplier into ${nextSupplierName}.`
-            : `Saved supplier ${nextSupplierName}.`,
+          payload.mergedInto
+            ? `Merged supplier into ${payload.mergedInto}.`
+            : originalNormalizedSupplierName !== nextNormalizedSupplierName
+              ? `Merged supplier into ${nextSupplierName}.`
+              : `Saved supplier ${nextSupplierName}.`,
       });
     } catch (error) {
       setNotice({
@@ -388,6 +398,7 @@ export function SupplierDirectoryPanel() {
       const payload = (await response.json()) as {
         error?: string;
         supplier?: SupplierDirectoryEntry;
+        mergedInto?: string | null;
       };
 
       if (!response.ok) {
@@ -414,9 +425,14 @@ export function SupplierDirectoryPanel() {
         setDraftFromSupplier(payload.supplier);
       }
 
+      selectedSupplierNameRef.current = payload.supplier?.supplierName ?? nextSupplierName;
+      await loadSuppliers();
+
       setNotice({
         type: "success",
-        message: `Created supplier ${nextSupplierName}.`,
+        message: payload.mergedInto
+          ? `Merged supplier into ${payload.mergedInto}.`
+          : `Created supplier ${nextSupplierName}.`,
       });
     } catch (error) {
       setNotice({
@@ -475,15 +491,25 @@ export function SupplierDirectoryPanel() {
       }
 
       setSuppliers((current) =>
-        current.filter((supplier) => supplier.normalizedSupplierName !== normalizeSelectionKey(nextSupplierName)),
+        current.filter(
+          (supplier) =>
+            supplier.normalizedSupplierName !== normalizeSupplierSelectionKey(nextSupplierName),
+        ),
       );
       setSupplierOptions((current) =>
         buildSupplierSuggestionOptions(
           current.filter(
-            (option) => normalizeSelectionKey(option) !== normalizeSelectionKey(nextSupplierName),
+            (option) =>
+              normalizeSupplierSelectionKey(option) !== normalizeSupplierSelectionKey(nextSupplierName),
           ),
         ),
       );
+      setSelectedSupplierName("");
+      setSupplierNameDraft("");
+      setIsEditingSupplierName(false);
+      setDraft(DEFAULT_DRAFT);
+      await loadSuppliers();
+      selectedSupplierNameRef.current = "";
       setSelectedSupplierName("");
       setSupplierNameDraft("");
       setIsEditingSupplierName(false);
@@ -1184,101 +1210,4 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-}
-
-function normalizeSelectionKey(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function findClosestSupplierName(
-  sourceName: string,
-  suppliers: SupplierDirectoryEntry[],
-  currentSupplierKey: string,
-) {
-  const sourceKey = normalizeSelectionKey(sourceName);
-
-  if (!sourceKey) {
-    return null;
-  }
-
-  let bestMatch: { name: string; score: number } | null = null;
-
-  for (const supplier of suppliers) {
-    if (supplier.normalizedSupplierName === currentSupplierKey) {
-      continue;
-    }
-
-    const candidateKey = supplier.normalizedSupplierName;
-    const score = scoreSupplierNameMatch(sourceKey, candidateKey);
-
-    if (score <= 0) {
-      continue;
-    }
-
-    if (!bestMatch || score > bestMatch.score) {
-      bestMatch = {
-        name: supplier.supplierName,
-        score,
-      };
-    }
-  }
-
-  return bestMatch && bestMatch.score >= 0.35 ? bestMatch.name : null;
-}
-
-function scoreSupplierNameMatch(leftKey: string, rightKey: string) {
-  if (!leftKey || !rightKey) {
-    return 0;
-  }
-
-  if (leftKey === rightKey) {
-    return 1;
-  }
-
-  const leftTokens = leftKey.split(" ").filter(Boolean);
-  const rightTokens = rightKey.split(" ").filter(Boolean);
-  const sharedTokens = new Set(leftTokens.filter((token) => rightTokens.includes(token)));
-  const tokenScore = sharedTokens.size / Math.max(leftTokens.length, rightTokens.length, 1);
-
-  const includesScore =
-    leftKey.includes(rightKey) || rightKey.includes(leftKey)
-      ? Math.min(leftKey.length, rightKey.length) / Math.max(leftKey.length, rightKey.length)
-      : 0;
-
-  const distanceScore = 1 - levenshteinDistance(leftKey, rightKey) / Math.max(leftKey.length, rightKey.length, 1);
-
-  return Math.max(tokenScore, includesScore, distanceScore);
-}
-
-function levenshteinDistance(left: string, right: string) {
-  if (left === right) {
-    return 0;
-  }
-
-  if (!left.length) {
-    return right.length;
-  }
-
-  if (!right.length) {
-    return left.length;
-  }
-
-  const rows = Array.from({ length: left.length + 1 }, (_, rowIndex) =>
-    Array.from({ length: right.length + 1 }, (_, columnIndex) =>
-      rowIndex === 0 ? columnIndex : columnIndex === 0 ? rowIndex : 0,
-    ),
-  );
-
-  for (let rowIndex = 1; rowIndex <= left.length; rowIndex += 1) {
-    for (let columnIndex = 1; columnIndex <= right.length; columnIndex += 1) {
-      const cost = left[rowIndex - 1] === right[columnIndex - 1] ? 0 : 1;
-      rows[rowIndex][columnIndex] = Math.min(
-        rows[rowIndex - 1][columnIndex] + 1,
-        rows[rowIndex][columnIndex - 1] + 1,
-        rows[rowIndex - 1][columnIndex - 1] + cost,
-      );
-    }
-  }
-
-  return rows[left.length][right.length];
 }
