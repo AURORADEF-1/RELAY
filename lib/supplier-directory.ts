@@ -4,7 +4,10 @@ import {
   type MonthlySupplierSpendSnapshot,
 } from "@/lib/order-analytics";
 import { formatOperationalDate, formatOrderAmount, type TicketOperationalRecord } from "@/lib/ticket-operational";
-import { normalizeSupplierName } from "@/lib/suppliers";
+import {
+  canonicalizeSupplierDisplayName,
+  normalizeSupplierName,
+} from "@/lib/suppliers";
 
 export type SupplierWorkflowStage =
   | "draft"
@@ -152,7 +155,7 @@ export function buildSupplierDirectoryEntries({
       contact?.supplier_name?.trim() ||
       summary?.supplierName?.trim() ||
       latestTrackedOrder?.supplier_name?.trim() ||
-      normalizedSupplierName;
+      canonicalizeSupplierDisplayName(normalizedSupplierName);
     const currentMonthKey = getCurrentMonthKey();
     const currentMonthTrendRow = monthlyTrend.find((row) => row.month_start === currentMonthKey) ?? null;
 
@@ -214,13 +217,23 @@ export function buildSupplierDirectoryEntries({
 }
 
 export function buildSupplierSuggestionOptions(values: Array<string | null | undefined>) {
-  return Array.from(
-    new Set(
-      values
-        .map((value) => value?.trim() || "")
-        .filter(Boolean),
-    ),
-  ).sort((left, right) => left.localeCompare(right));
+  const suggestionMap = new Map<string, string>();
+
+  values.forEach((value) => {
+    const trimmed = value?.trim() || "";
+
+    if (!trimmed) {
+      return;
+    }
+
+    const normalized = normalizeSupplierName(trimmed);
+
+    if (!suggestionMap.has(normalized)) {
+      suggestionMap.set(normalized, canonicalizeSupplierDisplayName(trimmed));
+    }
+  });
+
+  return Array.from(suggestionMap.values()).sort((left, right) => left.localeCompare(right));
 }
 
 export function isLikelyInvalidSupplierName(value: string) {

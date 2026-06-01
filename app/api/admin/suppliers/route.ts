@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { buildSupplierDirectoryEntries, type SupplierContactRecord } from "@/lib/supplier-directory";
 import { getRelaySessionUserFromRequest } from "@/lib/security";
+import { canonicalizeSupplierDisplayName, normalizeSupplierName } from "@/lib/suppliers";
 
 type SupplierContactUpsertBody = {
   supplierName?: string;
@@ -178,9 +179,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Supplier name is required." }, { status: 400 });
     }
 
-    const normalizedSupplierName = supplierName.toLowerCase().replace(/\s+/g, " ");
+    const normalizedSupplierName = normalizeSupplierName(supplierName);
     const payload = {
-      supplier_name: supplierName,
+      supplier_name: canonicalizeSupplierDisplayName(supplierName),
       supplier_name_normalized: normalizedSupplierName,
       contact_email: body.contactEmail?.trim() || null,
       contact_phone: body.contactPhone?.trim() || null,

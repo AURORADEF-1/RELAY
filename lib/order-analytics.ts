@@ -5,7 +5,10 @@ import {
   isTrackedOrderRecord,
   type TicketOperationalRecord,
 } from "@/lib/ticket-operational";
-import { normalizeSupplierName } from "@/lib/suppliers";
+import {
+  canonicalizeSupplierDisplayName,
+  normalizeSupplierName,
+} from "@/lib/suppliers";
 
 export type SupplierOrderSummary = {
   supplierName: string;
@@ -54,7 +57,8 @@ export function buildOrdersSnapshot(tickets: TicketOperationalRecord[]): OrdersS
     );
 
     supplierMap.set(normalizedSupplierName, {
-      supplierName: existing?.supplierName ?? supplierName,
+      supplierName:
+        existing?.supplierName ?? canonicalizeSupplierDisplayName(supplierName),
       normalizedSupplierName,
       orderCount: (existing?.orderCount ?? 0) + 1,
       overdueCount:
@@ -125,7 +129,8 @@ export function buildMonthlySupplierSpendSnapshots(tickets: TicketOperationalRec
 
       monthEntries.set(normalizedSupplierName, {
         month_start: monthStart,
-        supplier_name: existing?.supplier_name ?? supplierName,
+        supplier_name:
+          existing?.supplier_name ?? canonicalizeSupplierDisplayName(supplierName),
         supplier_name_normalized: normalizedSupplierName,
         order_count: (existing?.order_count ?? 0) + 1,
         total_spend: Number(((existing?.total_spend ?? 0) + orderAmount).toFixed(2)),
