@@ -53,7 +53,7 @@ export function TicketStatusWorkflowModal({
 }: TicketStatusWorkflowModalProps) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/72 px-4 py-6 backdrop-blur-sm">
-      <div className="w-full max-w-xl rounded-[1.8rem] border border-[color:var(--border-strong)] bg-[color:var(--background-panel)] p-5 shadow-[0_36px_100px_-42px_rgba(0,0,0,0.76)] backdrop-blur-xl sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[1.8rem] border border-[color:var(--border-strong)] bg-[color:var(--background-panel)] p-5 shadow-[0_36px_100px_-42px_rgba(0,0,0,0.76)] backdrop-blur-xl sm:p-6 lg:max-w-4xl">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--foreground-subtle)]">
@@ -93,7 +93,7 @@ export function TicketStatusWorkflowModal({
                 />
               </label>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-2">
                 <label className="block space-y-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
                     PO Number
@@ -140,54 +140,71 @@ export function TicketStatusWorkflowModal({
                 />
               </label>
 
-              <label className="block space-y-2 sm:col-span-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
-                  Send Supplier Draft Now
-                </span>
-                <select
-                  value={dispatchPreference}
-                  onChange={(event) =>
-                    onDispatchPreferenceChange(event.target.value as SupplierOrderDispatchPreference)
-                  }
-                  className="aurora-input"
-                >
-                  <option value="none">Do not send now</option>
-                  <option value="email">Open email draft</option>
-                  <option value="whatsapp">Open WhatsApp in new window</option>
-                </select>
-                <p className="text-xs leading-5 text-[color:var(--foreground-muted)]">
-                  The supplier draft can be opened after saving. WhatsApp opens in a new window so Relay stays open.
-                </p>
-              </label>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <label className="block space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                    Supplier Email
+                  </span>
+                  <input
+                    type="email"
+                    value={supplierEmail}
+                    onChange={(event) => onSupplierEmailChange(event.target.value)}
+                    placeholder="supplier@example.com"
+                    className="aurora-input"
+                  />
+                </label>
 
-              <label className="block space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
-                  Order Amount
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  inputMode="decimal"
-                  value={orderAmount}
-                  onChange={(event) => onOrderAmountChange(event.target.value)}
-                  placeholder="0.00"
-                  className="aurora-input"
-                />
-              </label>
+                <label className="block space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                    Send Supplier Draft Now
+                  </span>
+                  <select
+                    value={dispatchPreference}
+                    onChange={(event) =>
+                      onDispatchPreferenceChange(event.target.value as SupplierOrderDispatchPreference)
+                    }
+                    className="aurora-input"
+                  >
+                    <option value="none">Do not send now</option>
+                    <option value="email">Open email draft</option>
+                    <option value="whatsapp">Open WhatsApp in new window</option>
+                  </select>
+                  <p className="text-xs leading-5 text-[color:var(--foreground-muted)]">
+                    The supplier draft can be opened after saving. WhatsApp opens in a new window so Relay stays open.
+                  </p>
+                </label>
+              </div>
 
-              <label className="block space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
-                  Lead Time Note
-                </span>
-                <textarea
-                  value={leadTimeNote}
-                  onChange={(event) => onLeadTimeNoteChange(event.target.value)}
-                  rows={3}
-                  placeholder="Optional supplier note or lead time detail."
-                  className="aurora-textarea min-h-[7.5rem]"
-                />
-              </label>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <label className="block space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                    Order Amount
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={orderAmount}
+                    onChange={(event) => onOrderAmountChange(event.target.value)}
+                    placeholder="0.00"
+                    className="aurora-input"
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                    Lead Time Note
+                  </span>
+                  <textarea
+                    value={leadTimeNote}
+                    onChange={(event) => onLeadTimeNoteChange(event.target.value)}
+                    rows={3}
+                    placeholder="Optional supplier note or lead time detail."
+                    className="aurora-textarea min-h-[7.5rem]"
+                  />
+                </label>
+              </div>
             </>
           ) : (
             <label className="block space-y-2">
