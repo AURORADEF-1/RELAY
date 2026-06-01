@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { buildSupplierDirectoryEntries, type SupplierContactRecord } from "@/lib/supplier-directory";
 import { getRelaySessionUserFromRequest } from "@/lib/security";
@@ -80,7 +81,7 @@ async function getAdminClient(request: NextRequest) {
   return { error: null, status: 200 as const, supabase };
 }
 
-async function loadSupplierDirectory(supabase: ReturnType<typeof createClient>) {
+async function loadSupplierDirectory(supabase: SupabaseClient) {
   const [ticketsResult, snapshotsResult, contactsResult] = await Promise.all([
     supabase
       .from("tickets")
