@@ -45,6 +45,7 @@ export function SupplierDirectoryPanel() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSupplierName, setSelectedSupplierName] = useState<string>("");
   const [supplierNameDraft, setSupplierNameDraft] = useState("");
+  const [isEditingSupplierName, setIsEditingSupplierName] = useState(false);
   const [draft, setDraft] = useState<SupplierContactDraft>(DEFAULT_DRAFT);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -109,10 +110,12 @@ export function SupplierDirectoryPanel() {
       if (nextSelected) {
         setSelectedSupplierName(nextSelected.supplierName);
         setSupplierNameDraft(nextSelected.supplierName);
+        setIsEditingSupplierName(false);
         setDraftFromSupplier(nextSelected);
       } else {
         setSelectedSupplierName("");
         setSupplierNameDraft("");
+        setIsEditingSupplierName(false);
         setDraft(DEFAULT_DRAFT);
       }
     } catch (error) {
@@ -120,6 +123,7 @@ export function SupplierDirectoryPanel() {
       setSupplierOptions([]);
       setSelectedSupplierName("");
       setSupplierNameDraft("");
+      setIsEditingSupplierName(false);
       setDraft(DEFAULT_DRAFT);
       setErrorMessage(
         error instanceof Error ? error.message : "Unable to load the supplier directory.",
@@ -182,6 +186,7 @@ export function SupplierDirectoryPanel() {
     }
 
     setSupplierNameDraft(selectedSupplier.supplierName);
+    setIsEditingSupplierName(false);
     setDraftFromSupplier(selectedSupplier);
   }, [selectedSupplier, setDraftFromSupplier]);
 
@@ -265,6 +270,7 @@ export function SupplierDirectoryPanel() {
         );
         setSelectedSupplierName(payload.supplier.supplierName);
         setSupplierNameDraft(payload.supplier.supplierName);
+        setIsEditingSupplierName(false);
         setDraftFromSupplier(payload.supplier);
       }
 
@@ -345,6 +351,7 @@ export function SupplierDirectoryPanel() {
         );
         setSelectedSupplierName(payload.supplier.supplierName);
         setSupplierNameDraft(payload.supplier.supplierName);
+        setIsEditingSupplierName(false);
         setDraftFromSupplier(payload.supplier);
       }
 
@@ -420,6 +427,7 @@ export function SupplierDirectoryPanel() {
       );
       setSelectedSupplierName("");
       setSupplierNameDraft("");
+      setIsEditingSupplierName(false);
       setDraft(DEFAULT_DRAFT);
       setNotice({
         type: "success",
@@ -742,17 +750,41 @@ export function SupplierDirectoryPanel() {
                     Supplier Account
                   </p>
                   <div className="mt-3 space-y-2">
-                    <label className="block space-y-2">
-                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Supplier Name
-                      </span>
-                      <input
-                        value={supplierNameDraft}
-                        onChange={(event) => setSupplierNameDraft(event.target.value)}
-                        className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-base font-semibold text-slate-900 outline-none transition focus:border-slate-400"
-                        placeholder="Enter supplier name"
-                      />
-                    </label>
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="block flex-1 space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Supplier Name
+                        </span>
+                        <input
+                          value={supplierNameDraft}
+                          readOnly={!isEditingSupplierName}
+                          onChange={(event) => setSupplierNameDraft(event.target.value)}
+                          className={`w-full rounded-xl border px-3 py-2 text-base font-semibold text-slate-900 outline-none transition ${
+                            isEditingSupplierName
+                              ? "border-slate-300 bg-slate-50 focus:border-slate-400"
+                              : "cursor-default border-slate-200 bg-slate-100"
+                          }`}
+                          placeholder="Enter supplier name"
+                        />
+                      </label>
+                      {isEditingSupplierName ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingSupplierName(false)}
+                          className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                        >
+                          Done
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingSupplierName(true)}
+                          className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                        >
+                          Edit Name
+                        </button>
+                      )}
+                    </div>
                     <p className="text-sm text-slate-500">
                       {selectedSupplier.orderCount} order{selectedSupplier.orderCount === 1 ? "" : "s"} ·{" "}
                       {formatOrderAmount(selectedSupplier.totalSpend)} total spend
