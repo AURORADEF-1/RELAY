@@ -195,6 +195,37 @@ export function SupplierDirectoryPanel() {
     [supplierOptions],
   );
 
+  const selectedSupplierDispatchLabel = useMemo(() => {
+    if (!selectedSupplier) {
+      return "Records only";
+    }
+
+    const hasEmail = Boolean(selectedSupplier.contactEmail?.trim() || selectedSupplier.latestTicketSupplierEmail?.trim());
+    const hasPhone = Boolean(selectedSupplier.whatsappNumber?.trim() || selectedSupplier.contactPhone?.trim());
+
+    if (selectedSupplier.preferredContactMethod === "email" && hasEmail) {
+      return "Email";
+    }
+
+    if (
+      (selectedSupplier.preferredContactMethod === "whatsapp" ||
+        selectedSupplier.preferredContactMethod === "phone") &&
+      hasPhone
+    ) {
+      return "WhatsApp";
+    }
+
+    if (hasEmail) {
+      return "Email";
+    }
+
+    if (hasPhone) {
+      return "WhatsApp";
+    }
+
+    return "Records only";
+  }, [selectedSupplier]);
+
   const mergeSuggestionName = useMemo(() => {
     if (!selectedSupplier || !isEditingSupplierName) {
       return null;
@@ -840,6 +871,9 @@ export function SupplierDirectoryPanel() {
                       {selectedSupplier.orderCount} order{selectedSupplier.orderCount === 1 ? "" : "s"} ·{" "}
                       {formatOrderAmount(selectedSupplier.totalSpend)} total spend
                     </p>
+                    <div className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                      Dispatch: {selectedSupplierDispatchLabel}
+                    </div>
                   </div>
                 </div>
                 <button

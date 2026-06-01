@@ -1508,6 +1508,18 @@ export default function AdminPage() {
       return null;
     }
 
+    const supplierDispatchContact =
+      nextStatus === "ORDERED"
+        ? await loadSupplierDispatchContact(
+            supabase,
+            updatedTicket.supplier_name?.trim() || normalizedSupplierName || "",
+          )
+        : null;
+    const supplierDispatchPlan =
+      nextStatus === "ORDERED"
+        ? buildSupplierOrderDispatchPlan(updatedTicket as Ticket, supplierDispatchContact)
+        : null;
+
     const ticketUpdateRows: Array<{ ticket_id: string; status?: string; comment?: string }> = [
       { ticket_id: ticketId, status: nextStatus },
     ];
@@ -1525,6 +1537,7 @@ export default function AdminPage() {
             parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
               ? parsedOrderAmount
               : null,
+          dispatchSummary: supplierDispatchPlan?.summary ?? null,
           actorName,
         }),
       });
@@ -1610,22 +1623,15 @@ export default function AdminPage() {
 
     if (nextStatus === "ORDERED") {
       window.setTimeout(async () => {
-        const supplierContact = await loadSupplierDispatchContact(
-          supabase,
-          updatedTicket.supplier_name?.trim() || normalizedSupplierName || "",
-        );
-        const dispatchPlan = buildSupplierOrderDispatchPlan(
-          updatedTicket as Ticket,
-          supplierContact,
-        );
+        const dispatchPlan = supplierDispatchPlan;
 
-        if (dispatchPlan.recordsHref && dispatchPlan.channel === "whatsapp") {
+        if (dispatchPlan?.recordsHref && dispatchPlan.channel === "whatsapp") {
           window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
         }
 
-        if (dispatchPlan.supplierHref) {
+        if (dispatchPlan?.supplierHref) {
           window.location.href = dispatchPlan.supplierHref;
-        } else if (dispatchPlan.recordsHref) {
+        } else if (dispatchPlan?.recordsHref) {
           window.location.href = dispatchPlan.recordsHref;
         }
       }, 0);

@@ -22,6 +22,8 @@ export type SupplierOrderDispatchPlan = {
   channel: "email" | "whatsapp" | "records";
   supplierHref: string | null;
   recordsHref: string | null;
+  summary: string;
+  supplierContactSummary: string;
 };
 
 export const PARTS_RECORDS_EMAIL = "Parts@mervynlambert.co.uk";
@@ -139,6 +141,8 @@ export function buildSupplierOrderDispatchPlan(
       channel: "email",
       supplierHref: buildSupplierOrderMailto({ ...order, supplier_email: supplierEmail }),
       recordsHref: null,
+      summary: `Email draft prepared for the supplier and copied to ${PARTS_RECORDS_EMAIL}.`,
+      supplierContactSummary: `Email ${supplierEmail}.`,
     };
   }
 
@@ -147,6 +151,8 @@ export function buildSupplierOrderDispatchPlan(
       channel: "whatsapp",
       supplierHref: buildSupplierOrderWhatsAppHref(order, supplierPhone),
       recordsHref: buildSupplierOrderRecordsMailto(order),
+      summary: `WhatsApp draft prepared for the supplier and a records copy was prepared for ${PARTS_RECORDS_EMAIL}.`,
+      supplierContactSummary: `WhatsApp ${supplierPhone}.`,
     };
   }
 
@@ -155,6 +161,8 @@ export function buildSupplierOrderDispatchPlan(
       channel: "email",
       supplierHref: buildSupplierOrderMailto({ ...order, supplier_email: supplierEmail }),
       recordsHref: null,
+      summary: `Email draft prepared for the supplier and copied to ${PARTS_RECORDS_EMAIL}.`,
+      supplierContactSummary: `Email ${supplierEmail}.`,
     };
   }
 
@@ -163,6 +171,8 @@ export function buildSupplierOrderDispatchPlan(
       channel: "whatsapp",
       supplierHref: buildSupplierOrderWhatsAppHref(order, supplierPhone),
       recordsHref: buildSupplierOrderRecordsMailto(order),
+      summary: `WhatsApp draft prepared for the supplier and a records copy was prepared for ${PARTS_RECORDS_EMAIL}.`,
+      supplierContactSummary: `WhatsApp ${supplierPhone}.`,
     };
   }
 
@@ -170,6 +180,8 @@ export function buildSupplierOrderDispatchPlan(
     channel: "records",
     supplierHref: null,
     recordsHref: buildSupplierOrderRecordsMailto(order),
+    summary: `No supplier email or WhatsApp address was available, so a records-only copy was prepared for ${PARTS_RECORDS_EMAIL}.`,
+    supplierContactSummary: "No supplier contact address on file.",
   };
 }
 

@@ -167,6 +167,7 @@ export function buildOrderedWorkflowComment(payload: {
   supplierName?: string | null;
   supplierEmail?: string | null;
   orderAmount?: number | null;
+  dispatchSummary?: string | null;
   actorName?: string | null;
 }) {
   const base = `Expected delivery set for ${formatOperationalDate(payload.expectedDeliveryDate)}.`;
@@ -183,6 +184,9 @@ export function buildOrderedWorkflowComment(payload: {
     typeof payload.orderAmount === "number" && !Number.isNaN(payload.orderAmount)
       ? ` Amount ${formatOrderAmount(payload.orderAmount)}.`
       : "";
+  const dispatchSummary = payload.dispatchSummary?.trim()
+    ? ` Dispatch ${payload.dispatchSummary.trim()}`
+    : "";
   const leadTime = payload.leadTimeNote?.trim()
     ? ` Lead time note: ${payload.leadTimeNote.trim()}`
     : "";
@@ -190,7 +194,7 @@ export function buildOrderedWorkflowComment(payload: {
     ? ` Ordered by ${payload.actorName.trim()}.`
     : "";
 
-  return `${base}${poNumber}${supplier}${supplierEmail}${amount}${leadTime}${actor}`.trim();
+  return `${base}${poNumber}${supplier}${supplierEmail}${amount}${dispatchSummary}${leadTime}${actor}`.trim();
 }
 
 export function buildReadyWorkflowComment(payload: {

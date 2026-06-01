@@ -700,6 +700,25 @@ export default function TicketDetailPage() {
     }
 
     if (ticket.status !== ticketPatch.status) {
+      const supplierDispatchContact =
+        ticketPatch.status === "ORDERED"
+          ? await loadSupplierDispatchContact(
+              supabase,
+              ticketPatch.supplier_name ?? ticket.supplier_name ?? "",
+            )
+          : null;
+      const supplierDispatchPlan =
+        ticketPatch.status === "ORDERED"
+          ? buildSupplierOrderDispatchPlan(
+              {
+                ...ticket,
+                ...ticketPatch,
+                status: ticketPatch.status,
+              },
+              supplierDispatchContact,
+            )
+          : null;
+
       const ticketUpdateRows: Array<{ ticket_id: string; status?: string | null; comment?: string }> = [
         {
           ticket_id: ticket.id,
@@ -718,6 +737,7 @@ export default function TicketDetailPage() {
             supplierName: ticketPatch.supplier_name,
             supplierEmail: ticketPatch.supplier_email,
             orderAmount: ticketPatch.order_amount,
+            dispatchSummary: supplierDispatchPlan?.summary ?? null,
             actorName: currentUserDisplayName || currentUserId || "Stores Operator",
           }),
         });
@@ -795,6 +815,24 @@ export default function TicketDetailPage() {
         console.error("Failed to delete completed ticket attachments", attachmentError);
       });
     }
+    const supplierDispatchContact =
+      ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED"
+        ? await loadSupplierDispatchContact(
+            supabase,
+            ticketPatch.supplier_name ?? ticket.supplier_name ?? "",
+          )
+        : null;
+    const supplierDispatchPlan =
+      ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED"
+        ? buildSupplierOrderDispatchPlan(
+            {
+              ...ticket,
+              ...ticketPatch,
+              status: ticketPatch.status,
+            },
+            supplierDispatchContact,
+          )
+        : null;
     if (ticket.status !== ticketPatch.status) {
       void notifyRequesterStatusChanged(supabase, {
         userId: ticket.user_id,
@@ -810,26 +848,15 @@ export default function TicketDetailPage() {
     }
     if (ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED") {
       window.setTimeout(async () => {
-        const supplierContact = await loadSupplierDispatchContact(
-          supabase,
-          ticketPatch.supplier_name ?? ticket.supplier_name ?? "",
-        );
-        const dispatchPlan = buildSupplierOrderDispatchPlan(
-          {
-            ...ticket,
-            ...ticketPatch,
-            status: ticketPatch.status,
-          },
-          supplierContact,
-        );
+        const dispatchPlan = supplierDispatchPlan;
 
-        if (dispatchPlan.recordsHref && dispatchPlan.channel === "whatsapp") {
+        if (dispatchPlan?.recordsHref && dispatchPlan.channel === "whatsapp") {
           window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
         }
 
-        if (dispatchPlan.supplierHref) {
+        if (dispatchPlan?.supplierHref) {
           window.location.href = dispatchPlan.supplierHref;
-        } else if (dispatchPlan.recordsHref) {
+        } else if (dispatchPlan?.recordsHref) {
           window.location.href = dispatchPlan.recordsHref;
         }
       }, 0);
