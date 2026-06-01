@@ -226,7 +226,7 @@ export async function PATCH(request: NextRequest) {
           .not("supplier_name", "is", null),
         supabase
           .from("supplier_monthly_spend_snapshots")
-          .select("id, supplier_name_normalized")
+          .select("id, month_start, supplier_name, supplier_name_normalized, order_count, total_spend, generated_at")
           .eq("supplier_name_normalized", originalNormalizedSupplierName),
       ]);
 
@@ -293,16 +293,81 @@ export async function PATCH(request: NextRequest) {
           }
         }
 
-        const { error: snapshotUpdateError } = await supabase
-          .from("supplier_monthly_spend_snapshots")
-          .update({
-            supplier_name: canonicalizeSupplierDisplayName(supplierName),
-            supplier_name_normalized: normalizedSupplierName,
-          })
-          .eq("supplier_name_normalized", originalNormalizedSupplierName);
+        const snapshotRows = (snapshotsResult.data ?? []) as Array<{
+          id: string;
+          month_start: string;
+          supplier_name: string;
+          supplier_name_normalized: string;
+          order_count: number;
+          total_spend: number;
+          generated_at: string;
+        }>;
 
-        if (snapshotUpdateError) {
-          throw new Error(snapshotUpdateError.message);
+        if (snapshotRows.length > 0) {
+          const targetMonths = snapshotRows.map((row) => row.month_start);
+          const { data: targetSnapshotRows, error: targetSnapshotError } = await supabase
+            .from("supplier_monthly_spend_snapshots")
+            .select("id, month_start, order_count, total_spend, generated_at")
+            .eq("supplier_name_normalized", normalizedSupplierName)
+            .in("month_start", targetMonths);
+
+          if (targetSnapshotError) {
+            throw new Error(targetSnapshotError.message);
+          }
+
+          const targetByMonth = new Map(
+            ((targetSnapshotRows ?? []) as Array<{
+              id: string;
+              month_start: string;
+              order_count: number;
+              total_spend: number;
+              generated_at: string;
+            }>).map((row) => [row.month_start, row]),
+          );
+
+          for (const snapshotRow of snapshotRows) {
+            const targetRow = targetByMonth.get(snapshotRow.month_start);
+
+            if (targetRow) {
+              const { error: targetUpdateError } = await supabase
+                .from("supplier_monthly_spend_snapshots")
+                .update({
+                  supplier_name: canonicalizeSupplierDisplayName(supplierName),
+                  order_count: targetRow.order_count + snapshotRow.order_count,
+                  total_spend: Number(
+                    (Number(targetRow.total_spend) + Number(snapshotRow.total_spend)).toFixed(2),
+                  ),
+                  generated_at: new Date().toISOString(),
+                })
+                .eq("id", targetRow.id);
+
+              if (targetUpdateError) {
+                throw new Error(targetUpdateError.message);
+              }
+
+              const { error: oldSnapshotDeleteError } = await supabase
+                .from("supplier_monthly_spend_snapshots")
+                .delete()
+                .eq("id", snapshotRow.id);
+
+              if (oldSnapshotDeleteError) {
+                throw new Error(oldSnapshotDeleteError.message);
+              }
+              continue;
+            }
+
+            const { error: snapshotMoveError } = await supabase
+              .from("supplier_monthly_spend_snapshots")
+              .update({
+                supplier_name: canonicalizeSupplierDisplayName(supplierName),
+                supplier_name_normalized: normalizedSupplierName,
+              })
+              .eq("id", snapshotRow.id);
+
+            if (snapshotMoveError) {
+              throw new Error(snapshotMoveError.message);
+            }
+          }
         }
 
         if (originalNormalizedSupplierName !== normalizedSupplierName) {
