@@ -195,9 +195,34 @@ export function SupplierDirectoryPanel() {
     [supplierOptions],
   );
 
+  const mergeSuggestionName = useMemo(() => {
+    if (!selectedSupplier || !isEditingSupplierName) {
+      return null;
+    }
+
+    const currentDraft = supplierNameDraft.trim() || selectedSupplier.supplierName;
+    const exactDuplicate = suppliers.find(
+      (supplier) =>
+        supplier.normalizedSupplierName === normalizeSelectionKey(currentDraft) &&
+        supplier.normalizedSupplierName !== selectedSupplier.normalizedSupplierName,
+    );
+
+    if (exactDuplicate) {
+      return exactDuplicate.supplierName;
+    }
+
+    return findClosestSupplierName(
+      currentDraft,
+      suppliers,
+      selectedSupplier.normalizedSupplierName,
+    );
+  }, [isEditingSupplierName, selectedSupplier, supplierNameDraft, suppliers]);
+
   const handleSave = useCallback(async () => {
     const originalSupplierName = selectedSupplier?.supplierName?.trim() || supplierNameDraft.trim();
     const nextSupplierName = supplierNameDraft.trim();
+    const originalNormalizedSupplierName = normalizeSelectionKey(originalSupplierName);
+    const nextNormalizedSupplierName = normalizeSelectionKey(nextSupplierName);
 
     if (!nextSupplierName) {
       setNotice({
@@ -276,7 +301,10 @@ export function SupplierDirectoryPanel() {
 
       setNotice({
         type: "success",
-        message: `Saved supplier ${nextSupplierName}.`,
+        message:
+          originalNormalizedSupplierName !== nextNormalizedSupplierName
+            ? `Merged supplier into ${nextSupplierName}.`
+            : `Saved supplier ${nextSupplierName}.`,
       });
     } catch (error) {
       setNotice({
@@ -785,6 +813,29 @@ export function SupplierDirectoryPanel() {
                         </button>
                       )}
                     </div>
+                    {mergeSuggestionName ? (
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="font-semibold">Possible merge target</p>
+                            <p className="mt-1 text-sm text-amber-800">
+                              {mergeSuggestionName} looks like the closest existing supplier.
+                              Saving with this name will merge the records and remove duplicates.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSupplierNameDraft(mergeSuggestionName);
+                              setIsEditingSupplierName(true);
+                            }}
+                            className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-800 transition hover:border-amber-400 hover:bg-amber-100"
+                          >
+                            Use Merge Target
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                     <p className="text-sm text-slate-500">
                       {selectedSupplier.orderCount} order{selectedSupplier.orderCount === 1 ? "" : "s"} ·{" "}
                       {formatOrderAmount(selectedSupplier.totalSpend)} total spend
@@ -1103,4 +1154,97 @@ function escapeHtml(value: string) {
 
 function normalizeSelectionKey(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function findClosestSupplierName(
+  sourceName: string,
+  suppliers: SupplierDirectoryEntry[],
+  currentSupplierKey: string,
+) {
+  const sourceKey = normalizeSelectionKey(sourceName);
+
+  if (!sourceKey) {
+    return null;
+  }
+
+  let bestMatch: { name: string; score: number } | null = null;
+
+  for (const supplier of suppliers) {
+    if (supplier.normalizedSupplierName === currentSupplierKey) {
+      continue;
+    }
+
+    const candidateKey = supplier.normalizedSupplierName;
+    const score = scoreSupplierNameMatch(sourceKey, candidateKey);
+
+    if (score <= 0) {
+      continue;
+    }
+
+    if (!bestMatch || score > bestMatch.score) {
+      bestMatch = {
+        name: supplier.supplierName,
+        score,
+      };
+    }
+  }
+
+  return bestMatch && bestMatch.score >= 0.35 ? bestMatch.name : null;
+}
+
+function scoreSupplierNameMatch(leftKey: string, rightKey: string) {
+  if (!leftKey || !rightKey) {
+    return 0;
+  }
+
+  if (leftKey === rightKey) {
+    return 1;
+  }
+
+  const leftTokens = leftKey.split(" ").filter(Boolean);
+  const rightTokens = rightKey.split(" ").filter(Boolean);
+  const sharedTokens = new Set(leftTokens.filter((token) => rightTokens.includes(token)));
+  const tokenScore = sharedTokens.size / Math.max(leftTokens.length, rightTokens.length, 1);
+
+  const includesScore =
+    leftKey.includes(rightKey) || rightKey.includes(leftKey)
+      ? Math.min(leftKey.length, rightKey.length) / Math.max(leftKey.length, rightKey.length)
+      : 0;
+
+  const distanceScore = 1 - levenshteinDistance(leftKey, rightKey) / Math.max(leftKey.length, rightKey.length, 1);
+
+  return Math.max(tokenScore, includesScore, distanceScore);
+}
+
+function levenshteinDistance(left: string, right: string) {
+  if (left === right) {
+    return 0;
+  }
+
+  if (!left.length) {
+    return right.length;
+  }
+
+  if (!right.length) {
+    return left.length;
+  }
+
+  const rows = Array.from({ length: left.length + 1 }, (_, rowIndex) =>
+    Array.from({ length: right.length + 1 }, (_, columnIndex) =>
+      rowIndex === 0 ? columnIndex : columnIndex === 0 ? rowIndex : 0,
+    ),
+  );
+
+  for (let rowIndex = 1; rowIndex <= left.length; rowIndex += 1) {
+    for (let columnIndex = 1; columnIndex <= right.length; columnIndex += 1) {
+      const cost = left[rowIndex - 1] === right[columnIndex - 1] ? 0 : 1;
+      rows[rowIndex][columnIndex] = Math.min(
+        rows[rowIndex - 1][columnIndex] + 1,
+        rows[rowIndex][columnIndex - 1] + 1,
+        rows[rowIndex - 1][columnIndex - 1] + cost,
+      );
+    }
+  }
+
+  return rows[left.length][right.length];
 }
