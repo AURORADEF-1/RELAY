@@ -3965,6 +3965,22 @@ function MachineReferenceHoverCard({ ticket }: { ticket: Ticket }) {
             Machine verified
           </p>
           <div className="mt-2 space-y-2 text-sm text-slate-700">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Make
+              </p>
+              <p className="mt-1 font-medium text-slate-900">
+                {ticket.machine_make?.trim() || "-"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Model
+              </p>
+              <p className="mt-1 font-medium text-slate-900">
+                {ticket.machine_model?.trim() || "-"}
+              </p>
+            </div>
             <p className="font-semibold text-slate-900">Serial Number</p>
             <p className="break-all rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-800">
               {serialNumber}
