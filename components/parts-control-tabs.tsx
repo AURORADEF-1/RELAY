@@ -6,6 +6,7 @@ type PartsControlTab =
   | "operations"
   | "search"
   | "orders"
+  | "fleet"
   | "suppliers"
   | "queries"
   | "completed"
@@ -21,6 +22,7 @@ const tabs: Array<{
   { key: "operations", label: "Operations", href: "/admin" },
   { key: "search", label: "Smart Search", href: "/admin?tab=search" },
   { key: "orders", label: "Orders", href: "/admin?tab=orders" },
+  { key: "fleet", label: "Fleet", href: "/admin?tab=fleet" },
   { key: "suppliers", label: "Suppliers", href: "/admin?tab=suppliers" },
   { key: "queries", label: "Parts Queries", href: "/admin?tab=queries" },
   { key: "completed", label: "Completed Jobs", href: "/completed" },

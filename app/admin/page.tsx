@@ -16,6 +16,7 @@ import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { OverdueOrderedRemindersModal } from "@/components/overdue-ordered-reminders-modal";
 import { TicketStatusWorkflowModal } from "@/components/ticket-status-workflow-modal";
+import { FleetHealthPanel } from "@/components/fleet-health-panel";
 import { SupplierDirectoryPanel } from "@/components/supplier-directory-panel";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import {
@@ -33,6 +34,7 @@ import {
   loadSupplierDispatchContact,
 } from "@/lib/order-communications";
 import { buildSupplierSuggestionOptions } from "@/lib/supplier-directory";
+import { buildFleetDashboardData, type FleetMachineSummary } from "@/lib/fleet-health";
 import {
   backfillMonthlySupplierSpendSnapshots,
   fetchMonthlySupplierSpendSnapshots,
@@ -238,7 +240,7 @@ export default function AdminPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
-  const [resourceTab, setResourceTab] = useState<"operations" | "search" | "orders" | "suppliers" | "queries" | "guide" | "faq">(
+  const [resourceTab, setResourceTab] = useState<"operations" | "search" | "orders" | "fleet" | "suppliers" | "queries" | "guide" | "faq">(
     "operations",
   );
   const [smartSearchQuery, setSmartSearchQuery] = useState("");
@@ -265,6 +267,16 @@ export default function AdminPage() {
       generated_at: string;
     }>
   >([]);
+  const [fleetMachines, setFleetMachines] = useState<FleetMachineSummary[]>([]);
+  const [fleetSummary, setFleetSummary] = useState<{
+    highestDemand: FleetMachineSummary | null;
+    highestCost: FleetMachineSummary | null;
+    mostServices: FleetMachineSummary | null;
+    openIssues: number;
+    totalMachines: number;
+  } | null>(null);
+  const [isFleetLoading, setIsFleetLoading] = useState(false);
+  const [fleetErrorMessage, setFleetErrorMessage] = useState("");
   const [selectedSpendMonth, setSelectedSpendMonth] = useState<string>("");
   const [dismissedOversightIds, setDismissedOversightIds] = useState<string[]>([]);
   const [isBackfillingMonthlySpend, setIsBackfillingMonthlySpend] = useState(false);
@@ -437,6 +449,7 @@ export default function AdminPage() {
       tab === "guide" ||
       tab === "faq" ||
       tab === "orders" ||
+      tab === "fleet" ||
       tab === "suppliers" ||
       tab === "queries" ||
       tab === "search"
@@ -536,6 +549,66 @@ export default function AdminPage() {
     }
   }, [isBackfillingMonthlySpend, ordersFilter, toOrderedWorkflowErrorMessage, verifyAdminActionAccess]);
 
+  const loadFleet = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) {
+      setIsFleetLoading(true);
+    }
+
+    setFleetErrorMessage("");
+
+    try {
+      const supabase = await verifyAdminActionAccess();
+
+      const [machinesResult, ticketsResult, incidentsResult] = await Promise.all([
+        supabase
+          .from("machines")
+          .select(
+            "id, machine_number, machine_number_normalized, fleet_type, item_description, make, model, serial_number, status, quantity, buying_price, selling_price, source_sheet, source_row, created_at, updated_at",
+          )
+          .order("machine_number_normalized", { ascending: true }),
+        supabase
+          .from("tickets")
+          .select(
+            "id, machine_number, machine_number_normalized, machine_reference, order_amount, status, created_at, updated_at, ordered_at, ready_at",
+          )
+          .order("updated_at", { ascending: false }),
+        supabase
+          .from("workshop_incidents")
+          .select("id, machine_reference, status, incident_type, severity, created_at, updated_at")
+          .order("updated_at", { ascending: false }),
+      ]);
+
+      if (machinesResult.error) {
+        throw machinesResult.error;
+      }
+
+      if (ticketsResult.error) {
+        throw ticketsResult.error;
+      }
+
+      if (incidentsResult.error) {
+        throw incidentsResult.error;
+      }
+
+      const { fleetRows, summary } = buildFleetDashboardData({
+        machines: (machinesResult.data ?? []) as Parameters<typeof buildFleetDashboardData>[0]["machines"],
+        tickets: (ticketsResult.data ?? []) as Parameters<typeof buildFleetDashboardData>[0]["tickets"],
+        incidents: (incidentsResult.data ?? []) as Parameters<typeof buildFleetDashboardData>[0]["incidents"],
+      });
+
+      setFleetMachines(fleetRows);
+      setFleetSummary(summary);
+    } catch (error) {
+      setFleetMachines([]);
+      setFleetSummary(null);
+      setFleetErrorMessage(
+        sanitizeUserFacingError(error, "Unable to load the fleet health breakdown."),
+      );
+    } finally {
+      setIsFleetLoading(false);
+    }
+  }, [verifyAdminActionAccess]);
+
   useEffect(() => {
     if (resourceTab !== "orders") {
       return;
@@ -543,6 +616,14 @@ export default function AdminPage() {
 
     void loadOrders();
   }, [loadOrders, ordersFilter, resourceTab]);
+
+  useEffect(() => {
+    if (resourceTab !== "fleet") {
+      return;
+    }
+
+    void loadFleet();
+  }, [loadFleet, resourceTab]);
 
   const handleSmartSearch = useCallback(async () => {
     const normalizedQuery = smartSearchQuery.trim();
@@ -2678,6 +2759,16 @@ export default function AdminPage() {
                 onExportReadyCsv={exportReadyOrdersCsv}
                 onEmailReadyOrders={emailReadyOrders}
                 onExportMonthlySpendCsv={exportMonthlySpendCsv}
+              />
+            ) : null}
+
+            {resourceTab === "fleet" ? (
+              <FleetHealthPanel
+                machines={fleetMachines}
+                summary={fleetSummary}
+                isLoading={isFleetLoading}
+                errorMessage={fleetErrorMessage}
+                onRefresh={() => void loadFleet()}
               />
             ) : null}
 
