@@ -84,6 +84,22 @@ type TicketRecord = {
   location_summary?: string | null;
   location_confirmed?: boolean | null;
   machine_reference: string | null;
+  machine_number?: string | null;
+  machine_number_normalized?: string | null;
+  machine_fleet_type?: string | null;
+  machine_item_description?: string | null;
+  machine_make?: string | null;
+  machine_model?: string | null;
+  machine_serial_number?: string | null;
+  machine_status?: string | null;
+  machine_quantity?: number | null;
+  machine_buying_price?: number | null;
+  machine_selling_price?: number | null;
+  machine_source_sheet?: string | null;
+  machine_source_row?: number | null;
+  machine_verified?: boolean | null;
+  machine_verified_at?: string | null;
+  machine_verified_by?: string | null;
   job_number: string | null;
   request_details: string | null;
   request_summary: string | null;
@@ -1483,6 +1499,10 @@ export default function TicketDetailPage() {
                           />
                         </dl>
 
+                        <div className="mt-6">
+                          <MachineDetailsCard ticket={ticket} />
+                        </div>
+
                         {isOnsiteTicket(ticket) ? (
                           <div className="mt-6">
                             <OnsiteLocationCard ticket={ticket} />
@@ -2014,6 +2034,70 @@ function DetailBlock({
   );
 }
 
+function MachineDetailsCard({ ticket }: { ticket: TicketRecord }) {
+  const hasMachineSnapshot =
+    Boolean(ticket.machine_verified) ||
+    Boolean(ticket.machine_number?.trim()) ||
+    Boolean(ticket.machine_make?.trim()) ||
+    Boolean(ticket.machine_model?.trim()) ||
+    Boolean(ticket.machine_serial_number?.trim());
+
+  if (!hasMachineSnapshot) {
+    return null;
+  }
+
+  const verified = Boolean(ticket.machine_verified);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Machine Details
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            Snapshot captured from the fleet registry when the ticket was submitted.
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+            verified ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+          }`}
+        >
+          {verified ? "Verified" : "Unverified"}
+        </span>
+      </div>
+
+      <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+        <DetailItem label="Machine Number" value={ticket.machine_number ?? ticket.machine_reference} />
+        <DetailItem label="Fleet Type" value={ticket.machine_fleet_type} />
+        <DetailItem label="Make" value={ticket.machine_make} />
+        <DetailItem label="Model" value={ticket.machine_model} />
+        <DetailItem label="Serial Number" value={ticket.machine_serial_number} />
+        <DetailItem label="Status" value={ticket.machine_status} />
+        <DetailItem label="Source Sheet" value={ticket.machine_source_sheet} />
+        <DetailItem
+          label="Source Row"
+          value={ticket.machine_source_row != null ? String(ticket.machine_source_row) : null}
+        />
+        <DetailItem
+          label="Quantity"
+          value={ticket.machine_quantity != null ? String(ticket.machine_quantity) : null}
+        />
+        <DetailItem label="Buying Price" value={formatMoney(ticket.machine_buying_price)} />
+        <DetailItem label="Selling Price" value={formatMoney(ticket.machine_selling_price)} />
+        <DetailItem label="Verified At" value={formatDateTime(ticket.machine_verified_at)} />
+      </dl>
+
+      {!verified ? (
+        <p className="mt-4 text-sm leading-6 text-slate-500">
+          The machine has not matched a fleet record yet, but the ticket can still be processed.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function OnsiteLocationCard({ ticket }: { ticket: TicketRecord }) {
   const mapUrl = buildMapUrl(ticket);
   const locationSummary = formatLocationSummary(ticket);
@@ -2079,6 +2163,18 @@ function formatDateTime(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatMoney(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 function isOnsiteTicket(ticket: TicketRecord) {

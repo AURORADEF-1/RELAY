@@ -15,6 +15,7 @@ import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { notifyAdminsOfNewTicket } from "@/lib/notifications";
 import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
+import { buildMachineSnapshot, lookupMachineRegistryRecord, type MachineRegistryRecord } from "@/lib/machine-registry";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -71,6 +72,9 @@ export default function SubmitPage() {
     confirmed: boolean;
   } | null>(null);
   const [scannedMachineReference, setScannedMachineReference] = useState("");
+  const [machineRegistryRecord, setMachineRegistryRecord] = useState<MachineRegistryRecord | null>(null);
+  const [isMachineLookupLoading, setIsMachineLookupLoading] = useState(false);
+  const [machineLookupError, setMachineLookupError] = useState("");
 
   useEffect(() => {
     if (!successMessage) {
@@ -149,6 +153,62 @@ export default function SubmitPage() {
           },
     );
   }, [scannedMachineReference]);
+
+  useEffect(() => {
+    const machineReference = values.machineReference.trim();
+    let isCancelled = false;
+
+    if (!machineReference) {
+      setMachineRegistryRecord(null);
+      setMachineLookupError("");
+      setIsMachineLookupLoading(false);
+      return;
+    }
+
+    setIsMachineLookupLoading(true);
+    setMachineLookupError("");
+
+    const timeout = window.setTimeout(() => {
+      const runLookup = async () => {
+        const supabase = getSupabaseClient();
+
+        if (!supabase) {
+          if (!isCancelled) {
+            setMachineRegistryRecord(null);
+            setMachineLookupError("Supabase environment variables are not configured.");
+            setIsMachineLookupLoading(false);
+          }
+          return;
+        }
+
+        try {
+          const record = await lookupMachineRegistryRecord(supabase, machineReference);
+
+          if (!isCancelled) {
+            setMachineRegistryRecord(record);
+          }
+        } catch (error) {
+          if (!isCancelled) {
+            setMachineRegistryRecord(null);
+            setMachineLookupError(
+              error instanceof Error ? error.message : "Unable to verify the machine reference.",
+            );
+          }
+        } finally {
+          if (!isCancelled) {
+            setIsMachineLookupLoading(false);
+          }
+        }
+      };
+
+      void runLookup();
+    }, 250);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [values.machineReference]);
 
   function handleMachineReferenceDetected(machineReference: string) {
     setScannedMachineReference(machineReference);
@@ -295,10 +355,30 @@ export default function SubmitPage() {
         return;
       }
 
+      let machineRegistryRecord: MachineRegistryRecord | null = null;
+
+      try {
+        machineRegistryRecord = await lookupMachineRegistryRecord(
+          supabase,
+          values.machineReference,
+        );
+        setMachineRegistryRecord(machineRegistryRecord);
+      } catch (lookupError) {
+        console.error("Machine lookup failed during submit", lookupError);
+        machineRegistryRecord = null;
+        setMachineRegistryRecord(null);
+        setMachineLookupError(
+          lookupError instanceof Error
+            ? lookupError.message
+            : "Unable to verify the machine reference right now.",
+        );
+      }
+
       const ticketPayload = buildTicketInsertPayload({
         authenticatedUserId: user.id,
         values,
         locationDraft,
+        machineRegistryRecord,
       });
 
       const { data: ticket, error: insertError } = await supabase
@@ -515,6 +595,14 @@ export default function SubmitPage() {
                         placeholder="Machine reference"
                         onChange={handleChange}
                       />
+                      <div className="sm:col-span-2">
+                        <MachineVerificationPanel
+                          machineReference={values.machineReference.trim()}
+                          record={machineRegistryRecord}
+                          isLoading={isMachineLookupLoading}
+                          errorMessage={machineLookupError}
+                        />
+                      </div>
                       <FormField
                         label="Job number"
                         name="jobNumber"
@@ -819,11 +907,90 @@ function AlertMessage({
   return <div className={`aurora-alert ${toneClass}`}>{children}</div>;
 }
 
+function MachineVerificationPanel({
+  machineReference,
+  record,
+  isLoading,
+  errorMessage,
+}: {
+  machineReference: string;
+  record: MachineRegistryRecord | null;
+  isLoading: boolean;
+  errorMessage: string;
+}) {
+  if (!machineReference) {
+    return (
+      <div className="rounded-[1rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] px-4 py-3 text-sm text-[color:var(--foreground-muted)]">
+        Enter a machine reference to verify it against the fleet registry.
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="rounded-[1rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] px-4 py-3 text-sm text-[color:var(--foreground-muted)]">
+        Verifying machine reference...
+      </div>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="aurora-alert aurora-alert-error">
+        {errorMessage}
+      </div>
+    );
+  }
+
+  if (!record) {
+    return (
+      <div className="rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="font-semibold">Machine not verified</div>
+        <p className="mt-1 text-sm text-amber-800">
+          No fleet record matched {machineReference}. The ticket can still be submitted, but the machine will not be marked as verified.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[1rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white">
+          ✓
+        </span>
+        <div className="font-semibold">Machine verified</div>
+      </div>
+      <div className="mt-2 grid gap-1 text-sm text-emerald-900 sm:grid-cols-2">
+        <div>
+          <span className="font-semibold">Number:</span> {record.machine_number}
+        </div>
+        <div>
+          <span className="font-semibold">Fleet:</span> {record.fleet_type}
+        </div>
+        <div>
+          <span className="font-semibold">Make:</span> {record.make ?? "-"}
+        </div>
+        <div>
+          <span className="font-semibold">Model:</span> {record.model ?? "-"}
+        </div>
+        <div>
+          <span className="font-semibold">Serial:</span> {record.serial_number ?? "-"}
+        </div>
+        <div>
+          <span className="font-semibold">Status:</span> {record.status ?? "-"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function buildTicketInsertPayload(
   {
     authenticatedUserId,
     values,
     locationDraft,
+    machineRegistryRecord,
   }: {
     authenticatedUserId: string;
     values: FormValues;
@@ -833,6 +1000,7 @@ function buildTicketInsertPayload(
       summary: string;
       confirmed: boolean;
     } | null;
+    machineRegistryRecord: MachineRegistryRecord | null;
   },
 ) {
   const userId = authenticatedUserId.trim();
@@ -846,12 +1014,29 @@ function buildTicketInsertPayload(
   const machineReference = values.machineReference.trim();
   const jobNumber = values.jobNumber.trim();
   const requestDetails = values.requestDetails.trim();
+  const machineSnapshot = buildMachineSnapshot(machineRegistryRecord, userId);
 
   return {
     user_id: userId,
     requester_name: requesterName,
     department,
     machine_reference: machineReference,
+    machine_number: (machineSnapshot?.machine_number ?? machineReference) || null,
+    machine_number_normalized: machineSnapshot?.machine_number_normalized ?? null,
+    machine_fleet_type: machineSnapshot?.machine_fleet_type ?? null,
+    machine_item_description: machineSnapshot?.machine_item_description ?? null,
+    machine_make: machineSnapshot?.machine_make ?? null,
+    machine_model: machineSnapshot?.machine_model ?? null,
+    machine_serial_number: machineSnapshot?.machine_serial_number ?? null,
+    machine_status: machineSnapshot?.machine_status ?? null,
+    machine_quantity: machineSnapshot?.machine_quantity ?? null,
+    machine_buying_price: machineSnapshot?.machine_buying_price ?? null,
+    machine_selling_price: machineSnapshot?.machine_selling_price ?? null,
+    machine_source_sheet: machineSnapshot?.machine_source_sheet ?? null,
+    machine_source_row: machineSnapshot?.machine_source_row ?? null,
+    machine_verified: Boolean(machineSnapshot),
+    machine_verified_at: machineSnapshot?.machine_verified_at ?? null,
+    machine_verified_by: machineSnapshot?.machine_verified_by ?? null,
     job_number: jobNumber,
     request_details: requestDetails,
     request_summary: requestDetails,

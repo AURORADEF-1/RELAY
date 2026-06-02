@@ -355,7 +355,7 @@ export function SupplierDirectoryPanel() {
     } finally {
       setIsSaving(false);
     }
-  }, [draft, selectedSupplier, setDraftFromSupplier, supplierNameDraft]);
+  }, [draft, loadSuppliers, selectedSupplier, setDraftFromSupplier, supplierNameDraft]);
 
   const handleCreate = useCallback(async () => {
     const nextSupplierName = supplierNameDraft.trim();
@@ -442,7 +442,7 @@ export function SupplierDirectoryPanel() {
     } finally {
       setIsSaving(false);
     }
-  }, [draft, setDraftFromSupplier, supplierNameDraft]);
+  }, [draft, loadSuppliers, setDraftFromSupplier, supplierNameDraft]);
 
   const handleDelete = useCallback(async () => {
     const nextSupplierName = supplierNameDraft.trim();
@@ -526,7 +526,7 @@ export function SupplierDirectoryPanel() {
     } finally {
       setIsSaving(false);
     }
-  }, [selectedSupplier, supplierNameDraft]);
+  }, [loadSuppliers, selectedSupplier, supplierNameDraft]);
 
   const handleCopyBrief = useCallback(async () => {
     if (!selectedSupplier) {

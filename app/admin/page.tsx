@@ -122,6 +122,22 @@ type Ticket = {
   location_summary?: string | null;
   location_confirmed?: boolean | null;
   machine_reference: string | null;
+  machine_number?: string | null;
+  machine_number_normalized?: string | null;
+  machine_fleet_type?: string | null;
+  machine_item_description?: string | null;
+  machine_make?: string | null;
+  machine_model?: string | null;
+  machine_serial_number?: string | null;
+  machine_status?: string | null;
+  machine_quantity?: number | null;
+  machine_buying_price?: number | null;
+  machine_selling_price?: number | null;
+  machine_source_sheet?: string | null;
+  machine_source_row?: number | null;
+  machine_verified?: boolean | null;
+  machine_verified_at?: string | null;
+  machine_verified_by?: string | null;
   job_number: string | null;
   request_summary: string | null;
   request_details: string | null;
@@ -3004,6 +3020,9 @@ export default function AdminPage() {
                         onSendMessage={handleSendChatMessage}
                         onAskAi={handleAskAi}
                       />
+                      <div className="mt-4">
+                        <AdminMachineDetailsCard ticket={selectedChatTicket} />
+                      </div>
                       {isChatLoading ? (
                         <p className="mt-3 text-sm text-slate-500">
                           Loading chat thread...
@@ -3798,6 +3817,64 @@ function AdminLocationCard({ ticket }: { ticket: Ticket }) {
   );
 }
 
+function AdminMachineDetailsCard({ ticket }: { ticket: Ticket }) {
+  const hasMachineSnapshot =
+    Boolean(ticket.machine_verified) ||
+    Boolean(ticket.machine_number?.trim()) ||
+    Boolean(ticket.machine_make?.trim()) ||
+    Boolean(ticket.machine_model?.trim()) ||
+    Boolean(ticket.machine_serial_number?.trim());
+
+  if (!hasMachineSnapshot) {
+    return null;
+  }
+
+  const verified = Boolean(ticket.machine_verified);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/90 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Machine Details
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            Registry snapshot captured when the ticket was submitted.
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${
+            verified ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+          }`}
+        >
+          {verified ? "Verified" : "Unverified"}
+        </span>
+      </div>
+
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+        <AdminMachineDetailItem label="Machine Number" value={ticket.machine_number ?? ticket.machine_reference} />
+        <AdminMachineDetailItem label="Fleet Type" value={ticket.machine_fleet_type} />
+        <AdminMachineDetailItem label="Make" value={ticket.machine_make} />
+        <AdminMachineDetailItem label="Model" value={ticket.machine_model} />
+        <AdminMachineDetailItem label="Serial Number" value={ticket.machine_serial_number} />
+        <AdminMachineDetailItem label="Status" value={ticket.machine_status} />
+        <AdminMachineDetailItem label="Source Sheet" value={ticket.machine_source_sheet} />
+        <AdminMachineDetailItem
+          label="Source Row"
+          value={ticket.machine_source_row != null ? String(ticket.machine_source_row) : null}
+        />
+        <AdminMachineDetailItem
+          label="Quantity"
+          value={ticket.machine_quantity != null ? String(ticket.machine_quantity) : null}
+        />
+        <AdminMachineDetailItem label="Buying Price" value={formatMoney(ticket.machine_buying_price)} />
+        <AdminMachineDetailItem label="Selling Price" value={formatMoney(ticket.machine_selling_price)} />
+        <AdminMachineDetailItem label="Verified At" value={formatDateTime(ticket.machine_verified_at)} />
+      </dl>
+    </div>
+  );
+}
+
 function AdminLocationLink({
   ticket,
   compact = false,
@@ -3831,6 +3908,35 @@ function formatAdminLocationSummary(ticket: Ticket) {
 
 function buildAdminMapUrl(ticket: Ticket) {
   return buildOnsiteLocationMapUrl(ticket);
+}
+
+function AdminMachineDetailItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </dt>
+      <dd className="mt-1 text-sm leading-6 text-slate-700">{value || "-"}</dd>
+    </div>
+  );
+}
+
+function formatMoney(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 function resolveSenderName(
