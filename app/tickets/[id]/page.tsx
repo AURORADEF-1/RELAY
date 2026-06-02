@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
-import { FileUploadPanel } from "@/components/file-upload-panel";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { TicketStatusWorkflowModal } from "@/components/ticket-status-workflow-modal";
@@ -54,6 +53,7 @@ import {
   buildOrderedWorkflowComment,
   buildReadyWorkflowComment,
   formatOperationalDate,
+  formatOrderAmount,
   getStatusWorkflowRequirement,
   parseOrderAmountInput,
   parseDueDateToEndOfDay,
@@ -175,8 +175,6 @@ export default function TicketDetailPage() {
   const [ticket, setTicket] = useState<TicketRecord | null>(null);
   const [updates, setUpdates] = useState<TicketUpdate[]>([]);
   const [attachments, setAttachments] = useState<TicketAttachmentRecord[]>([]);
-  const [queuedRequestAttachments, setQueuedRequestAttachments] = useState<File[]>([]);
-  const [isUploadingRequestAttachments, setIsUploadingRequestAttachments] = useState(false);
   const [messages, setMessages] = useState<TicketMessageRecord[]>([]);
   const [messageSenderNameByUserId, setMessageSenderNameByUserId] = useState<Record<string, string>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -194,10 +192,6 @@ export default function TicketDetailPage() {
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [returnReason, setReturnReason] = useState("");
   const [chatNotice, setChatNotice] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
-  const [attachmentNotice, setAttachmentNotice] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
@@ -363,57 +357,6 @@ export default function TicketDetailPage() {
     setAttachments(attachmentData);
     setMessages(messageData);
     setMessageSenderNameByUserId(senderNames);
-  }
-
-  async function handleUploadRequestAttachments() {
-    if (!ticket || queuedRequestAttachments.length === 0) {
-      return;
-    }
-
-    const supabase = getSupabaseClient();
-
-    if (!supabase) {
-      setErrorMessage("Supabase environment variables are not configured.");
-      setAttachmentNotice({
-        type: "error",
-        message: "Unable to upload attachments right now.",
-      });
-      return;
-    }
-
-    setIsUploadingRequestAttachments(true);
-    setAttachmentNotice(null);
-    setErrorMessage("");
-
-    try {
-      const uploadedAttachments = await uploadTicketAttachments({
-        supabase,
-        ticketId: ticket.id,
-        userId: currentUserId,
-        files: queuedRequestAttachments,
-        attachmentKind: "ticket",
-      });
-
-      setAttachments((current) => [...uploadedAttachments, ...current]);
-      setQueuedRequestAttachments([]);
-      setAttachmentNotice({
-        type: "success",
-        message: `${uploadedAttachments.length} attachment${
-          uploadedAttachments.length === 1 ? "" : "s"
-        } uploaded successfully.`,
-      });
-      triggerActionFeedback();
-    } catch (uploadError) {
-      const message =
-        sanitizeUserFacingError(uploadError, "Failed to upload attachments.");
-      setAttachmentNotice({
-        type: "error",
-        message,
-      });
-      setErrorMessage(message);
-    } finally {
-      setIsUploadingRequestAttachments(false);
-    }
   }
 
   async function handleSendMessage(payload: { messageText: string; files: File[] }) {
@@ -1537,51 +1480,17 @@ export default function TicketDetailPage() {
                       </div>
                     ) : (
                       <>
-                        <div className="rounded-[2rem] border border-white/70 bg-white/60 p-6 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.45)] backdrop-blur">
-                          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="space-y-3">
-                              <div className="inline-flex rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-                                Job Number
-                              </div>
-                              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-4xl">
-                                {ticket.job_number ?? "Not set"}
-                              </h2>
-                              <p className="max-w-3xl text-sm leading-7 text-slate-600 sm:text-base">
-                                {ticket.request_summary ?? ticket.request_details ?? "No request summary available."}
-                              </p>
-                            </div>
-                            <StatusBadge status={ticket.status ?? "PENDING"} />
-                          </div>
-
-                          <div className="mt-5 flex flex-wrap gap-2">
-                            <GlassMetaChip label="Machine" value={ticket.machine_reference} />
-                            <GlassMetaChip label="Department" value={ticket.department} />
-                            {ticket.status === "ORDERED" || ticket.status === "READY" ? (
-                              <GlassMetaChip
-                                label="Ordered from"
-                                value={ticket.supplier_name ?? "Not set"}
-                              />
-                            ) : null}
-                            {ticket.status === "ORDERED" || ticket.status === "READY" ? (
-                              <GlassMetaChip
-                                label="Expected delivery"
-                                value={formatOperationalDate(ticket.expected_delivery_date)}
-                              />
-                            ) : null}
-                            {ticket.status === "READY" && ticket.bin_location?.trim() ? (
-                              <GlassMetaChip label="Tray" value={ticket.bin_location} />
-                            ) : null}
-                          </div>
-                        </div>
-
                         <dl className="mt-6 grid gap-5 sm:grid-cols-2">
                           <DetailItem label="Requester" value={ticket.requester_name} />
                           <DetailItem label="Department" value={ticket.department} />
                           <DetailItem label="Machine" value={ticket.machine_reference} />
+                          <DetailItem label="Job Number" value={ticket.job_number} />
                           <DetailItem label="Assigned User" value={ticket.assigned_to} />
                           <DetailItem label="Expected Delivery" value={formatOperationalDate(ticket.expected_delivery_date)} />
                           <DetailItem label="PO Number" value={ticket.purchase_order_number} />
                           <DetailItem label="Supplier" value={ticket.supplier_name} />
+                          <DetailItem label="Supplier Email" value={ticket.supplier_email} />
+                          <DetailItem label="Order Amount" value={formatOrderAmount(ticket.order_amount)} />
                           <DetailItem label="Bin Location" value={ticket.bin_location} />
                           <DetailItem label="Lead Time Note" value={ticket.lead_time_note} />
                           <DetailItem
@@ -1710,58 +1619,6 @@ export default function TicketDetailPage() {
                     </div>
                   </section>
                 </div>
-
-                <section className="rounded-[1.9rem] border border-white/70 bg-white/60 p-6 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.45)] backdrop-blur">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Attachments
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        Upload more images, open them in a new window, or annotate them before sending to Stores.
-                      </p>
-                    </div>
-                  </div>
-
-                  {attachmentNotice ? (
-                    <div
-                      className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
-                        attachmentNotice.type === "error"
-                          ? "border-rose-200 bg-rose-50 text-rose-700"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      }`}
-                    >
-                      {attachmentNotice.message}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-5">
-                    <FileUploadPanel
-                      label="Upload images"
-                      helperText="Add more images to this ticket. Selected photos can be uploaded directly into the ticket attachment gallery."
-                      inputId="ticket-request-attachments"
-                      buttonLabel="Choose images"
-                      emptyText="No images selected yet."
-                      onFilesChange={setQueuedRequestAttachments}
-                    />
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      {queuedRequestAttachments.length > 0
-                        ? `${queuedRequestAttachments.length} image${queuedRequestAttachments.length > 1 ? "s" : ""} ready to upload`
-                        : "Select images to add them to this ticket"}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void handleUploadRequestAttachments()}
-                      disabled={queuedRequestAttachments.length === 0 || isUploadingRequestAttachments}
-                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isUploadingRequestAttachments ? "Uploading..." : "Upload to Ticket"}
-                    </button>
-                  </div>
-                </section>
 
                 <TicketAttachmentGallery
                   attachments={attachments.map((attachment) => ({
@@ -2173,21 +2030,6 @@ function DetailBlock({
       <p className="mt-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-7 text-slate-600">
         {value || "-"}
       </p>
-    </div>
-  );
-}
-
-function GlassMetaChip({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | null | undefined;
-}) {
-  return (
-    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/70 bg-white/75 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600 shadow-sm backdrop-blur">
-      <span className="whitespace-nowrap text-slate-500">{label}:</span>
-      <span className="truncate text-slate-900 normal-case tracking-normal">{value || "-"}</span>
     </div>
   );
 }
