@@ -977,9 +977,6 @@ function MachineVerificationPanel({
         <div>
           <span className="font-semibold">Serial:</span> {record.serial_number ?? "-"}
         </div>
-        <div>
-          <span className="font-semibold">Status:</span> {record.status ?? "-"}
-        </div>
       </div>
     </div>
   );

@@ -3857,7 +3857,6 @@ function AdminMachineDetailsCard({ ticket }: { ticket: Ticket }) {
         <AdminMachineDetailItem label="Make" value={ticket.machine_make} />
         <AdminMachineDetailItem label="Model" value={ticket.machine_model} />
         <AdminMachineDetailItem label="Serial Number" value={ticket.machine_serial_number} />
-        <AdminMachineDetailItem label="Status" value={ticket.machine_status} />
         <AdminMachineDetailItem label="Source Sheet" value={ticket.machine_source_sheet} />
         <AdminMachineDetailItem
           label="Source Row"

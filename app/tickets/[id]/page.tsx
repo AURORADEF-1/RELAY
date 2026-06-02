@@ -2074,7 +2074,6 @@ function MachineDetailsCard({ ticket }: { ticket: TicketRecord }) {
         <DetailItem label="Make" value={ticket.machine_make} />
         <DetailItem label="Model" value={ticket.machine_model} />
         <DetailItem label="Serial Number" value={ticket.machine_serial_number} />
-        <DetailItem label="Status" value={ticket.machine_status} />
         <DetailItem label="Source Sheet" value={ticket.machine_source_sheet} />
         <DetailItem
           label="Source Row"
