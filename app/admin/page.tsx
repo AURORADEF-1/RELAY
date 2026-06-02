@@ -3859,17 +3859,10 @@ function AdminMachineDetailsCard({ ticket }: { ticket: Ticket }) {
         <AdminMachineDetailItem label="Make" value={ticket.machine_make} />
         <AdminMachineDetailItem label="Model" value={ticket.machine_model} />
         <AdminMachineDetailItem label="Serial Number" value={ticket.machine_serial_number} />
-        <AdminMachineDetailItem label="Source Sheet" value={ticket.machine_source_sheet} />
-        <AdminMachineDetailItem
-          label="Source Row"
-          value={ticket.machine_source_row != null ? String(ticket.machine_source_row) : null}
-        />
         <AdminMachineDetailItem
           label="Quantity"
           value={ticket.machine_quantity != null ? String(ticket.machine_quantity) : null}
         />
-        <AdminMachineDetailItem label="Buying Price" value={formatMoney(ticket.machine_buying_price)} />
-        <AdminMachineDetailItem label="Selling Price" value={formatMoney(ticket.machine_selling_price)} />
         <AdminMachineDetailItem label="Verified At" value={formatDateTime(ticket.machine_verified_at)} />
       </dl>
     </div>
@@ -3999,18 +3992,6 @@ function MachineReferenceHoverCard({ ticket }: { ticket: Ticket }) {
       </div>
     </span>
   );
-}
-
-function formatMoney(value: number | null | undefined) {
-  if (value == null || Number.isNaN(value)) {
-    return "-";
-  }
-
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 function resolveSenderName(

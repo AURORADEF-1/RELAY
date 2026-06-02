@@ -2074,17 +2074,10 @@ function MachineDetailsCard({ ticket }: { ticket: TicketRecord }) {
         <DetailItem label="Make" value={ticket.machine_make} />
         <DetailItem label="Model" value={ticket.machine_model} />
         <DetailItem label="Serial Number" value={ticket.machine_serial_number} />
-        <DetailItem label="Source Sheet" value={ticket.machine_source_sheet} />
-        <DetailItem
-          label="Source Row"
-          value={ticket.machine_source_row != null ? String(ticket.machine_source_row) : null}
-        />
         <DetailItem
           label="Quantity"
           value={ticket.machine_quantity != null ? String(ticket.machine_quantity) : null}
         />
-        <DetailItem label="Buying Price" value={formatMoney(ticket.machine_buying_price)} />
-        <DetailItem label="Selling Price" value={formatMoney(ticket.machine_selling_price)} />
         <DetailItem label="Verified At" value={formatDateTime(ticket.machine_verified_at)} />
       </dl>
 
@@ -2162,18 +2155,6 @@ function formatDateTime(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function formatMoney(value: number | null | undefined) {
-  if (value == null || Number.isNaN(value)) {
-    return "-";
-  }
-
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 function isOnsiteTicket(ticket: TicketRecord) {
