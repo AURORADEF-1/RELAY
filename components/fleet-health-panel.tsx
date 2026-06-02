@@ -59,12 +59,15 @@ export function FleetHealthPanel({
               Fleet health breakdown
             </h2>
             <p className="max-w-3xl text-sm leading-6 text-slate-600">
-              The fleet view groups tickets and workshop incidents by plant number so you can see demand,
-              service pressure, and historical cost in one place.
+              The fleet view only counts verified plant numbers from the machine registry, so you can see
+              demand, service pressure, and historical cost without junk references.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <span className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700">
+              Verified fleet numbers only
+            </span>
             <button
               type="button"
               onClick={onRefresh}

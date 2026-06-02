@@ -62,8 +62,10 @@ export function buildFleetDashboardData({
   incidents: FleetIncidentRecord[];
 }) {
   const rowsByKey = new Map<string, FleetMachineSummary>();
+  const verifiedMachineKeys = new Set<string>();
 
   for (const machine of machines) {
+    verifiedMachineKeys.add(machine.machine_number_normalized);
     rowsByKey.set(machine.machine_number_normalized, {
       machine_number: machine.machine_number,
       machine_number_normalized: machine.machine_number_normalized,
@@ -86,37 +88,6 @@ export function buildFleetDashboardData({
     });
   }
 
-  const upsertVirtualRow = (normalized: string, fallbackLabel: string) => {
-    const existing = rowsByKey.get(normalized);
-    if (existing) {
-      return existing;
-    }
-
-    const created: FleetMachineSummary = {
-      machine_number: fallbackLabel,
-      machine_number_normalized: normalized,
-      fleet_type: null,
-      item_description: null,
-      make: null,
-      model: null,
-      serial_number: null,
-      source_sheet: null,
-      source_row: null,
-      quantity: null,
-      request_count: 0,
-      service_count: 0,
-      open_issue_count: 0,
-      total_spend: 0,
-      last_request_at: null,
-      last_service_at: null,
-      last_activity_at: null,
-      health_label: "Watch",
-    };
-
-    rowsByKey.set(normalized, created);
-    return created;
-  };
-
   for (const ticket of tickets) {
     const normalized = normalizeMachineNumber(
       ticket.machine_number_normalized ||
@@ -129,10 +100,15 @@ export function buildFleetDashboardData({
       continue;
     }
 
-    const row = upsertVirtualRow(
-      normalized,
-      ticket.machine_number?.trim() || ticket.machine_reference?.trim() || normalized,
-    );
+    if (!verifiedMachineKeys.has(normalized)) {
+      continue;
+    }
+
+    const row = rowsByKey.get(normalized);
+
+    if (!row) {
+      continue;
+    }
 
     row.request_count += 1;
     row.total_spend += toNumber(ticket.order_amount);
@@ -143,11 +119,15 @@ export function buildFleetDashboardData({
   for (const incident of incidents) {
     const normalized = normalizeMachineNumber(incident.machine_reference ?? "");
 
-    if (!normalized) {
+    if (!normalized || !verifiedMachineKeys.has(normalized)) {
       continue;
     }
 
-    const row = upsertVirtualRow(normalized, incident.machine_reference?.trim() || normalized);
+    const row = rowsByKey.get(normalized);
+
+    if (!row) {
+      continue;
+    }
 
     row.service_count += 1;
     if ((incident.status ?? "").toUpperCase() !== "CLOSED") {
