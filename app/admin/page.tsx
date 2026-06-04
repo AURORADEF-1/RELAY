@@ -1653,7 +1653,6 @@ export default function AdminPage() {
       updatePayload.purchase_order_number = normalizedPurchaseOrderNumber || null;
       updatePayload.supplier_name = normalizedSupplierName || null;
       updatePayload.supplier_email = normalizedSupplierEmail || null;
-      updatePayload.retail_sales_reference = normalizedRetailSalesReference || null;
       updatePayload.order_amount =
         parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
           ? String(parsedOrderAmount)

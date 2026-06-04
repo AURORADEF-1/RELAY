@@ -1209,6 +1209,21 @@ function buildTicketInsertPayload(
   const retailSalesReference = values.retailSalesReference.trim();
   const machineSnapshot = buildMachineSnapshot(machineRegistryRecord, userId);
 
+  const retailFields = isRetailSale
+    ? {
+        retail_sales_reference: retailSalesReference || null,
+        customer_name: values.customerName.trim() || null,
+        customer_email: values.customerEmail.trim() || null,
+        customer_phone: values.customerPhone.trim() || null,
+        retail_delivery_method: values.retailDeliveryMethod || null,
+        retail_delivery_address:
+          values.retailDeliveryMethod === "delivery"
+            ? values.retailDeliveryAddress.trim() || null
+            : null,
+        retail_apc_tracking_number: null,
+      }
+    : {};
+
   return {
     user_id: userId,
     requester_name: isRetailSale ? null : requesterName,
@@ -1235,16 +1250,7 @@ function buildTicketInsertPayload(
     request_summary: requestDetails,
     status: "PENDING",
     is_retail_sale: isRetailSale,
-    retail_sales_reference: isRetailSale ? retailSalesReference || null : null,
-    customer_name: isRetailSale ? values.customerName.trim() || null : null,
-    customer_email: isRetailSale ? values.customerEmail.trim() || null : null,
-    customer_phone: isRetailSale ? values.customerPhone.trim() || null : null,
-    retail_delivery_method: isRetailSale ? values.retailDeliveryMethod || null : null,
-    retail_delivery_address:
-      isRetailSale && values.retailDeliveryMethod === "delivery"
-        ? values.retailDeliveryAddress.trim() || null
-        : null,
-    retail_apc_tracking_number: null,
+    ...retailFields,
     location_lat: locationDraft?.confirmed ? locationDraft.lat : null,
     location_lng: locationDraft?.confirmed ? locationDraft.lng : null,
     location_summary: locationDraft?.confirmed ? locationDraft.summary : null,

@@ -827,21 +827,6 @@ export default function TicketDetailPage() {
           ? parsedOrderAmount
           : null,
       bin_location: nextBinLocation.trim() || null,
-      customer_name: ticket.is_retail_sale ? nextCustomerName.trim() || null : ticket.customer_name ?? null,
-      customer_email: ticket.is_retail_sale ? nextCustomerEmail.trim() || null : ticket.customer_email ?? null,
-      customer_phone: ticket.is_retail_sale ? nextCustomerPhone.trim() || null : ticket.customer_phone ?? null,
-      retail_sales_reference: ticket.is_retail_sale
-        ? nextRetailSalesReference.trim() || null
-        : ticket.retail_sales_reference ?? null,
-      retail_delivery_method: ticket.is_retail_sale
-        ? nextRetailDeliveryMethod || null
-        : ticket.retail_delivery_method ?? null,
-      retail_delivery_address: ticket.is_retail_sale
-        ? nextRetailDeliveryAddress.trim() || null
-        : ticket.retail_delivery_address ?? null,
-      retail_apc_tracking_number: ticket.is_retail_sale
-        ? nextRetailApcTrackingNumber.trim() || null
-        : ticket.retail_apc_tracking_number ?? null,
       ordered_at:
         workflowRequirement === "ordered" ? new Date().toISOString() : ticket.ordered_at ?? null,
       ordered_by:
@@ -863,6 +848,17 @@ export default function TicketDetailPage() {
           ? null
           : ticket.overdue_reminder_dismissed_by ?? null,
       updated_at: new Date().toISOString(),
+      ...(ticket.is_retail_sale
+        ? {
+            retail_sales_reference: nextRetailSalesReference.trim() || null,
+            customer_name: nextCustomerName.trim() || null,
+            customer_email: nextCustomerEmail.trim() || null,
+            customer_phone: nextCustomerPhone.trim() || null,
+            retail_delivery_method: nextRetailDeliveryMethod || null,
+            retail_delivery_address: nextRetailDeliveryAddress.trim() || null,
+            retail_apc_tracking_number: nextRetailApcTrackingNumber.trim() || null,
+          }
+        : {}),
     };
 
     const { error: updateError } = await supabase
