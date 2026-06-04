@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -33,6 +33,8 @@ export default function CompletedPage() {
   const [tickets, setTickets] = useState<CompletedTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingTicketId, setDeletingTicketId] = useState<string | null>(null);
+  const [completedFromDate, setCompletedFromDate] = useState("");
+  const [completedToDate, setCompletedToDate] = useState("");
   const [notice, setNotice] = useState<{
     type: "success" | "error";
     message: string;
@@ -193,11 +195,38 @@ export default function CompletedPage() {
     setDeletingTicketId(null);
   }
 
+  const filteredTickets = useMemo(() => {
+    const fromTime = completedFromDate ? new Date(`${completedFromDate}T00:00:00`).getTime() : null;
+    const toTime = completedToDate ? new Date(`${completedToDate}T23:59:59.999`).getTime() : null;
+
+    return tickets.filter((ticket) => {
+      if (!ticket.updated_at) {
+        return false;
+      }
+
+      const completedAt = new Date(ticket.updated_at).getTime();
+
+      if (Number.isNaN(completedAt)) {
+        return false;
+      }
+
+      if (fromTime != null && completedAt < fromTime) {
+        return false;
+      }
+
+      if (toTime != null && completedAt > toTime) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [completedFromDate, completedToDate, tickets]);
+
   function handleExportTickets() {
-    if (tickets.length === 0) {
+    if (filteredTickets.length === 0) {
       setNotice({
         type: "error",
-        message: "There are no completed jobs to export.",
+        message: "There are no completed jobs in the selected date range.",
       });
       return;
     }
@@ -211,7 +240,7 @@ export default function CompletedPage() {
         "request_summary",
         "handled_by",
       ],
-      ...tickets.map((ticket) => [
+      ...filteredTickets.map((ticket) => [
         ticket.updated_at ?? "",
         ticket.job_number ?? "",
         ticket.requester_name ?? "",
@@ -239,7 +268,7 @@ export default function CompletedPage() {
 
     setNotice({
       type: "success",
-      message: `Exported ${tickets.length} completed job${tickets.length === 1 ? "" : "s"}.`,
+      message: `Exported ${filteredTickets.length} completed job${filteredTickets.length === 1 ? "" : "s"}.`,
     });
   }
 
@@ -292,23 +321,65 @@ export default function CompletedPage() {
               <PartsControlTabs activeTab="completed" />
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={handleExportTickets}
-                disabled={isLoading || tickets.length === 0}
-                className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Export CSV
-              </button>
-              <button
-                type="button"
-                onClick={() => void loadTickets()}
-                disabled={isLoading}
-                className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isLoading ? "Refreshing..." : "Refresh"}
-              </button>
+            <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="grid gap-4 sm:grid-cols-2 lg:max-w-2xl lg:flex-1">
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Completed From
+                    </span>
+                    <input
+                      type="date"
+                      value={completedFromDate}
+                      onChange={(event) => setCompletedFromDate(event.target.value)}
+                      className="aurora-input"
+                    />
+                  </label>
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Completed To
+                    </span>
+                    <input
+                      type="date"
+                      value={completedToDate}
+                      onChange={(event) => setCompletedToDate(event.target.value)}
+                      className="aurora-input"
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCompletedFromDate("");
+                      setCompletedToDate("");
+                    }}
+                    className="aurora-button-secondary"
+                  >
+                    Clear Dates
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportTickets}
+                    disabled={isLoading || filteredTickets.length === 0}
+                    className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void loadTickets()}
+                    disabled={isLoading}
+                    className="aurora-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isLoading ? "Refreshing..." : "Refresh"}
+                  </button>
+                </div>
+              </div>
+              <p className="mt-3 text-sm text-slate-500">
+                Showing {filteredTickets.length} completed job{filteredTickets.length === 1 ? "" : "s"}
+                {completedFromDate || completedToDate ? " in the selected date range." : "."}
+              </p>
             </div>
 
             {notice ? (
@@ -350,14 +421,14 @@ export default function CompletedPage() {
                           Loading completed jobs...
                         </td>
                       </tr>
-                    ) : tickets.length === 0 ? (
+                    ) : filteredTickets.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-500">
-                          No completed jobs found.
+                          No completed jobs found for the selected date range.
                         </td>
                       </tr>
                     ) : (
-                      tickets.map((ticket) => (
+                      filteredTickets.map((ticket) => (
                         <tr key={ticket.id} className="align-top">
                           <td className="px-6 py-5 text-sm text-slate-500">
                             {formatDate(ticket.updated_at)}
@@ -414,12 +485,12 @@ export default function CompletedPage() {
                   <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
                     Loading completed jobs...
                   </div>
-                ) : tickets.length === 0 ? (
+                ) : filteredTickets.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-                    No completed jobs found.
+                    No completed jobs found for the selected date range.
                   </div>
                 ) : (
-                  tickets.map((ticket) => (
+                  filteredTickets.map((ticket) => (
                     <article key={ticket.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                       <div className="flex items-start justify-between gap-4">
                         <div>
