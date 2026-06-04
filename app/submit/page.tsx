@@ -27,6 +27,7 @@ type FormValues = {
   machineReference: string;
   jobNumber: string;
   requestDetails: string;
+  retailSalesReference: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -42,6 +43,7 @@ const initialValues: FormValues = {
   machineReference: "",
   jobNumber: "",
   requestDetails: "",
+  retailSalesReference: "",
   customerName: "",
   customerEmail: "",
   customerPhone: "",
@@ -55,6 +57,7 @@ const fieldLabels: Record<keyof FormValues, string> = {
   machineReference: "Machine reference",
   jobNumber: "Job number",
   requestDetails: "Request details",
+  retailSalesReference: "Sales reference",
   customerName: "Customer name",
   customerEmail: "Customer email",
   customerPhone: "Customer phone",
@@ -297,6 +300,9 @@ export default function SubmitPage() {
           department: "",
           machineReference: "",
           jobNumber: "",
+          retailSalesReference: currentValues.retailSalesReference.trim()
+            ? currentValues.retailSalesReference
+            : "",
           retailDeliveryAddress: currentValues.retailDeliveryMethod === "delivery"
             ? currentValues.retailDeliveryAddress
             : "",
@@ -374,6 +380,7 @@ export default function SubmitPage() {
     if (isRetailSale) {
       const requiredFields: Array<keyof FormValues> = [
         "requestDetails",
+        "retailSalesReference",
         "customerName",
         "customerEmail",
         "customerPhone",
@@ -692,6 +699,14 @@ export default function SubmitPage() {
                             <div className="sm:col-span-2 rounded-[1.1rem] border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-900">
                               Retail sale mode hides the standard request identity fields and uses customer and delivery details instead.
                             </div>
+                            <FormField
+                              label="Sales reference"
+                              name="retailSalesReference"
+                              value={values.retailSalesReference}
+                              error={errors.retailSalesReference}
+                              placeholder="Order number shown to the customer"
+                              onChange={handleChange}
+                            />
                             <FormField
                               label="Customer name"
                               name="customerName"
@@ -1191,6 +1206,7 @@ function buildTicketInsertPayload(
   const machineReference = values.machineReference.trim();
   const jobNumber = values.jobNumber.trim();
   const requestDetails = values.requestDetails.trim();
+  const retailSalesReference = values.retailSalesReference.trim();
   const machineSnapshot = buildMachineSnapshot(machineRegistryRecord, userId);
 
   return {
@@ -1219,6 +1235,7 @@ function buildTicketInsertPayload(
     request_summary: requestDetails,
     status: "PENDING",
     is_retail_sale: isRetailSale,
+    retail_sales_reference: isRetailSale ? retailSalesReference || null : null,
     customer_name: isRetailSale ? values.customerName.trim() || null : null,
     customer_email: isRetailSale ? values.customerEmail.trim() || null : null,
     customer_phone: isRetailSale ? values.customerPhone.trim() || null : null,

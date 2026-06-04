@@ -15,6 +15,7 @@ type TicketStatusWorkflowModalProps = {
   orderAmount: string;
   binLocation: string;
   dispatchPreference: SupplierOrderDispatchPreference;
+  retailSalesReference?: string;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -30,6 +31,7 @@ type TicketStatusWorkflowModalProps = {
   onOrderAmountChange: (value: string) => void;
   onBinLocationChange: (value: string) => void;
   onDispatchPreferenceChange: (value: SupplierOrderDispatchPreference) => void;
+  onRetailSalesReferenceChange?: (value: string) => void;
   onCustomerNameChange?: (value: string) => void;
   onCustomerEmailChange?: (value: string) => void;
   onCustomerPhoneChange?: (value: string) => void;
@@ -53,6 +55,7 @@ export function TicketStatusWorkflowModal({
   orderAmount,
   binLocation,
   dispatchPreference,
+  retailSalesReference = "",
   customerName = "",
   customerEmail = "",
   customerPhone = "",
@@ -68,6 +71,7 @@ export function TicketStatusWorkflowModal({
   onOrderAmountChange,
   onBinLocationChange,
   onDispatchPreferenceChange,
+  onRetailSalesReferenceChange,
   onCustomerNameChange,
   onCustomerEmailChange,
   onCustomerPhoneChange,
@@ -127,6 +131,19 @@ export function TicketStatusWorkflowModal({
 
               {isRetailSale ? (
                 <div className="grid gap-4 lg:grid-cols-2">
+                  <label className="block space-y-2 lg:col-span-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                      Sales Reference
+                    </span>
+                    <input
+                      type="text"
+                      value={retailSalesReference}
+                      onChange={(event) => onRetailSalesReferenceChange?.(event.target.value)}
+                      placeholder="Enter customer-facing sales reference"
+                      className="aurora-input"
+                    />
+                  </label>
+
                   <label className="block space-y-2">
                     <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
                       PO Number

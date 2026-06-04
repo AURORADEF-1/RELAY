@@ -13,6 +13,7 @@ export type RetailCustomerDispatchPlan = {
 
 export type RetailTicketRecord = TicketOperationalRecord & {
   is_retail_sale?: boolean | null;
+  retail_sales_reference?: string | null;
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
@@ -136,18 +137,17 @@ export function buildRetailCustomerSubject(
   ticket: RetailTicketRecord,
   stage: "ordered" | "ready",
 ) {
-  const jobNumber = ticket.job_number?.trim() || ticket.id.slice(0, 8).toUpperCase();
-  const customerName = ticket.customer_name?.trim() || "Customer";
+  const salesReference = ticket.retail_sales_reference?.trim() || ticket.id.slice(0, 8).toUpperCase();
 
   if (stage === "ready" && ticket.retail_delivery_method === "delivery") {
-    return `Out for delivery - Job ${jobNumber} - ${customerName}`;
+    return `Order ${salesReference} - Out for delivery`;
   }
 
   if (ticket.retail_delivery_method === "delivery") {
-    return `Out for delivery - Job ${jobNumber} - ${customerName}`;
+    return `Order ${salesReference} - Out for delivery`;
   }
 
-  return `Ready to collect - Job ${jobNumber} - ${customerName}`;
+  return `Order ${salesReference} - Ready to collect`;
 }
 
 export function buildRetailCustomerBodyLines(
@@ -156,6 +156,7 @@ export function buildRetailCustomerBodyLines(
 ) {
   const partsRequired = ticket.request_summary?.trim() || ticket.request_details?.trim() || "-";
   const customerName = ticket.customer_name?.trim() || "Customer";
+  const salesReference = ticket.retail_sales_reference?.trim() || ticket.id.slice(0, 8).toUpperCase();
   const deliveryAddress = ticket.retail_delivery_address?.trim() || "-";
   const tracking = ticket.retail_apc_tracking_number?.trim() || "-";
   if (stage === "ready" && ticket.retail_delivery_method === "delivery") {
@@ -163,6 +164,7 @@ export function buildRetailCustomerBodyLines(
       `Hello ${customerName},`,
       "",
       `Your order of ${partsRequired} is out for delivery.`,
+      `Order Reference: ${salesReference}`,
       `Delivery Address: ${deliveryAddress}`,
       `APC Tracking Number: ${tracking}`,
       "",
@@ -175,6 +177,7 @@ export function buildRetailCustomerBodyLines(
       `Hello ${customerName},`,
       "",
       `Your order of ${partsRequired} is out for delivery.`,
+      `Order Reference: ${salesReference}`,
       `Delivery Address: ${deliveryAddress}`,
       `APC Tracking Number: ${tracking}`,
       "",
@@ -182,14 +185,15 @@ export function buildRetailCustomerBodyLines(
     ];
   }
 
-    return [
-      `Hello ${customerName},`,
-      "",
-      `Your order of ${partsRequired} is ready to collect from Stores.`,
-      "",
-      "Please collect when convenient.",
-    ];
-  }
+  return [
+    `Hello ${customerName},`,
+    "",
+    `Your order of ${partsRequired} is ready to collect from Stores.`,
+    `Order Reference: ${salesReference}`,
+    "",
+    "Please collect when convenient.",
+  ];
+}
 
 function normalizePhoneNumber(value: string) {
   const trimmed = value.trim();

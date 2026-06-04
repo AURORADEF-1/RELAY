@@ -85,6 +85,7 @@ type TicketRecord = {
   requester_name: string | null;
   department: string | null;
   is_retail_sale?: boolean | null;
+  retail_sales_reference?: string | null;
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
@@ -160,6 +161,7 @@ type TicketEditDraft = {
   supplier_email: string;
   order_amount: string;
   bin_location: string;
+  retail_sales_reference: string;
   customer_name: string;
   customer_email: string;
   customer_phone: string;
@@ -177,6 +179,7 @@ type StatusWorkflowDialogState = {
   supplierEmail: string;
   orderAmount: string;
   binLocation: string;
+  retailSalesReference: string;
   dispatchPreference: SupplierOrderDispatchPreference;
   customerName: string;
   customerEmail: string;
@@ -553,6 +556,7 @@ export default function TicketDetailPage() {
     supplierEmail: string;
     orderAmount: string;
     binLocation: string;
+    retailSalesReference?: string;
     dispatchPreference: SupplierOrderDispatchPreference;
     customerName?: string;
     customerEmail?: string;
@@ -600,6 +604,8 @@ export default function TicketDetailPage() {
       confirmedWorkflow?.orderAmount ?? editDraft.order_amount;
     const parsedOrderAmount = parseOrderAmountInput(nextOrderAmountInput);
     const nextBinLocation = confirmedWorkflow?.binLocation ?? editDraft.bin_location;
+    const nextRetailSalesReference =
+      confirmedWorkflow?.retailSalesReference ?? editDraft.retail_sales_reference;
     const nextCustomerName = confirmedWorkflow?.customerName ?? editDraft.customer_name;
     const nextCustomerEmail = confirmedWorkflow?.customerEmail ?? editDraft.customer_email;
     const nextCustomerPhone = confirmedWorkflow?.customerPhone ?? editDraft.customer_phone;
@@ -622,6 +628,7 @@ export default function TicketDetailPage() {
         supplierEmail: normalizedSupplierEmail,
         orderAmount: nextOrderAmountInput,
         binLocation: nextBinLocation,
+        retailSalesReference: nextRetailSalesReference,
         customerName: nextCustomerName,
         customerEmail: nextCustomerEmail,
         customerPhone: nextCustomerPhone,
@@ -702,6 +709,16 @@ export default function TicketDetailPage() {
     }
 
     if (workflowRequirement === "ordered" && ticket.is_retail_sale) {
+      if (!nextRetailSalesReference.trim()) {
+        setStatusWorkflowDialog((current) =>
+          current
+            ? { ...current, errorMessage: "Sales reference is required before saving ORDERED." }
+            : current,
+        );
+        setIsSavingEdit(false);
+        return;
+      }
+
       if (!nextPurchaseOrderNumber.trim()) {
         setStatusWorkflowDialog((current) =>
           current
@@ -813,6 +830,9 @@ export default function TicketDetailPage() {
       customer_name: ticket.is_retail_sale ? nextCustomerName.trim() || null : ticket.customer_name ?? null,
       customer_email: ticket.is_retail_sale ? nextCustomerEmail.trim() || null : ticket.customer_email ?? null,
       customer_phone: ticket.is_retail_sale ? nextCustomerPhone.trim() || null : ticket.customer_phone ?? null,
+      retail_sales_reference: ticket.is_retail_sale
+        ? nextRetailSalesReference.trim() || null
+        : ticket.retail_sales_reference ?? null,
       retail_delivery_method: ticket.is_retail_sale
         ? nextRetailDeliveryMethod || null
         : ticket.retail_delivery_method ?? null,
@@ -955,7 +975,7 @@ export default function TicketDetailPage() {
     );
     setEditDraft((current) =>
       current
-        ? {
+          ? {
             ...current,
             expected_delivery_date: nextExpectedDeliveryDate,
             lead_time_note: nextLeadTimeNote,
@@ -964,6 +984,7 @@ export default function TicketDetailPage() {
             supplier_email: normalizedSupplierEmail,
             order_amount: nextOrderAmountInput,
             bin_location: nextBinLocation,
+            retail_sales_reference: nextRetailSalesReference,
           }
         : current,
     );
@@ -1303,6 +1324,7 @@ export default function TicketDetailPage() {
               supplierEmail={statusWorkflowDialog.supplierEmail}
               orderAmount={statusWorkflowDialog.orderAmount}
               binLocation={statusWorkflowDialog.binLocation}
+              retailSalesReference={statusWorkflowDialog.retailSalesReference}
               dispatchPreference={statusWorkflowDialog.dispatchPreference}
               customerName={statusWorkflowDialog.customerName}
               customerEmail={statusWorkflowDialog.customerEmail}
@@ -1349,6 +1371,11 @@ export default function TicketDetailPage() {
               onDispatchPreferenceChange={(value) =>
                 setStatusWorkflowDialog((current) =>
                   current ? { ...current, dispatchPreference: value, errorMessage: "" } : current,
+                )
+              }
+              onRetailSalesReferenceChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, retailSalesReference: value, errorMessage: "" } : current,
                 )
               }
               onCustomerNameChange={(value) =>
@@ -1636,6 +1663,15 @@ export default function TicketDetailPage() {
                           {ticket.is_retail_sale ? (
                             <>
                               <EditField
+                                label="Sales Reference"
+                                value={editDraft.retail_sales_reference}
+                                onChange={(value) =>
+                                  setEditDraft((current) =>
+                                    current ? { ...current, retail_sales_reference: value } : current,
+                                  )
+                                }
+                              />
+                              <EditField
                                 label="Customer Name"
                                 value={editDraft.customer_name}
                                 onChange={(value) =>
@@ -1775,6 +1811,7 @@ export default function TicketDetailPage() {
                           ) : (
                             <>
                               <DetailItem label="Retail Sale" value="Yes" />
+                              <DetailItem label="Sales Reference" value={ticket.retail_sales_reference} />
                               <DetailItem label="Customer Name" value={ticket.customer_name} />
                             </>
                           )}
@@ -2114,6 +2151,7 @@ function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
         ? String(ticket.order_amount)
         : "",
     bin_location: ticket.bin_location ?? "",
+    retail_sales_reference: ticket.retail_sales_reference ?? "",
     customer_name: ticket.customer_name ?? "",
     customer_email: ticket.customer_email ?? "",
     customer_phone: ticket.customer_phone ?? "",

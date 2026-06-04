@@ -125,6 +125,7 @@ type Ticket = {
   requester_name: string | null;
   department: string | null;
   is_retail_sale?: boolean | null;
+  retail_sales_reference?: string | null;
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
@@ -188,6 +189,7 @@ type StatusWorkflowDialogState = {
   orderAmount: string;
   binLocation: string;
   dispatchPreference: SupplierOrderDispatchPreference;
+  retailSalesReference: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -1394,6 +1396,7 @@ export default function AdminPage() {
           : "",
       binLocation: ticket.bin_location ?? "",
       dispatchPreference: "none",
+      retailSalesReference: ticket.retail_sales_reference ?? "",
       customerName: ticket.customer_name ?? "",
       customerEmail: ticket.customer_email ?? "",
       customerPhone: ticket.customer_phone ?? "",
@@ -1483,6 +1486,7 @@ export default function AdminPage() {
       orderAmount?: string;
       binLocation?: string;
       dispatchPreference?: SupplierOrderDispatchPreference;
+      retailSalesReference?: string;
       customerName?: string;
       customerEmail?: string;
       customerPhone?: string;
@@ -1519,6 +1523,8 @@ export default function AdminPage() {
     const normalizedOrderAmountInput = workflow?.orderAmount?.trim() || "";
     const parsedOrderAmount = parseOrderAmountInput(normalizedOrderAmountInput);
     const normalizedBinLocation = workflow?.binLocation?.trim() || "";
+    const normalizedRetailSalesReference =
+      workflow?.retailSalesReference?.trim() || currentTicket.retail_sales_reference?.trim() || "";
     const normalizedCustomerName = workflow?.customerName?.trim() || currentTicket.customer_name?.trim() || "";
     const normalizedCustomerEmail = workflow?.customerEmail?.trim() || currentTicket.customer_email?.trim() || "";
     const normalizedCustomerPhone = workflow?.customerPhone?.trim() || currentTicket.customer_phone?.trim() || "";
@@ -1543,6 +1549,11 @@ export default function AdminPage() {
       if (currentTicket.is_retail_sale) {
         if (!normalizedPurchaseOrderNumber) {
           setStatusWorkflowError(ticketId, "PO number is required before saving ORDERED.");
+          return null;
+        }
+
+        if (!normalizedRetailSalesReference) {
+          setStatusWorkflowError(ticketId, "Sales reference is required before saving ORDERED.");
           return null;
         }
 
@@ -1642,6 +1653,7 @@ export default function AdminPage() {
       updatePayload.purchase_order_number = normalizedPurchaseOrderNumber || null;
       updatePayload.supplier_name = normalizedSupplierName || null;
       updatePayload.supplier_email = normalizedSupplierEmail || null;
+      updatePayload.retail_sales_reference = normalizedRetailSalesReference || null;
       updatePayload.order_amount =
         parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
           ? String(parsedOrderAmount)
@@ -1649,6 +1661,7 @@ export default function AdminPage() {
       updatePayload.overdue_reminder_dismissed_at = null;
       updatePayload.overdue_reminder_dismissed_by = null;
       if (currentTicket.is_retail_sale) {
+        updatePayload.retail_sales_reference = normalizedRetailSalesReference || null;
         updatePayload.customer_name = normalizedCustomerName || null;
         updatePayload.customer_email = normalizedCustomerEmail || null;
         updatePayload.customer_phone = normalizedCustomerPhone || null;
@@ -1663,6 +1676,7 @@ export default function AdminPage() {
       updatePayload.overdue_reminder_dismissed_at = null;
       updatePayload.overdue_reminder_dismissed_by = null;
       if (currentTicket.is_retail_sale) {
+        updatePayload.retail_sales_reference = normalizedRetailSalesReference || null;
         updatePayload.customer_name = normalizedCustomerName || null;
         updatePayload.customer_email = normalizedCustomerEmail || null;
         updatePayload.customer_phone = normalizedCustomerPhone || null;
@@ -1713,6 +1727,7 @@ export default function AdminPage() {
         ? buildRetailCustomerDispatchPlan(
             {
               ...updatedNextTicket,
+              retail_sales_reference: normalizedRetailSalesReference || null,
               customer_name: normalizedCustomerName || null,
               customer_email: normalizedCustomerEmail || null,
               customer_phone: normalizedCustomerPhone || null,
@@ -1750,6 +1765,7 @@ export default function AdminPage() {
           ? buildRetailCustomerComment(
               {
                 ...updatedNextTicket,
+                retail_sales_reference: normalizedRetailSalesReference || null,
                 customer_name: normalizedCustomerName || null,
                 customer_email: normalizedCustomerEmail || null,
                 customer_phone: normalizedCustomerPhone || null,
@@ -1782,6 +1798,7 @@ export default function AdminPage() {
           ? buildRetailCustomerComment(
               {
                 ...updatedNextTicket,
+                retail_sales_reference: normalizedRetailSalesReference || null,
                 customer_name: normalizedCustomerName || null,
                 customer_email: normalizedCustomerEmail || null,
                 customer_phone: normalizedCustomerPhone || null,
@@ -2589,6 +2606,7 @@ export default function AdminPage() {
               customerName={statusWorkflowDialog.customerName}
               customerEmail={statusWorkflowDialog.customerEmail}
               customerPhone={statusWorkflowDialog.customerPhone}
+              retailSalesReference={statusWorkflowDialog.retailSalesReference}
               retailDeliveryMethod={statusWorkflowDialog.retailDeliveryMethod}
               retailDeliveryAddress={statusWorkflowDialog.retailDeliveryAddress}
               retailApcTrackingNumber={statusWorkflowDialog.retailApcTrackingNumber}
@@ -2631,6 +2649,11 @@ export default function AdminPage() {
               onDispatchPreferenceChange={(value) =>
                 setStatusWorkflowDialog((current) =>
                   current ? { ...current, dispatchPreference: value, errorMessage: "" } : current,
+                )
+              }
+              onRetailSalesReferenceChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, retailSalesReference: value, errorMessage: "" } : current,
                 )
               }
               onCustomerNameChange={(value) =>
@@ -3601,11 +3624,9 @@ export default function AdminPage() {
                                         className="h-10 w-10 rounded-full border border-slate-200 object-cover"
                                       />
                                     ) : null}
-                                    <div>
+                              <div>
                                     <p className="text-sm font-semibold text-slate-900">
-                                      {ticket.is_retail_sale
-                                        ? ticket.customer_name ?? "Retail order"
-                                        : `Job ${ticket.job_number ?? "Not set"}`}
+                                      {formatRequestTitle(ticket)}
                                     </p>
                                     <p className="mt-1 text-sm text-slate-500">
                                       {ticket.is_retail_sale
@@ -3636,11 +3657,11 @@ export default function AdminPage() {
                               <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
                                 <div>
                                   <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                    {ticket.is_retail_sale ? "Retail Order" : "Machine Ref"}
+                                    {ticket.is_retail_sale ? "Sales Reference" : "Machine Ref"}
                                   </dt>
                                   <dd className="mt-1">
                                     {ticket.is_retail_sale
-                                      ? ticket.customer_name ?? "Retail order"
+                                      ? ticket.retail_sales_reference ?? "-"
                                       : ticket.machine_reference ?? "-"}
                                   </dd>
                                 </div>
@@ -3750,10 +3771,21 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
       </td>
       <td className="px-6 py-5 text-sm text-slate-600">
         <div className="space-y-1">
-          <p>{ticket.job_number ?? "-"}</p>
-          <p className="text-xs text-slate-500">
-            {ticket.machine_reference ?? "-"}
-          </p>
+          {ticket.is_retail_sale ? (
+            <>
+              <p>{ticket.retail_sales_reference ?? "-"}</p>
+              <p className="text-xs text-slate-500">
+                {ticket.customer_name ?? "Retail order"}
+              </p>
+            </>
+          ) : (
+            <>
+              <p>{ticket.job_number ?? "-"}</p>
+              <p className="text-xs text-slate-500">
+                {ticket.machine_reference ?? "-"}
+              </p>
+            </>
+          )}
         </div>
       </td>
       <td className="px-6 py-5 text-sm leading-7 text-slate-600">
@@ -4424,6 +4456,7 @@ function TicketOperationalSummary({
   const hasCustomerName = Boolean(ticket.customer_name?.trim());
   const hasCustomerEmail = Boolean(ticket.customer_email?.trim());
   const hasCustomerPhone = Boolean(ticket.customer_phone?.trim());
+  const hasRetailSalesReference = Boolean(ticket.retail_sales_reference?.trim());
   const hasRetailDeliveryMethod = Boolean(ticket.retail_delivery_method?.trim());
   const hasRetailDeliveryAddress = Boolean(ticket.retail_delivery_address?.trim());
   const hasRetailApcTrackingNumber = Boolean(ticket.retail_apc_tracking_number?.trim());
@@ -4439,6 +4472,7 @@ function TicketOperationalSummary({
     !hasCustomerName &&
     !hasCustomerEmail &&
     !hasCustomerPhone &&
+    !hasRetailSalesReference &&
     !hasRetailDeliveryMethod &&
     !hasRetailDeliveryAddress &&
     !hasRetailApcTrackingNumber
@@ -4500,6 +4534,11 @@ function TicketOperationalSummary({
             Retail Sale
           </div>
           <div className="mt-2 space-y-1 leading-5">
+            {hasRetailSalesReference ? (
+              <p>
+                Sales Reference: <span className="font-semibold">{ticket.retail_sales_reference}</span>
+              </p>
+            ) : null}
             {hasCustomerName ? <p>Customer: <span className="font-semibold">{ticket.customer_name}</span></p> : null}
             {hasRetailDeliveryMethod ? (
               <p>
@@ -4642,8 +4681,8 @@ function truncateSummary(value: string) {
 function formatRequestTitle(ticket: Ticket) {
   const summary = ticket.request_summary ?? ticket.request_details ?? "No request summary";
   if (ticket.is_retail_sale) {
-    const customerLabel = ticket.customer_name?.trim() || "Retail order";
-    return `${customerLabel} | ${truncateSummary(summary)}`;
+    const salesReference = ticket.retail_sales_reference?.trim() || "TBD";
+    return `Order ${salesReference}`;
   }
 
   const jobLabel = ticket.job_number ? `Job ${ticket.job_number}` : "Job not set";
