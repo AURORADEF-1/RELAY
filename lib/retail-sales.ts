@@ -1,4 +1,4 @@
-import { formatOrderAmount, formatOperationalDate, type TicketOperationalRecord } from "@/lib/ticket-operational";
+import { type TicketOperationalRecord } from "@/lib/ticket-operational";
 
 export type RetailDeliveryMethod = "collect" | "delivery";
 export type RetailCustomerDispatchChannel = "email" | "whatsapp" | "records";
@@ -158,24 +158,13 @@ export function buildRetailCustomerBodyLines(
   const customerName = ticket.customer_name?.trim() || "Customer";
   const deliveryAddress = ticket.retail_delivery_address?.trim() || "-";
   const tracking = ticket.retail_apc_tracking_number?.trim() || "-";
-  const jobNumber = ticket.job_number?.trim() || ticket.id.slice(0, 8).toUpperCase();
-  const machineReference = ticket.machine_reference?.trim() || "-";
-  const amount = formatOrderAmount(ticket.order_amount);
-  const expectedDelivery = formatOperationalDate(ticket.expected_delivery_date);
-  const deliveryMethod = ticket.retail_delivery_method === "delivery" ? "Delivery" : "Collection";
-
   if (stage === "ready" && ticket.retail_delivery_method === "delivery") {
     return [
       `Hello ${customerName},`,
       "",
       `Your order of ${partsRequired} is out for delivery.`,
-      `Job Number: ${jobNumber}`,
-      `Machine Reference: ${machineReference}`,
-      `Delivery Method: ${deliveryMethod}`,
       `Delivery Address: ${deliveryAddress}`,
       `APC Tracking Number: ${tracking}`,
-      `Order Amount: ${amount}`,
-      `Expected Delivery: ${expectedDelivery}`,
       "",
       "Please keep this message for your records.",
     ];
@@ -186,31 +175,21 @@ export function buildRetailCustomerBodyLines(
       `Hello ${customerName},`,
       "",
       `Your order of ${partsRequired} is out for delivery.`,
-      `Job Number: ${jobNumber}`,
-      `Machine Reference: ${machineReference}`,
-      `Delivery Method: ${deliveryMethod}`,
       `Delivery Address: ${deliveryAddress}`,
       `APC Tracking Number: ${tracking}`,
-      `Order Amount: ${amount}`,
-      `Expected Delivery: ${expectedDelivery}`,
       "",
       "Please keep this message for your records.",
     ];
   }
 
-  return [
-    `Hello ${customerName},`,
-    "",
-    `Your order of ${partsRequired} is ready to collect from Stores.`,
-    `Job Number: ${jobNumber}`,
-    `Machine Reference: ${machineReference}`,
-    `Delivery Method: ${deliveryMethod}`,
-    `Order Amount: ${amount}`,
-    `Expected Delivery: ${expectedDelivery}`,
-    "",
-    "Please collect when convenient.",
-  ];
-}
+    return [
+      `Hello ${customerName},`,
+      "",
+      `Your order of ${partsRequired} is ready to collect from Stores.`,
+      "",
+      "Please collect when convenient.",
+    ];
+  }
 
 function normalizePhoneNumber(value: string) {
   const trimmed = value.trim();
