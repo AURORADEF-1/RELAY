@@ -286,6 +286,39 @@ export default function SubmitPage() {
     }
   }
 
+  function toggleRetailSale() {
+    setIsRetailSale((current) => {
+      const nextValue = !current;
+
+      if (nextValue) {
+        setValues((currentValues) => ({
+          ...currentValues,
+          requesterName: "",
+          department: "",
+          machineReference: "",
+          jobNumber: "",
+          retailDeliveryAddress: currentValues.retailDeliveryMethod === "delivery"
+            ? currentValues.retailDeliveryAddress
+            : "",
+        }));
+        setErrors((currentErrors) => {
+          const nextErrors = { ...currentErrors };
+          delete nextErrors.requesterName;
+          delete nextErrors.department;
+          delete nextErrors.machineReference;
+          delete nextErrors.jobNumber;
+          return nextErrors;
+        });
+        setLocationDraft(null);
+        setLocationStatusMessage(null);
+        setMachineRegistryRecord(null);
+        setMachineLookupError("");
+      }
+
+      return nextValue;
+    });
+  }
+
   async function requestOnsiteLocation() {
     if (!("geolocation" in navigator)) {
       setLocationStatusMessage({
@@ -338,6 +371,28 @@ export default function SubmitPage() {
   function validateForm() {
     const nextErrors: FormErrors = {};
 
+    if (isRetailSale) {
+      const requiredFields: Array<keyof FormValues> = [
+        "requestDetails",
+        "customerName",
+        "customerEmail",
+        "customerPhone",
+        "retailDeliveryMethod",
+      ];
+
+      requiredFields.forEach((key) => {
+        if (!values[key].trim()) {
+          nextErrors[key] = `${fieldLabels[key]} is required.`;
+        }
+      });
+
+      if (values.retailDeliveryMethod === "delivery" && !values.retailDeliveryAddress.trim()) {
+        nextErrors.retailDeliveryAddress = `${fieldLabels.retailDeliveryAddress} is required.`;
+      }
+
+      return nextErrors;
+    }
+
     const requiredFields: Array<keyof FormValues> = [
       "requesterName",
       "department",
@@ -346,24 +401,11 @@ export default function SubmitPage() {
       "requestDetails",
     ];
 
-    if (isRetailSale) {
-      requiredFields.push(
-        "customerName",
-        "customerEmail",
-        "customerPhone",
-        "retailDeliveryMethod",
-      );
-    }
-
     requiredFields.forEach((key) => {
       if (!values[key].trim()) {
         nextErrors[key] = `${fieldLabels[key]} is required.`;
       }
     });
-
-    if (isRetailSale && values.retailDeliveryMethod === "delivery" && !values.retailDeliveryAddress.trim()) {
-      nextErrors.retailDeliveryAddress = `${fieldLabels.retailDeliveryAddress} is required.`;
-    }
 
     return nextErrors;
   }
@@ -504,7 +546,7 @@ export default function SubmitPage() {
       });
       setValues({
         ...initialValues,
-        requesterName: ticketPayload.requester_name,
+        requesterName: ticketPayload.requester_name ?? "",
       });
       setIsRetailSale(false);
       setErrors({});
@@ -634,11 +676,11 @@ export default function SubmitPage() {
                           </div>
                           <button
                             type="button"
-                            onClick={() => setIsRetailSale((current) => !current)}
+                            onClick={toggleRetailSale}
                             className={`inline-flex h-11 items-center justify-center rounded-full px-4 text-xs font-semibold uppercase tracking-[0.18em] transition ${
                               isRetailSale
-                                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                                : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                                ? "border border-emerald-300 bg-emerald-100 text-emerald-800"
+                                : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100"
                             }`}
                           >
                             {isRetailSale ? "Retail sale enabled" : "Mark as retail sale"}
@@ -647,6 +689,9 @@ export default function SubmitPage() {
 
                         {isRetailSale ? (
                           <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            <div className="sm:col-span-2 rounded-[1.1rem] border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-900">
+                              Retail sale mode hides the standard request identity fields and uses customer and delivery details instead.
+                            </div>
                             <FormField
                               label="Customer name"
                               name="customerName"
@@ -697,48 +742,50 @@ export default function SubmitPage() {
                       </div>
                     ) : null}
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <FormField
-                        label="Requester name"
-                        name="requesterName"
-                        value={values.requesterName}
-                        error={errors.requesterName}
-                        placeholder="Full name"
-                        onChange={handleChange}
-                      />
-                      <SelectField
-                        label="Department"
-                        name="department"
-                        value={values.department}
-                        error={errors.department}
-                        onChange={handleChange}
-                        options={departmentOptions}
-                      />
-                      <FormField
-                        label="Machine reference"
-                        name="machineReference"
-                        value={values.machineReference}
-                        error={errors.machineReference}
-                        placeholder="Machine reference"
-                        onChange={handleChange}
-                      />
-                      <div className="sm:col-span-2">
-                        <MachineVerificationPanel
-                          machineReference={values.machineReference.trim()}
-                          record={machineRegistryRecord}
-                          isLoading={isMachineLookupLoading}
-                          errorMessage={machineLookupError}
+                    {!isRetailSale ? (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          label="Requester name"
+                          name="requesterName"
+                          value={values.requesterName}
+                          error={errors.requesterName}
+                          placeholder="Full name"
+                          onChange={handleChange}
+                        />
+                        <SelectField
+                          label="Department"
+                          name="department"
+                          value={values.department}
+                          error={errors.department}
+                          onChange={handleChange}
+                          options={departmentOptions}
+                        />
+                        <FormField
+                          label="Machine reference"
+                          name="machineReference"
+                          value={values.machineReference}
+                          error={errors.machineReference}
+                          placeholder="Machine reference"
+                          onChange={handleChange}
+                        />
+                        <div className="sm:col-span-2">
+                          <MachineVerificationPanel
+                            machineReference={values.machineReference.trim()}
+                            record={machineRegistryRecord}
+                            isLoading={isMachineLookupLoading}
+                            errorMessage={machineLookupError}
+                          />
+                        </div>
+                        <FormField
+                          label="Job number"
+                          name="jobNumber"
+                          value={values.jobNumber}
+                          error={errors.jobNumber}
+                          placeholder="Job number"
+                          onChange={handleChange}
                         />
                       </div>
-                      <FormField
-                        label="Job number"
-                        name="jobNumber"
-                        value={values.jobNumber}
-                        error={errors.jobNumber}
-                        placeholder="Job number"
-                        onChange={handleChange}
-                      />
-                    </div>
+                    ) : null}
 
                       <FormField
                         label="Request details"
@@ -771,7 +818,7 @@ export default function SubmitPage() {
                   </div>
                 ) : null}
 
-                {values.department === "Onsite" ? (
+                {!isRetailSale && values.department === "Onsite" ? (
                   <section className="aurora-panel rounded-[1.6rem] p-4 sm:p-5">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="space-y-1.5">
@@ -1075,9 +1122,9 @@ function MachineVerificationPanel({
 
   if (!record) {
     return (
-      <div className="rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <div className="rounded-[1rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
         <div className="font-semibold">Machine not verified</div>
-        <p className="mt-1 text-sm text-amber-800">
+        <p className="mt-1 text-sm text-emerald-800">
           No fleet record matched {machineReference}. The ticket can still be submitted, but the machine will not be marked as verified.
         </p>
       </div>
@@ -1148,26 +1195,26 @@ function buildTicketInsertPayload(
 
   return {
     user_id: userId,
-    requester_name: requesterName,
-    department,
-    machine_reference: machineReference,
-    machine_number: (machineSnapshot?.machine_number ?? machineReference) || null,
-    machine_number_normalized: machineSnapshot?.machine_number_normalized ?? null,
-    machine_fleet_type: machineSnapshot?.machine_fleet_type ?? null,
-    machine_item_description: machineSnapshot?.machine_item_description ?? null,
-    machine_make: machineSnapshot?.machine_make ?? null,
-    machine_model: machineSnapshot?.machine_model ?? null,
-    machine_serial_number: machineSnapshot?.machine_serial_number ?? null,
-    machine_status: machineSnapshot?.machine_status ?? null,
-    machine_quantity: machineSnapshot?.machine_quantity ?? null,
-    machine_buying_price: machineSnapshot?.machine_buying_price ?? null,
-    machine_selling_price: machineSnapshot?.machine_selling_price ?? null,
-    machine_source_sheet: machineSnapshot?.machine_source_sheet ?? null,
-    machine_source_row: machineSnapshot?.machine_source_row ?? null,
-    machine_verified: Boolean(machineSnapshot),
-    machine_verified_at: machineSnapshot?.machine_verified_at ?? null,
-    machine_verified_by: machineSnapshot?.machine_verified_by ?? null,
-    job_number: jobNumber,
+    requester_name: isRetailSale ? null : requesterName,
+    department: isRetailSale ? null : department,
+    machine_reference: isRetailSale ? null : machineReference,
+    machine_number: isRetailSale ? null : (machineSnapshot?.machine_number ?? machineReference) || null,
+    machine_number_normalized: isRetailSale ? null : machineSnapshot?.machine_number_normalized ?? null,
+    machine_fleet_type: isRetailSale ? null : machineSnapshot?.machine_fleet_type ?? null,
+    machine_item_description: isRetailSale ? null : machineSnapshot?.machine_item_description ?? null,
+    machine_make: isRetailSale ? null : machineSnapshot?.machine_make ?? null,
+    machine_model: isRetailSale ? null : machineSnapshot?.machine_model ?? null,
+    machine_serial_number: isRetailSale ? null : machineSnapshot?.machine_serial_number ?? null,
+    machine_status: isRetailSale ? null : machineSnapshot?.machine_status ?? null,
+    machine_quantity: isRetailSale ? null : machineSnapshot?.machine_quantity ?? null,
+    machine_buying_price: isRetailSale ? null : machineSnapshot?.machine_buying_price ?? null,
+    machine_selling_price: isRetailSale ? null : machineSnapshot?.machine_selling_price ?? null,
+    machine_source_sheet: isRetailSale ? null : machineSnapshot?.machine_source_sheet ?? null,
+    machine_source_row: isRetailSale ? null : machineSnapshot?.machine_source_row ?? null,
+    machine_verified: !isRetailSale && Boolean(machineSnapshot),
+    machine_verified_at: isRetailSale ? null : machineSnapshot?.machine_verified_at ?? null,
+    machine_verified_by: isRetailSale ? null : machineSnapshot?.machine_verified_by ?? null,
+    job_number: isRetailSale ? null : jobNumber,
     request_details: requestDetails,
     request_summary: requestDetails,
     status: "PENDING",

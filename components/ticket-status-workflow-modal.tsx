@@ -129,6 +129,38 @@ export function TicketStatusWorkflowModal({
                 <div className="grid gap-4 lg:grid-cols-2">
                   <label className="block space-y-2">
                     <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                      PO Number
+                    </span>
+                    <input
+                      type="text"
+                      value={purchaseOrderNumber}
+                      onChange={(event) => onPurchaseOrderNumberChange(event.target.value)}
+                      placeholder="Enter purchase order number"
+                      className="aurora-input"
+                    />
+                  </label>
+
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                      Supplier
+                    </span>
+                    <input
+                      type="text"
+                      value={supplierName}
+                      onChange={(event) => onSupplierNameChange(event.target.value)}
+                      list="supplier-suggestions"
+                      placeholder="Type or select supplier name"
+                      className="aurora-input"
+                    />
+                    <datalist id="supplier-suggestions">
+                      {supplierSuggestions.map((supplier) => (
+                        <option key={supplier} value={supplier} />
+                      ))}
+                    </datalist>
+                  </label>
+
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
                       Customer Name
                     </span>
                     <input

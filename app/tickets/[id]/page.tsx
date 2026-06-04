@@ -702,6 +702,26 @@ export default function TicketDetailPage() {
     }
 
     if (workflowRequirement === "ordered" && ticket.is_retail_sale) {
+      if (!nextPurchaseOrderNumber.trim()) {
+        setStatusWorkflowDialog((current) =>
+          current
+            ? { ...current, errorMessage: "PO number is required before saving ORDERED." }
+            : current,
+        );
+        setIsSavingEdit(false);
+        return;
+      }
+
+      if (!normalizedSupplierName.trim()) {
+        setStatusWorkflowDialog((current) =>
+          current
+            ? { ...current, errorMessage: "Supplier is required before saving ORDERED." }
+            : current,
+        );
+        setIsSavingEdit(false);
+        return;
+      }
+
       if (!nextCustomerName.trim()) {
         setStatusWorkflowDialog((current) =>
           current

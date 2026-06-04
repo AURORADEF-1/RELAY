@@ -179,6 +179,7 @@ type StatusWorkflowDialogState = {
   ticketId: string;
   mode: "ordered" | "ready";
   nextStatus: TicketStatus;
+  isRetailSale: boolean;
   expectedDeliveryDate: string;
   leadTimeNote: string;
   purchaseOrderNumber: string;
@@ -1381,6 +1382,7 @@ export default function AdminPage() {
       ticketId: ticket.id,
       mode,
       nextStatus,
+      isRetailSale: Boolean(ticket.is_retail_sale),
       expectedDeliveryDate: toDateInputValue(ticket.expected_delivery_date),
       leadTimeNote: ticket.lead_time_note ?? "",
       purchaseOrderNumber: ticket.purchase_order_number ?? "",
@@ -1539,6 +1541,16 @@ export default function AdminPage() {
       }
 
       if (currentTicket.is_retail_sale) {
+        if (!normalizedPurchaseOrderNumber) {
+          setStatusWorkflowError(ticketId, "PO number is required before saving ORDERED.");
+          return null;
+        }
+
+        if (!normalizedSupplierName) {
+          setStatusWorkflowError(ticketId, "Supplier is required before saving ORDERED.");
+          return null;
+        }
+
         if (!normalizedCustomerName) {
           setStatusWorkflowError(ticketId, "Customer name is required for retail sales.");
           return null;
@@ -2572,7 +2584,7 @@ export default function AdminPage() {
           {statusWorkflowDialog ? (
             <TicketStatusWorkflowModal
               mode={statusWorkflowDialog.mode}
-              isRetailSale={Boolean(statusWorkflowDialog.customerName || statusWorkflowDialog.retailDeliveryMethod)}
+              isRetailSale={statusWorkflowDialog.isRetailSale}
               isSubmitting={updatingTicketId === statusWorkflowDialog.ticketId}
               expectedDeliveryDate={statusWorkflowDialog.expectedDeliveryDate}
               leadTimeNote={statusWorkflowDialog.leadTimeNote}
@@ -2675,6 +2687,26 @@ export default function AdminPage() {
                       : current,
                   );
                   return;
+                }
+
+                if (dialog.mode === "ordered" && Boolean(statusWorkflowDialog.customerName || statusWorkflowDialog.retailDeliveryMethod)) {
+                  if (!dialog.purchaseOrderNumber.trim()) {
+                    setStatusWorkflowDialog((current) =>
+                      current
+                        ? { ...current, errorMessage: "PO number is required before saving ORDERED." }
+                        : current,
+                    );
+                    return;
+                  }
+
+                  if (!dialog.supplierName.trim()) {
+                    setStatusWorkflowDialog((current) =>
+                      current
+                        ? { ...current, errorMessage: "Supplier is required before saving ORDERED." }
+                        : current,
+                    );
+                    return;
+                  }
                 }
 
                 if (dialog.mode === "ordered" && !dialog.purchaseOrderNumber.trim()) {
