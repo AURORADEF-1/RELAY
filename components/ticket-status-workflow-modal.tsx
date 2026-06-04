@@ -4,6 +4,7 @@ import type { SupplierOrderDispatchPreference } from "@/lib/order-communications
 
 type TicketStatusWorkflowModalProps = {
   mode: "ordered" | "ready";
+  isRetailSale?: boolean;
   isSubmitting?: boolean;
   expectedDeliveryDate: string;
   leadTimeNote: string;
@@ -14,6 +15,12 @@ type TicketStatusWorkflowModalProps = {
   orderAmount: string;
   binLocation: string;
   dispatchPreference: SupplierOrderDispatchPreference;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  retailDeliveryMethod?: "" | "collect" | "delivery";
+  retailDeliveryAddress?: string;
+  retailApcTrackingNumber?: string;
   errorMessage?: string;
   onExpectedDeliveryDateChange: (value: string) => void;
   onLeadTimeNoteChange: (value: string) => void;
@@ -23,12 +30,19 @@ type TicketStatusWorkflowModalProps = {
   onOrderAmountChange: (value: string) => void;
   onBinLocationChange: (value: string) => void;
   onDispatchPreferenceChange: (value: SupplierOrderDispatchPreference) => void;
+  onCustomerNameChange?: (value: string) => void;
+  onCustomerEmailChange?: (value: string) => void;
+  onCustomerPhoneChange?: (value: string) => void;
+  onRetailDeliveryMethodChange?: (value: "" | "collect" | "delivery") => void;
+  onRetailDeliveryAddressChange?: (value: string) => void;
+  onRetailApcTrackingNumberChange?: (value: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
 };
 
 export function TicketStatusWorkflowModal({
   mode,
+  isRetailSale = false,
   isSubmitting = false,
   expectedDeliveryDate,
   leadTimeNote,
@@ -39,6 +53,12 @@ export function TicketStatusWorkflowModal({
   orderAmount,
   binLocation,
   dispatchPreference,
+  customerName = "",
+  customerEmail = "",
+  customerPhone = "",
+  retailDeliveryMethod = "",
+  retailDeliveryAddress = "",
+  retailApcTrackingNumber = "",
   errorMessage,
   onExpectedDeliveryDateChange,
   onLeadTimeNoteChange,
@@ -48,6 +68,12 @@ export function TicketStatusWorkflowModal({
   onOrderAmountChange,
   onBinLocationChange,
   onDispatchPreferenceChange,
+  onCustomerNameChange,
+  onCustomerEmailChange,
+  onCustomerPhoneChange,
+  onRetailDeliveryMethodChange,
+  onRetailDeliveryAddressChange,
+  onRetailApcTrackingNumberChange,
   onConfirm,
   onCancel,
 }: TicketStatusWorkflowModalProps) {
@@ -60,11 +86,17 @@ export function TicketStatusWorkflowModal({
               Status Control
             </p>
             <h2 className="text-2xl font-semibold tracking-[-0.04em] text-[color:var(--foreground-strong)]">
-              {mode === "ordered" ? "ORDERED requires supplier details" : "READY requires bin location"}
+              {mode === "ordered"
+                ? isRetailSale
+                  ? "ORDERED requires customer delivery details"
+                  : "ORDERED requires supplier details"
+                : "READY requires bin location"}
             </h2>
             <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">
               {mode === "ordered"
-                ? "Set expected delivery, PO, supplier, and order value before saving this ticket as ORDERED. Saving will draft the supplier message and email Parts for records."
+                ? isRetailSale
+                  ? "Set customer, delivery method, and APC tracking details before saving this retail order as ORDERED."
+                  : "Set expected delivery, PO, supplier, and order value before saving this ticket as ORDERED. Saving will draft the supplier message and email Parts for records."
                 : "Enter the collection bin location before marking this ticket READY."}
             </p>
           </div>
@@ -91,89 +123,168 @@ export function TicketStatusWorkflowModal({
                   onChange={(event) => onExpectedDeliveryDateChange(event.target.value)}
                   className="aurora-input"
                 />
-              </label>
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
-                    PO Number
-                  </span>
-                  <input
-                    type="text"
-                    value={purchaseOrderNumber}
-                    onChange={(event) => onPurchaseOrderNumberChange(event.target.value)}
-                    placeholder="Enter purchase order number"
-                    className="aurora-input"
-                  />
                 </label>
 
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
-                    Supplier
-                  </span>
-                  <input
-                    type="text"
-                    value={supplierName}
-                    onChange={(event) => onSupplierNameChange(event.target.value)}
-                    list="supplier-suggestions"
-                    placeholder="Type or select supplier name"
-                    className="aurora-input"
-                  />
-                  <datalist id="supplier-suggestions">
-                    {supplierSuggestions.map((supplier) => (
-                      <option key={supplier} value={supplier} />
-                    ))}
-                  </datalist>
-                </label>
-              </div>
+              {isRetailSale ? (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                      Customer Name
+                    </span>
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(event) => onCustomerNameChange?.(event.target.value)}
+                      placeholder="Enter customer name"
+                      className="aurora-input"
+                    />
+                  </label>
 
-              <label className="block space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
-                  Supplier Email
-                </span>
-                <input
-                  type="email"
-                  value={supplierEmail}
-                  onChange={(event) => onSupplierEmailChange(event.target.value)}
-                  placeholder="supplier@example.com"
-                  className="aurora-input"
-                />
-              </label>
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                      Customer Email
+                    </span>
+                    <input
+                      type="email"
+                      value={customerEmail}
+                      onChange={(event) => onCustomerEmailChange?.(event.target.value)}
+                      placeholder="customer@example.com"
+                      className="aurora-input"
+                    />
+                  </label>
 
-              <div className="grid gap-4 lg:grid-cols-2">
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
-                    Supplier Email
-                  </span>
-                  <input
-                    type="email"
-                    value={supplierEmail}
-                    onChange={(event) => onSupplierEmailChange(event.target.value)}
-                    placeholder="supplier@example.com"
-                    className="aurora-input"
-                  />
-                </label>
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                      Customer Phone
+                    </span>
+                    <input
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(event) => onCustomerPhoneChange?.(event.target.value)}
+                      placeholder="07..."
+                      className="aurora-input"
+                    />
+                  </label>
 
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
-                    Send Supplier Draft Now
-                  </span>
-                  <select
-                    value={dispatchPreference}
-                    onChange={(event) =>
-                      onDispatchPreferenceChange(event.target.value as SupplierOrderDispatchPreference)
-                    }
-                    className="aurora-input"
-                  >
-                    <option value="none">Do not send now</option>
-                    <option value="email">Open email draft</option>
-                    <option value="whatsapp">Open WhatsApp in new window</option>
-                  </select>
-                  <p className="text-xs leading-5 text-[color:var(--foreground-muted)]">
-                    The supplier draft can be opened after saving. WhatsApp opens in a new window so Relay stays open.
-                  </p>
-                </label>
-              </div>
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                      Delivery Method
+                    </span>
+                    <select
+                      value={retailDeliveryMethod}
+                      onChange={(event) =>
+                        onRetailDeliveryMethodChange?.(event.target.value as "" | "collect" | "delivery")
+                      }
+                      className="aurora-input"
+                    >
+                      <option value="">Select delivery method</option>
+                      <option value="collect">Collection</option>
+                      <option value="delivery">Delivery</option>
+                    </select>
+                  </label>
+
+                  {retailDeliveryMethod === "delivery" ? (
+                    <>
+                      <label className="block space-y-2 lg:col-span-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                          Delivery Address
+                        </span>
+                        <textarea
+                          value={retailDeliveryAddress}
+                          onChange={(event) => onRetailDeliveryAddressChange?.(event.target.value)}
+                          rows={3}
+                          placeholder="Enter delivery address"
+                          className="aurora-textarea"
+                        />
+                      </label>
+
+                      <label className="block space-y-2 lg:col-span-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                          APC Tracking Number
+                        </span>
+                        <input
+                          type="text"
+                          value={retailApcTrackingNumber}
+                          onChange={(event) => onRetailApcTrackingNumberChange?.(event.target.value)}
+                          placeholder="Enter APC tracking number"
+                          className="aurora-input"
+                        />
+                      </label>
+                    </>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                        PO Number
+                      </span>
+                      <input
+                        type="text"
+                        value={purchaseOrderNumber}
+                        onChange={(event) => onPurchaseOrderNumberChange(event.target.value)}
+                        placeholder="Enter purchase order number"
+                        className="aurora-input"
+                      />
+                    </label>
+
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                        Supplier
+                      </span>
+                      <input
+                        type="text"
+                        value={supplierName}
+                        onChange={(event) => onSupplierNameChange(event.target.value)}
+                        list="supplier-suggestions"
+                        placeholder="Type or select supplier name"
+                        className="aurora-input"
+                      />
+                      <datalist id="supplier-suggestions">
+                        {supplierSuggestions.map((supplier) => (
+                          <option key={supplier} value={supplier} />
+                        ))}
+                      </datalist>
+                    </label>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                        Supplier Email
+                      </span>
+                      <input
+                        type="email"
+                        value={supplierEmail}
+                        onChange={(event) => onSupplierEmailChange(event.target.value)}
+                        placeholder="supplier@example.com"
+                        className="aurora-input"
+                      />
+                    </label>
+
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                        Send Supplier Draft Now
+                      </span>
+                      <select
+                        value={dispatchPreference}
+                        onChange={(event) =>
+                          onDispatchPreferenceChange(event.target.value as SupplierOrderDispatchPreference)
+                        }
+                        className="aurora-input"
+                      >
+                        <option value="none">Do not send now</option>
+                        <option value="email">Open email draft</option>
+                        <option value="whatsapp">Open WhatsApp in new window</option>
+                      </select>
+                      <p className="text-xs leading-5 text-[color:var(--foreground-muted)]">
+                        The supplier draft can be opened after saving. WhatsApp opens in a new window so Relay stays open.
+                      </p>
+                    </label>
+                  </div>
+                </>
+              )}
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <label className="block space-y-2">

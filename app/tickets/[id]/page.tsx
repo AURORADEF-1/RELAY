@@ -27,6 +27,11 @@ import {
   loadSupplierDispatchContact,
 } from "@/lib/order-communications";
 import {
+  buildRetailCustomerComment,
+  buildRetailCustomerDispatchPlan,
+  type RetailDeliveryMethod,
+} from "@/lib/retail-sales";
+import {
   notifyAdminsOfPartCollected,
   notifyAdminsOfPartReturned,
   notifyAdminsOfRequesterMessage,
@@ -79,6 +84,13 @@ type TicketRecord = {
   user_id: string | null;
   requester_name: string | null;
   department: string | null;
+  is_retail_sale?: boolean | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  retail_delivery_method?: RetailDeliveryMethod | null;
+  retail_delivery_address?: string | null;
+  retail_apc_tracking_number?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
   location_summary?: string | null;
@@ -148,6 +160,12 @@ type TicketEditDraft = {
   supplier_email: string;
   order_amount: string;
   bin_location: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  retail_delivery_method: "" | RetailDeliveryMethod;
+  retail_delivery_address: string;
+  retail_apc_tracking_number: string;
 };
 
 type StatusWorkflowDialogState = {
@@ -160,6 +178,12 @@ type StatusWorkflowDialogState = {
   orderAmount: string;
   binLocation: string;
   dispatchPreference: SupplierOrderDispatchPreference;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  retailDeliveryMethod: "" | RetailDeliveryMethod;
+  retailDeliveryAddress: string;
+  retailApcTrackingNumber: string;
   errorMessage: string;
 };
 
@@ -530,6 +554,12 @@ export default function TicketDetailPage() {
     orderAmount: string;
     binLocation: string;
     dispatchPreference: SupplierOrderDispatchPreference;
+    customerName?: string;
+    customerEmail?: string;
+    customerPhone?: string;
+    retailDeliveryMethod?: "" | RetailDeliveryMethod;
+    retailDeliveryAddress?: string;
+    retailApcTrackingNumber?: string;
   }) {
     if (!ticket || !editDraft) {
       return;
@@ -570,6 +600,15 @@ export default function TicketDetailPage() {
       confirmedWorkflow?.orderAmount ?? editDraft.order_amount;
     const parsedOrderAmount = parseOrderAmountInput(nextOrderAmountInput);
     const nextBinLocation = confirmedWorkflow?.binLocation ?? editDraft.bin_location;
+    const nextCustomerName = confirmedWorkflow?.customerName ?? editDraft.customer_name;
+    const nextCustomerEmail = confirmedWorkflow?.customerEmail ?? editDraft.customer_email;
+    const nextCustomerPhone = confirmedWorkflow?.customerPhone ?? editDraft.customer_phone;
+    const nextRetailDeliveryMethod =
+      confirmedWorkflow?.retailDeliveryMethod ?? editDraft.retail_delivery_method;
+    const nextRetailDeliveryAddress =
+      confirmedWorkflow?.retailDeliveryAddress ?? editDraft.retail_delivery_address;
+    const nextRetailApcTrackingNumber =
+      confirmedWorkflow?.retailApcTrackingNumber ?? editDraft.retail_apc_tracking_number;
     const expectedDateChanged =
       toDateInputValue(ticket.expected_delivery_date) !== nextExpectedDeliveryDate.trim();
 
@@ -583,6 +622,12 @@ export default function TicketDetailPage() {
         supplierEmail: normalizedSupplierEmail,
         orderAmount: nextOrderAmountInput,
         binLocation: nextBinLocation,
+        customerName: nextCustomerName,
+        customerEmail: nextCustomerEmail,
+        customerPhone: nextCustomerPhone,
+        retailDeliveryMethod: nextRetailDeliveryMethod as "" | RetailDeliveryMethod,
+        retailDeliveryAddress: nextRetailDeliveryAddress,
+        retailApcTrackingNumber: nextRetailApcTrackingNumber,
         dispatchPreference: "none",
         errorMessage: "",
       });
@@ -621,16 +666,18 @@ export default function TicketDetailPage() {
     }
 
     if (workflowRequirement === "ordered" && !normalizedSupplierName.trim()) {
-      setStatusWorkflowDialog((current) =>
-        current
-          ? { ...current, errorMessage: "Supplier is required before saving ORDERED." }
-          : current,
-      );
-      setIsSavingEdit(false);
-      return;
+      if (!ticket.is_retail_sale) {
+        setStatusWorkflowDialog((current) =>
+          current
+            ? { ...current, errorMessage: "Supplier is required before saving ORDERED." }
+            : current,
+        );
+        setIsSavingEdit(false);
+        return;
+      }
     }
 
-    if (workflowRequirement === "ordered" && !nextOrderAmountInput.trim()) {
+    if (workflowRequirement === "ordered" && !ticket.is_retail_sale && !nextOrderAmountInput.trim()) {
       setStatusWorkflowDialog((current) =>
         current
           ? { ...current, errorMessage: "Order amount is required before saving ORDERED." }
@@ -642,6 +689,7 @@ export default function TicketDetailPage() {
 
     if (
       workflowRequirement === "ordered" &&
+      !ticket.is_retail_sale &&
       (parsedOrderAmount == null || Number.isNaN(parsedOrderAmount))
     ) {
       setStatusWorkflowDialog((current) =>
@@ -651,6 +699,61 @@ export default function TicketDetailPage() {
       );
       setIsSavingEdit(false);
       return;
+    }
+
+    if (workflowRequirement === "ordered" && ticket.is_retail_sale) {
+      if (!nextCustomerName.trim()) {
+        setStatusWorkflowDialog((current) =>
+          current
+            ? { ...current, errorMessage: "Customer name is required for retail sales." }
+            : current,
+        );
+        setIsSavingEdit(false);
+        return;
+      }
+
+      if (!nextCustomerEmail.trim() && !nextCustomerPhone.trim()) {
+        setStatusWorkflowDialog((current) =>
+          current
+            ? { ...current, errorMessage: "Customer email or phone is required for retail sales." }
+            : current,
+        );
+        setIsSavingEdit(false);
+        return;
+      }
+
+      if (!nextRetailDeliveryMethod) {
+        setStatusWorkflowDialog((current) =>
+          current
+            ? { ...current, errorMessage: "Select collection or delivery for this retail sale." }
+            : current,
+        );
+        setIsSavingEdit(false);
+        return;
+      }
+
+      if (nextRetailDeliveryMethod === "delivery" && !nextRetailDeliveryAddress.trim()) {
+        setStatusWorkflowDialog((current) =>
+          current
+            ? { ...current, errorMessage: "Delivery address is required when delivery is selected." }
+            : current,
+        );
+        setIsSavingEdit(false);
+        return;
+      }
+
+      if (
+        nextRetailDeliveryMethod === "delivery" &&
+        !nextRetailApcTrackingNumber.trim()
+      ) {
+        setStatusWorkflowDialog((current) =>
+          current
+            ? { ...current, errorMessage: "APC tracking number is required for delivery orders." }
+            : current,
+        );
+        setIsSavingEdit(false);
+        return;
+      }
     }
 
     if (workflowRequirement === "ready" && !nextBinLocation.trim()) {
@@ -683,6 +786,18 @@ export default function TicketDetailPage() {
           ? parsedOrderAmount
           : null,
       bin_location: nextBinLocation.trim() || null,
+      customer_name: ticket.is_retail_sale ? nextCustomerName.trim() || null : ticket.customer_name ?? null,
+      customer_email: ticket.is_retail_sale ? nextCustomerEmail.trim() || null : ticket.customer_email ?? null,
+      customer_phone: ticket.is_retail_sale ? nextCustomerPhone.trim() || null : ticket.customer_phone ?? null,
+      retail_delivery_method: ticket.is_retail_sale
+        ? nextRetailDeliveryMethod || null
+        : ticket.retail_delivery_method ?? null,
+      retail_delivery_address: ticket.is_retail_sale
+        ? nextRetailDeliveryAddress.trim() || null
+        : ticket.retail_delivery_address ?? null,
+      retail_apc_tracking_number: ticket.is_retail_sale
+        ? nextRetailApcTrackingNumber.trim() || null
+        : ticket.retail_apc_tracking_number ?? null,
       ordered_at:
         workflowRequirement === "ordered" ? new Date().toISOString() : ticket.ordered_at ?? null,
       ordered_by:
@@ -720,21 +835,23 @@ export default function TicketDetailPage() {
     }
 
     if (ticket.status !== ticketPatch.status) {
+      const nextTicket = {
+        ...ticket,
+        ...ticketPatch,
+        status: ticketPatch.status,
+      } as TicketRecord;
+      const isRetailOrder = Boolean(ticket.is_retail_sale);
       const supplierDispatchContact =
-        ticketPatch.status === "ORDERED"
+        !isRetailOrder && ticketPatch.status === "ORDERED"
           ? await loadSupplierDispatchContact(
               supabase,
               ticketPatch.supplier_name ?? ticket.supplier_name ?? "",
             )
           : null;
       const supplierDispatchPlan =
-        ticketPatch.status === "ORDERED"
+        !isRetailOrder && ticketPatch.status === "ORDERED"
           ? buildSupplierOrderDispatchPlan(
-              {
-                ...ticket,
-                ...ticketPatch,
-                status: ticketPatch.status,
-              },
+              nextTicket,
               supplierDispatchContact,
               confirmedWorkflow?.dispatchPreference ?? "none",
             )
@@ -751,26 +868,30 @@ export default function TicketDetailPage() {
       if (workflowRequirement === "ordered" && ticketPatch.expected_delivery_date) {
         ticketUpdateRows.push({
           ticket_id: ticket.id,
-          comment: buildOrderedWorkflowComment({
-            expectedDeliveryDate: ticketPatch.expected_delivery_date,
-            leadTimeNote: ticketPatch.lead_time_note,
-            purchaseOrderNumber: ticketPatch.purchase_order_number,
-            supplierName: ticketPatch.supplier_name,
-            supplierEmail: ticketPatch.supplier_email,
-            orderAmount: ticketPatch.order_amount,
-            dispatchSummary: supplierDispatchPlan?.summary ?? null,
-            actorName: currentUserDisplayName || currentUserId || "Stores Operator",
-          }),
+          comment: ticket.is_retail_sale
+            ? buildRetailCustomerComment(nextTicket, "ordered")
+            : buildOrderedWorkflowComment({
+                expectedDeliveryDate: ticketPatch.expected_delivery_date,
+                leadTimeNote: ticketPatch.lead_time_note,
+                purchaseOrderNumber: ticketPatch.purchase_order_number,
+                supplierName: ticketPatch.supplier_name,
+                supplierEmail: ticketPatch.supplier_email,
+                orderAmount: ticketPatch.order_amount,
+                dispatchSummary: supplierDispatchPlan?.summary ?? null,
+                actorName: currentUserDisplayName || currentUserId || "Stores Operator",
+              }),
         });
       }
 
       if (workflowRequirement === "ready" && ticketPatch.bin_location) {
         ticketUpdateRows.push({
           ticket_id: ticket.id,
-          comment: buildReadyWorkflowComment({
-            binLocation: ticketPatch.bin_location,
-            actorName: currentUserDisplayName || currentUserId || "Stores Operator",
-          }),
+          comment: ticket.is_retail_sale
+            ? buildRetailCustomerComment(nextTicket, "ready")
+            : buildReadyWorkflowComment({
+                binLocation: ticketPatch.bin_location,
+                actorName: currentUserDisplayName || currentUserId || "Stores Operator",
+              }),
         });
       }
 
@@ -836,26 +957,33 @@ export default function TicketDetailPage() {
         console.error("Failed to delete completed ticket attachments", attachmentError);
       });
     }
+    const nextUpdatedTicket = {
+      ...ticket,
+      ...ticketPatch,
+      status: ticketPatch.status,
+    } as TicketRecord;
+    const retailDispatchPlan =
+      ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED"
+        ? buildRetailCustomerDispatchPlan(nextUpdatedTicket, "ordered")
+        : ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "READY"
+          ? buildRetailCustomerDispatchPlan(nextUpdatedTicket, "ready")
+          : null;
     const supplierDispatchContact =
-      ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED"
+      !ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED"
         ? await loadSupplierDispatchContact(
             supabase,
             ticketPatch.supplier_name ?? ticket.supplier_name ?? "",
           )
         : null;
     const supplierDispatchPlan =
-      ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED"
+      !ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED"
         ? buildSupplierOrderDispatchPlan(
-            {
-              ...ticket,
-              ...ticketPatch,
-              status: ticketPatch.status,
-            },
+            nextUpdatedTicket,
             supplierDispatchContact,
             confirmedWorkflow?.dispatchPreference ?? "none",
           )
         : null;
-    if (ticket.status !== ticketPatch.status) {
+    if (ticket.status !== ticketPatch.status && !ticket.is_retail_sale) {
       void notifyRequesterStatusChanged(supabase, {
         userId: ticket.user_id,
         ticketId: ticket.id,
@@ -868,7 +996,29 @@ export default function TicketDetailPage() {
         console.error("Failed to notify requester about status change", notificationError);
       });
     }
-    if (ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED") {
+    if (ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED") {
+      window.setTimeout(async () => {
+        const dispatchPlan = retailDispatchPlan;
+
+        if (dispatchPlan?.openInBrowser && dispatchPlan.recordsHref && dispatchPlan.channel === "whatsapp") {
+          window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
+        }
+
+        if (dispatchPlan?.openInBrowser && dispatchPlan.customerHref) {
+          if (dispatchPlan.channel === "whatsapp") {
+            window.open(dispatchPlan.customerHref, "_blank", "noopener,noreferrer");
+          } else {
+            window.location.href = dispatchPlan.customerHref;
+          }
+        } else if (dispatchPlan?.openInBrowser && dispatchPlan.recordsHref) {
+          if (dispatchPlan.channel === "whatsapp") {
+            window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
+          } else {
+            window.location.href = dispatchPlan.recordsHref;
+          }
+        }
+      }, 0);
+    } else if (ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED") {
       window.setTimeout(async () => {
         const dispatchPlan = supplierDispatchPlan;
 
@@ -1122,6 +1272,7 @@ export default function TicketDetailPage() {
           {statusWorkflowDialog ? (
             <TicketStatusWorkflowModal
               mode={statusWorkflowDialog.mode}
+              isRetailSale={Boolean(ticket?.is_retail_sale)}
               isSubmitting={isSavingEdit}
               expectedDeliveryDate={statusWorkflowDialog.expectedDeliveryDate}
               leadTimeNote={statusWorkflowDialog.leadTimeNote}
@@ -1131,6 +1282,12 @@ export default function TicketDetailPage() {
               orderAmount={statusWorkflowDialog.orderAmount}
               binLocation={statusWorkflowDialog.binLocation}
               dispatchPreference={statusWorkflowDialog.dispatchPreference}
+              customerName={statusWorkflowDialog.customerName}
+              customerEmail={statusWorkflowDialog.customerEmail}
+              customerPhone={statusWorkflowDialog.customerPhone}
+              retailDeliveryMethod={statusWorkflowDialog.retailDeliveryMethod}
+              retailDeliveryAddress={statusWorkflowDialog.retailDeliveryAddress}
+              retailApcTrackingNumber={statusWorkflowDialog.retailApcTrackingNumber}
               errorMessage={statusWorkflowDialog.errorMessage}
               onExpectedDeliveryDateChange={(value) =>
                 setStatusWorkflowDialog((current) =>
@@ -1172,6 +1329,36 @@ export default function TicketDetailPage() {
                   current ? { ...current, dispatchPreference: value, errorMessage: "" } : current,
                 )
               }
+              onCustomerNameChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, customerName: value, errorMessage: "" } : current,
+                )
+              }
+              onCustomerEmailChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, customerEmail: value, errorMessage: "" } : current,
+                )
+              }
+              onCustomerPhoneChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, customerPhone: value, errorMessage: "" } : current,
+                )
+              }
+              onRetailDeliveryMethodChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, retailDeliveryMethod: value, errorMessage: "" } : current,
+                )
+              }
+              onRetailDeliveryAddressChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, retailDeliveryAddress: value, errorMessage: "" } : current,
+                )
+              }
+              onRetailApcTrackingNumberChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, retailApcTrackingNumber: value, errorMessage: "" } : current,
+                )
+              }
               onCancel={() => setStatusWorkflowDialog(null)}
               onConfirm={() => {
                 const dialog = statusWorkflowDialog;
@@ -1189,6 +1376,12 @@ export default function TicketDetailPage() {
                   orderAmount: dialog.orderAmount,
                   binLocation: dialog.binLocation,
                   dispatchPreference: dialog.dispatchPreference,
+                  customerName: dialog.customerName,
+                  customerEmail: dialog.customerEmail,
+                  customerPhone: dialog.customerPhone,
+                  retailDeliveryMethod: dialog.retailDeliveryMethod,
+                  retailDeliveryAddress: dialog.retailDeliveryAddress,
+                  retailApcTrackingNumber: dialog.retailApcTrackingNumber,
                 });
               }}
             />
@@ -1418,6 +1611,75 @@ export default function TicketDetailPage() {
                               )
                             }
                           />
+                          {ticket.is_retail_sale ? (
+                            <>
+                              <EditField
+                                label="Customer Name"
+                                value={editDraft.customer_name}
+                                onChange={(value) =>
+                                  setEditDraft((current) =>
+                                    current ? { ...current, customer_name: value } : current,
+                                  )
+                                }
+                              />
+                              <EditField
+                                label="Customer Email"
+                                value={editDraft.customer_email}
+                                onChange={(value) =>
+                                  setEditDraft((current) =>
+                                    current ? { ...current, customer_email: value } : current,
+                                  )
+                                }
+                              />
+                              <EditField
+                                label="Customer Phone"
+                                value={editDraft.customer_phone}
+                                onChange={(value) =>
+                                  setEditDraft((current) =>
+                                    current ? { ...current, customer_phone: value } : current,
+                                  )
+                                }
+                              />
+                              <EditSelect
+                                label="Delivery Method"
+                                value={editDraft.retail_delivery_method}
+                                options={["collect", "delivery"]}
+                                onChange={(value) =>
+                                  setEditDraft((current) =>
+                                    current ? { ...current, retail_delivery_method: value as "" | RetailDeliveryMethod } : current,
+                                  )
+                                }
+                              />
+                              {editDraft.retail_delivery_method === "delivery" ? (
+                                <>
+                                  <div className="sm:col-span-2">
+                                    <EditArea
+                                      label="Delivery Address"
+                                      value={editDraft.retail_delivery_address}
+                                      onChange={(value) =>
+                                        setEditDraft((current) =>
+                                          current
+                                            ? { ...current, retail_delivery_address: value }
+                                            : current,
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <EditField
+                                    label="APC Tracking Number"
+                                    value={editDraft.retail_apc_tracking_number}
+                                    onChange={(value) =>
+                                      setEditDraft((current) =>
+                                        current
+                                          ? { ...current, retail_apc_tracking_number: value }
+                                          : current,
+                                      )
+                                    }
+                                  />
+                                </>
+                              ) : null}
+                            </>
+                          ) : null}
                         </div>
 
                         <EditArea
@@ -1493,6 +1755,17 @@ export default function TicketDetailPage() {
                           <DetailItem label="Order Amount" value={formatOrderAmount(ticket.order_amount)} />
                           <DetailItem label="Bin Location" value={ticket.bin_location} />
                           <DetailItem label="Lead Time Note" value={ticket.lead_time_note} />
+                          {ticket.is_retail_sale ? (
+                            <>
+                              <DetailItem label="Retail Sale" value="Yes" />
+                              <DetailItem label="Customer Name" value={ticket.customer_name} />
+                              <DetailItem label="Customer Email" value={ticket.customer_email} />
+                              <DetailItem label="Customer Phone" value={ticket.customer_phone} />
+                              <DetailItem label="Delivery Method" value={ticket.retail_delivery_method} />
+                              <DetailItem label="Delivery Address" value={ticket.retail_delivery_address} />
+                              <DetailItem label="APC Tracking Number" value={ticket.retail_apc_tracking_number} />
+                            </>
+                          ) : null}
                           <DetailItem
                             label="Updated"
                             value={formatDate(ticket.updated_at)}
@@ -1810,6 +2083,12 @@ function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
         ? String(ticket.order_amount)
         : "",
     bin_location: ticket.bin_location ?? "",
+    customer_name: ticket.customer_name ?? "",
+    customer_email: ticket.customer_email ?? "",
+    customer_phone: ticket.customer_phone ?? "",
+    retail_delivery_method: ticket.retail_delivery_method ?? "",
+    retail_delivery_address: ticket.retail_delivery_address ?? "",
+    retail_apc_tracking_number: ticket.retail_apc_tracking_number ?? "",
   };
 }
 

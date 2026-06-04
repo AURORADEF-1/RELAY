@@ -1,6 +1,7 @@
 import type { TicketStatus } from "@/lib/statuses";
 
 export type TicketOperationalFields = {
+  is_retail_sale?: boolean | null;
   expected_delivery_date?: string | null;
   lead_time_note?: string | null;
   ordered_at?: string | null;
@@ -14,6 +15,12 @@ export type TicketOperationalFields = {
   ready_by?: string | null;
   overdue_reminder_dismissed_at?: string | null;
   overdue_reminder_dismissed_by?: string | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  retail_delivery_method?: "collect" | "delivery" | null;
+  retail_delivery_address?: string | null;
+  retail_apc_tracking_number?: string | null;
 };
 
 export type TicketOperationalRecord = TicketOperationalFields & {
@@ -149,6 +156,10 @@ export function formatOrderAmount(value?: number | null) {
 }
 
 export function isTrackedOrderRecord(ticket: TicketOperationalRecord) {
+  if ((ticket as { is_retail_sale?: boolean | null }).is_retail_sale) {
+    return false;
+  }
+
   return Boolean(
     ticket.ordered_at ||
       ticket.expected_delivery_date?.trim() ||

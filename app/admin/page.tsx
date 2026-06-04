@@ -36,6 +36,11 @@ import {
 import { buildSupplierSuggestionOptions } from "@/lib/supplier-directory";
 import { buildFleetDashboardData, type FleetMachineSummary } from "@/lib/fleet-health";
 import {
+  buildRetailCustomerComment,
+  buildRetailCustomerDispatchPlan,
+  type RetailDeliveryMethod,
+} from "@/lib/retail-sales";
+import {
   backfillMonthlySupplierSpendSnapshots,
   fetchMonthlySupplierSpendSnapshots,
   syncMonthlySupplierSpendSnapshotsForMonth,
@@ -119,6 +124,13 @@ type Ticket = {
   user_id: string | null;
   requester_name: string | null;
   department: string | null;
+  is_retail_sale?: boolean | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  retail_delivery_method?: RetailDeliveryMethod | null;
+  retail_delivery_address?: string | null;
+  retail_apc_tracking_number?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
   location_summary?: string | null;
@@ -175,6 +187,12 @@ type StatusWorkflowDialogState = {
   orderAmount: string;
   binLocation: string;
   dispatchPreference: SupplierOrderDispatchPreference;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  retailDeliveryMethod: "" | RetailDeliveryMethod;
+  retailDeliveryAddress: string;
+  retailApcTrackingNumber: string;
   errorMessage: string;
 };
 
@@ -1374,6 +1392,12 @@ export default function AdminPage() {
           : "",
       binLocation: ticket.bin_location ?? "",
       dispatchPreference: "none",
+      customerName: ticket.customer_name ?? "",
+      customerEmail: ticket.customer_email ?? "",
+      customerPhone: ticket.customer_phone ?? "",
+      retailDeliveryMethod: ticket.retail_delivery_method ?? "",
+      retailDeliveryAddress: ticket.retail_delivery_address ?? "",
+      retailApcTrackingNumber: ticket.retail_apc_tracking_number ?? "",
       errorMessage: "",
     });
 
@@ -1457,6 +1481,12 @@ export default function AdminPage() {
       orderAmount?: string;
       binLocation?: string;
       dispatchPreference?: SupplierOrderDispatchPreference;
+      customerName?: string;
+      customerEmail?: string;
+      customerPhone?: string;
+      retailDeliveryMethod?: "" | RetailDeliveryMethod;
+      retailDeliveryAddress?: string;
+      retailApcTrackingNumber?: string;
     },
   ): Promise<Ticket | null> => {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
@@ -1487,6 +1517,15 @@ export default function AdminPage() {
     const normalizedOrderAmountInput = workflow?.orderAmount?.trim() || "";
     const parsedOrderAmount = parseOrderAmountInput(normalizedOrderAmountInput);
     const normalizedBinLocation = workflow?.binLocation?.trim() || "";
+    const normalizedCustomerName = workflow?.customerName?.trim() || currentTicket.customer_name?.trim() || "";
+    const normalizedCustomerEmail = workflow?.customerEmail?.trim() || currentTicket.customer_email?.trim() || "";
+    const normalizedCustomerPhone = workflow?.customerPhone?.trim() || currentTicket.customer_phone?.trim() || "";
+    const normalizedRetailDeliveryMethod =
+      workflow?.retailDeliveryMethod || currentTicket.retail_delivery_method || "";
+    const normalizedRetailDeliveryAddress =
+      workflow?.retailDeliveryAddress?.trim() || currentTicket.retail_delivery_address?.trim() || "";
+    const normalizedRetailApcTrackingNumber =
+      workflow?.retailApcTrackingNumber?.trim() || currentTicket.retail_apc_tracking_number?.trim() || "";
 
     if (nextStatus === "ORDERED") {
       if (!normalizedExpectedDeliveryDate) {
@@ -1499,24 +1538,51 @@ export default function AdminPage() {
         return null;
       }
 
-      if (!normalizedPurchaseOrderNumber) {
-        setStatusWorkflowError(ticketId, "PO number is required before saving ORDERED.");
-        return null;
-      }
+      if (currentTicket.is_retail_sale) {
+        if (!normalizedCustomerName) {
+          setStatusWorkflowError(ticketId, "Customer name is required for retail sales.");
+          return null;
+        }
 
-      if (!normalizedSupplierName) {
-        setStatusWorkflowError(ticketId, "Supplier is required before saving ORDERED.");
-        return null;
-      }
+        if (!normalizedCustomerEmail && !normalizedCustomerPhone) {
+          setStatusWorkflowError(ticketId, "Customer email or phone is required for retail sales.");
+          return null;
+        }
 
-      if (!normalizedOrderAmountInput) {
-        setStatusWorkflowError(ticketId, "Order amount is required before saving ORDERED.");
-        return null;
-      }
+        if (!normalizedRetailDeliveryMethod) {
+          setStatusWorkflowError(ticketId, "Choose collection or delivery for this retail sale.");
+          return null;
+        }
 
-      if (parsedOrderAmount == null || Number.isNaN(parsedOrderAmount)) {
-        setStatusWorkflowError(ticketId, "Enter a valid non-negative order amount before saving ORDERED.");
-        return null;
+        if (normalizedRetailDeliveryMethod === "delivery" && !normalizedRetailDeliveryAddress) {
+          setStatusWorkflowError(ticketId, "Delivery address is required when delivery is selected.");
+          return null;
+        }
+
+        if (normalizedRetailDeliveryMethod === "delivery" && !normalizedRetailApcTrackingNumber) {
+          setStatusWorkflowError(ticketId, "APC tracking number is required for retail delivery orders.");
+          return null;
+        }
+      } else {
+        if (!normalizedPurchaseOrderNumber) {
+          setStatusWorkflowError(ticketId, "PO number is required before saving ORDERED.");
+          return null;
+        }
+
+        if (!normalizedSupplierName) {
+          setStatusWorkflowError(ticketId, "Supplier is required before saving ORDERED.");
+          return null;
+        }
+
+        if (!normalizedOrderAmountInput) {
+          setStatusWorkflowError(ticketId, "Order amount is required before saving ORDERED.");
+          return null;
+        }
+
+        if (parsedOrderAmount == null || Number.isNaN(parsedOrderAmount)) {
+          setStatusWorkflowError(ticketId, "Enter a valid non-negative order amount before saving ORDERED.");
+          return null;
+        }
       }
     }
 
@@ -1566,12 +1632,28 @@ export default function AdminPage() {
           : null;
       updatePayload.overdue_reminder_dismissed_at = null;
       updatePayload.overdue_reminder_dismissed_by = null;
+      if (currentTicket.is_retail_sale) {
+        updatePayload.customer_name = normalizedCustomerName || null;
+        updatePayload.customer_email = normalizedCustomerEmail || null;
+        updatePayload.customer_phone = normalizedCustomerPhone || null;
+        updatePayload.retail_delivery_method = normalizedRetailDeliveryMethod || null;
+        updatePayload.retail_delivery_address = normalizedRetailDeliveryAddress || null;
+        updatePayload.retail_apc_tracking_number = normalizedRetailApcTrackingNumber || null;
+      }
     } else if (movingOrderedToReady) {
       updatePayload.bin_location = normalizedBinLocation || null;
       updatePayload.ready_at = nextUpdatedAt;
       updatePayload.ready_by = actorName;
       updatePayload.overdue_reminder_dismissed_at = null;
       updatePayload.overdue_reminder_dismissed_by = null;
+      if (currentTicket.is_retail_sale) {
+        updatePayload.customer_name = normalizedCustomerName || null;
+        updatePayload.customer_email = normalizedCustomerEmail || null;
+        updatePayload.customer_phone = normalizedCustomerPhone || null;
+        updatePayload.retail_delivery_method = normalizedRetailDeliveryMethod || null;
+        updatePayload.retail_delivery_address = normalizedRetailDeliveryAddress || null;
+        updatePayload.retail_apc_tracking_number = normalizedRetailApcTrackingNumber || null;
+      }
     } else if (leavingOrdered) {
       updatePayload.overdue_reminder_dismissed_at = null;
       updatePayload.overdue_reminder_dismissed_by = null;
@@ -1609,17 +1691,46 @@ export default function AdminPage() {
       return null;
     }
 
+    const updatedNextTicket = updatedTicket as Ticket;
+    const retailDispatchPlan =
+      currentTicket.is_retail_sale && nextStatus === "ORDERED" && normalizedRetailDeliveryMethod === "delivery"
+        ? buildRetailCustomerDispatchPlan(
+            {
+              ...updatedNextTicket,
+              customer_name: normalizedCustomerName || null,
+              customer_email: normalizedCustomerEmail || null,
+              customer_phone: normalizedCustomerPhone || null,
+              retail_delivery_method: normalizedRetailDeliveryMethod as RetailDeliveryMethod,
+              retail_delivery_address: normalizedRetailDeliveryAddress || null,
+              retail_apc_tracking_number: normalizedRetailApcTrackingNumber || null,
+            },
+            "ordered",
+          )
+        : currentTicket.is_retail_sale && nextStatus === "READY" && normalizedRetailDeliveryMethod !== "delivery"
+          ? buildRetailCustomerDispatchPlan(
+              {
+                ...updatedNextTicket,
+                customer_name: normalizedCustomerName || null,
+                customer_email: normalizedCustomerEmail || null,
+                customer_phone: normalizedCustomerPhone || null,
+                retail_delivery_method: normalizedRetailDeliveryMethod as RetailDeliveryMethod,
+                retail_delivery_address: normalizedRetailDeliveryAddress || null,
+                retail_apc_tracking_number: normalizedRetailApcTrackingNumber || null,
+              },
+              "ready",
+            )
+          : null;
     const supplierDispatchContact =
-      nextStatus === "ORDERED"
+      !currentTicket.is_retail_sale && nextStatus === "ORDERED"
         ? await loadSupplierDispatchContact(
             supabase,
             updatedTicket.supplier_name?.trim() || normalizedSupplierName || "",
           )
         : null;
     const supplierDispatchPlan =
-      nextStatus === "ORDERED"
+      !currentTicket.is_retail_sale && nextStatus === "ORDERED"
         ? buildSupplierOrderDispatchPlan(
-            updatedTicket as Ticket,
+            updatedNextTicket,
             supplierDispatchContact,
             workflow?.dispatchPreference ?? "none",
           )
@@ -1632,29 +1743,55 @@ export default function AdminPage() {
     if (nextStatus === "ORDERED" && normalizedExpectedDeliveryDate) {
       ticketUpdateRows.push({
         ticket_id: ticketId,
-        comment: buildOrderedWorkflowComment({
-          expectedDeliveryDate: normalizedExpectedDeliveryDate,
-          leadTimeNote: normalizedLeadTimeNote,
-          purchaseOrderNumber: normalizedPurchaseOrderNumber,
-          supplierName: normalizedSupplierName,
-          supplierEmail: normalizedSupplierEmail,
-          orderAmount:
-            parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
-              ? parsedOrderAmount
-              : null,
-          dispatchSummary: supplierDispatchPlan?.summary ?? null,
-          actorName,
-        }),
+        comment: currentTicket.is_retail_sale
+          ? buildRetailCustomerComment(
+              {
+                ...updatedNextTicket,
+                customer_name: normalizedCustomerName || null,
+                customer_email: normalizedCustomerEmail || null,
+                customer_phone: normalizedCustomerPhone || null,
+                retail_delivery_method: normalizedRetailDeliveryMethod as RetailDeliveryMethod,
+                retail_delivery_address: normalizedRetailDeliveryAddress || null,
+                retail_apc_tracking_number: normalizedRetailApcTrackingNumber || null,
+              },
+              "ordered",
+            )
+          : buildOrderedWorkflowComment({
+              expectedDeliveryDate: normalizedExpectedDeliveryDate,
+              leadTimeNote: normalizedLeadTimeNote,
+              purchaseOrderNumber: normalizedPurchaseOrderNumber,
+              supplierName: normalizedSupplierName,
+              supplierEmail: normalizedSupplierEmail,
+              orderAmount:
+                parsedOrderAmount != null && !Number.isNaN(parsedOrderAmount)
+                  ? parsedOrderAmount
+                  : null,
+              dispatchSummary: supplierDispatchPlan?.summary ?? null,
+              actorName,
+            }),
       });
     }
 
     if (movingOrderedToReady && normalizedBinLocation) {
       ticketUpdateRows.push({
         ticket_id: ticketId,
-        comment: buildReadyWorkflowComment({
-          binLocation: normalizedBinLocation,
-          actorName,
-        }),
+        comment: currentTicket.is_retail_sale
+          ? buildRetailCustomerComment(
+              {
+                ...updatedNextTicket,
+                customer_name: normalizedCustomerName || null,
+                customer_email: normalizedCustomerEmail || null,
+                customer_phone: normalizedCustomerPhone || null,
+                retail_delivery_method: normalizedRetailDeliveryMethod as RetailDeliveryMethod,
+                retail_delivery_address: normalizedRetailDeliveryAddress || null,
+                retail_apc_tracking_number: normalizedRetailApcTrackingNumber || null,
+              },
+              "ready",
+            )
+          : buildReadyWorkflowComment({
+              binLocation: normalizedBinLocation,
+              actorName,
+            }),
       });
     }
 
@@ -1705,20 +1842,22 @@ export default function AdminPage() {
     }
     setUpdatingTicketId(null);
     finishTicketOperation(ticketId);
-    void notifyRequesterStatusChanged(supabase, {
-      userId: currentTicket.user_id,
-      ticketId,
-      jobNumber: currentTicket.job_number,
-      nextStatus,
-      requestSummary: currentTicket.request_summary ?? currentTicket.request_details,
-      assignedTo: nextAssignedTo || currentTicket.assigned_to,
-      binLocation:
-        movingOrderedToReady
-          ? normalizedBinLocation || null
-          : (updatedTicket as Ticket).bin_location ?? currentTicket.bin_location ?? null,
-    }).catch((notificationError) => {
-      console.error("Failed to notify requester about status change", notificationError);
-    });
+    if (!currentTicket.is_retail_sale) {
+      void notifyRequesterStatusChanged(supabase, {
+        userId: currentTicket.user_id,
+        ticketId,
+        jobNumber: currentTicket.job_number,
+        nextStatus,
+        requestSummary: currentTicket.request_summary ?? currentTicket.request_details,
+        assignedTo: nextAssignedTo || currentTicket.assigned_to,
+        binLocation:
+          movingOrderedToReady
+            ? normalizedBinLocation || null
+            : (updatedTicket as Ticket).bin_location ?? currentTicket.bin_location ?? null,
+      }).catch((notificationError) => {
+        console.error("Failed to notify requester about status change", notificationError);
+      });
+    }
 
     if (nextStatus === "COMPLETED") {
       void deleteTicketAttachmentsForTicket(supabase, ticketId).catch((attachmentError) => {
@@ -1726,7 +1865,29 @@ export default function AdminPage() {
       });
     }
 
-    if (nextStatus === "ORDERED") {
+    if (currentTicket.is_retail_sale && nextStatus === "ORDERED") {
+      window.setTimeout(async () => {
+        const dispatchPlan = retailDispatchPlan;
+
+        if (dispatchPlan?.openInBrowser && dispatchPlan.recordsHref && dispatchPlan.channel === "whatsapp") {
+          window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
+        }
+
+        if (dispatchPlan?.openInBrowser && dispatchPlan.customerHref) {
+          if (dispatchPlan.channel === "whatsapp") {
+            window.open(dispatchPlan.customerHref, "_blank", "noopener,noreferrer");
+          } else {
+            window.location.href = dispatchPlan.customerHref;
+          }
+        } else if (dispatchPlan?.openInBrowser && dispatchPlan.recordsHref) {
+          if (dispatchPlan.channel === "whatsapp") {
+            window.open(dispatchPlan.recordsHref, "_blank", "noopener,noreferrer");
+          } else {
+            window.location.href = dispatchPlan.recordsHref;
+          }
+        }
+      }, 0);
+    } else if (nextStatus === "ORDERED") {
       window.setTimeout(async () => {
         const dispatchPlan = supplierDispatchPlan;
 
@@ -2411,6 +2572,7 @@ export default function AdminPage() {
           {statusWorkflowDialog ? (
             <TicketStatusWorkflowModal
               mode={statusWorkflowDialog.mode}
+              isRetailSale={Boolean(statusWorkflowDialog.customerName || statusWorkflowDialog.retailDeliveryMethod)}
               isSubmitting={updatingTicketId === statusWorkflowDialog.ticketId}
               expectedDeliveryDate={statusWorkflowDialog.expectedDeliveryDate}
               leadTimeNote={statusWorkflowDialog.leadTimeNote}
@@ -2421,6 +2583,12 @@ export default function AdminPage() {
               orderAmount={statusWorkflowDialog.orderAmount}
               binLocation={statusWorkflowDialog.binLocation}
               dispatchPreference={statusWorkflowDialog.dispatchPreference}
+              customerName={statusWorkflowDialog.customerName}
+              customerEmail={statusWorkflowDialog.customerEmail}
+              customerPhone={statusWorkflowDialog.customerPhone}
+              retailDeliveryMethod={statusWorkflowDialog.retailDeliveryMethod}
+              retailDeliveryAddress={statusWorkflowDialog.retailDeliveryAddress}
+              retailApcTrackingNumber={statusWorkflowDialog.retailApcTrackingNumber}
               errorMessage={statusWorkflowDialog.errorMessage}
               onExpectedDeliveryDateChange={(value) =>
                 setStatusWorkflowDialog((current) =>
@@ -2460,6 +2628,36 @@ export default function AdminPage() {
               onDispatchPreferenceChange={(value) =>
                 setStatusWorkflowDialog((current) =>
                   current ? { ...current, dispatchPreference: value, errorMessage: "" } : current,
+                )
+              }
+              onCustomerNameChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, customerName: value, errorMessage: "" } : current,
+                )
+              }
+              onCustomerEmailChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, customerEmail: value, errorMessage: "" } : current,
+                )
+              }
+              onCustomerPhoneChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, customerPhone: value, errorMessage: "" } : current,
+                )
+              }
+              onRetailDeliveryMethodChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, retailDeliveryMethod: value, errorMessage: "" } : current,
+                )
+              }
+              onRetailDeliveryAddressChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, retailDeliveryAddress: value, errorMessage: "" } : current,
+                )
+              }
+              onRetailApcTrackingNumberChange={(value) =>
+                setStatusWorkflowDialog((current) =>
+                  current ? { ...current, retailApcTrackingNumber: value, errorMessage: "" } : current,
                 )
               }
               onCancel={() => setStatusWorkflowDialog(null)}
@@ -2524,6 +2722,12 @@ export default function AdminPage() {
                   orderAmount: dialog.orderAmount,
                   binLocation: dialog.binLocation,
                   dispatchPreference: dialog.dispatchPreference,
+                  customerName: dialog.customerName,
+                  customerEmail: dialog.customerEmail,
+                  customerPhone: dialog.customerPhone,
+                  retailDeliveryMethod: dialog.retailDeliveryMethod,
+                  retailDeliveryAddress: dialog.retailDeliveryAddress,
+                  retailApcTrackingNumber: dialog.retailApcTrackingNumber,
                 }).then((updatedTicket) => {
                   if (updatedTicket) {
                     setStatusWorkflowDialog(null);
@@ -4164,15 +4368,35 @@ function TicketOperationalSummary({
   ticket: Ticket;
   compact?: boolean;
 }) {
+  const isRetailSale = Boolean(ticket.is_retail_sale);
   const hasExpectedDelivery = Boolean(ticket.expected_delivery_date?.trim());
   const hasBinLocation = Boolean(ticket.bin_location?.trim());
   const hasLeadTimeNote = Boolean(ticket.lead_time_note?.trim());
   const hasPurchaseOrderNumber = Boolean(ticket.purchase_order_number?.trim());
   const hasSupplierName = Boolean(ticket.supplier_name?.trim());
   const hasOrderAmount = typeof ticket.order_amount === "number" && !Number.isNaN(ticket.order_amount);
+  const hasCustomerName = Boolean(ticket.customer_name?.trim());
+  const hasCustomerEmail = Boolean(ticket.customer_email?.trim());
+  const hasCustomerPhone = Boolean(ticket.customer_phone?.trim());
+  const hasRetailDeliveryMethod = Boolean(ticket.retail_delivery_method?.trim());
+  const hasRetailDeliveryAddress = Boolean(ticket.retail_delivery_address?.trim());
+  const hasRetailApcTrackingNumber = Boolean(ticket.retail_apc_tracking_number?.trim());
   const isOverdue = isTicketOrderOverdue(ticket);
 
-  if (!hasExpectedDelivery && !hasBinLocation && !hasLeadTimeNote && !hasPurchaseOrderNumber && !hasSupplierName && !hasOrderAmount) {
+  if (
+    !hasExpectedDelivery &&
+    !hasBinLocation &&
+    !hasLeadTimeNote &&
+    !hasPurchaseOrderNumber &&
+    !hasSupplierName &&
+    !hasOrderAmount &&
+    !hasCustomerName &&
+    !hasCustomerEmail &&
+    !hasCustomerPhone &&
+    !hasRetailDeliveryMethod &&
+    !hasRetailDeliveryAddress &&
+    !hasRetailApcTrackingNumber
+  ) {
     return null;
   }
 
@@ -4222,6 +4446,37 @@ function TicketOperationalSummary({
         <p className="text-xs leading-5 text-slate-500">
           {ticket.lead_time_note}
         </p>
+      ) : null}
+      {isRetailSale ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100 px-3 py-1.5 font-semibold uppercase tracking-[0.16em] text-amber-800">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+            Retail Sale
+          </div>
+          <div className="mt-2 space-y-1 leading-5">
+            {hasCustomerName ? <p>Customer: <span className="font-semibold">{ticket.customer_name}</span></p> : null}
+            {hasRetailDeliveryMethod ? (
+              <p>
+                Delivery: <span className="font-semibold">{ticket.retail_delivery_method}</span>
+              </p>
+            ) : null}
+            {hasRetailDeliveryAddress ? (
+              <p className="text-amber-800/90">{ticket.retail_delivery_address}</p>
+            ) : null}
+            {hasRetailApcTrackingNumber ? (
+              <p>
+                APC: <span className="font-semibold">{ticket.retail_apc_tracking_number}</span>
+              </p>
+            ) : null}
+            {hasCustomerEmail || hasCustomerPhone ? (
+              <p className="text-amber-800/90">
+                {hasCustomerEmail ? <span>{ticket.customer_email}</span> : null}
+                {hasCustomerEmail && hasCustomerPhone ? " · " : null}
+                {hasCustomerPhone ? <span>{ticket.customer_phone}</span> : null}
+              </p>
+            ) : null}
+          </div>
+        </div>
       ) : null}
     </div>
   );
@@ -4341,6 +4596,11 @@ function truncateSummary(value: string) {
 function formatRequestTitle(ticket: Ticket) {
   const summary = ticket.request_summary ?? ticket.request_details ?? "No request summary";
   const jobLabel = ticket.job_number ? `Job ${ticket.job_number}` : "Job not set";
+  if (ticket.is_retail_sale) {
+    const customerLabel = ticket.customer_name?.trim() || "Retail order";
+    return `${jobLabel} | ${customerLabel} | ${truncateSummary(summary)}`;
+  }
+
   return `${jobLabel} | ${truncateSummary(summary)}`;
 }
 

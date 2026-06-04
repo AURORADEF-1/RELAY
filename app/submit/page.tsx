@@ -27,6 +27,11 @@ type FormValues = {
   machineReference: string;
   jobNumber: string;
   requestDetails: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  retailDeliveryMethod: "" | "collect" | "delivery";
+  retailDeliveryAddress: string;
 };
 
 type FormErrors = Partial<Record<keyof FormValues, string>>;
@@ -37,6 +42,11 @@ const initialValues: FormValues = {
   machineReference: "",
   jobNumber: "",
   requestDetails: "",
+  customerName: "",
+  customerEmail: "",
+  customerPhone: "",
+  retailDeliveryMethod: "",
+  retailDeliveryAddress: "",
 };
 
 const fieldLabels: Record<keyof FormValues, string> = {
@@ -45,6 +55,11 @@ const fieldLabels: Record<keyof FormValues, string> = {
   machineReference: "Machine reference",
   jobNumber: "Job number",
   requestDetails: "Request details",
+  customerName: "Customer name",
+  customerEmail: "Customer email",
+  customerPhone: "Customer phone",
+  retailDeliveryMethod: "Delivery method",
+  retailDeliveryAddress: "Delivery address",
 };
 
 export default function SubmitPage() {
@@ -71,6 +86,7 @@ export default function SubmitPage() {
     summary: string;
     confirmed: boolean;
   } | null>(null);
+  const [isRetailSale, setIsRetailSale] = useState(false);
   const [scannedMachineReference, setScannedMachineReference] = useState("");
   const [machineRegistryRecord, setMachineRegistryRecord] = useState<MachineRegistryRecord | null>(null);
   const [isMachineLookupLoading, setIsMachineLookupLoading] = useState(false);
@@ -256,6 +272,18 @@ export default function SubmitPage() {
         setLocationStatusMessage(null);
       }
     }
+
+    if (fieldName === "retailDeliveryMethod") {
+      const nextDeliveryMethod = value as FormValues["retailDeliveryMethod"];
+
+      if (nextDeliveryMethod !== "delivery") {
+        setValues((current) =>
+          current.retailDeliveryAddress.trim()
+            ? { ...current, retailDeliveryAddress: "" }
+            : current,
+        );
+      }
+    }
   }
 
   async function requestOnsiteLocation() {
@@ -310,11 +338,32 @@ export default function SubmitPage() {
   function validateForm() {
     const nextErrors: FormErrors = {};
 
-    (Object.keys(values) as Array<keyof FormValues>).forEach((key) => {
+    const requiredFields: Array<keyof FormValues> = [
+      "requesterName",
+      "department",
+      "machineReference",
+      "jobNumber",
+      "requestDetails",
+    ];
+
+    if (isRetailSale) {
+      requiredFields.push(
+        "customerName",
+        "customerEmail",
+        "customerPhone",
+        "retailDeliveryMethod",
+      );
+    }
+
+    requiredFields.forEach((key) => {
       if (!values[key].trim()) {
         nextErrors[key] = `${fieldLabels[key]} is required.`;
       }
     });
+
+    if (isRetailSale && values.retailDeliveryMethod === "delivery" && !values.retailDeliveryAddress.trim()) {
+      nextErrors.retailDeliveryAddress = `${fieldLabels.retailDeliveryAddress} is required.`;
+    }
 
     return nextErrors;
   }
@@ -377,6 +426,7 @@ export default function SubmitPage() {
       const ticketPayload = buildTicketInsertPayload({
         authenticatedUserId: user.id,
         values,
+        isRetailSale,
         locationDraft,
         machineRegistryRecord,
       });
@@ -456,6 +506,7 @@ export default function SubmitPage() {
         ...initialValues,
         requesterName: ticketPayload.requester_name,
       });
+      setIsRetailSale(false);
       setErrors({});
       setQueuedPhotos([]);
       setLocationDraft(null);
@@ -570,6 +621,82 @@ export default function SubmitPage() {
               <form onSubmit={handleSubmit} noValidate className="space-y-4">
                 <section className="aurora-panel rounded-[1.7rem] border-[color:var(--border-strong)] bg-[color:var(--background-panel-strong)] p-4 sm:p-5">
                   <div className="space-y-5">
+                    {isAdmin ? (
+                      <div className="rounded-[1.35rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
+                              Ticket type
+                            </p>
+                            <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">
+                              Enable retail sale to capture customer and delivery details instead of a standard parts request.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsRetailSale((current) => !current)}
+                            className={`inline-flex h-11 items-center justify-center rounded-full px-4 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                              isRetailSale
+                                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                            }`}
+                          >
+                            {isRetailSale ? "Retail sale enabled" : "Mark as retail sale"}
+                          </button>
+                        </div>
+
+                        {isRetailSale ? (
+                          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            <FormField
+                              label="Customer name"
+                              name="customerName"
+                              value={values.customerName}
+                              error={errors.customerName}
+                              placeholder="Customer name"
+                              onChange={handleChange}
+                            />
+                            <FormField
+                              label="Customer email"
+                              name="customerEmail"
+                              value={values.customerEmail}
+                              error={errors.customerEmail}
+                              placeholder="customer@example.com"
+                              onChange={handleChange}
+                            />
+                            <FormField
+                              label="Customer phone"
+                              name="customerPhone"
+                              value={values.customerPhone}
+                              error={errors.customerPhone}
+                              placeholder="07..."
+                              onChange={handleChange}
+                            />
+                            <SelectField
+                              label="Delivery method"
+                              name="retailDeliveryMethod"
+                              value={values.retailDeliveryMethod}
+                              error={errors.retailDeliveryMethod}
+                              onChange={handleChange}
+                              options={["collect", "delivery"]}
+                            />
+                            {values.retailDeliveryMethod === "delivery" ? (
+                              <div className="sm:col-span-2">
+                                <FormField
+                                  label="Delivery address"
+                                  name="retailDeliveryAddress"
+                                  value={values.retailDeliveryAddress}
+                                  error={errors.retailDeliveryAddress}
+                                  placeholder="Enter the delivery address"
+                                  onChange={handleChange}
+                                  multiline
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     <div className="grid gap-4 sm:grid-cols-2">
                       <FormField
                         label="Requester name"
@@ -613,15 +740,19 @@ export default function SubmitPage() {
                       />
                     </div>
 
-                    <FormField
-                      label="Request details"
-                      name="requestDetails"
-                      value={values.requestDetails}
-                      error={errors.requestDetails}
-                      placeholder="Describe the part required, fault, or identifying detail."
-                      onChange={handleChange}
-                      multiline
-                    />
+                      <FormField
+                        label="Request details"
+                        name="requestDetails"
+                        value={values.requestDetails}
+                        error={errors.requestDetails}
+                        placeholder={
+                          isRetailSale
+                            ? "Describe the parts required for the customer sale."
+                            : "Describe the part required, fault, or identifying detail."
+                        }
+                        onChange={handleChange}
+                        multiline
+                      />
                   </div>
                 </section>
 
@@ -986,11 +1117,13 @@ function buildTicketInsertPayload(
   {
     authenticatedUserId,
     values,
+    isRetailSale,
     locationDraft,
     machineRegistryRecord,
   }: {
     authenticatedUserId: string;
     values: FormValues;
+    isRetailSale: boolean;
     locationDraft: {
       lat: number;
       lng: number;
@@ -1038,6 +1171,16 @@ function buildTicketInsertPayload(
     request_details: requestDetails,
     request_summary: requestDetails,
     status: "PENDING",
+    is_retail_sale: isRetailSale,
+    customer_name: isRetailSale ? values.customerName.trim() || null : null,
+    customer_email: isRetailSale ? values.customerEmail.trim() || null : null,
+    customer_phone: isRetailSale ? values.customerPhone.trim() || null : null,
+    retail_delivery_method: isRetailSale ? values.retailDeliveryMethod || null : null,
+    retail_delivery_address:
+      isRetailSale && values.retailDeliveryMethod === "delivery"
+        ? values.retailDeliveryAddress.trim() || null
+        : null,
+    retail_apc_tracking_number: null,
     location_lat: locationDraft?.confirmed ? locationDraft.lat : null,
     location_lng: locationDraft?.confirmed ? locationDraft.lng : null,
     location_summary: locationDraft?.confirmed ? locationDraft.summary : null,
