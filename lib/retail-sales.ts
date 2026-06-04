@@ -64,9 +64,13 @@ export function buildRetailCustomerComment(ticket: RetailTicketRecord, stage: "o
   const customerName = ticket.customer_name?.trim() || "Customer";
   const partsRequired = ticket.request_summary?.trim() || ticket.request_details?.trim() || "your part";
 
-  if (stage === "ordered" && method === "delivery") {
+  if (stage === "ordered") {
+    return `${customerName} retail order prepared for ${partsRequired}.`;
+  }
+
+  if (stage === "ready" && method === "delivery") {
     const tracking = ticket.retail_apc_tracking_number?.trim() || "tracking pending";
-    return `${customerName} dispatch update prepared for ${partsRequired}. APC tracking ${tracking}.`;
+    return `${customerName} out-for-delivery update prepared for ${partsRequired}. APC tracking ${tracking}.`;
   }
 
   if (stage === "ready" && method !== "delivery") {
@@ -83,12 +87,16 @@ export function buildRetailCustomerSummary(
   const deliveryMethod = ticket.retail_delivery_method?.trim().toLowerCase();
   const customerName = ticket.customer_name?.trim() || "customer";
 
-  if (stage === "ordered" && deliveryMethod === "delivery") {
-    return `Dispatch draft prepared for ${customerName}. APC tracking will be included.`;
+  if (stage === "ready" && deliveryMethod === "delivery") {
+    return `Out-for-delivery draft prepared for ${customerName}. APC tracking will be included.`;
   }
 
   if (stage === "ready" && deliveryMethod !== "delivery") {
     return `Ready-to-collect draft prepared for ${customerName}.`;
+  }
+
+  if (deliveryMethod === "delivery") {
+    return `Delivery draft prepared for ${customerName}.`;
   }
 
   return `Retail customer update prepared for ${customerName}.`;
@@ -131,8 +139,12 @@ export function buildRetailCustomerSubject(
   const jobNumber = ticket.job_number?.trim() || ticket.id.slice(0, 8).toUpperCase();
   const customerName = ticket.customer_name?.trim() || "Customer";
 
-  if (stage === "ordered" && ticket.retail_delivery_method === "delivery") {
-    return `Dispatch update - Job ${jobNumber} - ${customerName}`;
+  if (stage === "ready" && ticket.retail_delivery_method === "delivery") {
+    return `Out for delivery - Job ${jobNumber} - ${customerName}`;
+  }
+
+  if (ticket.retail_delivery_method === "delivery") {
+    return `Out for delivery - Job ${jobNumber} - ${customerName}`;
   }
 
   return `Ready to collect - Job ${jobNumber} - ${customerName}`;
@@ -152,11 +164,28 @@ export function buildRetailCustomerBodyLines(
   const expectedDelivery = formatOperationalDate(ticket.expected_delivery_date);
   const deliveryMethod = ticket.retail_delivery_method === "delivery" ? "Delivery" : "Collection";
 
-  if (stage === "ordered" && ticket.retail_delivery_method === "delivery") {
+  if (stage === "ready" && ticket.retail_delivery_method === "delivery") {
     return [
       `Hello ${customerName},`,
       "",
-      `Your order of ${partsRequired} has been dispatched.`,
+      `Your order of ${partsRequired} is out for delivery.`,
+      `Job Number: ${jobNumber}`,
+      `Machine Reference: ${machineReference}`,
+      `Delivery Method: ${deliveryMethod}`,
+      `Delivery Address: ${deliveryAddress}`,
+      `APC Tracking Number: ${tracking}`,
+      `Order Amount: ${amount}`,
+      `Expected Delivery: ${expectedDelivery}`,
+      "",
+      "Please keep this message for your records.",
+    ];
+  }
+
+  if (ticket.retail_delivery_method === "delivery") {
+    return [
+      `Hello ${customerName},`,
+      "",
+      `Your order of ${partsRequired} is out for delivery.`,
       `Job Number: ${jobNumber}`,
       `Machine Reference: ${machineReference}`,
       `Delivery Method: ${deliveryMethod}`,

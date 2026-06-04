@@ -1598,7 +1598,11 @@ export default function AdminPage() {
       }
     }
 
-    if (movingOrderedToReady && !normalizedBinLocation) {
+    if (
+      movingOrderedToReady &&
+      !normalizedBinLocation &&
+      !(currentTicket.is_retail_sale && normalizedRetailDeliveryMethod === "delivery")
+    ) {
       setStatusWorkflowError(ticketId, "Bin location required before marking this ticket READY.");
       return null;
     }
@@ -1705,7 +1709,7 @@ export default function AdminPage() {
 
     const updatedNextTicket = updatedTicket as Ticket;
     const retailDispatchPlan =
-      currentTicket.is_retail_sale && nextStatus === "ORDERED" && normalizedRetailDeliveryMethod === "delivery"
+      currentTicket.is_retail_sale && nextStatus === "READY"
         ? buildRetailCustomerDispatchPlan(
             {
               ...updatedNextTicket,
@@ -1716,22 +1720,9 @@ export default function AdminPage() {
               retail_delivery_address: normalizedRetailDeliveryAddress || null,
               retail_apc_tracking_number: normalizedRetailApcTrackingNumber || null,
             },
-            "ordered",
+            "ready",
           )
-        : currentTicket.is_retail_sale && nextStatus === "READY" && normalizedRetailDeliveryMethod !== "delivery"
-          ? buildRetailCustomerDispatchPlan(
-              {
-                ...updatedNextTicket,
-                customer_name: normalizedCustomerName || null,
-                customer_email: normalizedCustomerEmail || null,
-                customer_phone: normalizedCustomerPhone || null,
-                retail_delivery_method: normalizedRetailDeliveryMethod as RetailDeliveryMethod,
-                retail_delivery_address: normalizedRetailDeliveryAddress || null,
-                retail_apc_tracking_number: normalizedRetailApcTrackingNumber || null,
-              },
-              "ready",
-            )
-          : null;
+        : null;
     const supplierDispatchContact =
       !currentTicket.is_retail_sale && nextStatus === "ORDERED"
         ? await loadSupplierDispatchContact(
@@ -1877,7 +1868,7 @@ export default function AdminPage() {
       });
     }
 
-    if (currentTicket.is_retail_sale && nextStatus === "ORDERED") {
+    if (currentTicket.is_retail_sale && nextStatus === "READY") {
       window.setTimeout(async () => {
         const dispatchPlan = retailDispatchPlan;
 

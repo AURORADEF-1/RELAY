@@ -776,7 +776,11 @@ export default function TicketDetailPage() {
       }
     }
 
-    if (workflowRequirement === "ready" && !nextBinLocation.trim()) {
+    if (
+      workflowRequirement === "ready" &&
+      !nextBinLocation.trim() &&
+      !(ticket.is_retail_sale && nextRetailDeliveryMethod === "delivery")
+    ) {
       setStatusWorkflowDialog((current) =>
         current
           ? { ...current, errorMessage: "Bin location required before marking this ticket READY." }
@@ -983,9 +987,7 @@ export default function TicketDetailPage() {
       status: ticketPatch.status,
     } as TicketRecord;
     const retailDispatchPlan =
-      ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED"
-        ? buildRetailCustomerDispatchPlan(nextUpdatedTicket, "ordered")
-        : ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "READY"
+      ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "READY"
           ? buildRetailCustomerDispatchPlan(nextUpdatedTicket, "ready")
           : null;
     const supplierDispatchContact =
@@ -1016,7 +1018,7 @@ export default function TicketDetailPage() {
         console.error("Failed to notify requester about status change", notificationError);
       });
     }
-    if (ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "ORDERED") {
+    if (ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "READY") {
       window.setTimeout(async () => {
         const dispatchPlan = retailDispatchPlan;
 
