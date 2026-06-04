@@ -3316,7 +3316,11 @@ export default function AdminPage() {
                       <TicketChatPanel
                         mode="operator"
                         ticketId={selectedChatTicket.id}
-                        ticketLabel={selectedChatTicket.job_number}
+                        ticketLabel={
+                          selectedChatTicket.is_retail_sale
+                            ? selectedChatTicket.customer_name ?? "Retail order"
+                            : selectedChatTicket.job_number
+                        }
                         ticketStatus={selectedChatTicket.status ?? "PENDING"}
                         latestUpdate={
                           selectedChatTicket.notes ||
@@ -3445,10 +3449,12 @@ export default function AdminPage() {
                       <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                         <div>
                           <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Job Number
+                            {ticket.is_retail_sale ? "Retail Order" : "Job Number"}
                           </dt>
                           <dd className="mt-1 text-sm text-slate-700">
-                            {ticket.job_number ?? "-"}
+                            {ticket.is_retail_sale
+                              ? ticket.customer_name ?? "Retail order"
+                              : ticket.job_number ?? "-"}
                           </dd>
                         </div>
                         <div>
@@ -3597,10 +3603,14 @@ export default function AdminPage() {
                                     ) : null}
                                     <div>
                                     <p className="text-sm font-semibold text-slate-900">
-                                      Job {ticket.job_number ?? "Not set"}
+                                      {ticket.is_retail_sale
+                                        ? ticket.customer_name ?? "Retail order"
+                                        : `Job ${ticket.job_number ?? "Not set"}`}
                                     </p>
                                     <p className="mt-1 text-sm text-slate-500">
-                                      {ticket.requester_name ?? "Requester"}
+                                      {ticket.is_retail_sale
+                                        ? "Retail sale"
+                                        : ticket.requester_name ?? "Requester"}
                                     </p>
                                     {collectedTicketIds.has(ticket.id) ? (
                                       <div className="mt-2">
@@ -3626,9 +3636,13 @@ export default function AdminPage() {
                               <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
                                 <div>
                                   <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                    Machine Ref
+                                    {ticket.is_retail_sale ? "Retail Order" : "Machine Ref"}
                                   </dt>
-                                  <dd className="mt-1">{ticket.machine_reference ?? "-"}</dd>
+                                  <dd className="mt-1">
+                                    {ticket.is_retail_sale
+                                      ? ticket.customer_name ?? "Retail order"
+                                      : ticket.machine_reference ?? "-"}
+                                  </dd>
                                 </div>
                                 <div>
                                   <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -3867,16 +3881,25 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
         <TicketOperationalSummary ticket={ticket} />
       </div>
       <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-        <div>
-          <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Job Number</dt>
-          <dd className="mt-1">{ticket.job_number ?? "-"}</dd>
-        </div>
-        <div>
-          <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Machine Ref</dt>
-          <dd className="mt-1">
-            <MachineReferenceHoverCard ticket={ticket} />
-          </dd>
-        </div>
+        {!ticket.is_retail_sale ? (
+          <>
+            <div>
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Job Number</dt>
+              <dd className="mt-1">{ticket.job_number ?? "-"}</dd>
+            </div>
+            <div>
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Machine Ref</dt>
+              <dd className="mt-1">
+                <MachineReferenceHoverCard ticket={ticket} />
+              </dd>
+            </div>
+          </>
+        ) : (
+          <div className="sm:col-span-2">
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Retail Order</dt>
+            <dd className="mt-1">{ticket.customer_name ?? "Retail order"}</dd>
+          </div>
+        )}
       </dl>
       {isOnsiteAdminTicket(ticket) ? (
         <div className="mt-4">
@@ -4063,7 +4086,7 @@ function ChatTicketSelectorCard({
               isActive ? "text-white" : "text-slate-900"
             }`}
           >
-            Job {ticket.job_number ?? "Not set"}
+            {ticket.is_retail_sale ? `Retail ${ticket.customer_name ?? "Order"}` : `Job ${ticket.job_number ?? "Not set"}`}
           </p>
           <p
             className={`mt-1 text-sm ${
@@ -4618,12 +4641,12 @@ function truncateSummary(value: string) {
 
 function formatRequestTitle(ticket: Ticket) {
   const summary = ticket.request_summary ?? ticket.request_details ?? "No request summary";
-  const jobLabel = ticket.job_number ? `Job ${ticket.job_number}` : "Job not set";
   if (ticket.is_retail_sale) {
     const customerLabel = ticket.customer_name?.trim() || "Retail order";
-    return `${jobLabel} | ${customerLabel} | ${truncateSummary(summary)}`;
+    return `${customerLabel} | ${truncateSummary(summary)}`;
   }
 
+  const jobLabel = ticket.job_number ? `Job ${ticket.job_number}` : "Job not set";
   return `${jobLabel} | ${truncateSummary(summary)}`;
 }
 

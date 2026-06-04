@@ -1765,10 +1765,19 @@ export default function TicketDetailPage() {
                     ) : (
                       <>
                         <dl className="mt-6 grid gap-5 sm:grid-cols-2">
-                          <DetailItem label="Requester" value={ticket.requester_name} />
-                          <DetailItem label="Department" value={ticket.department} />
-                          <DetailItem label="Machine" value={ticket.machine_reference} />
-                          <DetailItem label="Job Number" value={ticket.job_number} />
+                          {!ticket.is_retail_sale ? (
+                            <>
+                              <DetailItem label="Requester" value={ticket.requester_name} />
+                              <DetailItem label="Department" value={ticket.department} />
+                              <DetailItem label="Machine" value={ticket.machine_reference} />
+                              <DetailItem label="Job Number" value={ticket.job_number} />
+                            </>
+                          ) : (
+                            <>
+                              <DetailItem label="Retail Sale" value="Yes" />
+                              <DetailItem label="Customer Name" value={ticket.customer_name} />
+                            </>
+                          )}
                           <DetailItem label="Assigned User" value={ticket.assigned_to} />
                           <DetailItem label="Expected Delivery" value={formatOperationalDate(ticket.expected_delivery_date)} />
                           <DetailItem label="PO Number" value={ticket.purchase_order_number} />
@@ -1779,8 +1788,6 @@ export default function TicketDetailPage() {
                           <DetailItem label="Lead Time Note" value={ticket.lead_time_note} />
                           {ticket.is_retail_sale ? (
                             <>
-                              <DetailItem label="Retail Sale" value="Yes" />
-                              <DetailItem label="Customer Name" value={ticket.customer_name} />
                               <DetailItem label="Customer Email" value={ticket.customer_email} />
                               <DetailItem label="Customer Phone" value={ticket.customer_phone} />
                               <DetailItem label="Delivery Method" value={ticket.retail_delivery_method} />
@@ -1794,9 +1801,11 @@ export default function TicketDetailPage() {
                           />
                         </dl>
 
-                        <div className="mt-6">
-                          <MachineDetailsCard ticket={ticket} />
-                        </div>
+                        {!ticket.is_retail_sale ? (
+                          <div className="mt-6">
+                            <MachineDetailsCard ticket={ticket} />
+                          </div>
+                        ) : null}
 
                         {isOnsiteTicket(ticket) ? (
                           <div className="mt-6">
@@ -1938,9 +1947,9 @@ export default function TicketDetailPage() {
                   onDeleteAttachment={(attachmentId) => void handleDeleteAttachment(attachmentId)}
                 />
 
-                <TicketChatPanel
+              <TicketChatPanel
                   ticketId={ticket.id}
-                  ticketLabel={ticket.job_number}
+                  ticketLabel={ticket.is_retail_sale ? ticket.customer_name ?? "Retail order" : ticket.job_number}
                   ticketStatus={ticket.status ?? "PENDING"}
                   latestUpdate={
                     updates[0]?.comment ??
