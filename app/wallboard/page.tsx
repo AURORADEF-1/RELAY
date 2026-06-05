@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { ADMIN_OPERATOR_OPTIONS } from "@/lib/admin-operators";
+import { buildMonthlySupplierSpendSnapshots } from "@/lib/order-analytics";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -297,45 +299,65 @@ export default function WallboardPage() {
   }, [tickets]);
 
   const supplierSpendSummary = useMemo(() => {
+    const snapshots = buildMonthlySupplierSpendSnapshots(
+      supplierSpendTickets as unknown as Parameters<typeof buildMonthlySupplierSpendSnapshots>[0],
+    );
     const currentMonthKey = getMonthKey(new Date());
-    const supplierMap = new Map<
-      string,
-      { supplierName: string; orderCount: number; totalSpend: number; lastOrderedAt: string | null }
-    >();
+    const previousMonthKey = getPreviousMonthKey(currentMonthKey);
+    const currentMonthRows = snapshots.filter((snapshot) => snapshot.month_start === currentMonthKey);
+    const previousMonthRows = snapshots.filter((snapshot) => snapshot.month_start === previousMonthKey);
+    const previousMonthMap = new Map(
+      previousMonthRows.map((snapshot) => [snapshot.supplier_name_normalized, snapshot]),
+    );
 
-    supplierSpendTickets.forEach((ticket) => {
-      const supplierName = ticket.supplier_name?.trim();
-      const orderedAt = ticket.ordered_at ?? ticket.updated_at ?? ticket.created_at;
+    const suppliers = currentMonthRows
+      .map((snapshot) => {
+        const previousSnapshot = previousMonthMap.get(snapshot.supplier_name_normalized);
+        const previousTotalSpend = previousSnapshot?.total_spend ?? 0;
+        const previousOrderCount = previousSnapshot?.order_count ?? 0;
 
-      if (!supplierName || !orderedAt || getMonthKey(new Date(orderedAt)) !== currentMonthKey) {
-        return;
-      }
+        return {
+          supplierName: snapshot.supplier_name,
+          orderCount: snapshot.order_count,
+          totalSpend: snapshot.total_spend,
+          previousOrderCount,
+          previousTotalSpend,
+          monthOverMonthSpendChange: Number((snapshot.total_spend - previousTotalSpend).toFixed(2)),
+          monthOverMonthOrderChange: snapshot.order_count - previousOrderCount,
+          lastOrderedAt: null as string | null,
+        };
+      })
+      .sort((left, right) => {
+        if (right.totalSpend !== left.totalSpend) {
+          return right.totalSpend - left.totalSpend;
+        }
 
-      const normalizedSupplierName = supplierName.toLowerCase();
-      const existing = supplierMap.get(normalizedSupplierName);
-      const orderAmount = parseOrderAmount(ticket.order_amount);
-
-      supplierMap.set(normalizedSupplierName, {
-        supplierName: existing?.supplierName ?? supplierName,
-        orderCount: (existing?.orderCount ?? 0) + 1,
-        totalSpend: Number(((existing?.totalSpend ?? 0) + orderAmount).toFixed(2)),
-        lastOrderedAt: latestIsoDate(existing?.lastOrderedAt ?? null, orderedAt),
+        return right.orderCount - left.orderCount;
       });
-    });
 
-    const suppliers = Array.from(supplierMap.values()).sort((left, right) => {
-      if (right.totalSpend !== left.totalSpend) {
-        return right.totalSpend - left.totalSpend;
-      }
+    const totalSpend = Number(
+      currentMonthRows.reduce((sum, snapshot) => sum + snapshot.total_spend, 0).toFixed(2),
+    );
+    const previousTotalSpend = Number(
+      previousMonthRows.reduce((sum, snapshot) => sum + snapshot.total_spend, 0).toFixed(2),
+    );
 
-      return right.orderCount - left.orderCount;
-    });
+    const previousOrderCount = previousMonthRows.reduce((sum, snapshot) => sum + snapshot.order_count, 0);
+    const orderCount = currentMonthRows.reduce((sum, snapshot) => sum + snapshot.order_count, 0);
+
+    const topSupplier = suppliers[0] ?? null;
 
     return {
-      monthLabel: new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(new Date()),
+      currentMonthLabel: formatMonthLabel(currentMonthKey),
+      previousMonthLabel: formatMonthLabel(previousMonthKey),
+      currentTotalSpend: totalSpend,
+      previousTotalSpend,
+      spendChange: Number((totalSpend - previousTotalSpend).toFixed(2)),
+      orderCount,
+      previousOrderCount,
+      orderChange: orderCount - previousOrderCount,
       suppliers,
-      totalSpend: Number(suppliers.reduce((sum, supplier) => sum + supplier.totalSpend, 0).toFixed(2)),
-      orderCount: suppliers.reduce((sum, supplier) => sum + supplier.orderCount, 0),
+      topSupplier,
     };
   }, [supplierSpendTickets]);
 
@@ -596,25 +618,62 @@ function SupplierSpendScreen({
   summary,
 }: {
   summary: {
-    monthLabel: string;
+    currentMonthLabel: string;
+    previousMonthLabel: string;
+    currentTotalSpend: number;
+    previousTotalSpend: number;
+    spendChange: number;
+    orderCount: number;
+    previousOrderCount: number;
+    orderChange: number;
     suppliers: Array<{
       supplierName: string;
       orderCount: number;
       totalSpend: number;
+      previousOrderCount: number;
+      previousTotalSpend: number;
+      monthOverMonthSpendChange: number;
+      monthOverMonthOrderChange: number;
       lastOrderedAt: string | null;
     }>;
-    totalSpend: number;
-    orderCount: number;
   };
 }) {
   const topSuppliers = summary.suppliers.slice(0, 8);
+  const spendTrendPercent = formatPercentChange(summary.currentTotalSpend, summary.previousTotalSpend);
+  const orderTrendPercent = formatPercentChange(summary.orderCount, summary.previousOrderCount);
 
   return (
     <section className="grid min-h-[70vh] gap-5 xl:grid-cols-[0.38fr_1fr]">
       <aside className="grid gap-5">
-        <GlassSummaryCard label="Supplier spend" value={formatCurrency(summary.totalSpend)} helper={summary.monthLabel} />
-        <GlassSummaryCard label="Orders captured" value={summary.orderCount} helper="Orders with supplier names this month." />
-        <GlassSummaryCard label="Suppliers" value={summary.suppliers.length} helper="Distinct suppliers in this month." />
+        <GlassSummaryCard
+          label="Supplier spend"
+          value={formatCurrency(summary.currentTotalSpend)}
+          helper={
+            <>
+              {summary.currentMonthLabel} vs {summary.previousMonthLabel}{" "}
+              <span className={getChangeToneClass(summary.spendChange)}>
+                ({spendTrendPercent})
+              </span>
+            </>
+          }
+        />
+        <GlassSummaryCard
+          label="Orders captured"
+          value={summary.orderCount}
+          helper={
+            <>
+              {summary.currentMonthLabel} vs {summary.previousMonthLabel}{" "}
+              <span className={getChangeToneClass(summary.orderChange)}>
+                ({orderTrendPercent})
+              </span>
+            </>
+          }
+        />
+        <GlassSummaryCard
+          label="Suppliers"
+          value={summary.suppliers.length}
+          helper="Distinct suppliers in this month."
+        />
       </aside>
 
       <div className="rounded-[2rem] border border-white/12 bg-white/[0.075] p-6 shadow-[0_30px_90px_-56px_rgba(0,0,0,0.9)] backdrop-blur-md">
@@ -624,8 +683,15 @@ function SupplierSpendScreen({
               Monthly Supplier Spend
             </p>
             <h2 className="mt-3 text-4xl font-semibold tracking-[0.08em] text-white">
-              {summary.monthLabel}
+              {summary.currentMonthLabel}
             </h2>
+            <p className="mt-2 text-sm uppercase tracking-[0.22em] text-white/45">
+              Vs {summary.previousMonthLabel}{" "}
+              <span className={getChangeToneClass(summary.spendChange)}>
+                {spendTrendPercent}
+              </span>{" "}
+              · {formatSignedCount(summary.orderChange)} orders
+            </p>
           </div>
           <p className="text-right text-sm font-semibold uppercase tracking-[0.24em] text-white/48">
             Top suppliers by spend
@@ -645,7 +711,11 @@ function SupplierSpendScreen({
                 <div>
                   <p className="text-2xl font-semibold text-white">{supplier.supplierName}</p>
                   <p className="mt-1 text-sm font-medium uppercase tracking-[0.22em] text-white/42">
-                    {supplier.orderCount} order{supplier.orderCount === 1 ? "" : "s"} · Last {formatRelativeAge(supplier.lastOrderedAt)}
+                    {supplier.orderCount} order{supplier.orderCount === 1 ? "" : "s"} ·{" "}
+                    <span className={getChangeToneClass(supplier.monthOverMonthSpendChange)}>
+                      {formatPercentChange(supplier.totalSpend, supplier.previousTotalSpend)} vs last month
+                    </span>{" "}
+                    · {formatSignedCount(supplier.monthOverMonthOrderChange)} orders
                   </p>
                 </div>
                 <p className="text-3xl font-semibold text-emerald-100">
@@ -699,7 +769,7 @@ function GlassSummaryCard({
 }: {
   label: string;
   value: number | string;
-  helper: string;
+  helper: ReactNode;
 }) {
   return (
     <article className="rounded-[2rem] border border-white/12 bg-white/[0.075] p-6 shadow-[0_30px_90px_-56px_rgba(0,0,0,0.9)] backdrop-blur-md">
@@ -764,18 +834,6 @@ function compareIsoDates(left: string | null, right: string | null) {
   return new Date(left ?? 0).getTime() - new Date(right ?? 0).getTime();
 }
 
-function latestIsoDate(left: string | null, right: string | null) {
-  if (!left) {
-    return right;
-  }
-
-  if (!right) {
-    return left;
-  }
-
-  return new Date(right).getTime() > new Date(left).getTime() ? right : left;
-}
-
 function getMonthKey(date: Date) {
   if (Number.isNaN(date.getTime())) {
     return "";
@@ -784,17 +842,34 @@ function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function parseOrderAmount(value: number | string | null | undefined) {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : 0;
+function getPreviousMonthKey(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+
+  if (!year || !month) {
+    return "";
   }
 
-  if (typeof value === "string") {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : 0;
+  const previousMonth = new Date(year, month - 1, 1);
+
+  if (Number.isNaN(previousMonth.getTime())) {
+    return "";
   }
 
-  return 0;
+  return `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(monthKey: string) {
+  if (!/^\d{4}-\d{2}$/.test(monthKey)) {
+    return "Unknown month";
+  }
+
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(year, month - 1, 1);
+
+  return new Intl.DateTimeFormat("en-GB", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
 }
 
 function formatCurrency(value: number) {
@@ -803,6 +878,38 @@ function formatCurrency(value: number) {
     currency: "GBP",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatSignedCount(value: number) {
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value}`;
+}
+
+function formatPercentChange(current: number, previous: number) {
+  if (previous === 0) {
+    if (current === 0) {
+      return "0%";
+    }
+
+    return "new";
+  }
+
+  const percent = ((current - previous) / previous) * 100;
+  const rounded = Math.abs(percent) < 10 ? percent.toFixed(1) : percent.toFixed(0);
+  const prefix = percent > 0 ? "+" : percent < 0 ? "-" : "";
+  return `${prefix}${Math.abs(Number(rounded)).toFixed(rounded.includes(".") ? 1 : 0)}%`;
+}
+
+function getChangeToneClass(value: number) {
+  if (value > 0) {
+    return "text-rose-200";
+  }
+
+  if (value < 0) {
+    return "text-emerald-200";
+  }
+
+  return "text-white/55";
 }
 
 function getWallboardCardClass(status: string | null) {
