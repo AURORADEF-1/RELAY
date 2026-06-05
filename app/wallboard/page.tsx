@@ -302,8 +302,8 @@ export default function WallboardPage() {
     const snapshots = buildMonthlySupplierSpendSnapshots(
       supplierSpendTickets as unknown as Parameters<typeof buildMonthlySupplierSpendSnapshots>[0],
     );
-    const currentMonthKey = getMonthKey(new Date());
-    const previousMonthKey = getPreviousMonthKey(currentMonthKey);
+    const currentMonthKey = getMonthStartKey(new Date());
+    const previousMonthKey = getPreviousMonthStartKey(currentMonthKey);
     const currentMonthRows = snapshots.filter((snapshot) => snapshot.month_start === currentMonthKey);
     const previousMonthRows = snapshots.filter((snapshot) => snapshot.month_start === previousMonthKey);
     const previousMonthMap = new Map(
@@ -834,16 +834,16 @@ function compareIsoDates(left: string | null, right: string | null) {
   return new Date(left ?? 0).getTime() - new Date(right ?? 0).getTime();
 }
 
-function getMonthKey(date: Date) {
+function getMonthStartKey(date: Date) {
   if (Number.isNaN(date.getTime())) {
     return "";
   }
 
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
-function getPreviousMonthKey(monthKey: string) {
-  const [year, month] = monthKey.split("-").map(Number);
+function getPreviousMonthStartKey(monthStart: string) {
+  const [year, month] = monthStart.split("-").map(Number);
 
   if (!year || !month) {
     return "";
@@ -855,15 +855,15 @@ function getPreviousMonthKey(monthKey: string) {
     return "";
   }
 
-  return `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, "0")}`;
+  return `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
-function formatMonthLabel(monthKey: string) {
-  if (!/^\d{4}-\d{2}$/.test(monthKey)) {
+function formatMonthLabel(monthStart: string) {
+  if (!/^\d{4}-\d{2}-01$/.test(monthStart)) {
     return "Unknown month";
   }
 
-  const [year, month] = monthKey.split("-").map(Number);
+  const [year, month] = monthStart.split("-").map(Number);
   const date = new Date(year, month - 1, 1);
 
   return new Intl.DateTimeFormat("en-GB", {
