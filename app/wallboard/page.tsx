@@ -849,7 +849,7 @@ function getPreviousMonthStartKey(monthStart: string) {
     return "";
   }
 
-  const previousMonth = new Date(year, month - 1, 1);
+  const previousMonth = new Date(year, month - 2, 1);
 
   if (Number.isNaN(previousMonth.getTime())) {
     return "";
