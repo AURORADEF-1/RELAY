@@ -39,6 +39,7 @@ const MODE_DURATION_MS = 1000 * 60;
 const POLL_INTERVAL_MS = 1000 * 30;
 const PAGE_DURATION_MS = 1000 * 30;
 const PAGE_SIZE = 12;
+const LIVE_QUEUE_LIMIT = 1000;
 const REALTIME_REFRESH_DEBOUNCE_MS = 500;
 
 export default function WallboardPage() {
@@ -94,7 +95,7 @@ export default function WallboardPage() {
           )
           .in("status", activeTicketStatuses)
           .order("updated_at", { ascending: false })
-          .limit(100),
+          .limit(LIVE_QUEUE_LIMIT),
         supabase
           .from("tickets")
           .select("id, supplier_name, order_amount, ordered_at, updated_at, created_at, status")
