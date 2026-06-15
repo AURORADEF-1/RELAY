@@ -11,12 +11,12 @@ export function RelayLogo({
 }: RelayLogoProps) {
   return (
     <div className={`flex items-center gap-3 ${className}`.trim()}>
-      <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] shadow-[0_14px_36px_-20px_rgba(15,23,42,0.24)]">
+      <div className="flex h-14 w-14 items-center justify-center overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/aurora-logo.png"
           alt="Aurora Systems"
-          className="h-full w-full object-contain p-1.5"
+          className="h-full w-full object-contain"
         />
       </div>
       {compact ? null : (
