@@ -7,6 +7,7 @@ import {
   deleteAdminOperator,
   fetchAdminOperatorRecords,
   getDefaultAdminOperatorOptions,
+  isCoreAdminOperatorName,
   normalizeAdminOperatorName,
   type AdminOperatorRecord,
 } from "@/lib/admin-operators";
@@ -231,16 +232,20 @@ export function AdminOperatorManagementPanel() {
                       {operator.name}
                     </p>
                     <p className="text-xs uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
-                      Reporting label
+                      {isCoreAdminOperatorName(operator.name) ? "Built-in operator" : "Custom operator"}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => void handleDeleteOperator(operator.name)}
-                    disabled={deletingOperatorName === operator.name}
+                    disabled={deletingOperatorName === operator.name || isCoreAdminOperatorName(operator.name)}
                     className="aurora-button-danger disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {deletingOperatorName === operator.name ? "Deleting..." : "Delete"}
+                    {isCoreAdminOperatorName(operator.name)
+                      ? "Locked"
+                      : deletingOperatorName === operator.name
+                        ? "Deleting..."
+                        : "Delete"}
                   </button>
                 </div>
               ))
