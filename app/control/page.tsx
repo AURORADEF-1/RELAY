@@ -2,6 +2,7 @@
 
 import { AuthGuard } from "@/components/auth-guard";
 import { AdminHealthPanel } from "@/components/admin-health-panel";
+import { AdminOperatorManagementPanel } from "@/components/admin-operator-management-panel";
 import { AdminOperationsOverview } from "@/components/admin-operations-overview";
 import { AdminSessionControlPanel } from "@/components/admin-session-control-panel";
 import Link from "next/link";
@@ -63,6 +64,7 @@ export default function ControlPage() {
           </nav>
 
           <AdminOperationsOverview />
+          <AdminOperatorManagementPanel />
           <AdminHealthPanel />
           <AdminSessionControlPanel />
         </div>

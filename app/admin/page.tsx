@@ -19,7 +19,6 @@ import { TicketStatusWorkflowModal } from "@/components/ticket-status-workflow-m
 import { FleetHealthPanel } from "@/components/fleet-health-panel";
 import { SupplierDirectoryPanel } from "@/components/supplier-directory-panel";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
-import { AdminOperatorManagementPanel } from "@/components/admin-operator-management-panel";
 import { fetchAdminOperatorRecords } from "@/lib/admin-operators";
 import {
   buildOnsiteLocationMapUrl,
@@ -2903,8 +2902,6 @@ export default function AdminPage() {
             <div className="mt-8">
               <PartsControlTabs activeTab={resourceTab} onTabChange={setResourceTab} />
             </div>
-
-            <AdminOperatorManagementPanel />
 
             {resourceTab === "guide" ? (
               <div className="mt-6">
