@@ -3916,7 +3916,17 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
             </div>
           ) : null}
         </div>
-        <StatusBadge status={ticket.status ?? "PENDING"} />
+        <div className="flex flex-col items-end gap-2">
+          <Link
+            href={`/tickets/${ticket.id}#parts`}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-semibold leading-none text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            title="Add linked part"
+            aria-label="Add linked part"
+          >
+            +
+          </Link>
+          <StatusBadge status={ticket.status ?? "PENDING"} />
+        </div>
       </div>
       <p className="mt-4 text-sm leading-7 text-slate-700">
         {ticket.request_summary ?? ticket.request_details ?? "-"}

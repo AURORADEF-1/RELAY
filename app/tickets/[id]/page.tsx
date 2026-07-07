@@ -48,6 +48,26 @@ import {
   type TicketMessageRecord,
   uploadTicketAttachments,
 } from "@/lib/relay-ticketing";
+import {
+  buildEmptyTicketPartDraft,
+  createTicketPart,
+  fetchTicketParts,
+  formatTicketPartStatus,
+  ticketPartStatuses,
+  type TicketPartDraft,
+  type TicketPartRecord,
+  type TicketPartStatus,
+} from "@/lib/ticket-parts";
+import {
+  buildEmptyTicketPurchaseOrderDraft,
+  createTicketPurchaseOrder,
+  fetchTicketPurchaseOrders,
+  formatTicketPurchaseOrderStatus,
+  ticketPurchaseOrderStatuses,
+  type TicketPurchaseOrderDraft,
+  type TicketPurchaseOrderRecord,
+  type TicketPurchaseOrderStatus,
+} from "@/lib/ticket-purchase-orders";
 import type { RelayAiContext } from "@/lib/relay-ai";
 import {
   buildRequesterReturnComment,
@@ -203,6 +223,8 @@ export default function TicketDetailPage() {
   const [updates, setUpdates] = useState<TicketUpdate[]>([]);
   const [attachments, setAttachments] = useState<TicketAttachmentRecord[]>([]);
   const [messages, setMessages] = useState<TicketMessageRecord[]>([]);
+  const [ticketParts, setTicketParts] = useState<TicketPartRecord[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<TicketPurchaseOrderRecord[]>([]);
   const [messageSenderNameByUserId, setMessageSenderNameByUserId] = useState<Record<string, string>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
@@ -211,6 +233,8 @@ export default function TicketDetailPage() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isSavingPart, setIsSavingPart] = useState(false);
+  const [isSavingPurchaseOrder, setIsSavingPurchaseOrder] = useState(false);
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [requesterAvatarUrl, setRequesterAvatarUrl] = useState<string | null>(null);
   const [hasRequesterCollected, setHasRequesterCollected] = useState(false);
@@ -224,6 +248,14 @@ export default function TicketDetailPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [editDraft, setEditDraft] = useState<TicketEditDraft | null>(null);
+  const [partDraft, setPartDraft] = useState<TicketPartDraft>(buildEmptyTicketPartDraft());
+  const [purchaseOrderDraft, setPurchaseOrderDraft] = useState<TicketPurchaseOrderDraft>(
+    buildEmptyTicketPurchaseOrderDraft(),
+  );
+  const [partNotice, setPartNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
   const [editConflictDialog, setEditConflictDialog] = useState<EditConflictDialogState | null>(null);
 
@@ -277,6 +309,8 @@ export default function TicketDetailPage() {
       setTicket(ticketData as TicketRecord);
       setUpdates([]);
       setEditDraft(buildTicketEditDraft(ticketData as TicketRecord));
+      setPartDraft(buildEmptyTicketPartDraft());
+      setPurchaseOrderDraft(buildEmptyTicketPurchaseOrderDraft());
       setHasRequesterCollected(false);
       setHasRequesterReturnRequested(false);
     } else {
@@ -284,6 +318,8 @@ export default function TicketDetailPage() {
       setTicket(ticketData as TicketRecord);
       setUpdates((updateData ?? []) as TicketUpdate[]);
       setEditDraft(buildTicketEditDraft(ticketData as TicketRecord));
+      setPartDraft(buildEmptyTicketPartDraft());
+      setPurchaseOrderDraft(buildEmptyTicketPurchaseOrderDraft());
       setHasRequesterCollected(
         (updateData ?? []).some(
           (update) => update.comment === REQUESTER_COLLECTED_COMMENT,
@@ -295,9 +331,11 @@ export default function TicketDetailPage() {
     }
 
     try {
-      const [attachmentData, messageData] = await Promise.all([
+      const [attachmentData, messageData, partData, purchaseOrderData] = await Promise.all([
         fetchTicketAttachments(supabase, ticketId),
         fetchTicketMessages(supabase, ticketId),
+        fetchTicketParts(supabase, ticketId),
+        fetchTicketPurchaseOrders(supabase, ticketId),
       ]);
       const senderNames = await fetchProfileDisplayNamesByUserId(
         supabase,
@@ -308,6 +346,8 @@ export default function TicketDetailPage() {
 
       setAttachments(attachmentData);
       setMessages(messageData);
+      setTicketParts(partData);
+      setPurchaseOrders(purchaseOrderData);
       setMessageSenderNameByUserId(senderNames);
     } catch (loadError) {
       setErrorMessage(
@@ -1121,6 +1161,203 @@ export default function TicketDetailPage() {
     }
   }
 
+  async function handleAddPurchaseOrder() {
+    if (!ticket) {
+      return;
+    }
+
+    if (!isAdmin) {
+      setPartNotice({
+        type: "error",
+        message: "Admin access is required to raise a purchase order.",
+      });
+      return;
+    }
+
+    if (!currentUserId) {
+      setPartNotice({
+        type: "error",
+        message: "Unable to identify the current admin user.",
+      });
+      return;
+    }
+
+    const supplierName = purchaseOrderDraft.supplier_name.trim();
+    const purchaseOrderNumber = purchaseOrderDraft.purchase_order_number.trim();
+    const supplierEmail = purchaseOrderDraft.supplier_email.trim();
+    const notes = purchaseOrderDraft.notes.trim();
+    const parsedOrderAmount = purchaseOrderDraft.order_amount.trim()
+      ? Number.parseFloat(purchaseOrderDraft.order_amount.trim())
+      : null;
+
+    if (!supplierName) {
+      setPartNotice({
+        type: "error",
+        message: "Add a supplier name before saving.",
+      });
+      return;
+    }
+
+    if (!purchaseOrderNumber) {
+      setPartNotice({
+        type: "error",
+        message: "Add a purchase order number before saving.",
+      });
+      return;
+    }
+
+    if (purchaseOrderDraft.order_amount.trim() && (parsedOrderAmount == null || Number.isNaN(parsedOrderAmount) || parsedOrderAmount < 0)) {
+      setPartNotice({
+        type: "error",
+        message: "Enter a valid order amount or leave it blank.",
+      });
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setPartNotice({
+        type: "error",
+        message: "Supabase environment variables are not configured.",
+      });
+      return;
+    }
+
+    setIsSavingPurchaseOrder(true);
+    setPartNotice(null);
+
+    try {
+      const createdPurchaseOrder = await createTicketPurchaseOrder(supabase, {
+        ticketId: ticket.id,
+        createdBy: currentUserId,
+        updatedBy: currentUserId,
+        supplierName,
+        purchaseOrderNumber,
+        supplierEmail: supplierEmail || null,
+        orderAmount: parsedOrderAmount,
+        poStatus: purchaseOrderDraft.po_status,
+        notes: notes || null,
+      });
+
+      setPurchaseOrders((current) => [createdPurchaseOrder, ...current]);
+      setPurchaseOrderDraft(buildEmptyTicketPurchaseOrderDraft());
+      setPartNotice({
+        type: "success",
+        message: "Purchase order added to this ticket.",
+      });
+    } catch (purchaseOrderError) {
+      setPartNotice({
+        type: "error",
+        message: sanitizeUserFacingError(
+          purchaseOrderError,
+          "Unable to add this purchase order right now.",
+        ),
+      });
+    } finally {
+      setIsSavingPurchaseOrder(false);
+    }
+  }
+
+  async function handleAddTicketPart() {
+    if (!ticket) {
+      return;
+    }
+
+    if (!isAdmin) {
+      setPartNotice({
+        type: "error",
+        message: "Admin access is required to link parts to a ticket.",
+      });
+      return;
+    }
+
+    if (!currentUserId) {
+      setPartNotice({
+        type: "error",
+        message: "Unable to identify the current admin user.",
+      });
+      return;
+    }
+
+    const partDescription = partDraft.part_description.trim();
+    const partNumber = partDraft.part_number.trim();
+    const supplierName = partDraft.supplier_name.trim();
+    const notes = partDraft.notes.trim();
+    const parsedQuantity = Number.parseInt(partDraft.quantity.trim(), 10);
+    const selectedPurchaseOrderId = partDraft.ticket_purchase_order_id.trim();
+
+    if (!partDescription) {
+      setPartNotice({
+        type: "error",
+        message: "Add a part description before saving.",
+      });
+      return;
+    }
+
+    if (!partNumber) {
+      setPartNotice({
+        type: "error",
+        message: "Add a part number before saving.",
+      });
+      return;
+    }
+
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity < 1) {
+      setPartNotice({
+        type: "error",
+        message: "Quantity must be a positive whole number.",
+      });
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setPartNotice({
+        type: "error",
+        message: "Supabase environment variables are not configured.",
+      });
+      return;
+    }
+
+    setIsSavingPart(true);
+    setPartNotice(null);
+
+    try {
+      const createdPart = await createTicketPart(supabase, {
+        ticketId: ticket.id,
+        createdBy: currentUserId,
+        updatedBy: currentUserId,
+        jobNumber: ticket.job_number,
+        machineReference: ticket.machine_reference,
+        purchaseOrderId: selectedPurchaseOrderId || null,
+        machineMake: ticket.machine_make,
+        machineModel: ticket.machine_model,
+        partDescription,
+        partNumber,
+        quantity: parsedQuantity,
+        partStatus: partDraft.part_status,
+        supplierName: supplierName || null,
+        notes: notes || null,
+      });
+
+      setTicketParts((current) => [createdPart, ...current]);
+      setPartDraft(buildEmptyTicketPartDraft());
+      setPartNotice({
+        type: "success",
+        message: "Linked part added to this ticket.",
+      });
+    } catch (partError) {
+      setPartNotice({
+        type: "error",
+        message: sanitizeUserFacingError(partError, "Unable to add this part right now."),
+      });
+    } finally {
+      setIsSavingPart(false);
+    }
+  }
+
   async function handleMarkCollected() {
     if (!ticket) {
       return;
@@ -1853,6 +2090,441 @@ export default function TicketDetailPage() {
                           />
                           <DetailBlock label="Admin Notes" value={ticket.notes} />
                         </div>
+                        <section
+                          id="purchase-orders"
+                          className="mt-6 rounded-2xl border border-slate-200 bg-white p-5"
+                        >
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                Separate Purchase Orders
+                              </p>
+                              <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                                Raise one or more POs per request
+                              </h3>
+                              <p className="mt-1 text-sm leading-6 text-slate-600">
+                                Use this when one job needs parts from multiple suppliers. Each PO is stored against the ticket and can be linked back to one or more parts.
+                              </p>
+                            </div>
+                            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                              {purchaseOrders.length} raised
+                            </div>
+                          </div>
+
+                          {purchaseOrders.length === 0 ? (
+                            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm leading-6 text-slate-500">
+                              No purchase orders have been raised yet for this ticket.
+                            </div>
+                          ) : (
+                            <div className="mt-4 grid gap-3">
+                              {purchaseOrders.map((po) => (
+                                <article key={po.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-semibold text-slate-950">
+                                        PO {po.purchase_order_number}
+                                      </p>
+                                      <p className="mt-1 text-sm text-slate-600">
+                                        {po.supplier_name}
+                                        {po.supplier_email ? ` · ${po.supplier_email}` : ""}
+                                      </p>
+                                    </div>
+                                    <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+                                      {formatTicketPurchaseOrderStatus(po.po_status)}
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                                    <p>
+                                      Amount: <span className="font-medium text-slate-900">{formatOrderAmount(po.order_amount)}</span>
+                                    </p>
+                                    <p>
+                                      Parts linked: <span className="font-medium text-slate-900">
+                                        {ticketParts.filter((part) => part.ticket_purchase_order_id === po.id).length}
+                                      </span>
+                                    </p>
+                                    {po.notes ? (
+                                      <p className="sm:col-span-2 leading-6">{po.notes}</p>
+                                    ) : null}
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+
+                          {isAdmin ? (
+                            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    Add purchase order
+                                  </p>
+                                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                                    Create a supplier-specific PO for this request before linking one or more parts to it.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                <label className="block">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Supplier
+                                  </span>
+                                  <input
+                                    value={purchaseOrderDraft.supplier_name}
+                                    onChange={(event) =>
+                                      setPurchaseOrderDraft((current) => ({
+                                        ...current,
+                                        supplier_name: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="Supplier name"
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </label>
+                                <label className="block">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    PO Number
+                                  </span>
+                                  <input
+                                    value={purchaseOrderDraft.purchase_order_number}
+                                    onChange={(event) =>
+                                      setPurchaseOrderDraft((current) => ({
+                                        ...current,
+                                        purchase_order_number: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="PO-0001"
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </label>
+                                <label className="block">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Supplier Email
+                                  </span>
+                                  <input
+                                    value={purchaseOrderDraft.supplier_email}
+                                    onChange={(event) =>
+                                      setPurchaseOrderDraft((current) => ({
+                                        ...current,
+                                        supplier_email: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="orders@supplier.example"
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </label>
+                                <label className="block">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    PO Status
+                                  </span>
+                                  <select
+                                    value={purchaseOrderDraft.po_status}
+                                    onChange={(event) =>
+                                      setPurchaseOrderDraft((current) => ({
+                                        ...current,
+                                        po_status: event.target.value as TicketPurchaseOrderStatus,
+                                      }))
+                                    }
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  >
+                                    {ticketPurchaseOrderStatuses.map((status) => (
+                                      <option key={status} value={status}>
+                                        {formatTicketPurchaseOrderStatus(status)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className="block">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Amount
+                                  </span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={purchaseOrderDraft.order_amount}
+                                    onChange={(event) =>
+                                      setPurchaseOrderDraft((current) => ({
+                                        ...current,
+                                        order_amount: event.target.value,
+                                      }))
+                                    }
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </label>
+                                <label className="block sm:col-span-2">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Notes
+                                  </span>
+                                  <textarea
+                                    value={purchaseOrderDraft.notes}
+                                    onChange={(event) =>
+                                      setPurchaseOrderDraft((current) => ({
+                                        ...current,
+                                        notes: event.target.value,
+                                      }))
+                                    }
+                                    rows={3}
+                                    placeholder="Lead time, order split, backorder, or call notes"
+                                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </label>
+                              </div>
+                              <div className="mt-4 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleAddPurchaseOrder()}
+                                  disabled={isSavingPurchaseOrder}
+                                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {isSavingPurchaseOrder ? "Saving..." : "Raise PO"}
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </section>
+
+                        <section
+                          id="parts"
+                          className="mt-6 rounded-2xl border border-slate-200 bg-white p-5"
+                        >
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                Linked Parts
+                              </p>
+                              <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                                Parts catalogue seed for this job
+                              </h3>
+                              <p className="mt-1 text-sm leading-6 text-slate-600">
+                                Each part record stays tied to the ticket, job number, machine reference, and optionally a specific PO.
+                              </p>
+                            </div>
+                            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                              {ticketParts.length} linked
+                            </div>
+                          </div>
+
+                          {ticketParts.length === 0 ? (
+                            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm leading-6 text-slate-500">
+                              No linked parts yet. Press the + button from compact view, or add the first part below.
+                            </div>
+                          ) : (
+                            <div className="mt-4 grid gap-3">
+                              {ticketParts.map((part) => (
+                                <article
+                                  key={part.id}
+                                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-semibold text-slate-950">
+                                        {part.part_description}
+                                      </p>
+                                      <p className="mt-1 text-sm text-slate-600">
+                                        Part <span className="font-medium text-slate-900">{part.part_number}</span>
+                                        {" "}· Qty {part.quantity}
+                                      </p>
+                                    </div>
+                                    <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+                                      {formatTicketPartStatus(part.part_status)}
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                                    <p>
+                                      Machine: <span className="font-medium text-slate-900">{part.machine_reference ?? ticket.machine_reference ?? "-"}</span>
+                                    </p>
+                                    <p>
+                                      Job: <span className="font-medium text-slate-900">{part.job_number ?? ticket.job_number ?? "-"}</span>
+                                    </p>
+                                    <p className="sm:col-span-2">
+                                      PO:{" "}
+                                      <span className="font-medium text-slate-900">
+                                        {purchaseOrders.find((po) => po.id === part.ticket_purchase_order_id)?.purchase_order_number ?? "-"}
+                                      </span>
+                                    </p>
+                                    {part.supplier_name ? (
+                                      <p className="sm:col-span-2">
+                                        Supplier: <span className="font-medium text-slate-900">{part.supplier_name}</span>
+                                      </p>
+                                    ) : null}
+                                    {part.notes ? (
+                                      <p className="sm:col-span-2 leading-6">
+                                        {part.notes}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+
+                          {isAdmin ? (
+                            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    Add linked part
+                                  </p>
+                                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                                    Capture the requested part number now so the same machine, job, and PO can grow into a better catalogue over time.
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                <label className="block">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Part Description
+                                  </span>
+                                  <input
+                                    value={partDraft.part_description}
+                                    onChange={(event) =>
+                                      setPartDraft((current) => ({
+                                        ...current,
+                                        part_description: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="Steering pin bushes"
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </label>
+                                <label className="block">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Part Number
+                                  </span>
+                                  <input
+                                    value={partDraft.part_number}
+                                    onChange={(event) =>
+                                      setPartDraft((current) => ({
+                                        ...current,
+                                        part_number: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="PN-1111"
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </label>
+                                <label className="block">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Quantity
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={partDraft.quantity}
+                                    onChange={(event) =>
+                                      setPartDraft((current) => ({
+                                        ...current,
+                                        quantity: event.target.value,
+                                      }))
+                                    }
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </label>
+                                <label className="block">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Part Status
+                                  </span>
+                                  <select
+                                    value={partDraft.part_status}
+                                    onChange={(event) =>
+                                      setPartDraft((current) => ({
+                                        ...current,
+                                        part_status: event.target.value as TicketPartStatus,
+                                      }))
+                                    }
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  >
+                                    {ticketPartStatuses.map((status) => (
+                                      <option key={status} value={status}>
+                                        {formatTicketPartStatus(status)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className="block sm:col-span-2">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Linked PO
+                                  </span>
+                                  <select
+                                    value={partDraft.ticket_purchase_order_id}
+                                    onChange={(event) =>
+                                      setPartDraft((current) => ({
+                                        ...current,
+                                        ticket_purchase_order_id: event.target.value,
+                                      }))
+                                    }
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  >
+                                    <option value="">No PO assigned yet</option>
+                                    {purchaseOrders.map((po) => (
+                                      <option key={po.id} value={po.id}>
+                                        {po.purchase_order_number} · {po.supplier_name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className="block sm:col-span-2">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Supplier
+                                  </span>
+                                  <input
+                                    value={partDraft.supplier_name}
+                                    onChange={(event) =>
+                                      setPartDraft((current) => ({
+                                        ...current,
+                                        supplier_name: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="Source supplier or branch"
+                                    className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </label>
+                                <label className="block sm:col-span-2">
+                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Notes
+                                  </span>
+                                  <textarea
+                                    value={partDraft.notes}
+                                    onChange={(event) =>
+                                      setPartDraft((current) => ({
+                                        ...current,
+                                        notes: event.target.value,
+                                      }))
+                                    }
+                                    rows={3}
+                                    placeholder="Any fitment, sourcing, or cross-reference notes"
+                                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                                  />
+                                </label>
+                              </div>
+
+                              {partNotice ? (
+                                <div
+                                  className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                                    partNotice.type === "success"
+                                      ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                                      : "border border-rose-200 bg-rose-50 text-rose-700"
+                                  }`}
+                                >
+                                  {partNotice.message}
+                                </div>
+                              ) : null}
+
+                              <div className="mt-4 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleAddTicketPart()}
+                                  disabled={isSavingPart}
+                                  className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {isSavingPart ? "Saving..." : "Add Part"}
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </section>
                         {!isAdmin && ticket.status === "READY" && ticket.bin_location?.trim() ? (
                           <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
                             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">

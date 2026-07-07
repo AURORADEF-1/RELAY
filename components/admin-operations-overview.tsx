@@ -42,6 +42,22 @@ type OverviewReturnRow = {
   created_at: string | null;
 };
 
+type OverviewPartRow = {
+  id: string;
+  ticket_id: string;
+  ticket_purchase_order_id: string | null;
+  job_number: string | null;
+  machine_reference: string | null;
+  machine_number_normalized: string | null;
+  part_description: string;
+  part_number: string;
+  quantity: number;
+  part_status: "REQUESTED" | "SOURCED" | "FITTED" | "CANCELLED";
+  supplier_name: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 type OverviewSnapshot = {
   activeTickets: OverviewTicketRow[];
   activeIncidents: OverviewIncidentRow[];
@@ -54,6 +70,7 @@ type OverviewSnapshot = {
     reason: string;
     createdAt: string | null;
   }>;
+  parts: OverviewPartRow[];
   dailySummary: {
     ticketsCreatedToday: number;
     ticketsCompletedToday: number;
@@ -104,6 +121,7 @@ export function AdminOperationsOverview() {
         openTasksResult,
         recentUsersResult,
         recentReturnsResult,
+        partsResult,
         ticketsCreatedTodayResult,
         ticketsCompletedTodayResult,
         incidentsReportedTodayResult,
@@ -131,6 +149,11 @@ export function AdminOperationsOverview() {
           .like("comment", "Part return requested by requester.%")
           .order("created_at", { ascending: false })
           .limit(8),
+        supabase
+          .from("ticket_parts")
+          .select("id, ticket_id, ticket_purchase_order_id, job_number, machine_reference, machine_number_normalized, part_description, part_number, quantity, part_status, supplier_name, created_at, updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(200),
         supabase
           .from("tickets")
           .select("id", { count: "exact", head: true })
@@ -165,6 +188,10 @@ export function AdminOperationsOverview() {
 
       if (recentReturnsResult.error) {
         throw new Error(recentReturnsResult.error.message);
+      }
+
+      if (partsResult.error) {
+        throw new Error(partsResult.error.message);
       }
 
       const returnedTicketIds = Array.from(
@@ -208,6 +235,7 @@ export function AdminOperationsOverview() {
             createdAt: row.created_at ?? null,
           }))
           .filter((row) => row.updateId && row.ticketId && row.reason),
+        parts: (partsResult.data ?? []) as OverviewPartRow[],
         dailySummary: {
           ticketsCreatedToday: ticketsCreatedTodayResult.count ?? 0,
           ticketsCompletedToday: ticketsCompletedTodayResult.count ?? 0,
@@ -488,6 +516,71 @@ export function AdminOperationsOverview() {
     };
   }, [snapshot]);
 
+  const partsCatalogue = useMemo(() => {
+    const parts = snapshot?.parts ?? [];
+    const machineBuckets = parts.reduce<Record<string, {
+      machineReference: string;
+      ticketIds: Set<string>;
+      partCount: number;
+      supplierCount: number;
+      latestAt: string | null;
+    }>>((accumulator, part) => {
+      const machineReference = part.machine_reference?.trim() || "Unassigned machine";
+      const key = part.machine_number_normalized?.trim() || machineReference.toUpperCase();
+      const current = accumulator[key] ?? {
+        machineReference,
+        ticketIds: new Set<string>(),
+        partCount: 0,
+        supplierCount: 0,
+        latestAt: null,
+      };
+
+      if (part.ticket_id) {
+        current.ticketIds.add(part.ticket_id);
+      }
+      current.partCount += Math.max(1, part.quantity || 1);
+      current.supplierCount += part.supplier_name ? 1 : 0;
+      current.latestAt =
+        !current.latestAt || (part.updated_at && new Date(part.updated_at).getTime() > new Date(current.latestAt).getTime())
+          ? part.updated_at ?? current.latestAt
+          : current.latestAt;
+      accumulator[key] = current;
+      return accumulator;
+    }, {});
+
+    return Object.values(machineBuckets)
+      .map((entry) => ({
+        ...entry,
+        jobCount: entry.ticketIds.size,
+      }))
+      .sort((left, right) => (new Date(right.latestAt ?? 0).getTime() - new Date(left.latestAt ?? 0).getTime()) || right.partCount - left.partCount)
+      .slice(0, 12);
+  }, [snapshot]);
+
+  const partsMetrics = useMemo(() => {
+    const parts = snapshot?.parts ?? [];
+    const machineKeys = new Set<string>();
+    const supplierKeys = new Set<string>();
+
+    for (const part of parts) {
+      const machineKey = part.machine_number_normalized?.trim() || part.machine_reference?.trim() || "";
+
+      if (machineKey) {
+        machineKeys.add(machineKey);
+      }
+
+      if (part.supplier_name?.trim()) {
+        supplierKeys.add(part.supplier_name.trim());
+      }
+    }
+
+    return {
+      linkedParts: parts.length,
+      machines: machineKeys.size,
+      suppliers: supplierKeys.size,
+    };
+  }, [snapshot]);
+
   return (
     <section className="aurora-section overflow-hidden">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -646,6 +739,51 @@ export function AdminOperationsOverview() {
               <OverviewStat label="Tickets Completed Today" value={String(snapshot?.dailySummary.ticketsCompletedToday ?? 0)} />
               <OverviewStat label="Incidents Reported Today" value={String(snapshot?.dailySummary.incidentsReportedToday ?? 0)} />
               <OverviewStat label="Tasks Closed Today" value={String(snapshot?.dailySummary.tasksCompletedToday ?? 0)} />
+            </div>
+          </div>
+
+          <div className="aurora-subpanel p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="aurora-stat-label text-sm">
+                Parts Catalogue
+              </p>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
+                machine-linked
+              </p>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <OverviewStat label="Linked Parts" value={String(partsMetrics.linkedParts)} />
+              <OverviewStat label="Machines" value={String(partsMetrics.machines)} />
+              <OverviewStat label="Suppliers" value={String(partsMetrics.suppliers)} />
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {partsCatalogue.length > 0 ? (
+                partsCatalogue.map((row) => (
+                  <article
+                    key={row.machineReference}
+                    className="rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
+                          {row.machineReference}
+                        </p>
+                        <p className="mt-1 text-sm text-[color:var(--foreground-muted)]">
+                          {row.partCount} parts · {row.supplierCount} supplier references
+                        </p>
+                      </div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
+                        Latest {row.latestAt ? formatDateTime(row.latestAt) : "now"}
+                      </p>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="aurora-empty">
+                  No linked parts yet. Add the first part from a ticket to seed the catalogue.
+                </div>
+              )}
             </div>
           </div>
 
