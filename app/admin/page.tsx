@@ -19,9 +19,8 @@ import { TicketStatusWorkflowModal } from "@/components/ticket-status-workflow-m
 import { FleetHealthPanel } from "@/components/fleet-health-panel";
 import { SupplierDirectoryPanel } from "@/components/supplier-directory-panel";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
-import {
-  ADMIN_OPERATOR_OPTIONS,
-} from "@/lib/admin-operators";
+import { AdminOperatorManagementPanel } from "@/components/admin-operator-management-panel";
+import { fetchAdminOperatorRecords } from "@/lib/admin-operators";
 import {
   buildOnsiteLocationMapUrl,
   formatOnsiteLocationSummary,
@@ -277,6 +276,7 @@ export default function AdminPage() {
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const [adminOperatorNames, setAdminOperatorNames] = useState<string[]>([]);
   const [monthlySpendSnapshots, setMonthlySpendSnapshots] = useState<
     Array<{
       id?: string;
@@ -740,6 +740,14 @@ export default function AdminPage() {
       user.email?.split("@")[0]?.trim() ||
       "Stores Operator",
     );
+
+    try {
+      const operatorRecords = await fetchAdminOperatorRecords(supabase);
+      setAdminOperatorNames(operatorRecords.map((operator) => operator.name));
+    } catch (error) {
+      console.error("Failed to load admin operator names", error);
+      setAdminOperatorNames([]);
+    }
 
     const { data, error } = await supabase
       .from("tickets")
@@ -2896,6 +2904,8 @@ export default function AdminPage() {
               <PartsControlTabs activeTab={resourceTab} onTabChange={setResourceTab} />
             </div>
 
+            <AdminOperatorManagementPanel />
+
             {resourceTab === "guide" ? (
               <div className="mt-6">
                 <AdminSupportPanel
@@ -3426,6 +3436,7 @@ export default function AdminPage() {
                           isCollected={collectedTicketIds.has(ticket.id)}
                           returnedReason={returnedTicketReasonById[ticket.id]}
                           isUpdating={updatingTicketId === ticket.id}
+                          adminOperatorNames={adminOperatorNames}
                           onDraftChange={updateTicketDraft}
                           onStatusChange={handleStatusChange}
                           onSave={handleTicketSave}
@@ -3494,7 +3505,7 @@ export default function AdminPage() {
                               className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
                             >
                               <option value="">Stores queue</option>
-                              {ADMIN_OPERATOR_OPTIONS.map((operator) => (
+                              {adminOperatorNames.map((operator) => (
                                 <option key={operator} value={operator}>
                                   {operator}
                                 </option>
@@ -3710,6 +3721,7 @@ export default function AdminPage() {
                       isCollected={collectedTicketIds.has(ticket.id)}
                       returnedReason={returnedTicketReasonById[ticket.id]}
                       isUpdating={updatingTicketId === ticket.id}
+                      adminOperatorNames={adminOperatorNames}
                       onDraftChange={updateTicketDraft}
                       onStatusChange={handleStatusChange}
                       onSave={handleTicketSave}
@@ -3734,6 +3746,7 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
   isCollected,
   returnedReason,
   isUpdating,
+  adminOperatorNames,
   onDraftChange,
   onStatusChange,
   onSave,
@@ -3743,6 +3756,7 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
   isCollected: boolean;
   returnedReason?: string;
   isUpdating: boolean;
+  adminOperatorNames: string[];
   onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
@@ -3810,7 +3824,7 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
           className="w-40 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
         >
           <option value="">Stores queue</option>
-          {ADMIN_OPERATOR_OPTIONS.map((operator) => (
+          {adminOperatorNames.map((operator) => (
             <option key={operator} value={operator}>
               {operator}
             </option>
@@ -3863,6 +3877,7 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   isCollected,
   returnedReason,
   isUpdating,
+  adminOperatorNames,
   onDraftChange,
   onStatusChange,
   onSave,
@@ -3872,6 +3887,7 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   isCollected: boolean;
   returnedReason?: string;
   isUpdating: boolean;
+  adminOperatorNames: string[];
   onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
@@ -3948,7 +3964,7 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
           className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
         >
           <option value="">Stores queue</option>
-          {ADMIN_OPERATOR_OPTIONS.map((operator) => (
+          {adminOperatorNames.map((operator) => (
             <option key={operator} value={operator}>
               {operator}
             </option>

@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { AuthGuard } from "@/components/auth-guard";
-import { ADMIN_OPERATOR_OPTIONS } from "@/lib/admin-operators";
+import {
+  fetchAdminOperatorRecords,
+  getDefaultAdminOperatorOptions,
+} from "@/lib/admin-operators";
 import { buildMonthlySupplierSpendSnapshots } from "@/lib/order-analytics";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -47,6 +50,9 @@ const REALTIME_REFRESH_DEBOUNCE_MS = 500;
 export default function WallboardPage() {
   const [tickets, setTickets] = useState<WallboardTicket[]>([]);
   const [supplierSpendTickets, setSupplierSpendTickets] = useState<SupplierSpendTicket[]>([]);
+  const [adminOperatorNames, setAdminOperatorNames] = useState<string[]>(
+    getDefaultAdminOperatorOptions(),
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -58,6 +64,7 @@ export default function WallboardPage() {
   const signatureRef = useRef("");
   const supplierSpendSignatureRef = useRef("");
   const supplierSpendTicketsRef = useRef<SupplierSpendTicket[]>([]);
+  const adminOperatorNamesRef = useRef<string[]>(getDefaultAdminOperatorOptions());
   const pendingSignatureRef = useRef("");
   const modeStartedAtRef = useRef(modeStartedAt);
   const pageStartedAtRef = useRef(pageStartedAt);
@@ -76,6 +83,10 @@ export default function WallboardPage() {
   }, [supplierSpendTickets]);
 
   useEffect(() => {
+    adminOperatorNamesRef.current = adminOperatorNames;
+  }, [adminOperatorNames]);
+
+  useEffect(() => {
     pageStartedAtRef.current = pageStartedAt;
   }, [pageStartedAt]);
 
@@ -89,7 +100,7 @@ export default function WallboardPage() {
         return;
       }
 
-      const [queueResult, spendResult] = await Promise.all([
+      const [queueResult, spendResult, operatorResult] = await Promise.allSettled([
         supabase
           .from("tickets")
           .select(
@@ -104,22 +115,28 @@ export default function WallboardPage() {
           .not("supplier_name", "is", null)
           .order("ordered_at", { ascending: false, nullsFirst: false })
           .limit(500),
+        fetchAdminOperatorRecords(supabase),
       ]);
 
       if (!isActive) {
         return;
       }
 
-      if (queueResult.error) {
+      if (queueResult.status === "rejected" || queueResult.value.error) {
         setLoadError("Unable to load the live queue.");
         setIsLoading(false);
         return;
       }
 
-      const nextTickets = (queueResult.data ?? []) as WallboardTicket[];
-      const nextSupplierSpendTickets = spendResult.error
-        ? supplierSpendTicketsRef.current
-        : ((spendResult.data ?? []) as SupplierSpendTicket[]);
+      const nextTickets = (queueResult.value.data ?? []) as WallboardTicket[];
+      const nextSupplierSpendTickets =
+        spendResult.status === "fulfilled" && !spendResult.value.error
+          ? ((spendResult.value.data ?? []) as SupplierSpendTicket[])
+          : supplierSpendTicketsRef.current;
+      const nextOperatorNames =
+        operatorResult.status === "fulfilled"
+          ? operatorResult.value.map((operator) => operator.name)
+          : adminOperatorNamesRef.current;
       const nextSignature = nextTickets
         .map((ticket) =>
           [
@@ -172,7 +189,15 @@ export default function WallboardPage() {
         setSupplierSpendTickets(nextSupplierSpendTickets);
       }
 
-      setLoadError(spendResult.error ? "Supplier spend unavailable. Live queue is current." : null);
+      if (nextOperatorNames.join("|") !== adminOperatorNamesRef.current.join("|")) {
+        setAdminOperatorNames(nextOperatorNames);
+      }
+
+      setLoadError(
+        spendResult.status === "fulfilled" && spendResult.value.error
+          ? "Supplier spend unavailable. Live queue is current."
+          : null,
+      );
       setLastUpdatedAt(new Date().toISOString());
       setIsLoading(false);
     }
@@ -274,7 +299,7 @@ export default function WallboardPage() {
   }, [tickets]);
 
   const operatorMetrics = useMemo(() => {
-    return ADMIN_OPERATOR_OPTIONS.map((operator) => {
+    return adminOperatorNames.map((operator) => {
       const operatorTickets = tickets.filter(
         (ticket) => normalizeOperatorName(ticket.assigned_to) === normalizeOperatorName(operator),
       );
@@ -296,7 +321,7 @@ export default function WallboardPage() {
         oldestAge: formatRelativeAge(oldestTicket?.created_at ?? null),
       };
     });
-  }, [tickets]);
+  }, [adminOperatorNames, tickets]);
 
   const supplierSpendSummary = useMemo(() => {
     const snapshots = buildMonthlySupplierSpendSnapshots(
