@@ -11,6 +11,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { AdminSmartSearchPanel } from "@/components/admin-smart-search-panel";
 import { PartsOrdersDashboard } from "@/components/parts-orders-dashboard";
 import { PartsQueriesPanel } from "@/components/parts-queries-panel";
+import { PartsLookupPanel } from "@/components/parts-lookup-panel";
 import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
@@ -259,7 +260,7 @@ export default function AdminPage() {
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
-  const [resourceTab, setResourceTab] = useState<"operations" | "search" | "orders" | "fleet" | "suppliers" | "queries" | "guide" | "faq">(
+  const [resourceTab, setResourceTab] = useState<"operations" | "search" | "orders" | "fleet" | "suppliers" | "queries" | "lookup" | "guide" | "faq">(
     "operations",
   );
   const [smartSearchQuery, setSmartSearchQuery] = useState("");
@@ -472,6 +473,7 @@ export default function AdminPage() {
       tab === "fleet" ||
       tab === "suppliers" ||
       tab === "queries" ||
+      tab === "lookup" ||
       tab === "search"
     ) {
       setResourceTab(tab);
@@ -3031,6 +3033,8 @@ export default function AdminPage() {
             {resourceTab === "suppliers" ? <SupplierDirectoryPanel /> : null}
 
             {resourceTab === "queries" ? <PartsQueriesPanel /> : null}
+
+            {resourceTab === "lookup" ? <PartsLookupPanel /> : null}
 
             {resourceTab === "operations" ? (
               <>

@@ -44,16 +44,22 @@ type OverviewReturnRow = {
 
 type OverviewPartRow = {
   id: string;
+  source_ticket_part_id: string;
   ticket_id: string;
   ticket_purchase_order_id: string | null;
   job_number: string | null;
+  machine_number: string | null;
   machine_reference: string | null;
   machine_number_normalized: string | null;
+  machine_fleet_type: string | null;
+  machine_make: string | null;
+  machine_model: string | null;
+  machine_serial_number: string | null;
   part_description: string;
   part_number: string;
   quantity: number;
-  part_status: "REQUESTED" | "SOURCED" | "FITTED" | "CANCELLED";
   supplier_name: string | null;
+  notes: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -150,8 +156,8 @@ export function AdminOperationsOverview() {
           .order("created_at", { ascending: false })
           .limit(8),
         supabase
-          .from("ticket_parts")
-          .select("id, ticket_id, ticket_purchase_order_id, job_number, machine_reference, machine_number_normalized, part_description, part_number, quantity, part_status, supplier_name, created_at, updated_at")
+          .from("parts_lookup")
+          .select("id, source_ticket_part_id, ticket_id, ticket_purchase_order_id, job_number, machine_number, machine_reference, machine_number_normalized, machine_fleet_type, machine_make, machine_model, machine_serial_number, part_description, part_number, quantity, supplier_name, notes, created_at, updated_at")
           .order("updated_at", { ascending: false })
           .limit(200),
         supabase
@@ -520,6 +526,8 @@ export function AdminOperationsOverview() {
     const parts = snapshot?.parts ?? [];
     const machineBuckets = parts.reduce<Record<string, {
       machineReference: string;
+      machineModel: string | null;
+      machineSerialNumber: string | null;
       ticketIds: Set<string>;
       partCount: number;
       supplierCount: number;
@@ -529,6 +537,8 @@ export function AdminOperationsOverview() {
       const key = part.machine_number_normalized?.trim() || machineReference.toUpperCase();
       const current = accumulator[key] ?? {
         machineReference,
+        machineModel: part.machine_model?.trim() || null,
+        machineSerialNumber: part.machine_serial_number?.trim() || null,
         ticketIds: new Set<string>(),
         partCount: 0,
         supplierCount: 0,

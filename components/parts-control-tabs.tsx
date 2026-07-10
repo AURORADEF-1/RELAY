@@ -9,6 +9,7 @@ type PartsControlTab =
   | "fleet"
   | "suppliers"
   | "queries"
+  | "lookup"
   | "completed"
   | "guide"
   | "faq";
@@ -25,6 +26,7 @@ const tabs: Array<{
   { key: "fleet", label: "Fleet", href: "/admin?tab=fleet" },
   { key: "suppliers", label: "Suppliers", href: "/admin?tab=suppliers" },
   { key: "queries", label: "Parts Queries", href: "/admin?tab=queries" },
+  { key: "lookup", label: "Parts Lookup", href: "/admin?tab=lookup" },
   { key: "completed", label: "Completed Jobs", href: "/completed" },
   { key: "guide", label: "User Guide", href: "/admin?tab=guide" },
   { key: "faq", label: "FAQ", href: "/admin?tab=faq" },
