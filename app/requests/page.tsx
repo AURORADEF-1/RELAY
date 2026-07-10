@@ -21,6 +21,7 @@ import {
 import { formatOperationalDate } from "@/lib/ticket-operational";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { activeTicketStatuses } from "@/lib/statuses";
+import { compareTicketsByPriority, isUrgentTicket } from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Ticket = {
@@ -36,6 +37,9 @@ type Ticket = {
   assigned_to?: string | null;
   expected_delivery_date?: string | null;
   bin_location?: string | null;
+  is_urgent?: boolean | null;
+  urgent_flagged_at?: string | null;
+  urgent_reminder_dismissed_at?: string | null;
 };
 
 const REQUESTS_VIEW_STORAGE_KEY = "relay-requester-requests-view-mode";
@@ -86,8 +90,7 @@ export default function RequestsPage() {
     let query = supabase
       .from("tickets")
       .select("*")
-      .in("status", activeTicketStatuses)
-      .order("updated_at", { ascending: false });
+      .in("status", activeTicketStatuses);
 
     if (!isAdmin) {
       query = query.eq("user_id", user.id);
@@ -104,7 +107,7 @@ export default function RequestsPage() {
       return;
     }
 
-    const nextTickets = (data ?? []) as Ticket[];
+    const nextTickets = [...((data ?? []) as Ticket[])].sort(compareTicketsByPriority);
     setTickets(nextTickets);
 
     if (nextTickets.length > 0) {
@@ -165,7 +168,7 @@ export default function RequestsPage() {
       ]
         .filter((value): value is string => Boolean(value))
         .some((value) => value.toLowerCase().includes(normalizedQuery)),
-    );
+    ).sort(compareTicketsByPriority);
   }, [searchQuery, tickets]);
 
   async function handleMarkCollected(ticket: Ticket) {
@@ -441,7 +444,7 @@ export default function RequestsPage() {
                     key={ticket.id}
                     className={`rounded-3xl border bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_-32px_rgba(15,23,42,0.28)] ${getDynamicRequestCardTone(
                       ticket.status,
-                    )}`}
+                    )} ${isUrgentTicket(ticket) ? "ring-2 ring-red-300" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
@@ -460,7 +463,14 @@ export default function RequestsPage() {
                           Machine {ticket.machine_reference ?? "-"}
                         </p>
                       </div>
-                      <StatusBadge status={ticket.status ?? "PENDING"} />
+                      <div className="space-y-2 text-right">
+                        <StatusBadge status={ticket.status ?? "PENDING"} />
+                        {isUrgentTicket(ticket) ? (
+                          <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-700">
+                            Urgent
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
 
                     <p className="mt-5 line-clamp-4 text-sm leading-7 text-slate-700">
@@ -626,7 +636,14 @@ export default function RequestsPage() {
                             </div>
                           </td>
                           <td className="px-6 py-5">
-                            <StatusBadge status={ticket.status ?? "PENDING"} />
+                      <div className="space-y-2 text-right">
+                        <StatusBadge status={ticket.status ?? "PENDING"} />
+                        {isUrgentTicket(ticket) ? (
+                          <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-700">
+                            Urgent
+                          </span>
+                        ) : null}
+                      </div>
                           </td>
                           <td className="px-6 py-5 text-sm text-slate-500">
                             {formatDate(ticket.updated_at)}
@@ -729,7 +746,9 @@ export default function RequestsPage() {
                   filteredTickets.map((ticket) => (
                     <article
                       key={ticket.id}
-                      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                      className={`rounded-3xl border bg-white p-5 shadow-sm ${
+                        isUrgentTicket(ticket) ? "border-red-200 ring-2 ring-red-200" : "border-slate-200"
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>

@@ -84,6 +84,10 @@ import {
   parseDueDateToEndOfDay,
   toDateInputValue,
 } from "@/lib/ticket-operational";
+import {
+  isLikelySameOperatorName,
+  shouldShowUrgentReminder,
+} from "@/lib/ticket-urgency";
 import { formatSupplierDisplayName, normalizeSupplierEmail } from "@/lib/suppliers";
 import {
   fetchProfileDisplayNamesByUserId,
@@ -152,6 +156,11 @@ type TicketRecord = {
   ready_by?: string | null;
   overdue_reminder_dismissed_at?: string | null;
   overdue_reminder_dismissed_by?: string | null;
+  is_urgent?: boolean | null;
+  urgent_flagged_at?: string | null;
+  urgent_flagged_by?: string | null;
+  urgent_reminder_dismissed_at?: string | null;
+  urgent_reminder_dismissed_by?: string | null;
   updated_at: string | null;
   created_at: string | null;
 };
@@ -188,6 +197,7 @@ type TicketEditDraft = {
   retail_delivery_method: "" | RetailDeliveryMethod;
   retail_delivery_address: string;
   retail_apc_tracking_number: string;
+  is_urgent: boolean;
 };
 
 type StatusWorkflowDialogState = {
@@ -657,6 +667,10 @@ export default function TicketDetailPage() {
       confirmedWorkflow?.retailApcTrackingNumber ?? editDraft.retail_apc_tracking_number;
     const expectedDateChanged =
       toDateInputValue(ticket.expected_delivery_date) !== nextExpectedDeliveryDate.trim();
+    const nextIsUrgent = editDraft.is_urgent;
+    const currentIsUrgent = Boolean(ticket.is_urgent);
+    const assignmentChanged = editDraft.assigned_to.trim() !== (ticket.assigned_to?.trim() ?? "");
+    const urgentFlagChanged = nextIsUrgent !== currentIsUrgent;
 
     if (workflowRequirement && !confirmedWorkflow) {
       setStatusWorkflowDialog({
@@ -887,6 +901,27 @@ export default function TicketDetailPage() {
         editDraft.status === "ORDERED" && expectedDateChanged
           ? null
           : ticket.overdue_reminder_dismissed_by ?? null,
+      is_urgent: nextIsUrgent,
+      urgent_flagged_at:
+        nextIsUrgent
+          ? currentIsUrgent && ticket.urgent_flagged_at
+            ? ticket.urgent_flagged_at
+            : new Date().toISOString()
+          : null,
+      urgent_flagged_by:
+        nextIsUrgent
+          ? currentIsUrgent && ticket.urgent_flagged_by
+            ? ticket.urgent_flagged_by
+            : currentUserDisplayName || currentUserId || "Administrator"
+          : null,
+      urgent_reminder_dismissed_at:
+        nextIsUrgent && !assignmentChanged && !urgentFlagChanged
+          ? ticket.urgent_reminder_dismissed_at ?? null
+          : null,
+      urgent_reminder_dismissed_by:
+        nextIsUrgent && !assignmentChanged && !urgentFlagChanged
+          ? ticket.urgent_reminder_dismissed_by ?? null
+          : null,
       updated_at: new Date().toISOString(),
       ...(ticket.is_retail_sale
         ? {
@@ -1121,6 +1156,56 @@ export default function TicketDetailPage() {
       }, 0);
     }
     void loadTicket();
+  }
+
+  async function handleDismissUrgentReminder() {
+    if (!ticket) {
+      return;
+    }
+
+    if (!shouldShowUrgentReminder(ticket, currentUserDisplayName)) {
+      setErrorMessage("Only the assigned user can dismiss this urgent reminder.");
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setErrorMessage("");
+
+    const dismissedAt = new Date().toISOString();
+    const dismissedBy = currentUserDisplayName || currentUserId || "Assigned user";
+
+    const { error: updateError } = await supabase
+      .from("tickets")
+      .update({
+        urgent_reminder_dismissed_at: dismissedAt,
+        urgent_reminder_dismissed_by: dismissedBy,
+        updated_at: dismissedAt,
+      })
+      .eq("id", ticket.id);
+
+    if (updateError) {
+      setErrorMessage(
+        sanitizeUserFacingError(updateError, "Unable to dismiss the urgent reminder."),
+      );
+      return;
+    }
+
+    setTicket((current) =>
+      current
+        ? {
+            ...current,
+            urgent_reminder_dismissed_at: dismissedAt,
+            urgent_reminder_dismissed_by: dismissedBy,
+            updated_at: dismissedAt,
+          }
+        : current,
+    );
   }
 
   async function handleDeleteAttachment(attachmentId: string) {
@@ -1760,6 +1845,36 @@ export default function TicketDetailPage() {
                       <StatusBadge status={ticket.status ?? "PENDING"} />
                     </div>
 
+                    {ticket.is_urgent && !ticket.urgent_reminder_dismissed_at ? (
+                      <div className="mt-5 rounded-2xl border border-red-200 bg-red-50/90 px-4 py-4 text-red-950">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-700">
+                              Urgent reminder
+                            </p>
+                            <p className="text-sm leading-6 text-red-900">
+                              This request has been flagged urgent.
+                              {ticket.assigned_to ? ` Assigned to ${ticket.assigned_to}.` : " It still needs an assigned user."}
+                              {ticket.urgent_flagged_by ? ` Flagged by ${ticket.urgent_flagged_by}.` : ""}
+                            </p>
+                          </div>
+                          {shouldShowUrgentReminder(ticket, currentUserDisplayName) ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleDismissUrgentReminder()}
+                              className="inline-flex h-10 items-center justify-center rounded-xl border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 transition hover:border-red-400 hover:bg-red-100"
+                            >
+                              Dismiss reminder
+                            </button>
+                          ) : (
+                            <span className="inline-flex h-10 items-center justify-center rounded-xl border border-red-200 bg-red-100 px-4 text-sm font-semibold text-red-700">
+                              Awaiting assigned user
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+
                     {isAdmin && isEditing && editDraft ? (
                       <div className="mt-6 space-y-5">
                         <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4">
@@ -1827,6 +1942,33 @@ export default function TicketDetailPage() {
                               )
                             }
                           />
+                          <div className="sm:col-span-2 rounded-2xl border border-red-200 bg-red-50/80 px-4 py-4">
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                              <div>
+                                <p className="text-sm font-semibold text-red-950">
+                                  Urgent flag
+                                </p>
+                                <p className="mt-1 text-xs leading-6 text-red-800">
+                                  Keeps the request pinned in the active queue and shows a persistent reminder to the assigned user.
+                                </p>
+                              </div>
+                              <label className="inline-flex items-center gap-3 rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700">
+                                <input
+                                  type="checkbox"
+                                  checked={editDraft.is_urgent}
+                                  onChange={(event) =>
+                                    setEditDraft((current) =>
+                                      current
+                                        ? { ...current, is_urgent: event.target.checked }
+                                        : current,
+                                    )
+                                  }
+                                  className="h-4 w-4 rounded border-red-300 text-red-600 focus:ring-red-500"
+                                />
+                                Mark urgent
+                              </label>
+                            </div>
+                          </div>
                           <EditSelect
                             label="Status"
                             value={editDraft.status}
@@ -2826,6 +2968,7 @@ function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
     retail_delivery_method: ticket.retail_delivery_method ?? "",
     retail_delivery_address: ticket.retail_delivery_address ?? "",
     retail_apc_tracking_number: ticket.retail_apc_tracking_number ?? "",
+    is_urgent: Boolean(ticket.is_urgent),
   };
 }
 
@@ -2834,53 +2977,13 @@ function shouldConfirmAdminEdit(
   currentUserDisplayName: string | null,
 ) {
   const assignedTo = ticket.assigned_to?.trim() ?? "";
-  const normalizedAssignedTo = normalizeOperatorName(assignedTo);
-  const normalizedCurrentUser = normalizeOperatorName(currentUserDisplayName);
-  const isSameOperator = isLikelySameOperatorName(
-    normalizedAssignedTo,
-    normalizedCurrentUser,
-  );
+  const isSameOperator = isLikelySameOperatorName(assignedTo, currentUserDisplayName);
 
-  if (
-    assignedTo &&
-    normalizedAssignedTo &&
-    !isSameOperator
-  ) {
+  if (assignedTo && !isSameOperator) {
     return true;
   }
 
   return ticket.status === "IN_PROGRESS" && Boolean(assignedTo) && !isSameOperator;
-}
-
-function normalizeOperatorName(value: string | null | undefined) {
-  return (value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ");
-}
-
-function isLikelySameOperatorName(assignedTo: string, currentUser: string) {
-  if (!assignedTo || !currentUser) {
-    return false;
-  }
-
-  if (assignedTo === currentUser) {
-    return true;
-  }
-
-  const assignedParts = assignedTo.split(" ").filter(Boolean);
-  const currentParts = currentUser.split(" ").filter(Boolean);
-
-  if (assignedParts.length === 1 && currentParts[0] === assignedParts[0]) {
-    return true;
-  }
-
-  if (currentParts.length === 1 && assignedParts[0] === currentParts[0]) {
-    return true;
-  }
-
-  return false;
 }
 
 function AdminEditConflictModal({

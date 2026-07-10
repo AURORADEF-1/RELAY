@@ -9,6 +9,7 @@ import {
 } from "@/lib/admin-operators";
 import { buildMonthlySupplierSpendSnapshots } from "@/lib/order-analytics";
 import { activeTicketStatuses } from "@/lib/statuses";
+import { compareTicketsByPriority, isUrgentTicket } from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type WallboardTicket = {
@@ -25,6 +26,9 @@ type WallboardTicket = {
   ordered_at?: string | null;
   supplier_name?: string | null;
   order_amount?: number | string | null;
+  is_urgent?: boolean | null;
+  urgent_flagged_at?: string | null;
+  urgent_reminder_dismissed_at?: string | null;
 };
 
 type SupplierSpendTicket = {
@@ -104,7 +108,7 @@ export default function WallboardPage() {
         supabase
           .from("tickets")
           .select(
-            "id, job_number, machine_reference, requester_name, request_summary, request_details, assigned_to, status, created_at, updated_at, ordered_at, supplier_name, order_amount",
+            "id, job_number, machine_reference, requester_name, request_summary, request_details, assigned_to, status, created_at, updated_at, ordered_at, supplier_name, order_amount, is_urgent, urgent_flagged_at, urgent_reminder_dismissed_at",
           )
           .in("status", activeTicketStatuses)
           .order("updated_at", { ascending: false })
@@ -147,6 +151,8 @@ export default function WallboardPage() {
             ticket.request_summary,
             ticket.supplier_name,
             ticket.order_amount,
+            ticket.is_urgent,
+            ticket.urgent_flagged_at,
           ].join(":"),
         )
         .join("|");
@@ -288,14 +294,14 @@ export default function WallboardPage() {
           return leftPriority - rightPriority;
         }
 
-        return compareIsoDates(left.created_at, right.created_at);
+        return compareTicketsByPriority(left, right);
       });
   }, [tickets]);
 
   const readyTickets = useMemo(() => {
     return [...tickets]
       .filter((ticket) => ticket.status === "READY")
-      .sort((left, right) => compareIsoDates(left.updated_at, right.updated_at));
+      .sort((left, right) => compareTicketsByPriority(left, right));
   }, [tickets]);
 
   const operatorMetrics = useMemo(() => {
@@ -466,7 +472,9 @@ export default function WallboardPage() {
                   visibleTickets.map((ticket) => (
                     <article
                       key={`${currentMode}-${ticket.id}`}
-                      className={getWallboardCardClass(ticket.status)}
+                      className={`${getWallboardCardClass(ticket.status)} ${
+                        isUrgentTicket(ticket) ? "ring-2 ring-red-300/60" : ""
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -477,9 +485,16 @@ export default function WallboardPage() {
                             {ticket.job_number ?? "Unassigned"}
                           </p>
                         </div>
-                        <span className={getStatusBadgeClass(ticket.status)}>
-                          {ticket.status ?? "UNKNOWN"}
-                        </span>
+                        <div className="space-y-2 text-right">
+                          <span className={getStatusBadgeClass(ticket.status)}>
+                            {ticket.status ?? "UNKNOWN"}
+                          </span>
+                          {isUrgentTicket(ticket) ? (
+                            <span className="inline-flex rounded-full border border-red-300/60 bg-red-500/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-50">
+                              Urgent
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
 
                       <div className="mt-5 grid gap-3">

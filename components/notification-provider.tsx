@@ -36,6 +36,7 @@ import {
 } from "@/lib/session-controls";
 import { getAdaptivePollDelay, usePageActivity } from "@/lib/page-activity";
 import { recordAdminHealthEvent } from "@/lib/admin-health";
+import { isLikelySameOperatorName } from "@/lib/ticket-urgency";
 
 type NotificationContextValue = {
   requesterUnreadCount: number;
@@ -64,6 +65,12 @@ type PendingTicketSummary = {
   request_summary: string | null;
   requester_name: string | null;
   created_at: string | null;
+};
+
+type UrgentTicketSummary = PendingTicketSummary & {
+  assigned_to: string | null;
+  urgent_flagged_at: string | null;
+  updated_at: string | null;
 };
 
 const NotificationContext = createContext<NotificationContextValue>({
@@ -300,6 +307,8 @@ export function NotificationProvider({
   const pendingCountInFlightRef = useRef<Promise<void> | null>(null);
   const latestPendingTicketIdRef = useRef<string | null>(null);
   const pendingTicketsInitializedRef = useRef(false);
+  const latestUrgentTicketSignatureRef = useRef("");
+  const urgentRemindersInitializedRef = useRef(false);
   const pathReadInFlightRef = useRef<Promise<void> | null>(null);
   const notificationPollFailureCountRef = useRef(0);
   const presenceFailureCountRef = useRef(0);
@@ -307,6 +316,7 @@ export function NotificationProvider({
   const isAuthenticatedRef = useRef(false);
   const notificationLifecycleVersionRef = useRef(0);
   const notificationSetupInFlightRef = useRef<Promise<void> | null>(null);
+  const currentUserDisplayNameRef = useRef<string | null>(null);
   const [presenceTabId] = useState(() =>
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -454,6 +464,88 @@ export function NotificationProvider({
     pendingCountInFlightRef.current = request;
     return request;
   }, [playNotificationSound, pushBrowserNotification]);
+
+  const refreshUrgentTicketReminders = useCallback(async () => {
+    const supabase = getSupabaseClient();
+    const currentUserDisplayName = currentUserDisplayNameRef.current;
+
+    if (!supabase || !currentUserDisplayName) {
+      latestUrgentTicketSignatureRef.current = "";
+      urgentRemindersInitializedRef.current = false;
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("tickets")
+      .select(
+        "id, job_number, request_summary, requester_name, assigned_to, urgent_flagged_at, updated_at, created_at",
+      )
+      .eq("is_urgent", true)
+      .is("urgent_reminder_dismissed_at", null)
+      .in("status", activeTicketStatuses)
+      .order("urgent_flagged_at", { ascending: false, nullsFirst: false })
+      .limit(25);
+
+    if (error) {
+      console.error("Failed to refresh urgent ticket reminders", error);
+      return;
+    }
+
+    const urgentTickets = ((data ?? []) as UrgentTicketSummary[])
+      .filter((ticket) => isLikelySameOperatorName(ticket.assigned_to, currentUserDisplayName))
+      .sort((left, right) => {
+        const leftTime = new Date(left.urgent_flagged_at ?? left.updated_at ?? left.created_at ?? 0).getTime();
+        const rightTime = new Date(right.urgent_flagged_at ?? right.updated_at ?? right.created_at ?? 0).getTime();
+
+        return rightTime - leftTime;
+      });
+
+    const nextSignature = urgentTickets
+      .map((ticket) =>
+        [
+          ticket.id,
+          ticket.urgent_flagged_at,
+          ticket.assigned_to,
+        ].join(":"),
+      )
+      .join("|");
+    const previousSignature = latestUrgentTicketSignatureRef.current;
+
+    latestUrgentTicketSignatureRef.current = nextSignature;
+    urgentRemindersInitializedRef.current = true;
+
+    if (nextSignature === previousSignature || urgentTickets.length === 0) {
+      return;
+    }
+
+    const latestUrgentTicket = urgentTickets[0];
+
+    pushToast({
+      title: latestUrgentTicket.job_number?.trim()
+        ? `Urgent request: ${latestUrgentTicket.job_number.trim()}`
+        : "Urgent request assigned",
+      description:
+        latestUrgentTicket.request_summary?.trim() ||
+        latestUrgentTicket.requester_name?.trim() ||
+        "An urgent request has been assigned to you.",
+      href: latestUrgentTicket.id ? `/tickets/${latestUrgentTicket.id}` : undefined,
+      variant: "panel",
+      persistent: true,
+    });
+
+    pushBrowserNotification({
+      title: latestUrgentTicket.job_number?.trim()
+        ? `Urgent request: ${latestUrgentTicket.job_number.trim()}`
+        : "Urgent request assigned",
+      body:
+        latestUrgentTicket.request_summary?.trim() ||
+        latestUrgentTicket.requester_name?.trim() ||
+        "An urgent request has been assigned to you.",
+      href: latestUrgentTicket.id ? `/tickets/${latestUrgentTicket.id}` : undefined,
+    });
+
+    playNotificationSound();
+  }, [playNotificationSound, pushBrowserNotification, pushToast]);
 
   const syncUnreadNotifications = useCallback(
     async (
@@ -666,6 +758,7 @@ export function NotificationProvider({
     let isMounted = true;
     let activeChannel: RealtimeChannel | null = null;
     let activePendingTicketChannel: RealtimeChannel | null = null;
+    let activeUrgentTicketChannel: RealtimeChannel | null = null;
     let pollTimeout: number | null = null;
     let presenceTimeout: number | null = null;
     let sessionControlTimeout: number | null = null;
@@ -684,6 +777,11 @@ export function NotificationProvider({
       if (activePendingTicketChannel) {
         await supabase.removeChannel(activePendingTicketChannel);
         activePendingTicketChannel = null;
+      }
+
+      if (activeUrgentTicketChannel) {
+        await supabase.removeChannel(activeUrgentTicketChannel);
+        activeUrgentTicketChannel = null;
       }
 
       if (pollTimeout) {
@@ -712,9 +810,12 @@ export function NotificationProvider({
     const clearNotificationState = async () => {
       isAuthenticatedRef.current = false;
       currentUserIdRef.current = null;
+      currentUserDisplayNameRef.current = null;
       currentIsAdminRef.current = false;
       latestPendingTicketIdRef.current = null;
       pendingTicketsInitializedRef.current = false;
+      latestUrgentTicketSignatureRef.current = "";
+      urgentRemindersInitializedRef.current = false;
       knownUnreadIdsRef.current = new Set();
       unreadNotificationsInitializedRef.current = false;
       setRequesterUnreadCount(0);
@@ -738,7 +839,7 @@ export function NotificationProvider({
         await stopNotificationWork({ invalidate: true });
         const lifecycleVersion = notificationLifecycleVersionRef.current;
 
-        const { user, isAdmin: adminUser } = await getCurrentUserWithRole(supabase, {
+        const { user, isAdmin: adminUser, profile } = await getCurrentUserWithRole(supabase, {
           forceFresh: true,
         });
 
@@ -755,6 +856,10 @@ export function NotificationProvider({
         isAuthenticatedRef.current = true;
         setIsAdmin(adminUser);
         currentUserIdRef.current = user.id;
+        currentUserDisplayNameRef.current =
+          profile?.display_name?.trim() ||
+          user.email?.split("@")[0]?.trim() ||
+          null;
         currentIsAdminRef.current = adminUser;
         notificationPollFailureCountRef.current = 0;
         presenceFailureCountRef.current = 0;
@@ -859,6 +964,8 @@ export function NotificationProvider({
           await refreshPendingTicketCount(adminUser);
         }
 
+        await refreshUrgentTicketReminders();
+
         await markPathNotificationsRead(
           supabase,
           user.id,
@@ -914,6 +1021,27 @@ export function NotificationProvider({
           pendingTicketChannel.subscribe();
         }
 
+        const urgentTicketChannel = supabase.channel(`relay-urgent-tickets-${user.id}`);
+        activeUrgentTicketChannel = urgentTicketChannel;
+
+        urgentTicketChannel.on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "tickets",
+          },
+          async () => {
+            if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+              return;
+            }
+
+            await refreshUrgentTicketReminders();
+          },
+        );
+
+        urgentTicketChannel.subscribe();
+
         const scheduleNotificationSync = () => {
           if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
             return;
@@ -940,6 +1068,8 @@ export function NotificationProvider({
                   if (adminUser) {
                     await refreshPendingTicketCount(adminUser);
                   }
+
+                  await refreshUrgentTicketReminders();
                 }
 
                 notificationPollFailureCountRef.current = 0;
@@ -1049,6 +1179,7 @@ export function NotificationProvider({
     markPathNotificationsRead,
     presenceTabId,
     refreshPendingTicketCount,
+    refreshUrgentTicketReminders,
     syncUnreadNotifications,
   ]);
 

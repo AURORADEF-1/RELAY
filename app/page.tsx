@@ -9,6 +9,7 @@ import { RelayLogo } from "@/components/relay-logo";
 import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { activeTicketStatuses } from "@/lib/statuses";
+import { compareTicketsByPriority, isUrgentTicket } from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type HomepageUpdate = {
@@ -18,11 +19,15 @@ type HomepageUpdate = {
   request_details: string | null;
   status: string | null;
   updated_at: string | null;
+  created_at?: string | null;
+  is_urgent?: boolean | null;
 };
 
 type HomepageTicket = HomepageUpdate & {
   assigned_to: string | null;
   requester_name: string | null;
+  urgent_flagged_at?: string | null;
+  urgent_reminder_dismissed_at?: string | null;
 };
 
 const mockUpdates: HomepageUpdate[] = [
@@ -95,10 +100,9 @@ export default function Home() {
       const query = supabase
         .from("tickets")
         .select(
-          "id, job_number, request_summary, request_details, status, updated_at, assigned_to, requester_name",
+          "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name, is_urgent, urgent_flagged_at, urgent_reminder_dismissed_at",
         )
         .in("status", activeTicketStatuses)
-        .order("updated_at", { ascending: false })
         .limit(isAdmin ? 8 : 5);
 
       const { data, error } =
@@ -114,7 +118,7 @@ export default function Home() {
       setDisplayName(resolveDisplayName(profile?.display_name, user.email));
 
       if (!error && data && data.length > 0) {
-        const tickets = data as HomepageTicket[];
+        const tickets = [...(data as HomepageTicket[])].sort(compareTicketsByPriority);
         setUpdates(tickets);
         setSearchTickets(tickets);
         setUpdatesMode("live");
@@ -158,10 +162,9 @@ export default function Home() {
       const query = supabase
         .from("tickets")
         .select(
-          "id, job_number, request_summary, request_details, status, updated_at, assigned_to, requester_name",
+          "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name, is_urgent, urgent_flagged_at, urgent_reminder_dismissed_at",
         )
         .in("status", activeTicketStatuses)
-        .order("updated_at", { ascending: false })
         .limit(25);
 
       const scopedQuery = currentUserIsAdmin
@@ -443,7 +446,11 @@ export default function Home() {
 
 function RequestUpdateItem({ update }: { update: HomepageUpdate }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-[0_18px_40px_-36px_rgba(15,23,42,0.55)]">
+    <article
+      className={`rounded-2xl border bg-white px-4 py-4 shadow-[0_18px_40px_-36px_rgba(15,23,42,0.55)] ${
+        isUrgentTicket(update) ? "border-red-200 bg-red-50/70" : "border-slate-200"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -453,7 +460,14 @@ function RequestUpdateItem({ update }: { update: HomepageUpdate }) {
             {update.request_summary || update.request_details || "Request update"}
           </p>
         </div>
-        <StatusPill status={update.status ?? "PENDING"} />
+        <div className="space-y-2 text-right">
+          <StatusPill status={update.status ?? "PENDING"} />
+          {isUrgentTicket(update) ? (
+            <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-700">
+              Urgent
+            </span>
+          ) : null}
+        </div>
       </div>
       <p className="mt-3 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
         Updated {formatRelativeTime(update.updated_at)}

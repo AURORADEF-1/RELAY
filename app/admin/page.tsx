@@ -96,6 +96,7 @@ import {
   type ActiveTicketStatusFilter,
   type TicketStatus,
 } from "@/lib/statuses";
+import { compareTicketsByPriority, isUrgentTicket } from "@/lib/ticket-urgency";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getSupabaseAccessToken } from "@/lib/supabase";
@@ -171,6 +172,11 @@ type Ticket = {
   ready_by?: string | null;
   overdue_reminder_dismissed_at?: string | null;
   overdue_reminder_dismissed_by?: string | null;
+  is_urgent?: boolean | null;
+  urgent_flagged_at?: string | null;
+  urgent_flagged_by?: string | null;
+  urgent_reminder_dismissed_at?: string | null;
+  urgent_reminder_dismissed_by?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -234,9 +240,9 @@ export default function AdminPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [collectedTicketIds, setCollectedTicketIds] = useState<Set<string>>(new Set());
   const [returnedTicketReasonById, setReturnedTicketReasonById] = useState<Record<string, string>>({});
-  const [drafts, setDrafts] = useState<Record<string, { assigned_to: string; notes: string }>>(
-    {},
-  );
+  const [drafts, setDrafts] = useState<
+    Record<string, { assigned_to: string; notes: string; is_urgent: boolean }>
+  >({});
   const [selectedChatTicketId, setSelectedChatTicketId] = useState<string | null>(null);
   const [chatAttachments, setChatAttachments] = useState<TicketAttachmentRecord[]>([]);
   const [chatMessages, setChatMessages] = useState<TicketMessageRecord[]>([]);
@@ -325,12 +331,13 @@ export default function AdminPage() {
     [requesterMessagesByTicket],
   );
 
-  const updateTicketDraft = useCallback((ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) => {
+  const updateTicketDraft = useCallback((ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean }>) => {
     setDrafts((current) => ({
       ...current,
       [ticketId]: {
         assigned_to: patch.assigned_to ?? current[ticketId]?.assigned_to ?? "",
         notes: patch.notes ?? current[ticketId]?.notes ?? "",
+        is_urgent: patch.is_urgent ?? current[ticketId]?.is_urgent ?? false,
       },
     }));
   }, []);
@@ -374,7 +381,7 @@ export default function AdminPage() {
         return current;
       }
 
-      return current.map((ticket) => (ticket.id === nextTicket.id ? { ...ticket, ...nextTicket } : ticket));
+      return [...current.map((ticket) => (ticket.id === nextTicket.id ? { ...ticket, ...nextTicket } : ticket))].sort(compareTicketsByPriority);
     });
 
     setDrafts((current) => ({
@@ -382,6 +389,7 @@ export default function AdminPage() {
       [nextTicket.id]: {
         assigned_to: nextTicket.assigned_to ?? "",
         notes: nextTicket.notes ?? "",
+        is_urgent: Boolean(nextTicket.is_urgent),
       },
     }));
   }, []);
@@ -769,7 +777,7 @@ export default function AdminPage() {
       return;
     }
 
-    const nextTickets = (data ?? []) as Ticket[];
+    const nextTickets = [...((data ?? []) as Ticket[])].sort(compareTicketsByPriority);
 
     if (nextTickets.length > 0) {
       const ticketIds = nextTickets.map((ticket) => ticket.id);
@@ -839,6 +847,7 @@ export default function AdminPage() {
           {
             assigned_to: ticket.assigned_to ?? "",
             notes: ticket.notes ?? "",
+            is_urgent: Boolean(ticket.is_urgent),
           },
         ]),
       ),
@@ -932,6 +941,7 @@ export default function AdminPage() {
               ? nextTicket.assigned_to
               : "",
           notes: typeof nextTicket.notes === "string" ? nextTicket.notes : "",
+          is_urgent: Boolean(nextTicket.is_urgent),
         },
       }));
     };
@@ -972,7 +982,8 @@ export default function AdminPage() {
   }, [loadTickets]);
 
   const filteredTickets = useMemo(() => {
-    return tickets.filter((ticket) => {
+    return tickets
+      .filter((ticket) => {
       if (statusFilter !== "ALL" && ticket.status !== statusFilter) {
         return false;
       }
@@ -993,7 +1004,8 @@ export default function AdminPage() {
       }
 
       return true;
-    });
+      })
+      .sort(compareTicketsByPriority);
   }, [assignedUserFilter, dateFilter, departmentFilter, statusFilter, tickets]);
 
   useEffect(() => {
@@ -1513,7 +1525,9 @@ export default function AdminPage() {
 
     const nextAssignedTo = draft?.assigned_to.trim() ?? currentTicket.assigned_to?.trim() ?? "";
     const nextNotes = draft?.notes.trim() ?? currentTicket.notes?.trim() ?? "";
+    const currentAssignedTo = currentTicket.assigned_to?.trim() ?? "";
     const currentNotes = currentTicket.notes?.trim() ?? "";
+    const assignmentChanged = nextAssignedTo !== currentAssignedTo;
     const notesChanged = nextNotes !== currentNotes;
     const actorName = currentUserDisplayName || currentUserId || "Stores Operator";
     const nextUpdatedAt = new Date().toISOString();
@@ -1647,11 +1661,22 @@ export default function AdminPage() {
       return null;
     }
 
-    const updatePayload: Record<string, string | null> = {
+    const updatePayload: Record<string, string | boolean | null> = {
       status: nextStatus,
       assigned_to: nextAssignedTo || null,
       notes: nextNotes || null,
       updated_at: nextUpdatedAt,
+      is_urgent: Boolean(currentTicket.is_urgent),
+      urgent_flagged_at: currentTicket.urgent_flagged_at ?? null,
+      urgent_flagged_by: currentTicket.urgent_flagged_by ?? null,
+      urgent_reminder_dismissed_at:
+        currentTicket.is_urgent && !assignmentChanged
+          ? currentTicket.urgent_reminder_dismissed_at ?? null
+          : null,
+      urgent_reminder_dismissed_by:
+        currentTicket.is_urgent && !assignmentChanged
+          ? currentTicket.urgent_reminder_dismissed_by ?? null
+          : null,
     };
 
     if (nextStatus === "ORDERED") {
@@ -1986,12 +2011,15 @@ export default function AdminPage() {
 
     const nextAssignedTo = draft.assigned_to.trim();
     const nextNotes = draft.notes.trim();
+    const nextIsUrgent = Boolean(draft.is_urgent);
     const currentAssignedTo = currentTicket.assigned_to?.trim() ?? "";
     const currentNotes = currentTicket.notes?.trim() ?? "";
+    const currentIsUrgent = Boolean(currentTicket.is_urgent);
     const assignmentChanged = nextAssignedTo !== currentAssignedTo;
     const notesChanged = nextNotes !== currentNotes;
+    const urgentChanged = nextIsUrgent !== currentIsUrgent;
 
-    if (!assignmentChanged && !notesChanged) {
+    if (!assignmentChanged && !notesChanged && !urgentChanged) {
       setUpdatingTicketId(null);
       return;
     }
@@ -2016,11 +2044,29 @@ export default function AdminPage() {
     setErrorMessage("");
 
     const nextUpdatedAt = new Date().toISOString();
+    const nextUrgentTimestamp = nextIsUrgent
+      ? currentIsUrgent && currentTicket.urgent_flagged_at
+        ? currentTicket.urgent_flagged_at
+        : nextUpdatedAt
+      : null;
     let updateQuery = supabase
       .from("tickets")
       .update({
         assigned_to: nextAssignedTo || null,
         notes: nextNotes || null,
+        is_urgent: nextIsUrgent,
+        urgent_flagged_at: nextUrgentTimestamp,
+        urgent_flagged_by: nextIsUrgent
+          ? currentIsUrgent && currentTicket.urgent_flagged_by
+            ? currentTicket.urgent_flagged_by
+            : currentUserDisplayName || currentUserId || "Administrator"
+          : null,
+        urgent_reminder_dismissed_at: nextIsUrgent && !assignmentChanged && !urgentChanged
+          ? currentTicket.urgent_reminder_dismissed_at ?? null
+          : null,
+        urgent_reminder_dismissed_by: nextIsUrgent && !assignmentChanged && !urgentChanged
+          ? currentTicket.urgent_reminder_dismissed_by ?? null
+          : null,
         updated_at: nextUpdatedAt,
       })
       .eq("id", ticketId);
@@ -2067,16 +2113,34 @@ export default function AdminPage() {
     }
 
     setTickets((current) =>
-      current.map((ticket) =>
-            ticket.id === ticketId
-          ? {
-              ...ticket,
-              assigned_to: nextAssignedTo || null,
-              notes: nextNotes || null,
-              updated_at: updatedTicket.updated_at ?? nextUpdatedAt,
-            }
-          : ticket,
-      ),
+      [...current]
+        .map((ticket) =>
+          ticket.id === ticketId
+            ? {
+                ...ticket,
+                assigned_to: nextAssignedTo || null,
+                notes: nextNotes || null,
+                is_urgent: nextIsUrgent,
+                urgent_flagged_at: nextUrgentTimestamp,
+                urgent_flagged_by:
+                  nextIsUrgent
+                    ? currentIsUrgent && currentTicket.urgent_flagged_by
+                      ? currentTicket.urgent_flagged_by
+                      : currentUserDisplayName || currentUserId || "Administrator"
+                    : null,
+                urgent_reminder_dismissed_at:
+                  nextIsUrgent && !assignmentChanged && !urgentChanged
+                    ? currentTicket.urgent_reminder_dismissed_at ?? null
+                    : null,
+                urgent_reminder_dismissed_by:
+                  nextIsUrgent && !assignmentChanged && !urgentChanged
+                    ? currentTicket.urgent_reminder_dismissed_by ?? null
+                    : null,
+                updated_at: updatedTicket.updated_at ?? nextUpdatedAt,
+              }
+            : ticket,
+        )
+        .sort(compareTicketsByPriority),
     );
     setUpdatingTicketId(null);
     finishTicketOperation(ticketId);
@@ -3753,12 +3817,12 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
   onSave,
 }: {
   ticket: Ticket;
-  draft?: { assigned_to: string; notes: string };
+  draft?: { assigned_to: string; notes: string; is_urgent: boolean };
   isCollected: boolean;
   returnedReason?: string;
   isUpdating: boolean;
   adminOperatorNames: string[];
-  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) => void;
+  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean }>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
 }) {
@@ -3812,25 +3876,47 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
         </div>
       </td>
       <td className="px-6 py-5">
-        <StatusBadge status={ticket.status ?? "PENDING"} />
+        <div className="space-y-2">
+          <StatusBadge status={ticket.status ?? "PENDING"} />
+          {isUrgentTicket(ticket) ? (
+            <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-700">
+              Urgent
+            </span>
+          ) : null}
+        </div>
       </td>
       <td className="px-6 py-5">
-        <select
-          value={draft?.assigned_to ?? ""}
-          onChange={(event) =>
-            onDraftChange(ticket.id, {
-              assigned_to: event.target.value,
-            })
-          }
-          className="w-40 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-        >
-          <option value="">Stores queue</option>
-          {adminOperatorNames.map((operator) => (
-            <option key={operator} value={operator}>
-              {operator}
-            </option>
-          ))}
-        </select>
+        <div className="space-y-3">
+          <select
+            value={draft?.assigned_to ?? ""}
+            onChange={(event) =>
+              onDraftChange(ticket.id, {
+                assigned_to: event.target.value,
+              })
+            }
+            className="w-40 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+          >
+            <option value="">Stores queue</option>
+            {adminOperatorNames.map((operator) => (
+              <option key={operator} value={operator}>
+                {operator}
+              </option>
+            ))}
+          </select>
+          <label className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-red-700">
+            <input
+              type="checkbox"
+              checked={draft?.is_urgent ?? false}
+              onChange={(event) =>
+                onDraftChange(ticket.id, {
+                  is_urgent: event.target.checked,
+                })
+              }
+              className="h-4 w-4 rounded border-red-300 text-red-600 focus:ring-red-500"
+            />
+            Urgent
+          </label>
+        </div>
       </td>
       <td className="px-6 py-5">
         <textarea
@@ -3884,12 +3970,12 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onSave,
 }: {
   ticket: Ticket;
-  draft?: { assigned_to: string; notes: string };
+  draft?: { assigned_to: string; notes: string; is_urgent: boolean };
   isCollected: boolean;
   returnedReason?: string;
   isUpdating: boolean;
   adminOperatorNames: string[];
-  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string }>) => void;
+  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean }>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
 }) {
@@ -3897,7 +3983,7 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
     <article
       className={`rounded-3xl border p-5 shadow-sm ${getCompactStatusCardTone(
         ticket.status ?? "PENDING",
-      )}`}
+      )} ${isUrgentTicket(ticket) ? "ring-2 ring-red-300" : ""}`}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -3929,7 +4015,14 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
           >
             +
           </Link>
-          <StatusBadge status={ticket.status ?? "PENDING"} />
+          <div className="space-y-2 text-right">
+            <StatusBadge status={ticket.status ?? "PENDING"} />
+            {isUrgentTicket(ticket) ? (
+              <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-700">
+                Urgent
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
       <p className="mt-4 text-sm leading-7 text-slate-700">
@@ -3991,6 +4084,19 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
           }
           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
         />
+        <label className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm font-semibold text-red-800">
+          <span>Urgent flag</span>
+          <input
+            type="checkbox"
+            checked={draft?.is_urgent ?? false}
+            onChange={(event) =>
+              onDraftChange(ticket.id, {
+                is_urgent: event.target.checked,
+              })
+            }
+            className="h-4 w-4 rounded border-red-300 text-red-600 focus:ring-red-500"
+          />
+        </label>
         <StatusSelect
           ticketId={ticket.id}
           value={ticket.status ?? "PENDING"}
