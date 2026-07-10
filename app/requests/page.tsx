@@ -31,6 +31,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 type Ticket = {
   id: string;
   user_id?: string | null;
+  visible_to_user_id?: string | null;
   requester_name?: string | null;
   machine_reference: string | null;
   job_number: string | null;
@@ -97,7 +98,7 @@ export default function RequestsPage() {
       .in("status", activeTicketStatuses);
 
     if (!isAdmin) {
-      query = query.eq("user_id", user.id);
+      query = query.or(`user_id.eq.${user.id},visible_to_user_id.eq.${user.id}`);
     }
 
     let { data, error } = await query;
@@ -109,7 +110,7 @@ export default function RequestsPage() {
         .in("status", activeTicketStatuses);
 
       if (!isAdmin) {
-        fallbackQuery = fallbackQuery.eq("user_id", user.id);
+        fallbackQuery = fallbackQuery.or(`user_id.eq.${user.id},visible_to_user_id.eq.${user.id}`);
       }
 
       ({ data, error } = await fallbackQuery);

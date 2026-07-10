@@ -104,25 +104,33 @@ export default function Home() {
       const query = supabase
         .from("tickets")
         .select(
-          "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name, is_urgent, urgent_flagged_at, urgent_reminder_dismissed_at",
+          "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name, visible_to_user_id, is_urgent, urgent_flagged_at, urgent_reminder_dismissed_at",
         )
         .in("status", activeTicketStatuses)
         .limit(isAdmin ? 8 : 5);
 
+      const scopedQuery = isAdmin
+        ? query
+        : query.or(`user_id.eq.${user.id},visible_to_user_id.eq.${user.id}`);
+
       let data: any = null;
       let error: any = null;
-      ({ data, error } = isAdmin ? await query : await query.eq("user_id", user.id));
+      ({ data, error } = await scopedQuery);
 
       if (error && shouldRetryWithoutUrgentFields(error)) {
         const fallbackQuery = supabase
           .from("tickets")
           .select(
-            "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name",
+            "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name, visible_to_user_id",
           )
           .in("status", activeTicketStatuses)
           .limit(isAdmin ? 8 : 5);
 
-        ({ data, error } = isAdmin ? await fallbackQuery : await fallbackQuery.eq("user_id", user.id));
+        const fallbackScopedQuery = isAdmin
+          ? fallbackQuery
+          : fallbackQuery.or(`user_id.eq.${user.id},visible_to_user_id.eq.${user.id}`);
+
+        ({ data, error } = await fallbackScopedQuery);
       }
 
       if (!isMounted) {
@@ -179,14 +187,14 @@ export default function Home() {
       const query = supabase
         .from("tickets")
         .select(
-          "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name, is_urgent, urgent_flagged_at, urgent_reminder_dismissed_at",
+          "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name, visible_to_user_id, is_urgent, urgent_flagged_at, urgent_reminder_dismissed_at",
         )
         .in("status", activeTicketStatuses)
         .limit(25);
 
       const scopedQuery = currentUserIsAdmin
         ? query
-        : query.eq("user_id", currentUserId ?? "");
+        : query.or(`user_id.eq.${currentUserId ?? ""},visible_to_user_id.eq.${currentUserId ?? ""}`);
       const searchTerms = Array.from(
         new Set(
           [
@@ -216,14 +224,14 @@ export default function Home() {
         const fallbackQuery = supabase
           .from("tickets")
           .select(
-            "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name",
+            "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name, visible_to_user_id",
           )
           .in("status", activeTicketStatuses)
           .limit(25);
 
         const fallbackScopedQuery = currentUserIsAdmin
           ? fallbackQuery
-          : fallbackQuery.eq("user_id", currentUserId ?? "");
+          : fallbackQuery.or(`user_id.eq.${currentUserId ?? ""},visible_to_user_id.eq.${currentUserId ?? ""}`);
 
         ({ data, error } = searchFilter ? await fallbackScopedQuery.or(searchFilter) : await fallbackScopedQuery);
       }

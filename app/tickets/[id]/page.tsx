@@ -94,6 +94,7 @@ import {
   fetchProfileDisplayNamesByUserId,
   getCurrentUserWithRole,
 } from "@/lib/profile-access";
+import { fetchRequesterAccounts } from "@/lib/requester-accounts";
 import type { SupplierOrderDispatchPreference } from "@/lib/order-communications";
 import { ticketStatuses } from "@/lib/statuses";
 import { sanitizeUserFacingError } from "@/lib/security";
@@ -107,6 +108,7 @@ const OPERATOR_NUMBERS = [
 type TicketRecord = {
   id: string;
   user_id: string | null;
+  visible_to_user_id?: string | null;
   requester_name: string | null;
   department: string | null;
   is_retail_sale?: boolean | null;
@@ -183,6 +185,7 @@ type TicketEditDraft = {
   request_details: string;
   status: string;
   assigned_to: string;
+  visible_to_user_id: string;
   notes: string;
   expected_delivery_date: string;
   lead_time_note: string;
@@ -226,6 +229,11 @@ type EditConflictDialogState = {
   status: string | null;
 };
 
+type RequesterAccountOption = {
+  user_id: string;
+  full_name: string | null;
+};
+
 export default function TicketDetailPage() {
   const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const params = useParams<{ id: string }>();
@@ -239,6 +247,7 @@ export default function TicketDetailPage() {
   const [messageSenderNameByUserId, setMessageSenderNameByUserId] = useState<Record<string, string>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
+  const [requesterAccounts, setRequesterAccounts] = useState<RequesterAccountOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -292,6 +301,18 @@ export default function TicketDetailPage() {
       null,
     );
     setEditConflictDialog(null);
+
+    if (isAdmin) {
+      try {
+        const requesterRecords = await fetchRequesterAccounts(supabase);
+        setRequesterAccounts(requesterRecords);
+      } catch (requesterError) {
+        console.error("Failed to load requester accounts", requesterError);
+        setRequesterAccounts([]);
+      }
+    } else {
+      setRequesterAccounts([]);
+    }
 
     const { data: ticketData, error: ticketError } = await supabase
       .from("tickets")
@@ -871,6 +892,7 @@ export default function TicketDetailPage() {
       request_details: editDraft.request_details.trim() || null,
       status: editDraft.status.trim() || null,
       assigned_to: editDraft.assigned_to.trim() || null,
+      visible_to_user_id: editDraft.visible_to_user_id.trim() || null,
       notes: editDraft.notes.trim() || null,
       expected_delivery_date: nextExpectedDeliveryDate.trim() || null,
       lead_time_note: nextLeadTimeNote.trim() || null,
@@ -1961,6 +1983,29 @@ export default function TicketDetailPage() {
                               )
                             }
                           />
+                          <label className="space-y-2 sm:col-span-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                              Requester visibility
+                            </span>
+                            <select
+                              value={editDraft.visible_to_user_id}
+                              onChange={(event) =>
+                                setEditDraft((current) =>
+                                  current
+                                    ? { ...current, visible_to_user_id: event.target.value }
+                                    : current,
+                                )
+                              }
+                              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                            >
+                              <option value="">Original requester only</option>
+                              {requesterAccounts.map((account) => (
+                                <option key={account.user_id} value={account.user_id}>
+                                  {account.full_name ?? account.user_id}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
                           <div className="sm:col-span-2 rounded-2xl border border-red-200 bg-red-50/80 px-4 py-4">
                             <div className="flex flex-wrap items-center justify-between gap-4">
                               <div>
@@ -2969,6 +3014,7 @@ function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
     request_details: ticket.request_details ?? "",
     status: ticket.status ?? "PENDING",
     assigned_to: ticket.assigned_to ?? "",
+    visible_to_user_id: ticket.visible_to_user_id ?? "",
     notes: ticket.notes ?? "",
     expected_delivery_date: toDateInputValue(ticket.expected_delivery_date),
     lead_time_note: ticket.lead_time_note ?? "",

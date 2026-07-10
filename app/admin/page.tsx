@@ -84,6 +84,7 @@ import {
   fetchProfileDisplayNamesByUserId,
   getCurrentUserWithRole,
 } from "@/lib/profile-access";
+import { fetchRequesterAccounts } from "@/lib/requester-accounts";
 import {
   extractRequesterReturnReason,
   REQUESTER_COLLECTED_COMMENT,
@@ -176,6 +177,7 @@ type Ticket = {
   ready_by?: string | null;
   overdue_reminder_dismissed_at?: string | null;
   overdue_reminder_dismissed_by?: string | null;
+  visible_to_user_id?: string | null;
   is_urgent?: boolean | null;
   urgent_flagged_at?: string | null;
   urgent_flagged_by?: string | null;
@@ -206,6 +208,11 @@ type StatusWorkflowDialogState = {
   retailDeliveryAddress: string;
   retailApcTrackingNumber: string;
   errorMessage: string;
+};
+
+type RequesterAccountOption = {
+  user_id: string;
+  full_name: string | null;
 };
 
 const ORDERED_WORKFLOW_MIGRATION_HINT =
@@ -245,7 +252,7 @@ export default function AdminPage() {
   const [collectedTicketIds, setCollectedTicketIds] = useState<Set<string>>(new Set());
   const [returnedTicketReasonById, setReturnedTicketReasonById] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<
-    Record<string, { assigned_to: string; notes: string; is_urgent: boolean }>
+    Record<string, { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>
   >({});
   const [selectedChatTicketId, setSelectedChatTicketId] = useState<string | null>(null);
   const [chatAttachments, setChatAttachments] = useState<TicketAttachmentRecord[]>([]);
@@ -260,6 +267,7 @@ export default function AdminPage() {
   const [isChatCollapsed, setIsChatCollapsed] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
+  const [requesterAccounts, setRequesterAccounts] = useState<RequesterAccountOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [isChatSending, setIsChatSending] = useState(false);
@@ -335,13 +343,14 @@ export default function AdminPage() {
     [requesterMessagesByTicket],
   );
 
-  const updateTicketDraft = useCallback((ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean }>) => {
+  const updateTicketDraft = useCallback((ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>) => {
     setDrafts((current) => ({
       ...current,
       [ticketId]: {
         assigned_to: patch.assigned_to ?? current[ticketId]?.assigned_to ?? "",
         notes: patch.notes ?? current[ticketId]?.notes ?? "",
         is_urgent: patch.is_urgent ?? current[ticketId]?.is_urgent ?? false,
+        visible_to_user_id: patch.visible_to_user_id ?? current[ticketId]?.visible_to_user_id ?? "",
       },
     }));
   }, []);
@@ -394,6 +403,7 @@ export default function AdminPage() {
         assigned_to: nextTicket.assigned_to ?? "",
         notes: nextTicket.notes ?? "",
         is_urgent: Boolean(nextTicket.is_urgent),
+        visible_to_user_id: nextTicket.visible_to_user_id ?? "",
       },
     }));
   }, []);
@@ -755,11 +765,16 @@ export default function AdminPage() {
     );
 
     try {
-      const operatorRecords = await fetchAdminOperatorRecords(supabase);
+      const [operatorRecords, requesterRecords] = await Promise.all([
+        fetchAdminOperatorRecords(supabase),
+        fetchRequesterAccounts(supabase),
+      ]);
       setAdminOperatorNames(operatorRecords.map((operator) => operator.name));
+      setRequesterAccounts(requesterRecords);
     } catch (error) {
       console.error("Failed to load admin operator names", error);
       setAdminOperatorNames([]);
+      setRequesterAccounts([]);
     }
 
     const { data, error } = await supabase
@@ -852,6 +867,7 @@ export default function AdminPage() {
             assigned_to: ticket.assigned_to ?? "",
             notes: ticket.notes ?? "",
             is_urgent: Boolean(ticket.is_urgent),
+            visible_to_user_id: ticket.visible_to_user_id ?? "",
           },
         ]),
       ),
@@ -946,6 +962,7 @@ export default function AdminPage() {
               : "",
           notes: typeof nextTicket.notes === "string" ? nextTicket.notes : "",
           is_urgent: Boolean(nextTicket.is_urgent),
+          visible_to_user_id: nextTicket.visible_to_user_id ?? "",
         },
       }));
     };
@@ -2025,14 +2042,17 @@ export default function AdminPage() {
     const nextAssignedTo = draft.assigned_to.trim();
     const nextNotes = draft.notes.trim();
     const nextIsUrgent = Boolean(draft.is_urgent);
+    const nextVisibleToUserId = draft.visible_to_user_id.trim() || null;
     const currentAssignedTo = currentTicket.assigned_to?.trim() ?? "";
     const currentNotes = currentTicket.notes?.trim() ?? "";
     const currentIsUrgent = Boolean(currentTicket.is_urgent);
+    const currentVisibleToUserId = currentTicket.visible_to_user_id?.trim() ?? "";
     const assignmentChanged = nextAssignedTo !== currentAssignedTo;
     const notesChanged = nextNotes !== currentNotes;
     const urgentChanged = nextIsUrgent !== currentIsUrgent;
+    const visibilityChanged = nextVisibleToUserId !== currentVisibleToUserId;
 
-    if (!assignmentChanged && !notesChanged && !urgentChanged) {
+    if (!assignmentChanged && !notesChanged && !urgentChanged && !visibilityChanged) {
       setUpdatingTicketId(null);
       return;
     }
@@ -2068,10 +2088,12 @@ export default function AdminPage() {
       urgent_flagged_by: _ignoredUrgentFlaggedBy,
       urgent_reminder_dismissed_at: _ignoredUrgentDismissedAt,
       urgent_reminder_dismissed_by: _ignoredUrgentDismissedBy,
+      visible_to_user_id: _ignoredVisibleToUserId,
       ...updatePayloadWithoutUrgency
     } = {
       assigned_to: nextAssignedTo || null,
       notes: nextNotes || null,
+      visible_to_user_id: nextVisibleToUserId,
       is_urgent: nextIsUrgent,
       urgent_flagged_at: nextUrgentTimestamp,
       urgent_flagged_by:
@@ -2095,6 +2117,7 @@ export default function AdminPage() {
       .update({
         assigned_to: nextAssignedTo || null,
         notes: nextNotes || null,
+        visible_to_user_id: nextVisibleToUserId,
         is_urgent: nextIsUrgent,
         urgent_flagged_at: nextUrgentTimestamp,
         urgent_flagged_by: nextIsUrgent
@@ -3558,6 +3581,7 @@ export default function AdminPage() {
                           returnedReason={returnedTicketReasonById[ticket.id]}
                           isUpdating={updatingTicketId === ticket.id}
                           adminOperatorNames={adminOperatorNames}
+                          requesterAccounts={requesterAccounts}
                           onDraftChange={updateTicketDraft}
                           onStatusChange={handleStatusChange}
                           onSave={handleTicketSave}
@@ -3692,6 +3716,22 @@ export default function AdminPage() {
                             onChange={handleStatusChange}
                             disabled={updatingTicketId === ticket.id}
                           />
+                          <select
+                            value={drafts[ticket.id]?.visible_to_user_id ?? ""}
+                            onChange={(event) =>
+                              updateTicketDraft(ticket.id, {
+                                visible_to_user_id: event.target.value,
+                              })
+                            }
+                            className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                          >
+                            <option value="">Visible to original requester only</option>
+                            {requesterAccounts.map((account) => (
+                              <option key={account.user_id} value={account.user_id}>
+                                {account.full_name ?? account.user_id}
+                              </option>
+                            ))}
+                          </select>
                           <button
                             type="button"
                             onClick={() => handleTicketSave(ticket.id)}
@@ -3835,7 +3875,7 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   pagedFilteredTickets.map((ticket) => (
-                    <AdminCompactTicketCard
+                      <AdminCompactTicketCard
                       key={ticket.id}
                       ticket={ticket}
                       draft={drafts[ticket.id]}
@@ -3843,6 +3883,7 @@ export default function AdminPage() {
                       returnedReason={returnedTicketReasonById[ticket.id]}
                       isUpdating={updatingTicketId === ticket.id}
                       adminOperatorNames={adminOperatorNames}
+                      requesterAccounts={requesterAccounts}
                       onDraftChange={updateTicketDraft}
                       onStatusChange={handleStatusChange}
                       onSave={handleTicketSave}
@@ -3868,17 +3909,19 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
   returnedReason,
   isUpdating,
   adminOperatorNames,
+  requesterAccounts,
   onDraftChange,
   onStatusChange,
   onSave,
 }: {
   ticket: Ticket;
-  draft?: { assigned_to: string; notes: string; is_urgent: boolean };
+  draft?: { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string };
   isCollected: boolean;
   returnedReason?: string;
   isUpdating: boolean;
   adminOperatorNames: string[];
-  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean }>) => void;
+  requesterAccounts: RequesterAccountOption[];
+  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
 }) {
@@ -3959,6 +4002,22 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
               </option>
             ))}
           </select>
+          <select
+            value={draft?.visible_to_user_id ?? ""}
+            onChange={(event) =>
+              onDraftChange(ticket.id, {
+                visible_to_user_id: event.target.value,
+              })
+            }
+            className="w-40 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+          >
+            <option value="">Original requester only</option>
+            {requesterAccounts.map((account) => (
+              <option key={account.user_id} value={account.user_id}>
+                {account.full_name ?? account.user_id}
+              </option>
+            ))}
+          </select>
           <label className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-red-700">
             <input
               type="checkbox"
@@ -4021,17 +4080,19 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   returnedReason,
   isUpdating,
   adminOperatorNames,
+  requesterAccounts,
   onDraftChange,
   onStatusChange,
   onSave,
 }: {
   ticket: Ticket;
-  draft?: { assigned_to: string; notes: string; is_urgent: boolean };
+  draft?: { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string };
   isCollected: boolean;
   returnedReason?: string;
   isUpdating: boolean;
   adminOperatorNames: string[];
-  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean }>) => void;
+  requesterAccounts: RequesterAccountOption[];
+  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
 }) {
@@ -4124,9 +4185,25 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
           className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
         >
           <option value="">Stores queue</option>
-          {adminOperatorNames.map((operator) => (
-            <option key={operator} value={operator}>
-              {operator}
+            {adminOperatorNames.map((operator) => (
+              <option key={operator} value={operator}>
+                {operator}
+              </option>
+            ))}
+        </select>
+        <select
+          value={draft?.visible_to_user_id ?? ""}
+          onChange={(event) =>
+            onDraftChange(ticket.id, {
+              visible_to_user_id: event.target.value,
+            })
+          }
+          className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+        >
+          <option value="">Original requester only</option>
+          {requesterAccounts.map((account) => (
+            <option key={account.user_id} value={account.user_id}>
+              {account.full_name ?? account.user_id}
             </option>
           ))}
         </select>
