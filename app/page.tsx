@@ -9,7 +9,11 @@ import { RelayLogo } from "@/components/relay-logo";
 import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { activeTicketStatuses } from "@/lib/statuses";
-import { compareTicketsByPriority, isUrgentTicket } from "@/lib/ticket-urgency";
+import {
+  compareTicketsByPriority,
+  isUrgentTicket,
+  shouldRetryWithoutUrgentFields,
+} from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type HomepageUpdate = {
@@ -105,8 +109,21 @@ export default function Home() {
         .in("status", activeTicketStatuses)
         .limit(isAdmin ? 8 : 5);
 
-      const { data, error } =
-        isAdmin ? await query : await query.eq("user_id", user.id);
+      let data: any = null;
+      let error: any = null;
+      ({ data, error } = isAdmin ? await query : await query.eq("user_id", user.id));
+
+      if (error && shouldRetryWithoutUrgentFields(error)) {
+        const fallbackQuery = supabase
+          .from("tickets")
+          .select(
+            "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name",
+          )
+          .in("status", activeTicketStatuses)
+          .limit(isAdmin ? 8 : 5);
+
+        ({ data, error } = isAdmin ? await fallbackQuery : await fallbackQuery.eq("user_id", user.id));
+      }
 
       if (!isMounted) {
         return;
@@ -191,9 +208,25 @@ export default function Home() {
         })
         .join(",");
 
-      const { data, error } = searchFilter
-        ? await scopedQuery.or(searchFilter)
-        : await scopedQuery;
+      let data: any = null;
+      let error: any = null;
+      ({ data, error } = searchFilter ? await scopedQuery.or(searchFilter) : await scopedQuery);
+
+      if (error && shouldRetryWithoutUrgentFields(error)) {
+        const fallbackQuery = supabase
+          .from("tickets")
+          .select(
+            "id, job_number, request_summary, request_details, status, updated_at, created_at, assigned_to, requester_name",
+          )
+          .in("status", activeTicketStatuses)
+          .limit(25);
+
+        const fallbackScopedQuery = currentUserIsAdmin
+          ? fallbackQuery
+          : fallbackQuery.eq("user_id", currentUserId ?? "");
+
+        ({ data, error } = searchFilter ? await fallbackScopedQuery.or(searchFilter) : await fallbackScopedQuery);
+      }
 
       if (error || !data) {
         setSearchResult(localResult);

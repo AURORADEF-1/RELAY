@@ -9,7 +9,11 @@ import {
 } from "@/lib/admin-operators";
 import { buildMonthlySupplierSpendSnapshots } from "@/lib/order-analytics";
 import { activeTicketStatuses } from "@/lib/statuses";
-import { compareTicketsByPriority, isUrgentTicket } from "@/lib/ticket-urgency";
+import {
+  compareTicketsByPriority,
+  isUrgentTicket,
+  shouldRetryWithoutUrgentFields,
+} from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type WallboardTicket = {
@@ -104,15 +108,20 @@ export default function WallboardPage() {
         return;
       }
 
-      const [queueResult, spendResult, operatorResult] = await Promise.allSettled([
+      const buildQueueQuery = (includeUrgentFields: boolean) =>
         supabase
           .from("tickets")
           .select(
-            "id, job_number, machine_reference, requester_name, request_summary, request_details, assigned_to, status, created_at, updated_at, ordered_at, supplier_name, order_amount, is_urgent, urgent_flagged_at, urgent_reminder_dismissed_at",
+            includeUrgentFields
+              ? "id, job_number, machine_reference, requester_name, request_summary, request_details, assigned_to, status, created_at, updated_at, ordered_at, supplier_name, order_amount, is_urgent, urgent_flagged_at, urgent_reminder_dismissed_at"
+              : "id, job_number, machine_reference, requester_name, request_summary, request_details, assigned_to, status, created_at, updated_at, ordered_at, supplier_name, order_amount",
           )
           .in("status", activeTicketStatuses)
           .order("updated_at", { ascending: false })
-          .limit(LIVE_QUEUE_LIMIT),
+          .limit(LIVE_QUEUE_LIMIT);
+
+      const [queueResult, spendResult, operatorResult] = await Promise.allSettled([
+        buildQueueQuery(true),
         supabase
           .from("tickets")
           .select("id, supplier_name, order_amount, ordered_at, updated_at, created_at, status")
@@ -127,15 +136,94 @@ export default function WallboardPage() {
       }
 
       if (queueResult.status === "rejected" || queueResult.value.error) {
+        if (
+          queueResult.status === "fulfilled" &&
+          queueResult.value.error &&
+          shouldRetryWithoutUrgentFields(queueResult.value.error)
+        ) {
+          const fallbackQueueResult = await buildQueueQuery(false);
+
+          if (fallbackQueueResult.error) {
+            setLoadError("Unable to load the live queue.");
+            setIsLoading(false);
+            return;
+          }
+
+          const fallbackTickets = (fallbackQueueResult.data ?? []) as unknown as WallboardTicket[];
+          const nextSupplierSpendTickets =
+            spendResult.status === "fulfilled" && !spendResult.value.error
+              ? ((spendResult.value.data ?? []) as unknown as SupplierSpendTicket[])
+              : supplierSpendTicketsRef.current;
+          const nextOperatorNames =
+            operatorResult.status === "fulfilled"
+              ? operatorResult.value.map((operator) => operator.name)
+              : adminOperatorNamesRef.current;
+          const nextSignature = fallbackTickets
+            .map((ticket) =>
+              [
+                ticket.id,
+                ticket.status,
+                ticket.updated_at,
+                ticket.assigned_to,
+                ticket.request_summary,
+                ticket.supplier_name,
+                ticket.order_amount,
+                ticket.is_urgent,
+                ticket.urgent_flagged_at,
+              ].join(":"),
+            )
+            .join("|");
+          const nextPendingSignature = fallbackTickets
+            .filter((ticket) => ticket.status === "PENDING")
+            .map((ticket) => [ticket.id, ticket.updated_at, ticket.created_at].join(":"))
+            .join("|");
+          const nextSupplierSpendSignature = nextSupplierSpendTickets
+            .map((ticket) =>
+              [
+                ticket.id,
+                ticket.supplier_name,
+                ticket.order_amount,
+                ticket.ordered_at,
+                ticket.updated_at,
+              ].join(":"),
+            )
+            .join("|");
+
+          pendingSignatureRef.current = nextPendingSignature;
+
+          if (nextSignature !== signatureRef.current) {
+            signatureRef.current = nextSignature;
+            setTickets(fallbackTickets);
+          }
+
+          if (nextSupplierSpendSignature !== supplierSpendSignatureRef.current) {
+            supplierSpendSignatureRef.current = nextSupplierSpendSignature;
+            setSupplierSpendTickets(nextSupplierSpendTickets);
+          }
+
+          if (nextOperatorNames.join("|") !== adminOperatorNamesRef.current.join("|")) {
+            setAdminOperatorNames(nextOperatorNames);
+          }
+
+          setLoadError(
+            spendResult.status === "fulfilled" && spendResult.value.error
+              ? "Supplier spend unavailable. Live queue is current."
+              : null,
+          );
+          setLastUpdatedAt(new Date().toISOString());
+          setIsLoading(false);
+          return;
+        }
+
         setLoadError("Unable to load the live queue.");
         setIsLoading(false);
         return;
       }
 
-      const nextTickets = (queueResult.value.data ?? []) as WallboardTicket[];
+      const nextTickets = (queueResult.value.data ?? []) as unknown as WallboardTicket[];
       const nextSupplierSpendTickets =
         spendResult.status === "fulfilled" && !spendResult.value.error
-          ? ((spendResult.value.data ?? []) as SupplierSpendTicket[])
+          ? ((spendResult.value.data ?? []) as unknown as SupplierSpendTicket[])
           : supplierSpendTicketsRef.current;
       const nextOperatorNames =
         operatorResult.status === "fulfilled"

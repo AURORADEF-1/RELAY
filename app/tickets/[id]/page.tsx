@@ -86,6 +86,7 @@ import {
 } from "@/lib/ticket-operational";
 import {
   isLikelySameOperatorName,
+  shouldRetryWithoutUrgentFields,
   shouldShowUrgentReminder,
 } from "@/lib/ticket-urgency";
 import { formatSupplierDisplayName, normalizeSupplierEmail } from "@/lib/suppliers";
@@ -936,10 +937,28 @@ export default function TicketDetailPage() {
         : {}),
     };
 
-    const { error: updateError } = await supabase
+    const {
+      is_urgent: _ignoredUrgentFlag,
+      urgent_flagged_at: _ignoredUrgentFlaggedAt,
+      urgent_flagged_by: _ignoredUrgentFlaggedBy,
+      urgent_reminder_dismissed_at: _ignoredUrgentDismissedAt,
+      urgent_reminder_dismissed_by: _ignoredUrgentDismissedBy,
+      ...ticketPatchWithoutUrgency
+    } = ticketPatch;
+
+    let { error: updateError } = await supabase
       .from("tickets")
       .update(ticketPatch)
       .eq("id", ticket.id);
+
+    if (updateError && shouldRetryWithoutUrgentFields(updateError)) {
+      const retryResult = await supabase
+        .from("tickets")
+        .update(ticketPatchWithoutUrgency)
+        .eq("id", ticket.id);
+
+      updateError = retryResult.error;
+    }
 
     if (updateError) {
       setErrorMessage(

@@ -76,3 +76,17 @@ export function compareTicketsByPriority(left: TicketUrgencyRecord, right: Ticke
 
   return new Date(getTicketPriorityTimestamp(right)).getTime() - new Date(getTicketPriorityTimestamp(left)).getTime();
 }
+
+export function shouldRetryWithoutUrgentFields(error: { message?: string } | null | undefined) {
+  const message = (error?.message ?? "").toLowerCase();
+
+  return (
+    message.includes("is_urgent") ||
+    message.includes("urgent_flagged_at") ||
+    message.includes("urgent_flagged_by") ||
+    message.includes("urgent_reminder_dismissed_at") ||
+    message.includes("urgent_reminder_dismissed_by") ||
+    message.includes("schema cache") ||
+    message.includes("column")
+  );
+}

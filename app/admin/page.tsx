@@ -96,7 +96,11 @@ import {
   type ActiveTicketStatusFilter,
   type TicketStatus,
 } from "@/lib/statuses";
-import { compareTicketsByPriority, isUrgentTicket } from "@/lib/ticket-urgency";
+import {
+  compareTicketsByPriority,
+  isUrgentTicket,
+  shouldRetryWithoutUrgentFields,
+} from "@/lib/ticket-urgency";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getSupabaseAccessToken } from "@/lib/supabase";
@@ -1722,6 +1726,15 @@ export default function AdminPage() {
       updatePayload.overdue_reminder_dismissed_by = null;
     }
 
+    const {
+      is_urgent: _ignoredUrgentFlag,
+      urgent_flagged_at: _ignoredUrgentFlaggedAt,
+      urgent_flagged_by: _ignoredUrgentFlaggedBy,
+      urgent_reminder_dismissed_at: _ignoredUrgentDismissedAt,
+      urgent_reminder_dismissed_by: _ignoredUrgentDismissedBy,
+      ...updatePayloadWithoutUrgency
+    } = updatePayload;
+
     let updateQuery = supabase
       .from("tickets")
       .update(updatePayload)
@@ -2049,6 +2062,34 @@ export default function AdminPage() {
         ? currentTicket.urgent_flagged_at
         : nextUpdatedAt
       : null;
+    const {
+      is_urgent: _ignoredUrgentFlag,
+      urgent_flagged_at: _ignoredUrgentFlaggedAt,
+      urgent_flagged_by: _ignoredUrgentFlaggedBy,
+      urgent_reminder_dismissed_at: _ignoredUrgentDismissedAt,
+      urgent_reminder_dismissed_by: _ignoredUrgentDismissedBy,
+      ...updatePayloadWithoutUrgency
+    } = {
+      assigned_to: nextAssignedTo || null,
+      notes: nextNotes || null,
+      is_urgent: nextIsUrgent,
+      urgent_flagged_at: nextUrgentTimestamp,
+      urgent_flagged_by:
+        nextIsUrgent
+          ? currentIsUrgent && currentTicket.urgent_flagged_by
+            ? currentTicket.urgent_flagged_by
+            : currentUserDisplayName || currentUserId || "Administrator"
+          : null,
+      urgent_reminder_dismissed_at:
+        nextIsUrgent && !assignmentChanged && !urgentChanged
+          ? currentTicket.urgent_reminder_dismissed_at ?? null
+          : null,
+      urgent_reminder_dismissed_by:
+        nextIsUrgent && !assignmentChanged && !urgentChanged
+          ? currentTicket.urgent_reminder_dismissed_by ?? null
+          : null,
+      updated_at: nextUpdatedAt,
+    };
     let updateQuery = supabase
       .from("tickets")
       .update({
@@ -2075,9 +2116,24 @@ export default function AdminPage() {
       updateQuery = updateQuery.eq("updated_at", currentTicket.updated_at);
     }
 
-    const { data: updatedTicket, error: updateError } = await updateQuery
+    let { data: updatedTicket, error: updateError } = await updateQuery
       .select("id, updated_at")
       .maybeSingle();
+
+    if (updateError && shouldRetryWithoutUrgentFields(updateError)) {
+      let retryQuery = supabase
+        .from("tickets")
+        .update(updatePayloadWithoutUrgency)
+        .eq("id", ticketId);
+
+      if (currentTicket.updated_at) {
+        retryQuery = retryQuery.eq("updated_at", currentTicket.updated_at);
+      }
+
+      const retryResult = await retryQuery.select("id, updated_at").maybeSingle();
+      updatedTicket = retryResult.data;
+      updateError = retryResult.error;
+    }
 
     if (updateError) {
       setErrorMessage(

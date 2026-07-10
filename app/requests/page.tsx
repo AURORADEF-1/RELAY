@@ -21,7 +21,11 @@ import {
 import { formatOperationalDate } from "@/lib/ticket-operational";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { activeTicketStatuses } from "@/lib/statuses";
-import { compareTicketsByPriority, isUrgentTicket } from "@/lib/ticket-urgency";
+import {
+  compareTicketsByPriority,
+  isUrgentTicket,
+  shouldRetryWithoutUrgentFields,
+} from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type Ticket = {
@@ -96,7 +100,20 @@ export default function RequestsPage() {
       query = query.eq("user_id", user.id);
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+
+    if (error && shouldRetryWithoutUrgentFields(error)) {
+      let fallbackQuery = supabase
+        .from("tickets")
+        .select("*")
+        .in("status", activeTicketStatuses);
+
+      if (!isAdmin) {
+        fallbackQuery = fallbackQuery.eq("user_id", user.id);
+      }
+
+      ({ data, error } = await fallbackQuery);
+    }
 
     if (error) {
       setTickets([]);
