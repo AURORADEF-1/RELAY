@@ -9,7 +9,6 @@ export async function fetchRequesterAccounts(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, role")
-    .eq("role", "user")
     .order("full_name", { ascending: true });
 
   if (error) {
@@ -17,7 +16,17 @@ export async function fetchRequesterAccounts(supabase: SupabaseClient) {
   }
 
   return ((data ?? []) as Array<{ id: string; full_name: string | null }>)
-    .filter((profile) => typeof profile.id === "string")
+    .filter((profile) => {
+      if (typeof profile.id !== "string") {
+        return false;
+      }
+
+      const role = typeof (profile as { role?: string | null }).role === "string"
+        ? (profile as { role?: string | null }).role!.trim().toLowerCase()
+        : "";
+
+      return role !== "admin";
+    })
     .map((profile) => ({
       user_id: profile.id,
       full_name: profile.full_name?.trim() || null,
