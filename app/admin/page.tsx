@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminOversightInbox, type AdminOversightItem } from "@/components/admin-oversight-inbox";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
@@ -1521,6 +1521,21 @@ export default function AdminPage() {
   const openTicketWhatsAppExport = useCallback((ticket: Ticket) => {
     const href = buildAdminTicketWhatsAppHref(ticket);
     window.open(href, "_blank", "noopener,noreferrer");
+  }, []);
+
+  const openTicketExportMenu = useCallback((ticket: Ticket, anchor: HTMLElement) => {
+    const menuWidth = 260;
+    const menuHeight = 112;
+    const rect = anchor.getBoundingClientRect();
+    const x = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 12);
+    const y = Math.min(rect.bottom + 8, window.innerHeight - menuHeight - 12);
+
+    setStatusExportMenu(null);
+    setTicketExportMenu({
+      ticket,
+      x: Math.max(12, x),
+      y: Math.max(12, y),
+    });
   }, []);
 
   const emailReadyOrders = useCallback(() => {
@@ -4119,20 +4134,7 @@ export default function AdminPage() {
                       onDraftChange={updateTicketDraft}
                       onStatusChange={handleStatusChange}
                       onSave={handleTicketSave}
-                      onContextMenu={(event) => {
-                        if (isTicketExportInteractiveTarget(event.target)) {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setStatusExportMenu(null);
-                        setTicketExportMenu({
-                          ticket,
-                          x: event.clientX,
-                          y: event.clientY,
-                        });
-                      }}
+                      onExportClick={openTicketExportMenu}
                     />
                   ))
                 )}
@@ -4330,7 +4332,7 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onDraftChange,
   onStatusChange,
   onSave,
-  onContextMenu,
+  onExportClick,
 }: {
   ticket: Ticket;
   draft?: { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string };
@@ -4342,11 +4344,10 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
-  onContextMenu?: (event: MouseEvent<HTMLElement>) => void;
+  onExportClick: (ticket: Ticket, anchor: HTMLElement) => void;
 }) {
   return (
     <article
-      onContextMenu={onContextMenu}
       className={`rounded-3xl border p-5 shadow-sm ${getCompactStatusCardTone(
         ticket.status ?? "PENDING",
       )} ${isUrgentTicket(ticket) ? "ring-2 ring-red-300" : ""}`}
@@ -4373,6 +4374,13 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
           ) : null}
         </div>
         <div className="flex flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={(event) => onExportClick(ticket, event.currentTarget)}
+            className="inline-flex h-9 items-center justify-center rounded-full border border-slate-300 bg-white px-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+          >
+            Export
+          </button>
           <Link
             href={`/tickets/${ticket.id}#parts`}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-semibold leading-none text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
@@ -4842,22 +4850,6 @@ function buildAdminTicketWhatsAppBody(ticket: Ticket) {
   ]
     .filter((line): line is string => Boolean(line))
     .join("\n");
-}
-
-function isTicketExportInteractiveTarget(target: EventTarget | null) {
-  if (!(target instanceof Node)) {
-    return false;
-  }
-
-  const element = target instanceof Element ? target : target.parentElement;
-
-  if (!element) {
-    return false;
-  }
-
-  return Boolean(
-    element.closest("a, button, input, select, textarea, label, [contenteditable='true']"),
-  );
 }
 
 function AdminMachineDetailItem({
