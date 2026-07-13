@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { AdminOversightInbox, type AdminOversightItem } from "@/components/admin-oversight-inbox";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
@@ -225,6 +225,12 @@ type StatusExportMenuState = {
   y: number;
 };
 
+type TicketExportMenuState = {
+  ticket: Ticket;
+  x: number;
+  y: number;
+};
+
 export default function AdminPage() {
   const router = useRouter();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
@@ -242,6 +248,7 @@ export default function AdminPage() {
   const [departmentFilter, setDepartmentFilter] = useState<"ALL" | "Onsite" | "Yard">("ALL");
   const [statusFilter, setStatusFilter] = useState<ActiveTicketStatusFilter>("ALL");
   const [statusExportMenu, setStatusExportMenu] = useState<StatusExportMenuState | null>(null);
+  const [ticketExportMenu, setTicketExportMenu] = useState<TicketExportMenuState | null>(null);
   const [statusExportNotice, setStatusExportNotice] = useState<{
     type: "success" | "error";
     message: string;
@@ -274,31 +281,32 @@ export default function AdminPage() {
     Record<string, TicketMessageRecord[]>
   >({});
 
+  const closeExportMenus = useCallback(() => {
+    setStatusExportMenu(null);
+    setTicketExportMenu(null);
+  }, []);
+
   useEffect(() => {
-    if (!statusExportMenu) {
+    if (!statusExportMenu && !ticketExportMenu) {
       return;
     }
 
-    const closeStatusExportMenu = () => {
-      setStatusExportMenu(null);
-    };
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        closeStatusExportMenu();
+        closeExportMenus();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", closeStatusExportMenu);
-    window.addEventListener("scroll", closeStatusExportMenu, true);
+    window.addEventListener("resize", closeExportMenus);
+    window.addEventListener("scroll", closeExportMenus, true);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", closeStatusExportMenu);
-      window.removeEventListener("scroll", closeStatusExportMenu, true);
+      window.removeEventListener("resize", closeExportMenus);
+      window.removeEventListener("scroll", closeExportMenus, true);
     };
-  }, [statusExportMenu]);
+  }, [closeExportMenus, statusExportMenu, ticketExportMenu]);
   const [readRequesterMessageByTicket, setReadRequesterMessageByTicket] = useState<
     Record<string, string>
   >({});
@@ -1504,6 +1512,16 @@ export default function AdminPage() {
     },
     [tickets],
   );
+
+  const openTicketEmailExport = useCallback((ticket: Ticket) => {
+    const href = buildAdminTicketEmailHref(ticket);
+    window.location.href = href;
+  }, []);
+
+  const openTicketWhatsAppExport = useCallback((ticket: Ticket) => {
+    const href = buildAdminTicketWhatsAppHref(ticket);
+    window.open(href, "_blank", "noopener,noreferrer");
+  }, []);
 
   const emailReadyOrders = useCallback(() => {
     if (readyOrders.length === 0) {
@@ -3327,6 +3345,7 @@ export default function AdminPage() {
                       const x = Math.min(event.clientX, window.innerWidth - menuWidth - 12);
                       const y = Math.min(event.clientY, window.innerHeight - menuHeight - 12);
 
+                      setTicketExportMenu(null);
                       setStatusExportMenu({
                         status,
                         x: Math.max(12, x),
@@ -3376,7 +3395,7 @@ export default function AdminPage() {
                     type="button"
                     aria-label="Close status export menu"
                     className="fixed inset-0 z-40 cursor-default bg-transparent"
-                    onClick={() => setStatusExportMenu(null)}
+                    onClick={closeExportMenus}
                   />
                   <div
                     role="menu"
@@ -3396,6 +3415,54 @@ export default function AdminPage() {
                       <span>Export {statusExportMenu.status} CSV with notes</span>
                       <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
                         CSV
+                      </span>
+                    </button>
+                  </div>
+                </>
+              ) : null}
+              {ticketExportMenu ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close ticket export menu"
+                    className="fixed inset-0 z-40 cursor-default bg-transparent"
+                    onClick={closeExportMenus}
+                  />
+                  <div
+                    role="menu"
+                    aria-label="Ticket export options"
+                    className="fixed z-50 w-[260px] rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_24px_70px_-20px_rgba(15,23,42,0.38)]"
+                    style={{
+                      left: `${ticketExportMenu.x}px`,
+                      top: `${ticketExportMenu.y}px`,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        openTicketEmailExport(ticketExportMenu.ticket);
+                        closeExportMenus();
+                      }}
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                    >
+                      <span>Email export</span>
+                      <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                        Email
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        openTicketWhatsAppExport(ticketExportMenu.ticket);
+                        closeExportMenus();
+                      }}
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                    >
+                      <span>WhatsApp export</span>
+                      <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                        WhatsApp
                       </span>
                     </button>
                   </div>
@@ -4040,7 +4107,7 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   pagedFilteredTickets.map((ticket) => (
-                      <AdminCompactTicketCard
+                    <AdminCompactTicketCard
                       key={ticket.id}
                       ticket={ticket}
                       draft={drafts[ticket.id]}
@@ -4052,6 +4119,20 @@ export default function AdminPage() {
                       onDraftChange={updateTicketDraft}
                       onStatusChange={handleStatusChange}
                       onSave={handleTicketSave}
+                      onContextMenu={(event) => {
+                        if (isTicketExportInteractiveTarget(event.target)) {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setStatusExportMenu(null);
+                        setTicketExportMenu({
+                          ticket,
+                          x: event.clientX,
+                          y: event.clientY,
+                        });
+                      }}
                     />
                   ))
                 )}
@@ -4249,6 +4330,7 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onDraftChange,
   onStatusChange,
   onSave,
+  onContextMenu,
 }: {
   ticket: Ticket;
   draft?: { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string };
@@ -4260,9 +4342,11 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
+  onContextMenu?: (event: MouseEvent<HTMLElement>) => void;
 }) {
   return (
     <article
+      onContextMenu={onContextMenu}
       className={`rounded-3xl border p-5 shadow-sm ${getCompactStatusCardTone(
         ticket.status ?? "PENDING",
       )} ${isUrgentTicket(ticket) ? "ring-2 ring-red-300" : ""}`}
@@ -4705,6 +4789,75 @@ function formatAdminLocationSummary(ticket: Ticket) {
 
 function buildAdminMapUrl(ticket: Ticket) {
   return buildOnsiteLocationMapUrl(ticket);
+}
+
+function buildAdminTicketEmailHref(ticket: Ticket) {
+  const subject = buildAdminTicketExportSubject(ticket);
+  const body = buildAdminTicketEmailBody(ticket);
+
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function buildAdminTicketWhatsAppHref(ticket: Ticket) {
+  return `https://api.whatsapp.com/send?text=${encodeURIComponent(buildAdminTicketWhatsAppBody(ticket))}`;
+}
+
+function buildAdminTicketExportSubject(ticket: Ticket) {
+  const jobNumber = ticket.job_number?.trim();
+
+  if (jobNumber) {
+    return `Job ${jobNumber}`;
+  }
+
+  return `Ticket ${ticket.id.slice(0, 8)}`;
+}
+
+function buildAdminTicketEmailBody(ticket: Ticket) {
+  return [
+    `Job: ${ticket.job_number?.trim() || "-"}`,
+    `Status: ${ticket.status ?? "-"}`,
+    `Requester: ${ticket.requester_name ?? "-"}`,
+    `Assigned: ${ticket.assigned_to ?? "Stores queue"}`,
+    `Created: ${formatDateTime(ticket.created_at)}`,
+    `Updated: ${formatDateTime(ticket.updated_at)}`,
+    `Ordered: ${formatDateTime(ticket.ordered_at)}`,
+    `Ready: ${formatDateTime(ticket.ready_at)}`,
+    `Request summary: ${ticket.request_summary ?? "-"}`,
+    `Request details: ${ticket.request_details ?? "-"}`,
+    `Admin notes: ${ticket.notes ?? "-"}`,
+  ].join("\n");
+}
+
+function buildAdminTicketWhatsAppBody(ticket: Ticket) {
+  const summary = ticket.request_summary ?? ticket.request_details ?? "No summary";
+
+  return [
+    `Job ${ticket.job_number?.trim() || "-"}`,
+    `Status: ${ticket.status ?? "-"}`,
+    `Updated: ${formatDateTime(ticket.updated_at)}`,
+    ticket.ordered_at ? `Ordered: ${formatDateTime(ticket.ordered_at)}` : null,
+    ticket.ready_at ? `Ready: ${formatDateTime(ticket.ready_at)}` : null,
+    `Summary: ${truncateSummary(summary)}`,
+    `Notes: ${truncateSummary(ticket.notes ?? "-")}`,
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+}
+
+function isTicketExportInteractiveTarget(target: EventTarget | null) {
+  if (!(target instanceof Node)) {
+    return false;
+  }
+
+  const element = target instanceof Element ? target : target.parentElement;
+
+  if (!element) {
+    return false;
+  }
+
+  return Boolean(
+    element.closest("a, button, input, select, textarea, label, [contenteditable='true']"),
+  );
 }
 
 function AdminMachineDetailItem({
