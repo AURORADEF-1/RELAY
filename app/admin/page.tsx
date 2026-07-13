@@ -94,6 +94,7 @@ import { formatSupplierDisplayName, normalizeSupplierEmail } from "@/lib/supplie
 import {
   activeTicketStatusOptions,
   activeTicketStatuses,
+  type ActiveTicketStatus,
   type ActiveTicketStatusFilter,
   type TicketStatus,
 } from "@/lib/statuses";
@@ -218,6 +219,12 @@ type RequesterAccountOption = {
 const ORDERED_WORKFLOW_MIGRATION_HINT =
   "ORDERED workflow fields are not available in the database yet. Apply docs/tickets-ordered-ready-operational-fields-2026-03-28.sql and try again.";
 
+type StatusExportMenuState = {
+  status: ActiveTicketStatus;
+  x: number;
+  y: number;
+};
+
 export default function AdminPage() {
   const router = useRouter();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
@@ -234,6 +241,11 @@ export default function AdminPage() {
   );
   const [departmentFilter, setDepartmentFilter] = useState<"ALL" | "Onsite" | "Yard">("ALL");
   const [statusFilter, setStatusFilter] = useState<ActiveTicketStatusFilter>("ALL");
+  const [statusExportMenu, setStatusExportMenu] = useState<StatusExportMenuState | null>(null);
+  const [statusExportNotice, setStatusExportNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [pageSize, setPageSize] = useState<(typeof ADMIN_PAGE_SIZE_OPTIONS)[number]>(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"table" | "compact" | "dynamic">(() => {
@@ -261,6 +273,32 @@ export default function AdminPage() {
   const [requesterMessagesByTicket, setRequesterMessagesByTicket] = useState<
     Record<string, TicketMessageRecord[]>
   >({});
+
+  useEffect(() => {
+    if (!statusExportMenu) {
+      return;
+    }
+
+    const closeStatusExportMenu = () => {
+      setStatusExportMenu(null);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeStatusExportMenu();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", closeStatusExportMenu);
+    window.addEventListener("scroll", closeStatusExportMenu, true);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", closeStatusExportMenu);
+      window.removeEventListener("scroll", closeStatusExportMenu, true);
+    };
+  }, [statusExportMenu]);
   const [readRequesterMessageByTicket, setReadRequesterMessageByTicket] = useState<
     Record<string, string>
   >({});
@@ -1398,6 +1436,74 @@ export default function AdminPage() {
       message: `Exported ${readyOrders.length} ready order${readyOrders.length === 1 ? "" : "s"}.`,
     });
   }, [readyOrders]);
+
+  const exportStatusJobsCsv = useCallback(
+    (status: ActiveTicketStatus) => {
+      const matchingTickets = tickets
+        .filter((ticket) => ticket.status === status)
+        .sort(
+          (left, right) =>
+            new Date(right.updated_at ?? right.created_at ?? 0).getTime() -
+            new Date(left.updated_at ?? left.created_at ?? 0).getTime(),
+        );
+
+      if (matchingTickets.length === 0) {
+        setStatusExportNotice({
+          type: "error",
+          message: `There are no ${status} jobs to export.`,
+        });
+        setStatusExportMenu(null);
+        return;
+      }
+
+      const csvRows = [
+        [
+          "job_number",
+          "status",
+          "requester_name",
+          "assigned_to",
+          "request_summary",
+          "request_details",
+          "admin_notes",
+          "created_at",
+          "updated_at",
+        ],
+        ...matchingTickets.map((ticket) => [
+          ticket.job_number ?? "",
+          ticket.status ?? "",
+          ticket.requester_name ?? "",
+          ticket.assigned_to ?? "",
+          ticket.request_summary ?? "",
+          ticket.request_details ?? "",
+          ticket.notes ?? "",
+          ticket.created_at ?? "",
+          ticket.updated_at ?? "",
+        ]),
+      ];
+
+      const csvContent = csvRows
+        .map((row) =>
+          row
+            .map((value) => `"${String(value).replaceAll("\"", "\"\"")}"`)
+            .join(","),
+        )
+        .join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const downloadUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl;
+      anchor.download = `relay-${status.toLowerCase()}-jobs-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(downloadUrl);
+
+      setStatusExportNotice({
+        type: "success",
+        message: `Exported ${matchingTickets.length} ${status} job${matchingTickets.length === 1 ? "" : "s"} with admin notes.`,
+      });
+      setStatusExportMenu(null);
+    },
+    [tickets],
+  );
 
   const emailReadyOrders = useCallback(() => {
     if (readyOrders.length === 0) {
@@ -3207,12 +3313,27 @@ export default function AdminPage() {
 
             {!isKpiMinimized ? (
               <>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
                 {activeTicketStatuses.map((status) => (
                   <button
                     key={status}
                     type="button"
                     onClick={() => setStatusFilter(status)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+
+                      const menuWidth = 248;
+                      const menuHeight = 88;
+                      const x = Math.min(event.clientX, window.innerWidth - menuWidth - 12);
+                      const y = Math.min(event.clientY, window.innerHeight - menuHeight - 12);
+
+                      setStatusExportMenu({
+                        status,
+                        x: Math.max(12, x),
+                        y: Math.max(12, y),
+                      });
+                    }}
+                    title="Left-click to filter. Right-click to export CSV with admin notes."
                     className={`rounded-2xl border px-4 py-3 text-left transition ${
                       statusFilter === status
                         ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.65)]"
@@ -3236,6 +3357,50 @@ export default function AdminPage() {
                   </button>
                 ))}
               </div>
+
+              {statusExportNotice ? (
+                <div
+                  className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                    statusExportNotice.type === "success"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-rose-200 bg-rose-50 text-rose-800"
+                  }`}
+                >
+                  {statusExportNotice.message}
+                </div>
+              ) : null}
+
+              {statusExportMenu ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close status export menu"
+                    className="fixed inset-0 z-40 cursor-default bg-transparent"
+                    onClick={() => setStatusExportMenu(null)}
+                  />
+                  <div
+                    role="menu"
+                    aria-label={`${statusExportMenu.status} export options`}
+                    className="fixed z-50 w-[248px] rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_24px_70px_-20px_rgba(15,23,42,0.38)]"
+                    style={{
+                      left: `${statusExportMenu.x}px`,
+                      top: `${statusExportMenu.y}px`,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => exportStatusJobsCsv(statusExportMenu.status)}
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                    >
+                      <span>Export {statusExportMenu.status} CSV with notes</span>
+                      <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                        CSV
+                      </span>
+                    </button>
+                  </div>
+                </>
+              ) : null}
 
               <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
               <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
