@@ -227,8 +227,6 @@ type StatusExportMenuState = {
 
 type TicketExportMenuState = {
   ticket: Ticket;
-  x: number;
-  y: number;
 };
 
 export default function AdminPage() {
@@ -1523,19 +1521,11 @@ export default function AdminPage() {
     window.open(href, "_blank", "noopener,noreferrer");
   }, []);
 
-  const openTicketExportMenu = useCallback((ticket: Ticket, anchor: HTMLElement) => {
-    const menuWidth = 260;
-    const menuHeight = 112;
-    const rect = anchor.getBoundingClientRect();
-    const x = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 12);
-    const y = Math.min(rect.bottom + 8, window.innerHeight - menuHeight - 12);
-
+  const openTicketExportMenu = useCallback((ticket: Ticket) => {
     setStatusExportMenu(null);
-    setTicketExportMenu({
-      ticket,
-      x: Math.max(12, x),
-      y: Math.max(12, y),
-    });
+    setTicketExportMenu((current) =>
+      current?.ticket.id === ticket.id ? null : { ticket },
+    );
   }, []);
 
   const emailReadyOrders = useCallback(() => {
@@ -3435,55 +3425,6 @@ export default function AdminPage() {
                   </div>
                 </>
               ) : null}
-              {ticketExportMenu ? (
-                <>
-                  <button
-                    type="button"
-                    aria-label="Close ticket export menu"
-                    className="fixed inset-0 z-40 cursor-default bg-transparent"
-                    onClick={closeExportMenus}
-                  />
-                  <div
-                    role="menu"
-                    aria-label="Ticket export options"
-                    className="fixed z-50 w-[260px] rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_24px_70px_-20px_rgba(15,23,42,0.38)]"
-                    style={{
-                      left: `${ticketExportMenu.x}px`,
-                      top: `${ticketExportMenu.y}px`,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        openTicketEmailExport(ticketExportMenu.ticket);
-                        closeExportMenus();
-                      }}
-                      className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-                    >
-                      <span>Email export</span>
-                      <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                        Email
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        openTicketWhatsAppExport(ticketExportMenu.ticket);
-                        closeExportMenus();
-                      }}
-                      className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-                    >
-                      <span>WhatsApp export</span>
-                      <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                        WhatsApp
-                      </span>
-                    </button>
-                  </div>
-                </>
-              ) : null}
-
               <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
               <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
                 <div className="flex items-start justify-between gap-4">
@@ -4135,6 +4076,10 @@ export default function AdminPage() {
                       onStatusChange={handleStatusChange}
                       onSave={handleTicketSave}
                       onExportClick={openTicketExportMenu}
+                      isExportMenuOpen={ticketExportMenu?.ticket.id === ticket.id}
+                      onCloseExportMenu={closeExportMenus}
+                      onExportEmail={openTicketEmailExport}
+                      onExportWhatsApp={openTicketWhatsAppExport}
                     />
                   ))
                 )}
@@ -4333,6 +4278,10 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onStatusChange,
   onSave,
   onExportClick,
+  isExportMenuOpen,
+  onCloseExportMenu,
+  onExportEmail,
+  onExportWhatsApp,
 }: {
   ticket: Ticket;
   draft?: { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string };
@@ -4344,7 +4293,11 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
-  onExportClick: (ticket: Ticket, anchor: HTMLElement) => void;
+  onExportClick: (ticket: Ticket) => void;
+  isExportMenuOpen: boolean;
+  onCloseExportMenu: () => void;
+  onExportEmail: (ticket: Ticket) => void;
+  onExportWhatsApp: (ticket: Ticket) => void;
 }) {
   return (
     <article
@@ -4376,11 +4329,47 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
         <div className="flex flex-col items-end gap-2">
           <button
             type="button"
-            onClick={(event) => onExportClick(ticket, event.currentTarget)}
+            onClick={() => onExportClick(ticket)}
             className="inline-flex h-9 items-center justify-center rounded-full border border-slate-300 bg-white px-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
           >
             Export
           </button>
+          {isExportMenuOpen ? (
+            <div
+              role="menu"
+              aria-label="Ticket export options"
+              className="mt-1 w-44 rounded-2xl border border-slate-200 bg-white p-2 text-left shadow-[0_24px_70px_-20px_rgba(15,23,42,0.22)]"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onExportEmail(ticket);
+                  onCloseExportMenu();
+                }}
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+              >
+                <span>Email</span>
+                <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                  mail
+                </span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onExportWhatsApp(ticket);
+                  onCloseExportMenu();
+                }}
+                className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+              >
+                <span>WhatsApp</span>
+                <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                  chat
+                </span>
+              </button>
+            </div>
+          ) : null}
           <Link
             href={`/tickets/${ticket.id}#parts`}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-semibold leading-none text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
