@@ -580,7 +580,7 @@ export function NotificationProvider({
           unreadNotificationsInitializedRef.current;
 
         if (adminUser) {
-          setToasts((current) => (current.length > 0 ? [] : current));
+          setToasts((current) => current.filter((toast) => toast.persistent));
         }
 
         if (shouldShowToasts) {
@@ -694,13 +694,15 @@ export function NotificationProvider({
           ? unreadNotifications
           : currentPath === "/tasks"
             ? unreadNotifications.filter((notification) => notification.type === "task_assigned")
-            : unreadNotifications.filter(
-                (notification) =>
-                  REQUEST_NOTIFICATION_TYPES.has(notification.type) &&
-                  notification.type !== "operator_message" &&
-                  notification.type !== "ready_reminder" &&
-                  notification.type !== "ready_for_collection",
-              );
+            : currentPath.startsWith("/tickets/")
+              ? unreadNotifications.filter((notification) => REQUEST_NOTIFICATION_TYPES.has(notification.type))
+              : unreadNotifications.filter(
+                  (notification) =>
+                    REQUEST_NOTIFICATION_TYPES.has(notification.type) &&
+                    notification.type !== "operator_message" &&
+                    notification.type !== "ready_reminder" &&
+                    notification.type !== "ready_for_collection",
+                );
 
         if (notificationsToMarkRead.length === 0) {
           return;
