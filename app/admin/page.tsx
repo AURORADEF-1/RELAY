@@ -229,6 +229,10 @@ type TicketExportMenuState = {
   ticket: Ticket;
 };
 
+type TicketSupplierExportMenuState = {
+  ticket: Ticket;
+};
+
 export default function AdminPage() {
   const router = useRouter();
   const { requesterUnreadCount, adminBadgeCount } = useNotifications();
@@ -247,6 +251,7 @@ export default function AdminPage() {
   const [statusFilter, setStatusFilter] = useState<ActiveTicketStatusFilter>("ALL");
   const [statusExportMenu, setStatusExportMenu] = useState<StatusExportMenuState | null>(null);
   const [ticketExportMenu, setTicketExportMenu] = useState<TicketExportMenuState | null>(null);
+  const [ticketSupplierExportMenu, setTicketSupplierExportMenu] = useState<TicketSupplierExportMenuState | null>(null);
   const [statusExportNotice, setStatusExportNotice] = useState<{
     type: "success" | "error";
     message: string;
@@ -282,10 +287,11 @@ export default function AdminPage() {
   const closeExportMenus = useCallback(() => {
     setStatusExportMenu(null);
     setTicketExportMenu(null);
+    setTicketSupplierExportMenu(null);
   }, []);
 
   useEffect(() => {
-    if (!statusExportMenu && !ticketExportMenu) {
+    if (!statusExportMenu && !ticketExportMenu && !ticketSupplierExportMenu) {
       return;
     }
 
@@ -304,7 +310,7 @@ export default function AdminPage() {
       window.removeEventListener("resize", closeExportMenus);
       window.removeEventListener("scroll", closeExportMenus, true);
     };
-  }, [closeExportMenus, statusExportMenu, ticketExportMenu]);
+  }, [closeExportMenus, statusExportMenu, ticketExportMenu, ticketSupplierExportMenu]);
   const [readRequesterMessageByTicket, setReadRequesterMessageByTicket] = useState<
     Record<string, string>
   >({});
@@ -1521,9 +1527,28 @@ export default function AdminPage() {
     window.open(href, "_blank", "noopener,noreferrer");
   }, []);
 
+  const openSupplierEmailExport = useCallback((ticket: Ticket) => {
+    const href = buildAdminSupplierEmailHref(ticket);
+    window.location.href = href;
+  }, []);
+
+  const openSupplierWhatsAppExport = useCallback((ticket: Ticket) => {
+    const href = buildAdminSupplierWhatsAppHref(ticket);
+    window.open(href, "_blank", "noopener,noreferrer");
+  }, []);
+
   const openTicketExportMenu = useCallback((ticket: Ticket) => {
     setStatusExportMenu(null);
+    setTicketSupplierExportMenu(null);
     setTicketExportMenu((current) =>
+      current?.ticket.id === ticket.id ? null : { ticket },
+    );
+  }, []);
+
+  const openTicketSupplierExportMenu = useCallback((ticket: Ticket) => {
+    setStatusExportMenu(null);
+    setTicketExportMenu(null);
+    setTicketSupplierExportMenu((current) =>
       current?.ticket.id === ticket.id ? null : { ticket },
     );
   }, []);
@@ -4080,6 +4105,11 @@ export default function AdminPage() {
                       onCloseExportMenu={closeExportMenus}
                       onExportEmail={openTicketEmailExport}
                       onExportWhatsApp={openTicketWhatsAppExport}
+                      onSupplierExportClick={openTicketSupplierExportMenu}
+                      isSupplierExportMenuOpen={ticketSupplierExportMenu?.ticket.id === ticket.id}
+                      onCloseSupplierExportMenu={closeExportMenus}
+                      onSupplierExportEmail={openSupplierEmailExport}
+                      onSupplierExportWhatsApp={openSupplierWhatsAppExport}
                     />
                   ))
                 )}
@@ -4282,6 +4312,11 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onCloseExportMenu,
   onExportEmail,
   onExportWhatsApp,
+  onSupplierExportClick,
+  isSupplierExportMenuOpen,
+  onCloseSupplierExportMenu,
+  onSupplierExportEmail,
+  onSupplierExportWhatsApp,
 }: {
   ticket: Ticket;
   draft?: { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string };
@@ -4298,6 +4333,11 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onCloseExportMenu: () => void;
   onExportEmail: (ticket: Ticket) => void;
   onExportWhatsApp: (ticket: Ticket) => void;
+  onSupplierExportClick: (ticket: Ticket) => void;
+  isSupplierExportMenuOpen: boolean;
+  onCloseSupplierExportMenu: () => void;
+  onSupplierExportEmail: (ticket: Ticket) => void;
+  onSupplierExportWhatsApp: (ticket: Ticket) => void;
 }) {
   return (
     <article
@@ -4327,13 +4367,22 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
           ) : null}
         </div>
         <div className="flex flex-col items-end gap-2">
-          <button
-            type="button"
-            onClick={() => onExportClick(ticket)}
-            className="inline-flex h-9 items-center justify-center rounded-full border border-slate-300 bg-white px-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-          >
-            Export
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onExportClick(ticket)}
+              className="inline-flex h-9 items-center justify-center rounded-full border border-slate-300 bg-white px-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Export
+            </button>
+            <button
+              type="button"
+              onClick={() => onSupplierExportClick(ticket)}
+              className="inline-flex h-9 items-center justify-center rounded-full border border-sky-300 bg-sky-50 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-sky-700 transition hover:border-sky-400 hover:bg-sky-100"
+            >
+              FTS
+            </button>
+          </div>
           {isExportMenuOpen ? (
             <div
               role="menu"
@@ -4366,6 +4415,45 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
                 <span>WhatsApp</span>
                 <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
                   chat
+                </span>
+              </button>
+            </div>
+          ) : null}
+          {isSupplierExportMenuOpen ? (
+            <div
+              role="menu"
+              aria-label="Supplier export options"
+              className="mt-1 w-52 rounded-2xl border border-sky-200 bg-white p-2 text-left shadow-[0_24px_70px_-20px_rgba(15,23,42,0.22)]"
+            >
+              <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Forward to supplier
+              </p>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onSupplierExportEmail(ticket);
+                  onCloseSupplierExportMenu();
+                }}
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+              >
+                <span>Email</span>
+                <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                  quote
+                </span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onSupplierExportWhatsApp(ticket);
+                  onCloseSupplierExportMenu();
+                }}
+                className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+              >
+                <span>WhatsApp</span>
+                <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                  quote
                 </span>
               </button>
             </div>
@@ -4839,6 +4927,70 @@ function buildAdminTicketWhatsAppBody(ticket: Ticket) {
   ]
     .filter((line): line is string => Boolean(line))
     .join("\n");
+}
+
+function buildAdminSupplierEmailHref(ticket: Ticket) {
+  const recipient = ticket.supplier_email?.trim() || "";
+  const subject = buildAdminSupplierRequestSubject(ticket);
+  const body = buildAdminSupplierRequestBody(ticket, false);
+
+  return `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function buildAdminSupplierWhatsAppHref(ticket: Ticket) {
+  return `https://api.whatsapp.com/send?text=${encodeURIComponent(buildAdminSupplierRequestBody(ticket, true))}`;
+}
+
+function buildAdminSupplierRequestSubject(ticket: Ticket) {
+  if (ticket.job_number?.trim()) {
+    return `Supplier request: Job ${ticket.job_number.trim()}`;
+  }
+
+  return `Supplier request: ${ticket.id.slice(0, 8)}`;
+}
+
+function buildAdminSupplierRequestBody(ticket: Ticket, compact: boolean) {
+  const summary = ticket.request_summary?.trim() || ticket.request_details?.trim() || "No request summary";
+  const machineLines = buildSupplierRequestMachineLines(ticket, compact);
+  const lines = [
+    "Please quote this request and confirm lead time.",
+    ticket.supplier_name?.trim() ? `Supplier: ${ticket.supplier_name.trim()}` : null,
+    ticket.job_number?.trim() ? `Job: ${ticket.job_number.trim()}` : null,
+    ...machineLines,
+    `Request summary: ${summary}`,
+    ticket.notes?.trim() ? `Admin notes: ${ticket.notes.trim()}` : null,
+    "Please also advise the lead time from the supplier.",
+  ];
+
+  return lines.filter((line): line is string => Boolean(line)).join("\n");
+}
+
+function buildSupplierRequestMachineLines(ticket: Ticket, compact: boolean) {
+  const lines: string[] = [];
+
+  if (ticket.machine_verified && ticket.machine_model?.trim()) {
+    lines.push(`Machine model: ${ticket.machine_model.trim()}`);
+  }
+
+  if (ticket.machine_verified && ticket.machine_serial_number?.trim()) {
+    lines.push(`Serial number: ${ticket.machine_serial_number.trim()}`);
+  }
+
+  if (!ticket.machine_verified && ticket.machine_reference?.trim()) {
+    lines.push(`Machine reference: ${ticket.machine_reference.trim()}`);
+  }
+
+  if (!compact) {
+    if (ticket.machine_make?.trim()) {
+      lines.unshift(`Machine make: ${ticket.machine_make.trim()}`);
+    }
+
+    if (ticket.machine_number?.trim()) {
+      lines.unshift(`Machine number: ${ticket.machine_number.trim()}`);
+    }
+  }
+
+  return lines;
 }
 
 function AdminMachineDetailItem({
