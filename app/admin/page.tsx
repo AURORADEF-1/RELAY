@@ -221,8 +221,7 @@ const ORDERED_WORKFLOW_MIGRATION_HINT =
 
 type StatusExportMenuState = {
   status: ActiveTicketStatus;
-  x: number;
-  y: number;
+  includeAllFields: boolean;
 };
 
 type TicketExportMenuState = {
@@ -1452,7 +1451,7 @@ export default function AdminPage() {
   }, [readyOrders]);
 
   const exportStatusJobsCsv = useCallback(
-    (status: ActiveTicketStatus) => {
+    (status: ActiveTicketStatus, includeAllFields = false) => {
       const matchingTickets = tickets
         .filter((ticket) => ticket.status === status)
         .sort(
@@ -1470,30 +1469,79 @@ export default function AdminPage() {
         return;
       }
 
-      const csvRows = [
-        [
-          "job_number",
-          "status",
-          "requester_name",
-          "assigned_to",
-          "request_summary",
-          "request_details",
-          "admin_notes",
-          "created_at",
-          "updated_at",
-        ],
-        ...matchingTickets.map((ticket) => [
-          ticket.job_number ?? "",
-          ticket.status ?? "",
-          ticket.requester_name ?? "",
-          ticket.assigned_to ?? "",
-          ticket.request_summary ?? "",
-          ticket.request_details ?? "",
-          ticket.notes ?? "",
-          ticket.created_at ?? "",
-          ticket.updated_at ?? "",
-        ]),
-      ];
+      const csvRows = includeAllFields
+        ? [
+            [
+              "job_number",
+              "status",
+              "requester_name",
+              "department",
+              "assigned_to",
+              "machine_reference",
+              "machine_number",
+              "machine_serial_number",
+              "machine_make",
+              "machine_model",
+              "supplier_name",
+              "supplier_email",
+              "purchase_order_number",
+              "request_summary",
+              "request_details",
+              "admin_notes",
+              "expected_delivery_date",
+              "lead_time_note",
+              "ordered_at",
+              "ready_at",
+              "created_at",
+              "updated_at",
+            ],
+            ...matchingTickets.map((ticket) => [
+              ticket.job_number ?? "",
+              ticket.status ?? "",
+              ticket.requester_name ?? "",
+              ticket.department ?? "",
+              ticket.assigned_to ?? "",
+              ticket.machine_reference ?? "",
+              ticket.machine_number ?? "",
+              ticket.machine_serial_number ?? "",
+              ticket.machine_make ?? "",
+              ticket.machine_model ?? "",
+              ticket.supplier_name ?? "",
+              ticket.supplier_email ?? "",
+              ticket.purchase_order_number ?? "",
+              ticket.request_summary ?? "",
+              ticket.request_details ?? "",
+              ticket.notes ?? "",
+              ticket.expected_delivery_date ?? "",
+              ticket.lead_time_note ?? "",
+              ticket.ordered_at ?? "",
+              ticket.ready_at ?? "",
+              ticket.created_at ?? "",
+              ticket.updated_at ?? "",
+            ]),
+          ]
+        : [
+            [
+              "job_number",
+              "status",
+              "requester_name",
+              "assigned_to",
+              "request_summary",
+              "admin_notes",
+              "created_at",
+              "updated_at",
+            ],
+            ...matchingTickets.map((ticket) => [
+              ticket.job_number ?? "",
+              ticket.status ?? "",
+              ticket.requester_name ?? "",
+              ticket.assigned_to ?? "",
+              ticket.request_summary ?? "",
+              ticket.notes ?? "",
+              ticket.created_at ?? "",
+              ticket.updated_at ?? "",
+            ]),
+          ];
 
       const csvContent = csvRows
         .map((row) =>
@@ -1512,7 +1560,7 @@ export default function AdminPage() {
 
       setStatusExportNotice({
         type: "success",
-        message: `Exported ${matchingTickets.length} ${status} job${matchingTickets.length === 1 ? "" : "s"} with admin notes.`,
+        message: `Exported ${matchingTickets.length} ${status} job${matchingTickets.length === 1 ? "" : "s"}${includeAllFields ? " with all fields" : " with admin notes"}.`,
       });
       setStatusExportMenu(null);
     },
@@ -3365,47 +3413,113 @@ export default function AdminPage() {
               <>
               <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
                 {activeTicketStatuses.map((status) => (
-                  <button
+                  <div
                     key={status}
-                    type="button"
-                    onClick={() => setStatusFilter(status)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-
-                      const menuWidth = 248;
-                      const menuHeight = 88;
-                      const x = Math.min(event.clientX, window.innerWidth - menuWidth - 12);
-                      const y = Math.min(event.clientY, window.innerHeight - menuHeight - 12);
-
-                      setTicketExportMenu(null);
-                      setStatusExportMenu({
-                        status,
-                        x: Math.max(12, x),
-                        y: Math.max(12, y),
-                      });
-                    }}
-                    title="Left-click to filter. Right-click to export CSV with admin notes."
                     className={`rounded-2xl border px-4 py-3 text-left transition ${
                       statusFilter === status
                         ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.65)]"
                         : "border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] hover:border-slate-400 hover:bg-white"
                     }`}
                   >
-                    <p
-                      className={`text-[11px] font-semibold tracking-[0.18em] ${
-                        statusFilter === status ? "text-slate-300" : "text-slate-500"
-                      }`}
-                    >
-                      {status}
-                    </p>
-                    <p
-                      className={`mt-1 text-2xl font-semibold ${
-                        statusFilter === status ? "text-white" : "text-slate-900"
-                      }`}
-                    >
-                      {dashboardMetrics.statusCounts[status] ?? 0}
-                    </p>
-                  </button>
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setStatusFilter(status)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p
+                          className={`text-[11px] font-semibold tracking-[0.18em] ${
+                            statusFilter === status ? "text-slate-300" : "text-slate-500"
+                          }`}
+                        >
+                          {status}
+                        </p>
+                        <p
+                          className={`mt-1 text-2xl font-semibold ${
+                            statusFilter === status ? "text-white" : "text-slate-900"
+                          }`}
+                        >
+                          {dashboardMetrics.statusCounts[status] ?? 0}
+                        </p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setTicketExportMenu(null);
+                          setTicketSupplierExportMenu(null);
+                          setStatusExportMenu((current) =>
+                            current?.status === status ? null : { status, includeAllFields: false },
+                          );
+                        }}
+                        className={`inline-flex h-9 shrink-0 items-center justify-center rounded-full border px-3 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                          statusFilter === status
+                            ? "border-white/30 bg-white/10 text-white hover:bg-white/15"
+                            : "border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                        }`}
+                      >
+                        Export
+                      </button>
+                    </div>
+
+                    {statusExportMenu?.status === status ? (
+                      <div
+                        role="menu"
+                        aria-label={`${status} export options`}
+                        className={`mt-3 rounded-2xl border p-3 text-left shadow-[0_18px_45px_-34px_rgba(15,23,42,0.28)] ${
+                          statusFilter === status
+                            ? "border-white/15 bg-white/10"
+                            : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <label className={`flex items-start gap-3 rounded-xl px-3 py-3 text-sm ${
+                          statusFilter === status ? "bg-white/10 text-white" : "border border-slate-200 bg-slate-50 text-slate-700"
+                        }`}>
+                          <input
+                            type="checkbox"
+                            checked={statusExportMenu.includeAllFields}
+                            onChange={(event) =>
+                              setStatusExportMenu((current) =>
+                                current?.status === status
+                                  ? { ...current, includeAllFields: event.target.checked }
+                                  : current,
+                              )
+                            }
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
+                          />
+                          <span>
+                            <span className={`block font-semibold ${statusFilter === status ? "text-white" : "text-slate-900"}`}>
+                              Include all fields
+                            </span>
+                            <span
+                              className={`mt-1 block text-xs leading-5 ${
+                                statusFilter === status ? "text-slate-200" : "text-slate-500"
+                              }`}
+                            >
+                              Adds department, machine, supplier, purchase order, and timestamp fields.
+                            </span>
+                          </span>
+                        </label>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() =>
+                            exportStatusJobsCsv(status, statusExportMenu.includeAllFields)
+                          }
+                          className={`mt-3 flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${
+                            statusFilter === status
+                              ? "bg-white/10 text-white hover:bg-white/15"
+                              : "text-slate-800 hover:bg-slate-100"
+                          }`}
+                        >
+                          <span>Export CSV</span>
+                          <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                            csv
+                          </span>
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 ))}
               </div>
 
@@ -3421,37 +3535,6 @@ export default function AdminPage() {
                 </div>
               ) : null}
 
-              {statusExportMenu ? (
-                <>
-                  <button
-                    type="button"
-                    aria-label="Close status export menu"
-                    className="fixed inset-0 z-40 cursor-default bg-transparent"
-                    onClick={closeExportMenus}
-                  />
-                  <div
-                    role="menu"
-                    aria-label={`${statusExportMenu.status} export options`}
-                    className="fixed z-50 w-[248px] rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_24px_70px_-20px_rgba(15,23,42,0.38)]"
-                    style={{
-                      left: `${statusExportMenu.x}px`,
-                      top: `${statusExportMenu.y}px`,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => exportStatusJobsCsv(statusExportMenu.status)}
-                      className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-                    >
-                      <span>Export {statusExportMenu.status} CSV with notes</span>
-                      <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                        CSV
-                      </span>
-                    </button>
-                  </div>
-                </>
-              ) : null}
               <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
               <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
                 <div className="flex items-start justify-between gap-4">
