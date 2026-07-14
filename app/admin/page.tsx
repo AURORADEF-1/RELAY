@@ -216,12 +216,138 @@ type RequesterAccountOption = {
   full_name: string | null;
 };
 
+type StatusExportFieldKey =
+  | "job_number"
+  | "status"
+  | "requester_name"
+  | "department"
+  | "assigned_to"
+  | "machine_reference"
+  | "machine_number"
+  | "machine_serial_number"
+  | "machine_make"
+  | "machine_model"
+  | "supplier_name"
+  | "supplier_email"
+  | "purchase_order_number"
+  | "request_summary"
+  | "request_details"
+  | "admin_notes"
+  | "expected_delivery_date"
+  | "lead_time_note"
+  | "ordered_at"
+  | "ready_at"
+  | "created_at"
+  | "updated_at";
+
+const STATUS_EXPORT_FIELD_OPTIONS: Array<{
+  key: StatusExportFieldKey;
+  label: string;
+}> = [
+  { key: "job_number", label: "Job number" },
+  { key: "status", label: "Status" },
+  { key: "requester_name", label: "Requester name" },
+  { key: "department", label: "Department" },
+  { key: "assigned_to", label: "Assigned to" },
+  { key: "machine_reference", label: "Machine reference" },
+  { key: "machine_number", label: "Machine number" },
+  { key: "machine_serial_number", label: "Machine serial number" },
+  { key: "machine_make", label: "Machine make" },
+  { key: "machine_model", label: "Machine model" },
+  { key: "supplier_name", label: "Supplier name" },
+  { key: "supplier_email", label: "Supplier email" },
+  { key: "purchase_order_number", label: "Purchase order number" },
+  { key: "request_summary", label: "Request summary" },
+  { key: "request_details", label: "Request details" },
+  { key: "admin_notes", label: "Admin notes" },
+  { key: "expected_delivery_date", label: "Expected delivery date" },
+  { key: "lead_time_note", label: "Lead time note" },
+  { key: "ordered_at", label: "Ordered at" },
+  { key: "ready_at", label: "Ready at" },
+  { key: "created_at", label: "Created at" },
+  { key: "updated_at", label: "Updated at" },
+];
+
+const DEFAULT_STATUS_EXPORT_FIELDS: Record<StatusExportFieldKey, boolean> = {
+  job_number: true,
+  status: true,
+  requester_name: true,
+  department: false,
+  assigned_to: true,
+  machine_reference: false,
+  machine_number: false,
+  machine_serial_number: false,
+  machine_make: false,
+  machine_model: false,
+  supplier_name: false,
+  supplier_email: false,
+  purchase_order_number: false,
+  request_summary: true,
+  request_details: false,
+  admin_notes: true,
+  expected_delivery_date: false,
+  lead_time_note: false,
+  ordered_at: false,
+  ready_at: false,
+  created_at: true,
+  updated_at: true,
+};
+
+function getStatusExportFieldValue(ticket: Ticket, field: StatusExportFieldKey) {
+  switch (field) {
+    case "job_number":
+      return ticket.job_number ?? "";
+    case "status":
+      return ticket.status ?? "";
+    case "requester_name":
+      return ticket.requester_name ?? "";
+    case "department":
+      return ticket.department ?? "";
+    case "assigned_to":
+      return ticket.assigned_to ?? "";
+    case "machine_reference":
+      return ticket.machine_reference ?? "";
+    case "machine_number":
+      return ticket.machine_number ?? "";
+    case "machine_serial_number":
+      return ticket.machine_serial_number ?? "";
+    case "machine_make":
+      return ticket.machine_make ?? "";
+    case "machine_model":
+      return ticket.machine_model ?? "";
+    case "supplier_name":
+      return ticket.supplier_name ?? "";
+    case "supplier_email":
+      return ticket.supplier_email ?? "";
+    case "purchase_order_number":
+      return ticket.purchase_order_number ?? "";
+    case "request_summary":
+      return ticket.request_summary ?? "";
+    case "request_details":
+      return ticket.request_details ?? "";
+    case "admin_notes":
+      return ticket.notes ?? "";
+    case "expected_delivery_date":
+      return ticket.expected_delivery_date ?? "";
+    case "lead_time_note":
+      return ticket.lead_time_note ?? "";
+    case "ordered_at":
+      return ticket.ordered_at ?? "";
+    case "ready_at":
+      return ticket.ready_at ?? "";
+    case "created_at":
+      return ticket.created_at ?? "";
+    case "updated_at":
+      return ticket.updated_at ?? "";
+  }
+}
+
 const ORDERED_WORKFLOW_MIGRATION_HINT =
   "ORDERED workflow fields are not available in the database yet. Apply docs/tickets-ordered-ready-operational-fields-2026-03-28.sql and try again.";
 
 type StatusExportMenuState = {
   status: ActiveTicketStatus;
-  includeAllFields: boolean;
+  selectedFields: Record<StatusExportFieldKey, boolean>;
 };
 
 type TicketExportMenuState = {
@@ -1451,7 +1577,7 @@ export default function AdminPage() {
   }, [readyOrders]);
 
   const exportStatusJobsCsv = useCallback(
-    (status: ActiveTicketStatus, includeAllFields = false) => {
+    (status: ActiveTicketStatus, selectedFields = DEFAULT_STATUS_EXPORT_FIELDS) => {
       const matchingTickets = tickets
         .filter((ticket) => ticket.status === status)
         .sort(
@@ -1469,79 +1595,22 @@ export default function AdminPage() {
         return;
       }
 
-      const csvRows = includeAllFields
-        ? [
-            [
-              "job_number",
-              "status",
-              "requester_name",
-              "department",
-              "assigned_to",
-              "machine_reference",
-              "machine_number",
-              "machine_serial_number",
-              "machine_make",
-              "machine_model",
-              "supplier_name",
-              "supplier_email",
-              "purchase_order_number",
-              "request_summary",
-              "request_details",
-              "admin_notes",
-              "expected_delivery_date",
-              "lead_time_note",
-              "ordered_at",
-              "ready_at",
-              "created_at",
-              "updated_at",
-            ],
-            ...matchingTickets.map((ticket) => [
-              ticket.job_number ?? "",
-              ticket.status ?? "",
-              ticket.requester_name ?? "",
-              ticket.department ?? "",
-              ticket.assigned_to ?? "",
-              ticket.machine_reference ?? "",
-              ticket.machine_number ?? "",
-              ticket.machine_serial_number ?? "",
-              ticket.machine_make ?? "",
-              ticket.machine_model ?? "",
-              ticket.supplier_name ?? "",
-              ticket.supplier_email ?? "",
-              ticket.purchase_order_number ?? "",
-              ticket.request_summary ?? "",
-              ticket.request_details ?? "",
-              ticket.notes ?? "",
-              ticket.expected_delivery_date ?? "",
-              ticket.lead_time_note ?? "",
-              ticket.ordered_at ?? "",
-              ticket.ready_at ?? "",
-              ticket.created_at ?? "",
-              ticket.updated_at ?? "",
-            ]),
-          ]
-        : [
-            [
-              "job_number",
-              "status",
-              "requester_name",
-              "assigned_to",
-              "request_summary",
-              "admin_notes",
-              "created_at",
-              "updated_at",
-            ],
-            ...matchingTickets.map((ticket) => [
-              ticket.job_number ?? "",
-              ticket.status ?? "",
-              ticket.requester_name ?? "",
-              ticket.assigned_to ?? "",
-              ticket.request_summary ?? "",
-              ticket.notes ?? "",
-              ticket.created_at ?? "",
-              ticket.updated_at ?? "",
-            ]),
-          ];
+      const selectedFieldKeys = STATUS_EXPORT_FIELD_OPTIONS
+        .map((option) => option.key)
+        .filter((key) => selectedFields[key]);
+
+      if (selectedFieldKeys.length === 0) {
+        setStatusExportNotice({
+          type: "error",
+          message: "Select at least one field to export.",
+        });
+        return;
+      }
+
+      const csvRows = [
+        selectedFieldKeys,
+        ...matchingTickets.map((ticket) => selectedFieldKeys.map((field) => getStatusExportFieldValue(ticket, field))),
+      ];
 
       const csvContent = csvRows
         .map((row) =>
@@ -1560,7 +1629,7 @@ export default function AdminPage() {
 
       setStatusExportNotice({
         type: "success",
-        message: `Exported ${matchingTickets.length} ${status} job${matchingTickets.length === 1 ? "" : "s"}${includeAllFields ? " with all fields" : " with admin notes"}.`,
+        message: `Exported ${matchingTickets.length} ${status} job${matchingTickets.length === 1 ? "" : "s"} with selected fields.`,
       });
       setStatusExportMenu(null);
     },
@@ -3449,16 +3518,22 @@ export default function AdminPage() {
                           setTicketExportMenu(null);
                           setTicketSupplierExportMenu(null);
                           setStatusExportMenu((current) =>
-                            current?.status === status ? null : { status, includeAllFields: false },
+                            current?.status === status
+                              ? null
+                              : {
+                                  status,
+                                  selectedFields: { ...DEFAULT_STATUS_EXPORT_FIELDS },
+                                },
                           );
                         }}
-                        className={`inline-flex h-9 shrink-0 items-center justify-center rounded-full border px-3 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                        aria-label={`Open ${status} export options`}
+                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition ${
                           statusFilter === status
                             ? "border-white/30 bg-white/10 text-white hover:bg-white/15"
                             : "border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                         }`}
                       >
-                        Export
+                        +
                       </button>
                     </div>
 
@@ -3472,40 +3547,69 @@ export default function AdminPage() {
                             : "border-slate-200 bg-white"
                         }`}
                       >
-                        <label className={`flex items-start gap-3 rounded-xl px-3 py-3 text-sm ${
-                          statusFilter === status ? "bg-white/10 text-white" : "border border-slate-200 bg-slate-50 text-slate-700"
-                        }`}>
-                          <input
-                            type="checkbox"
-                            checked={statusExportMenu.includeAllFields}
-                            onChange={(event) =>
-                              setStatusExportMenu((current) =>
-                                current?.status === status
-                                  ? { ...current, includeAllFields: event.target.checked }
-                                  : current,
-                              )
-                            }
-                            className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
-                          />
-                          <span>
-                            <span className={`block font-semibold ${statusFilter === status ? "text-white" : "text-slate-900"}`}>
-                              Include all fields
-                            </span>
-                            <span
-                              className={`mt-1 block text-xs leading-5 ${
-                                statusFilter === status ? "text-slate-200" : "text-slate-500"
+                        <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                          <label className="flex items-center gap-3 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={STATUS_EXPORT_FIELD_OPTIONS.every(
+                                (option) => statusExportMenu.selectedFields[option.key],
+                              )}
+                              onChange={(event) =>
+                                setStatusExportMenu((current) =>
+                                  current?.status === status
+                                    ? {
+                                        ...current,
+                                        selectedFields: Object.fromEntries(
+                                          STATUS_EXPORT_FIELD_OPTIONS.map((option) => [
+                                            option.key,
+                                            event.target.checked,
+                                          ]),
+                                        ) as Record<StatusExportFieldKey, boolean>,
+                                      }
+                                    : current,
+                                )
+                              }
+                              className="h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
+                            />
+                            <span className="font-semibold text-slate-900">Include all fields</span>
+                          </label>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {STATUS_EXPORT_FIELD_OPTIONS.map((option) => (
+                            <label
+                              key={option.key}
+                              className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm ${
+                                statusFilter === status
+                                  ? "border-white/10 bg-white/10 text-white"
+                                  : "border-slate-200 bg-white text-slate-700"
                               }`}
                             >
-                              Adds department, machine, supplier, purchase order, and timestamp fields.
-                            </span>
-                          </span>
-                        </label>
+                              <input
+                                type="checkbox"
+                                checked={statusExportMenu.selectedFields[option.key]}
+                                onChange={(event) =>
+                                  setStatusExportMenu((current) =>
+                                    current?.status === status
+                                      ? {
+                                          ...current,
+                                          selectedFields: {
+                                            ...current.selectedFields,
+                                            [option.key]: event.target.checked,
+                                          },
+                                        }
+                                      : current,
+                                  )
+                                }
+                                className="h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
+                              />
+                              <span className="leading-5">{option.label}</span>
+                            </label>
+                          ))}
+                        </div>
                         <button
                           type="button"
                           role="menuitem"
-                          onClick={() =>
-                            exportStatusJobsCsv(status, statusExportMenu.includeAllFields)
-                          }
+                          onClick={() => exportStatusJobsCsv(status, statusExportMenu.selectedFields)}
                           className={`mt-3 flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${
                             statusFilter === status
                               ? "bg-white/10 text-white hover:bg-white/15"
