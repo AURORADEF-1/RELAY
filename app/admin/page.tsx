@@ -227,10 +227,12 @@ type StatusExportMenuState = {
 
 type TicketExportMenuState = {
   ticket: Ticket;
+  includeAllFields: boolean;
 };
 
 type TicketSupplierExportMenuState = {
   ticket: Ticket;
+  includeAllFields: boolean;
 };
 
 export default function AdminPage() {
@@ -1425,7 +1427,7 @@ export default function AdminPage() {
     });
   }, [selectedMonthSnapshots, selectedSpendMonth]);
 
-  const exportReadyOrdersCsv = useCallback(() => {
+  const exportReadyOrdersCsv = useCallback((includeAllFields = false) => {
     if (readyOrders.length === 0) {
       setOrdersNotice({
         type: "error",
@@ -1434,7 +1436,7 @@ export default function AdminPage() {
       return;
     }
 
-    const csvContent = buildOrdersCsvContent(readyOrders);
+    const csvContent = buildOrdersCsvContent(readyOrders, includeAllFields);
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const downloadUrl = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -1445,7 +1447,7 @@ export default function AdminPage() {
 
     setOrdersNotice({
       type: "success",
-      message: `Exported ${readyOrders.length} ready order${readyOrders.length === 1 ? "" : "s"}.`,
+      message: `Exported ${readyOrders.length} ready order${readyOrders.length === 1 ? "" : "s"}${includeAllFields ? " with all fields" : ""}.`,
     });
   }, [readyOrders]);
 
@@ -1517,23 +1519,23 @@ export default function AdminPage() {
     [tickets],
   );
 
-  const openTicketEmailExport = useCallback((ticket: Ticket) => {
-    const href = buildAdminTicketEmailHref(ticket);
+  const openTicketEmailExport = useCallback((ticket: Ticket, includeAllFields = false) => {
+    const href = buildAdminTicketEmailHref(ticket, includeAllFields);
     window.location.href = href;
   }, []);
 
-  const openTicketWhatsAppExport = useCallback((ticket: Ticket) => {
-    const href = buildAdminTicketWhatsAppHref(ticket);
+  const openTicketWhatsAppExport = useCallback((ticket: Ticket, includeAllFields = false) => {
+    const href = buildAdminTicketWhatsAppHref(ticket, includeAllFields);
     window.open(href, "_blank", "noopener,noreferrer");
   }, []);
 
-  const openSupplierEmailExport = useCallback((ticket: Ticket) => {
-    const href = buildAdminSupplierEmailHref(ticket);
+  const openSupplierEmailExport = useCallback((ticket: Ticket, includeAllFields = false) => {
+    const href = buildAdminSupplierEmailHref(ticket, includeAllFields);
     window.location.href = href;
   }, []);
 
-  const openSupplierWhatsAppExport = useCallback((ticket: Ticket) => {
-    const href = buildAdminSupplierWhatsAppHref(ticket);
+  const openSupplierWhatsAppExport = useCallback((ticket: Ticket, includeAllFields = false) => {
+    const href = buildAdminSupplierWhatsAppHref(ticket, includeAllFields);
     window.open(href, "_blank", "noopener,noreferrer");
   }, []);
 
@@ -1541,7 +1543,7 @@ export default function AdminPage() {
     setStatusExportMenu(null);
     setTicketSupplierExportMenu(null);
     setTicketExportMenu((current) =>
-      current?.ticket.id === ticket.id ? null : { ticket },
+      current?.ticket.id === ticket.id ? null : { ticket, includeAllFields: false },
     );
   }, []);
 
@@ -1549,11 +1551,11 @@ export default function AdminPage() {
     setStatusExportMenu(null);
     setTicketExportMenu(null);
     setTicketSupplierExportMenu((current) =>
-      current?.ticket.id === ticket.id ? null : { ticket },
+      current?.ticket.id === ticket.id ? null : { ticket, includeAllFields: false },
     );
   }, []);
 
-  const emailReadyOrders = useCallback(() => {
+  const emailReadyOrders = useCallback((includeAllFields = false) => {
     if (readyOrders.length === 0) {
       setOrdersNotice({
         type: "error",
@@ -1562,10 +1564,10 @@ export default function AdminPage() {
       return;
     }
 
-    window.location.href = buildReadyOrdersMailto(readyOrders);
+    window.location.href = buildReadyOrdersMailto(readyOrders, includeAllFields);
     setOrdersNotice({
       type: "success",
-      message: "Prepared ready orders email in your mail client.",
+      message: `Prepared ready orders email in your mail client${includeAllFields ? " with all fields" : ""}.`,
     });
   }, [readyOrders]);
 
@@ -4105,11 +4107,39 @@ export default function AdminPage() {
                       onCloseExportMenu={closeExportMenus}
                       onExportEmail={openTicketEmailExport}
                       onExportWhatsApp={openTicketWhatsAppExport}
+                      onExportMenuIncludeAllChange={(includeAllFields) =>
+                        setTicketExportMenu((current) => {
+                          if (!current || current.ticket.id !== ticket.id) {
+                            return current;
+                          }
+
+                          return { ...current, includeAllFields };
+                        })
+                      }
                       onSupplierExportClick={openTicketSupplierExportMenu}
                       isSupplierExportMenuOpen={ticketSupplierExportMenu?.ticket.id === ticket.id}
                       onCloseSupplierExportMenu={closeExportMenus}
                       onSupplierExportEmail={openSupplierEmailExport}
                       onSupplierExportWhatsApp={openSupplierWhatsAppExport}
+                      onSupplierExportMenuIncludeAllChange={(includeAllFields) =>
+                        setTicketSupplierExportMenu((current) => {
+                          if (!current || current.ticket.id !== ticket.id) {
+                            return current;
+                          }
+
+                          return { ...current, includeAllFields };
+                        })
+                      }
+                      exportIncludeAllFields={
+                        ticketExportMenu?.ticket.id === ticket.id
+                          ? ticketExportMenu.includeAllFields
+                          : false
+                      }
+                      supplierExportIncludeAllFields={
+                        ticketSupplierExportMenu?.ticket.id === ticket.id
+                          ? ticketSupplierExportMenu.includeAllFields
+                          : false
+                      }
                     />
                   ))
                 )}
@@ -4312,11 +4342,15 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onCloseExportMenu,
   onExportEmail,
   onExportWhatsApp,
+  onExportMenuIncludeAllChange,
   onSupplierExportClick,
   isSupplierExportMenuOpen,
   onCloseSupplierExportMenu,
   onSupplierExportEmail,
   onSupplierExportWhatsApp,
+  onSupplierExportMenuIncludeAllChange,
+  exportIncludeAllFields,
+  supplierExportIncludeAllFields,
 }: {
   ticket: Ticket;
   draft?: { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string };
@@ -4331,13 +4365,17 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   onExportClick: (ticket: Ticket) => void;
   isExportMenuOpen: boolean;
   onCloseExportMenu: () => void;
-  onExportEmail: (ticket: Ticket) => void;
-  onExportWhatsApp: (ticket: Ticket) => void;
+  onExportEmail: (ticket: Ticket, includeAllFields?: boolean) => void;
+  onExportWhatsApp: (ticket: Ticket, includeAllFields?: boolean) => void;
+  onExportMenuIncludeAllChange: (includeAllFields: boolean) => void;
   onSupplierExportClick: (ticket: Ticket) => void;
   isSupplierExportMenuOpen: boolean;
   onCloseSupplierExportMenu: () => void;
-  onSupplierExportEmail: (ticket: Ticket) => void;
-  onSupplierExportWhatsApp: (ticket: Ticket) => void;
+  onSupplierExportEmail: (ticket: Ticket, includeAllFields?: boolean) => void;
+  onSupplierExportWhatsApp: (ticket: Ticket, includeAllFields?: boolean) => void;
+  onSupplierExportMenuIncludeAllChange: (includeAllFields: boolean) => void;
+  exportIncludeAllFields: boolean;
+  supplierExportIncludeAllFields: boolean;
 }) {
   return (
     <article
@@ -4387,13 +4425,27 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
             <div
               role="menu"
               aria-label="Ticket export options"
-              className="mt-1 w-44 rounded-2xl border border-slate-200 bg-white p-2 text-left shadow-[0_24px_70px_-20px_rgba(15,23,42,0.22)]"
+              className="mt-1 w-72 rounded-2xl border border-slate-200 bg-white p-2 text-left shadow-[0_24px_70px_-20px_rgba(15,23,42,0.22)]"
             >
+              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={exportIncludeAllFields}
+                  onChange={(event) => onExportMenuIncludeAllChange(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
+                />
+                <span>
+                  <span className="block font-semibold text-slate-900">Include all fields</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    Adds machine, requester, status, notes, and timestamps where available.
+                  </span>
+                </span>
+              </label>
               <button
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  onExportEmail(ticket);
+                  onExportEmail(ticket, exportIncludeAllFields);
                   onCloseExportMenu();
                 }}
                 className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
@@ -4407,7 +4459,7 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  onExportWhatsApp(ticket);
+                  onExportWhatsApp(ticket, exportIncludeAllFields);
                   onCloseExportMenu();
                 }}
                 className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
@@ -4423,16 +4475,30 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
             <div
               role="menu"
               aria-label="Supplier export options"
-              className="mt-1 w-52 rounded-2xl border border-sky-200 bg-white p-2 text-left shadow-[0_24px_70px_-20px_rgba(15,23,42,0.22)]"
+              className="mt-1 w-72 rounded-2xl border border-sky-200 bg-white p-2 text-left shadow-[0_24px_70px_-20px_rgba(15,23,42,0.22)]"
             >
               <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Forward to supplier
               </p>
+              <label className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={supplierExportIncludeAllFields}
+                  onChange={(event) => onSupplierExportMenuIncludeAllChange(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
+                />
+                <span>
+                  <span className="block font-semibold text-slate-900">Include all fields</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    Adds machine details, requester, notes, and operational timestamps.
+                  </span>
+                </span>
+              </label>
               <button
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  onSupplierExportEmail(ticket);
+                  onSupplierExportEmail(ticket, supplierExportIncludeAllFields);
                   onCloseSupplierExportMenu();
                 }}
                 className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
@@ -4446,7 +4512,7 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  onSupplierExportWhatsApp(ticket);
+                  onSupplierExportWhatsApp(ticket, supplierExportIncludeAllFields);
                   onCloseSupplierExportMenu();
                 }}
                 className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
@@ -4876,15 +4942,15 @@ function buildAdminMapUrl(ticket: Ticket) {
   return buildOnsiteLocationMapUrl(ticket);
 }
 
-function buildAdminTicketEmailHref(ticket: Ticket) {
+function buildAdminTicketEmailHref(ticket: Ticket, includeAllFields = false) {
   const subject = buildAdminTicketExportSubject(ticket);
-  const body = buildAdminTicketEmailBody(ticket);
+  const body = buildAdminTicketEmailBody(ticket, includeAllFields);
 
   return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-function buildAdminTicketWhatsAppHref(ticket: Ticket) {
-  return `https://api.whatsapp.com/send?text=${encodeURIComponent(buildAdminTicketWhatsAppBody(ticket))}`;
+function buildAdminTicketWhatsAppHref(ticket: Ticket, includeAllFields = false) {
+  return `https://api.whatsapp.com/send?text=${encodeURIComponent(buildAdminTicketWhatsAppBody(ticket, includeAllFields))}`;
 }
 
 function buildAdminTicketExportSubject(ticket: Ticket) {
@@ -4897,8 +4963,8 @@ function buildAdminTicketExportSubject(ticket: Ticket) {
   return `Ticket ${ticket.id.slice(0, 8)}`;
 }
 
-function buildAdminTicketEmailBody(ticket: Ticket) {
-  return [
+function buildAdminTicketEmailBody(ticket: Ticket, includeAllFields = false) {
+  const lines = [
     `Job: ${ticket.job_number?.trim() || "-"}`,
     `Status: ${ticket.status ?? "-"}`,
     `Requester: ${ticket.requester_name ?? "-"}`,
@@ -4910,13 +4976,27 @@ function buildAdminTicketEmailBody(ticket: Ticket) {
     `Request summary: ${ticket.request_summary ?? "-"}`,
     `Request details: ${ticket.request_details ?? "-"}`,
     `Admin notes: ${ticket.notes ?? "-"}`,
-  ].join("\n");
+  ];
+
+  if (includeAllFields) {
+    lines.push(
+      `Machine reference: ${ticket.machine_reference ?? "-"}`,
+      `Machine number: ${ticket.machine_number ?? "-"}`,
+      `Machine make: ${ticket.machine_make ?? "-"}`,
+      `Machine model: ${ticket.machine_model ?? "-"}`,
+      `Machine serial: ${ticket.machine_serial_number ?? "-"}`,
+      `Department: ${ticket.department ?? "-"}`,
+      `Supplier: ${ticket.supplier_name ?? "-"}`,
+      `Supplier email: ${ticket.supplier_email ?? "-"}`,
+    );
+  }
+
+  return lines.join("\n");
 }
 
-function buildAdminTicketWhatsAppBody(ticket: Ticket) {
+function buildAdminTicketWhatsAppBody(ticket: Ticket, includeAllFields = false) {
   const summary = ticket.request_summary ?? ticket.request_details ?? "No summary";
-
-  return [
+  const lines = [
     `Job ${ticket.job_number?.trim() || "-"}`,
     `Status: ${ticket.status ?? "-"}`,
     `Updated: ${formatDateTime(ticket.updated_at)}`,
@@ -4924,21 +5004,36 @@ function buildAdminTicketWhatsAppBody(ticket: Ticket) {
     ticket.ready_at ? `Ready: ${formatDateTime(ticket.ready_at)}` : null,
     `Summary: ${truncateSummary(summary)}`,
     `Notes: ${truncateSummary(ticket.notes ?? "-")}`,
-  ]
-    .filter((line): line is string => Boolean(line))
-    .join("\n");
+  ];
+
+  if (includeAllFields) {
+    lines.push(
+      `Requester: ${ticket.requester_name ?? "-"}`,
+      `Assigned: ${ticket.assigned_to ?? "Stores queue"}`,
+      `Machine ref: ${ticket.machine_reference ?? "-"}`,
+      `Machine number: ${ticket.machine_number ?? "-"}`,
+      `Machine make: ${ticket.machine_make ?? "-"}`,
+      `Machine model: ${ticket.machine_model ?? "-"}`,
+      `Machine serial: ${ticket.machine_serial_number ?? "-"}`,
+      `Department: ${ticket.department ?? "-"}`,
+      `Supplier: ${ticket.supplier_name ?? "-"}`,
+      `Supplier email: ${ticket.supplier_email ?? "-"}`,
+    );
+  }
+
+  return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
-function buildAdminSupplierEmailHref(ticket: Ticket) {
+function buildAdminSupplierEmailHref(ticket: Ticket, includeAllFields = false) {
   const recipient = ticket.supplier_email?.trim() || "";
   const subject = buildAdminSupplierRequestSubject(ticket);
-  const body = buildAdminSupplierRequestBody(ticket, false);
+  const body = buildAdminSupplierRequestBody(ticket, false, includeAllFields);
 
   return `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-function buildAdminSupplierWhatsAppHref(ticket: Ticket) {
-  return `https://api.whatsapp.com/send?text=${encodeURIComponent(buildAdminSupplierRequestBody(ticket, true))}`;
+function buildAdminSupplierWhatsAppHref(ticket: Ticket, includeAllFields = false) {
+  return `https://api.whatsapp.com/send?text=${encodeURIComponent(buildAdminSupplierRequestBody(ticket, true, includeAllFields))}`;
 }
 
 function buildAdminSupplierRequestSubject(ticket: Ticket) {
@@ -4949,9 +5044,9 @@ function buildAdminSupplierRequestSubject(ticket: Ticket) {
   return `Supplier request: ${ticket.id.slice(0, 8)}`;
 }
 
-function buildAdminSupplierRequestBody(ticket: Ticket, compact: boolean) {
+function buildAdminSupplierRequestBody(ticket: Ticket, compact: boolean, includeAllFields = false) {
   const summary = ticket.request_summary?.trim() || ticket.request_details?.trim() || "No request summary";
-  const machineLines = buildSupplierRequestMachineLines(ticket, compact);
+  const machineLines = buildSupplierRequestMachineLines(ticket, compact, includeAllFields);
   const lines = [
     "Please quote this request and confirm lead time.",
     ticket.supplier_name?.trim() ? `Supplier: ${ticket.supplier_name.trim()}` : null,
@@ -4959,13 +5054,18 @@ function buildAdminSupplierRequestBody(ticket: Ticket, compact: boolean) {
     ...machineLines,
     `Request summary: ${summary}`,
     ticket.notes?.trim() ? `Admin notes: ${ticket.notes.trim()}` : null,
+    includeAllFields ? `Requester: ${ticket.requester_name ?? "-"}` : null,
+    includeAllFields ? `Department: ${ticket.department ?? "-"}` : null,
+    includeAllFields ? `Status: ${ticket.status ?? "-"}` : null,
+    includeAllFields ? `Created: ${formatDateTime(ticket.created_at)}` : null,
+    includeAllFields ? `Updated: ${formatDateTime(ticket.updated_at)}` : null,
     "Please also advise the lead time from the supplier.",
   ];
 
   return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
-function buildSupplierRequestMachineLines(ticket: Ticket, compact: boolean) {
+function buildSupplierRequestMachineLines(ticket: Ticket, compact: boolean, includeAllFields = false) {
   const lines: string[] = [];
 
   if (ticket.machine_verified && ticket.machine_model?.trim()) {
@@ -4987,6 +5087,15 @@ function buildSupplierRequestMachineLines(ticket: Ticket, compact: boolean) {
 
     if (ticket.machine_number?.trim()) {
       lines.unshift(`Machine number: ${ticket.machine_number.trim()}`);
+    }
+  }
+
+  if (includeAllFields) {
+    if (ticket.machine_reference?.trim()) {
+      lines.unshift(`Machine ref: ${ticket.machine_reference.trim()}`);
+    }
+    if (ticket.machine_serial_number?.trim()) {
+      lines.push(`Machine serial number: ${ticket.machine_serial_number.trim()}`);
     }
   }
 

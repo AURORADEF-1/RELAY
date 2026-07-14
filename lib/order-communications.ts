@@ -9,6 +9,12 @@ import { normalizeSupplierName } from "@/lib/suppliers";
 type CommunicableOrder = TicketOperationalRecord & {
   request_summary?: string | null;
   request_details?: string | null;
+  machine_number?: string | null;
+  machine_make?: string | null;
+  machine_model?: string | null;
+  machine_serial_number?: string | null;
+  notes?: string | null;
+  department?: string | null;
 };
 
 type SupplierDispatchContact = {
@@ -41,20 +47,41 @@ export function buildSupplierOrderMailto(order: CommunicableOrder) {
   )}&cc=${encodeURIComponent(PARTS_RECORDS_EMAIL)}`;
 }
 
-export function buildReadyOrdersMailto(orders: CommunicableOrder[]) {
+export function buildReadyOrdersMailto(
+  orders: CommunicableOrder[],
+  includeAllFields = false,
+) {
   const subject = `Ready Orders: ${new Date().toISOString().slice(0, 10)}`;
   const lines = [
     "Ready orders list from RELAY.",
     "",
     ...orders.map((order) =>
-      [
-        `PO: ${order.purchase_order_number ?? "-"}`,
-        `Supplier: ${order.supplier_name ?? "-"}`,
-        `Job: ${order.job_number ?? "-"}`,
-        `Machine: ${order.machine_reference ?? "-"}`,
-        `Amount: ${formatOrderAmount(order.order_amount)}`,
-        `Ready / Expected: ${formatOperationalDate(order.ready_at ?? order.expected_delivery_date)}`,
-      ].join(" | "),
+      includeAllFields
+        ? [
+            `PO: ${order.purchase_order_number ?? "-"}`,
+            `Supplier: ${order.supplier_name ?? "-"}`,
+            `Supplier email: ${order.supplier_email ?? "-"}`,
+            `Job: ${order.job_number ?? "-"}`,
+            `Machine ref: ${order.machine_reference ?? "-"}`,
+            `Machine number: ${order.machine_number ?? "-"}`,
+            `Machine make: ${order.machine_make ?? "-"}`,
+            `Machine model: ${order.machine_model ?? "-"}`,
+            `Machine serial: ${order.machine_serial_number ?? "-"}`,
+            `Requester: ${order.requester_name ?? "-"}`,
+            `Assigned: ${order.assigned_to ?? "-"}`,
+            `Amount: ${formatOrderAmount(order.order_amount)}`,
+            `Ready / Expected: ${formatOperationalDate(order.ready_at ?? order.expected_delivery_date)}`,
+            `Summary: ${order.request_summary ?? order.request_details ?? "-"}`,
+            `Notes: ${order.notes ?? "-"}`,
+          ].join(" | ")
+        : [
+            `PO: ${order.purchase_order_number ?? "-"}`,
+            `Supplier: ${order.supplier_name ?? "-"}`,
+            `Job: ${order.job_number ?? "-"}`,
+            `Machine: ${order.machine_reference ?? "-"}`,
+            `Amount: ${formatOrderAmount(order.order_amount)}`,
+            `Ready / Expected: ${formatOperationalDate(order.ready_at ?? order.expected_delivery_date)}`,
+          ].join(" | "),
     ),
   ];
 
@@ -221,36 +248,91 @@ export function buildSupplierOrderDispatchPlan(
   };
 }
 
-export function buildOrdersCsvContent(orders: CommunicableOrder[]) {
+export function buildOrdersCsvContent(
+  orders: CommunicableOrder[],
+  includeAllFields = false,
+) {
   const csvRows = [
-    [
-      "status",
-      "ordered_at",
-      "ready_at",
-      "expected_delivery_date",
-      "purchase_order_number",
-      "supplier_name",
-      "supplier_email",
-      "order_amount",
-      "job_number",
-      "machine_reference",
-      "request_summary",
-      "assigned_to",
-    ],
-    ...orders.map((order) => [
-      order.status ?? "",
-      order.ordered_at ?? "",
-      order.ready_at ?? "",
-      order.expected_delivery_date ?? "",
-      order.purchase_order_number ?? "",
-      order.supplier_name ?? "",
-      order.supplier_email ?? "",
-      typeof order.order_amount === "number" ? String(order.order_amount) : "",
-      order.job_number ?? "",
-      order.machine_reference ?? "",
-      order.request_summary ?? order.request_details ?? "",
-      order.assigned_to ?? "",
-    ]),
+    includeAllFields
+      ? [
+          "status",
+          "ordered_at",
+          "ready_at",
+          "expected_delivery_date",
+          "purchase_order_number",
+          "supplier_name",
+          "supplier_email",
+          "order_amount",
+          "job_number",
+          "requester_name",
+          "machine_reference",
+          "machine_number",
+          "machine_make",
+          "machine_model",
+          "machine_serial_number",
+          "request_summary",
+          "request_details",
+          "notes",
+          "department",
+          "assigned_to",
+          "created_at",
+          "updated_at",
+        ]
+      : [
+          "status",
+          "ordered_at",
+          "ready_at",
+          "expected_delivery_date",
+          "purchase_order_number",
+          "supplier_name",
+          "supplier_email",
+          "order_amount",
+          "job_number",
+          "machine_reference",
+          "request_summary",
+          "assigned_to",
+        ],
+    ...orders.map((order) =>
+      includeAllFields
+        ? [
+            order.status ?? "",
+            order.ordered_at ?? "",
+            order.ready_at ?? "",
+            order.expected_delivery_date ?? "",
+            order.purchase_order_number ?? "",
+            order.supplier_name ?? "",
+            order.supplier_email ?? "",
+            typeof order.order_amount === "number" ? String(order.order_amount) : "",
+            order.job_number ?? "",
+            order.requester_name ?? "",
+            order.machine_reference ?? "",
+            order.machine_number ?? "",
+            order.machine_make ?? "",
+            order.machine_model ?? "",
+            order.machine_serial_number ?? "",
+            order.request_summary ?? "",
+            order.request_details ?? "",
+            order.notes ?? "",
+            order.department ?? "",
+            order.assigned_to ?? "",
+            order.created_at ?? "",
+            order.updated_at ?? "",
+          ]
+        : [
+            order.status ?? "",
+            order.ordered_at ?? "",
+            order.ready_at ?? "",
+            order.expected_delivery_date ?? "",
+            order.purchase_order_number ?? "",
+            order.supplier_name ?? "",
+            order.supplier_email ?? "",
+            typeof order.order_amount === "number" ? String(order.order_amount) : "",
+            order.job_number ?? "",
+            order.machine_reference ?? "",
+            order.request_summary ?? order.request_details ?? "",
+            order.assigned_to ?? "",
+          ],
+    ),
   ];
 
   return csvRows
