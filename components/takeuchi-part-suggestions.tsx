@@ -40,7 +40,8 @@ export function TakeuchiPartSuggestions({
   const serialNumber = ticket.machine_serial_number?.trim() ?? "";
   const normalizedModel = normalizeTakeuchiModel(machineModel || machineMake);
   const parsedSerial = parseTakeuchiSerialNumber(serialNumber);
-  const isTakeuchiMachine = normalizedModel.includes("TB290") || normalizedModel.includes("TAKEUCHI");
+  const isTakeuchiMachine =
+    normalizedModel.startsWith("TB") || normalizedModel.includes("TAKEUCHI") || machineMake.toLowerCase().includes("takeuchi");
   const requestContext = [ticket.request_summary, ticket.request_details].filter(Boolean).join(" ");
   const lookupMachineModel =
     normalizedModel === "TAKEUCHI" || !normalizedModel ? null : machineModel || machineMake;
