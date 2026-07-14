@@ -107,6 +107,7 @@ export function buildTakeuchiCatalogKey(input: {
   serialEnd: number;
   bomMainGroup: string;
   bomSubGroup: string;
+  bomItem?: string | null;
   partNumber: string;
   partDescription: string;
 }) {
@@ -116,6 +117,7 @@ export function buildTakeuchiCatalogKey(input: {
     String(input.serialEnd),
     normalizeSearchText(input.bomMainGroup),
     normalizeSearchText(input.bomSubGroup),
+    normalizeSearchText(input.bomItem),
     normalizeSearchText(input.partNumber),
     normalizeSearchText(input.partDescription),
   ].join("|");

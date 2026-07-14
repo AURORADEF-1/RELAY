@@ -86,7 +86,15 @@ export function TakeuchiPartSuggestions({
         machineModel: lookupMachineModel,
         serialNumber,
       });
-      setCatalog(rows);
+      if (rows.length === 0 && lookupMachineModel) {
+        const serialOnlyRows = await fetchTakeuchiPartsCatalog(supabase, {
+          machineModel: null,
+          serialNumber,
+        });
+        setCatalog(serialOnlyRows);
+      } else {
+        setCatalog(rows);
+      }
     } catch (error) {
       setCatalog([]);
       setErrorMessage(formatTakeuchiSuggestionError(error));

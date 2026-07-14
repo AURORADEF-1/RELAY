@@ -15,6 +15,7 @@ import {
 import { getSupabaseClient } from "@/lib/supabase";
 
 const TAKEUCHI_CATALOG_MIGRATION_HINT = "Apply docs/takeuchi-parts-catalog-schema.sql and try again.";
+const TAKEUCHI_OPEN_ENDED_SERIAL_MAX = 999999999;
 
 export function TakeuchiPartsCatalogPanel() {
   const [catalog, setCatalog] = useState<TakeuchiPartCatalogRecord[]>([]);
@@ -415,59 +416,50 @@ function parseTakeuchiSheetRow({
   sheetName: string;
   sourceFileName: string;
 }): TakeuchiPartCatalogImportRow | null {
-  const lookup = (synonyms: string[]) => {
-    const normalizedSynonyms = synonyms.map((synonym) => normalizeHeader(synonym));
-    const index = headers.findIndex((header) =>
-      normalizedSynonyms.some((synonym) => header.includes(synonym)),
-    );
-    if (index < 0) {
-      return "";
-    }
-
-    return String(row[index] ?? "").trim();
+  const getCell = (headerName: string) => {
+    const index = headers.findIndex((header) => header === normalizeHeader(headerName));
+    return index < 0 ? "" : String(row[index] ?? "").trim();
   };
 
-  const bomMainGroup =
-    lookup(["bomitem", "maingroup", "mainitem", "bommaingroup"]) ||
-    sheetName.trim();
-  const bomSubGroup =
-    lookup(["description", "subgroup", "subgroupdescription", "bomsubgroup", "sub group"]) ||
-    "";
-  const bomItem = lookup(["bomitem", "mainitem", "bom item"]) || null;
-  const partNumber =
-    lookup(["partnumber", "partno", "part no", "suggestedpartnumber", "suggested part number"]) ||
-    "";
-  const partDescription =
-    lookup(["partdescription", "description", "itemdescription", "item description"]) || bomSubGroup || "";
-  const suggestedPartNumber =
-    lookup(["suggestedpartnumber", "suggested part number", "recommendedpartnumber"]) || null;
-  const notes = lookup(["notes", "note", "comment"]) || null;
-  const machineModel =
-    lookup(["machine model", "machinemodel", "model", "takeuchimodel"]) || sheetName.trim();
-  const serialStartRaw =
-    lookup(["serialstart", "serial start", "fromserial", "serial from", "serialrangefrom"]) ||
-    lookup(["serial"]);
-  const serialEndRaw =
-    lookup(["serialend", "serial end", "toserial", "serial to", "serialrangeto"]) || serialStartRaw;
-  const serialStartBounds = parseTakeuchiSerialBounds(serialStartRaw);
-  const serialEndBounds = parseTakeuchiSerialBounds(serialEndRaw);
-  const serialStart = serialStartBounds?.start ?? serialEndBounds?.start ?? null;
-  const serialEnd = serialEndBounds?.end ?? serialStartBounds?.end ?? serialStart;
+  const bookName = getCell("Book Name");
+  const bomMainGroup = getCell("BOM Item") || sheetName.trim();
+  const bomItem = getCell("Item") || null;
+  const partNumber = getCell("Part Number");
+  const partDescription = getCell("Description");
+  const notes = getCell("Remarks") || null;
+  const serialNumber = getCell("Serial Number");
 
-  if (!partNumber || !partDescription || serialStart === null || serialEnd === null) {
+  const bookInfo = parseTakeuchiBookName(bookName);
+  const machineModel = bookInfo?.machineModel || sheetName.trim();
+  const serialStart = bookInfo?.serialStart ?? parseTakeuchiSerialBounds(serialNumber)?.start ?? null;
+  const serialEnd =
+    bookInfo?.serialEnd ??
+    parseTakeuchiSerialBounds(serialNumber)?.end ??
+    serialStart;
+
+  if (
+    !bookName ||
+    !partNumber ||
+    !partDescription ||
+    serialStart === null ||
+    serialEnd === null ||
+    isTakeuchiPlaceholderRow(partNumber, partDescription)
+  ) {
     return null;
   }
 
   const normalizedModel = normalizeTakeuchiModel(machineModel || sheetName || "Takeuchi");
   const resolvedMainGroup = bomMainGroup || sheetName.trim() || "Takeuchi";
+  const resolvedSerialEnd = serialEnd < serialStart ? serialStart : serialEnd;
 
   return {
     catalog_key: buildTakeuchiCatalogKey({
       machineModel: machineModel || sheetName || "Takeuchi",
       serialStart,
-      serialEnd,
+      serialEnd: resolvedSerialEnd,
       bomMainGroup: resolvedMainGroup,
-      bomSubGroup: bomSubGroup || partDescription,
+      bomSubGroup: partDescription,
+      bomItem,
       partNumber,
       partDescription,
     }),
@@ -475,13 +467,13 @@ function parseTakeuchiSheetRow({
     machine_model: machineModel || sheetName || "Takeuchi",
     machine_model_normalized: normalizedModel,
     serial_start: serialStart,
-    serial_end: serialEnd,
+    serial_end: resolvedSerialEnd,
     bom_main_group: resolvedMainGroup,
-    bom_sub_group: bomSubGroup || partDescription,
+    bom_sub_group: partDescription,
     bom_item: bomItem,
     part_number: partNumber,
     part_description: partDescription,
-    suggested_part_number: suggestedPartNumber || partNumber,
+    suggested_part_number: partNumber,
     notes,
     source_file_name: sourceFileName,
     source_sheet: sheetName,
@@ -493,10 +485,50 @@ function normalizeHeader(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function parseTakeuchiBookName(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const machineModel = trimmed.split(/\s+/)[0] || "";
+  const serialMatch = trimmed.match(/SN\s*(\d+)(?:\s*[-–—]\s*(\d+))?\s*$/i);
+  const openEndedMatch = trimmed.match(/SN\s*(\d+)\s*[-–—]\s*$/i);
+
+  const serialStart = serialMatch ? Number.parseInt(serialMatch[1], 10) : null;
+  const serialEnd = serialMatch?.[2]
+    ? Number.parseInt(serialMatch[2], 10)
+    : openEndedMatch
+      ? TAKEUCHI_OPEN_ENDED_SERIAL_MAX
+      : serialStart;
+
+  const bomGroupMatch = trimmed.match(/\[\s*([^\]]+)\s*\]/);
+
+  return {
+    machineModel,
+    serialStart,
+    serialEnd,
+    bomGroup: bomGroupMatch?.[1]?.trim() || "",
+  };
+}
+
+function isTakeuchiPlaceholderRow(partNumber: string, partDescription: string) {
+  return /\*{3,}/.test(partNumber) || /not for sale/i.test(partDescription);
+}
+
 function parseTakeuchiSerialBounds(value: string) {
   const normalized = value.trim().replace(/[, ]+/g, "");
   if (!normalized) {
     return null;
+  }
+
+  const openEndedMatch = normalized.match(/^SN?(\d+)[\-–—]$/i);
+  if (openEndedMatch) {
+    const serial = Number.parseInt(openEndedMatch[1], 10);
+    return {
+      start: serial,
+      end: TAKEUCHI_OPEN_ENDED_SERIAL_MAX,
+    };
   }
 
   const rangeMatch = normalized.match(/^(\d+)[\-–—](\d+)$/);
