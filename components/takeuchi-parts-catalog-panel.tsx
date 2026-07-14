@@ -494,8 +494,8 @@ function parseTakeuchiBookName(value: string) {
   const machineModel = trimmed.split(/\s+/)[0] || "";
   const serialMatch = trimmed.match(/SN\s*(\d+)(?:\s*[-–—]\s*(\d+))?\s*$/i);
   const openEndedMatch = trimmed.match(/SN\s*(\d+)\s*[-–—]\s*$/i);
-
-  const serialStart = serialMatch ? Number.parseInt(serialMatch[1], 10) : null;
+  const serialStartValue = serialMatch?.[1] ?? openEndedMatch?.[1] ?? null;
+  const serialStart = serialStartValue ? Number.parseInt(serialStartValue, 10) : null;
   const serialEnd = serialMatch?.[2]
     ? Number.parseInt(serialMatch[2], 10)
     : openEndedMatch
