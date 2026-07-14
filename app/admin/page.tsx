@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AdminOversightInbox, type AdminOversightItem } from "@/components/admin-oversight-inbox";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
@@ -429,13 +430,17 @@ export default function AdminPage() {
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", closeExportMenus);
-    window.addEventListener("scroll", closeExportMenus, true);
+    if (!statusExportMenu) {
+      window.addEventListener("resize", closeExportMenus);
+      window.addEventListener("scroll", closeExportMenus, true);
+    }
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", closeExportMenus);
-      window.removeEventListener("scroll", closeExportMenus, true);
+      if (!statusExportMenu) {
+        window.removeEventListener("resize", closeExportMenus);
+        window.removeEventListener("scroll", closeExportMenus, true);
+      }
     };
   }, [closeExportMenus, statusExportMenu, ticketExportMenu, ticketSupplierExportMenu]);
   const [readRequesterMessageByTicket, setReadRequesterMessageByTicket] = useState<
@@ -3537,92 +3542,6 @@ export default function AdminPage() {
                       </button>
                     </div>
 
-                    {statusExportMenu?.status === status ? (
-                      <div
-                        role="menu"
-                        aria-label={`${status} export options`}
-                        className={`mt-3 rounded-2xl border p-3 text-left shadow-[0_18px_45px_-34px_rgba(15,23,42,0.28)] ${
-                          statusFilter === status
-                            ? "border-white/15 bg-white/10"
-                            : "border-slate-200 bg-white"
-                        }`}
-                      >
-                        <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                          <label className="flex items-center gap-3 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={STATUS_EXPORT_FIELD_OPTIONS.every(
-                                (option) => statusExportMenu.selectedFields[option.key],
-                              )}
-                              onChange={(event) =>
-                                setStatusExportMenu((current) =>
-                                  current?.status === status
-                                    ? {
-                                        ...current,
-                                        selectedFields: Object.fromEntries(
-                                          STATUS_EXPORT_FIELD_OPTIONS.map((option) => [
-                                            option.key,
-                                            event.target.checked,
-                                          ]),
-                                        ) as Record<StatusExportFieldKey, boolean>,
-                                      }
-                                    : current,
-                                )
-                              }
-                              className="h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
-                            />
-                            <span className="font-semibold text-slate-900">Include all fields</span>
-                          </label>
-                        </div>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {STATUS_EXPORT_FIELD_OPTIONS.map((option) => (
-                            <label
-                              key={option.key}
-                              className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm ${
-                                statusFilter === status
-                                  ? "border-white/10 bg-white/10 text-white"
-                                  : "border-slate-200 bg-white text-slate-700"
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={statusExportMenu.selectedFields[option.key]}
-                                onChange={(event) =>
-                                  setStatusExportMenu((current) =>
-                                    current?.status === status
-                                      ? {
-                                          ...current,
-                                          selectedFields: {
-                                            ...current.selectedFields,
-                                            [option.key]: event.target.checked,
-                                          },
-                                        }
-                                      : current,
-                                  )
-                                }
-                                className="h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
-                              />
-                              <span className="leading-5">{option.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => exportStatusJobsCsv(status, statusExportMenu.selectedFields)}
-                          className={`mt-3 flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${
-                            statusFilter === status
-                              ? "bg-white/10 text-white hover:bg-white/15"
-                              : "text-slate-800 hover:bg-slate-100"
-                          }`}
-                        >
-                          <span>Export CSV</span>
-                          <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                            csv
-                          </span>
-                        </button>
-                      </div>
-                    ) : null}
                   </div>
                 ))}
               </div>
@@ -3638,6 +3557,118 @@ export default function AdminPage() {
                   {statusExportNotice.message}
                 </div>
               ) : null}
+
+              {statusExportMenu && typeof document !== "undefined"
+                ? createPortal(
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[2px]">
+                      <button
+                        type="button"
+                        aria-label="Close status export popup"
+                        className="absolute inset-0 cursor-default"
+                        onClick={closeExportMenus}
+                      />
+                      <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={`${statusExportMenu.status} export options`}
+                        className="relative z-10 flex max-h-[calc(100vh-2rem)] w-[min(1080px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_30px_90px_-30px_rgba(15,23,42,0.55)]"
+                      >
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
+                          <div>
+                            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                              {statusExportMenu.status} export options
+                            </p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              Choose the fields to include, then export the CSV.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={closeExportMenus}
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                          >
+                            Close
+                          </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-5">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                            <label className="flex items-center gap-3 text-sm font-semibold text-slate-900">
+                              <input
+                                type="checkbox"
+                                checked={STATUS_EXPORT_FIELD_OPTIONS.every(
+                                  (option) => statusExportMenu.selectedFields[option.key],
+                                )}
+                                onChange={(event) =>
+                                  setStatusExportMenu((current) =>
+                                    current?.status === statusExportMenu.status
+                                      ? {
+                                          ...current,
+                                          selectedFields: Object.fromEntries(
+                                            STATUS_EXPORT_FIELD_OPTIONS.map((option) => [
+                                              option.key,
+                                              event.target.checked,
+                                            ]),
+                                          ) as Record<StatusExportFieldKey, boolean>,
+                                        }
+                                      : current,
+                                  )
+                                }
+                                className="h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
+                              />
+                              Include all fields
+                            </label>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            {STATUS_EXPORT_FIELD_OPTIONS.map((option) => (
+                              <label
+                                key={option.key}
+                                className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={statusExportMenu.selectedFields[option.key]}
+                                  onChange={(event) =>
+                                    setStatusExportMenu((current) =>
+                                      current?.status === statusExportMenu.status
+                                        ? {
+                                            ...current,
+                                            selectedFields: {
+                                              ...current.selectedFields,
+                                              [option.key]: event.target.checked,
+                                            },
+                                          }
+                                        : current,
+                                    )
+                                  }
+                                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
+                                />
+                                <span className="leading-5">{option.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="border-t border-slate-200 bg-white px-5 py-4">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              exportStatusJobsCsv(
+                                statusExportMenu.status,
+                                statusExportMenu.selectedFields,
+                              )
+                            }
+                            className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                          >
+                            Export CSV
+                          </button>
+                        </div>
+                      </div>
+                    </div>,
+                    document.body,
+                  )
+                : null}
 
               <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
               <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
