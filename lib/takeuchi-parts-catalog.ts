@@ -185,37 +185,50 @@ export async function fetchTakeuchiPartsCatalog(
   const normalizedModel = normalizeTakeuchiModel(options.machineModel ?? "");
   const parsedSerial = parseTakeuchiSerialNumber(options.serialNumber ?? "");
 
-  let query = supabase
-    .from("takeuchi_parts_catalog")
-    .select(
-      "id,catalog_key,machine_make,machine_model,machine_model_normalized,serial_start,serial_end,bom_main_group,bom_sub_group,bom_item,part_number,part_description,suggested_part_number,notes,source_file_name,source_sheet,source_row,created_at,updated_at",
-    )
-    .order("bom_main_group", { ascending: true })
-    .order("bom_sub_group", { ascending: true })
-    .order("part_number", { ascending: true });
+  const selectClause =
+    "id,catalog_key,machine_make,machine_model,machine_model_normalized,serial_start,serial_end,bom_main_group,bom_sub_group,bom_item,part_number,part_description,suggested_part_number,notes,source_file_name,source_sheet,source_row,created_at,updated_at";
+  const pageSize = 1000;
+  const allRows: TakeuchiPartCatalogRow[] = [];
 
-  if (normalizedModel) {
-    const modelCandidates = buildTakeuchiModelCandidates(normalizedModel);
-    if (modelCandidates.length === 1) {
-      query = query.eq("machine_model_normalized", modelCandidates[0]);
-    } else {
-      query = query.or(
-        modelCandidates.map((candidate) => `machine_model_normalized.ilike.*${candidate}*`).join(","),
-      );
+  for (let start = 0; ; start += pageSize) {
+    let query = supabase
+      .from("takeuchi_parts_catalog")
+      .select(selectClause)
+      .order("bom_main_group", { ascending: true })
+      .order("bom_sub_group", { ascending: true })
+      .order("part_number", { ascending: true })
+      .range(start, start + pageSize - 1);
+
+    if (normalizedModel) {
+      const modelCandidates = buildTakeuchiModelCandidates(normalizedModel);
+      if (modelCandidates.length === 1) {
+        query = query.eq("machine_model_normalized", modelCandidates[0]);
+      } else {
+        query = query.or(
+          modelCandidates.map((candidate) => `machine_model_normalized.ilike.*${candidate}*`).join(","),
+        );
+      }
+    }
+
+    if (parsedSerial !== null) {
+      query = query.lte("serial_start", parsedSerial).gte("serial_end", parsedSerial);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const pageRows = (data ?? []) as TakeuchiPartCatalogRow[];
+    allRows.push(...pageRows);
+
+    if (pageRows.length < pageSize) {
+      break;
     }
   }
 
-  if (parsedSerial !== null) {
-    query = query.lte("serial_start", parsedSerial).gte("serial_end", parsedSerial);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return ((data ?? []) as TakeuchiPartCatalogRow[]).map(normalizeTakeuchiPartCatalogRow);
+  return allRows.map(normalizeTakeuchiPartCatalogRow);
 }
 
 export function normalizeTakeuchiPartCatalogRow(row: TakeuchiPartCatalogRow): TakeuchiPartCatalogRecord {
