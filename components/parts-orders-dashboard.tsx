@@ -102,61 +102,63 @@ export function PartsOrdersDashboard({
           ))}
         </div>
 
-        <div className="relative flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setIsReadyExportMenuOpen((current) => !current)}
-            disabled={!canShowReadyExportControls}
-            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Export Ready
-          </button>
-          {canShowReadyExportControls && isReadyExportMenuOpen ? (
-            <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_24px_70px_-20px_rgba(15,23,42,0.22)]">
-              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={includeAllReadyFields}
-                  onChange={(event) => setIncludeAllReadyFields(event.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
-                />
-                <span>
-                  <span className="block font-semibold text-slate-900">Include all fields</span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    Adds machine ref, job number, supplier, requester, notes, and timestamps where available.
+        <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col">
+            <button
+              type="button"
+              onClick={() => setIsReadyExportMenuOpen((current) => !current)}
+              disabled={!canShowReadyExportControls}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Export Ready
+            </button>
+            {canShowReadyExportControls && isReadyExportMenuOpen ? (
+              <div className="mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_24px_70px_-20px_rgba(15,23,42,0.22)]">
+                <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={includeAllReadyFields}
+                    onChange={(event) => setIncludeAllReadyFields(event.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
+                  />
+                  <span>
+                    <span className="block font-semibold text-slate-900">Include all fields</span>
+                    <span className="mt-1 block text-xs leading-5 text-slate-500">
+                      Adds machine ref, job number, supplier, requester, notes, and timestamps where available.
+                    </span>
                   </span>
-                </span>
-              </label>
-              <div className="mt-3 grid gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onExportReadyCsv(includeAllReadyFields);
-                    setIsReadyExportMenuOpen(false);
-                  }}
-                  className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-                >
-                  <span>Export CSV</span>
-                  <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                    CSV
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onEmailReadyOrders(includeAllReadyFields);
-                    setIsReadyExportMenuOpen(false);
-                  }}
-                  className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-                >
-                  <span>Email ready list</span>
-                  <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                    Email
-                  </span>
-                </button>
+                </label>
+                <div className="mt-3 grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onExportReadyCsv(includeAllReadyFields);
+                      setIsReadyExportMenuOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    <span>Export CSV</span>
+                    <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                      CSV
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onEmailReadyOrders(includeAllReadyFields);
+                      setIsReadyExportMenuOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    <span>Email ready list</span>
+                    <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                      Email
+                    </span>
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
 
