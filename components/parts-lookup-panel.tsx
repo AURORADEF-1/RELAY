@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { fetchPartsLookup, type PartsLookupRecord } from "@/lib/parts-lookup";
 import { getSupabaseClient } from "@/lib/supabase";
+import { TakeuchiPartsCatalogPanel } from "@/components/takeuchi-parts-catalog-panel";
 
 const PARTS_LOOKUP_MIGRATION_HINT = "Apply docs/parts-lookup-schema.sql and try again.";
 
@@ -259,6 +260,8 @@ export function PartsLookupPanel() {
           </table>
         </div>
       </div>
+
+      <TakeuchiPartsCatalogPanel />
     </section>
   );
 }

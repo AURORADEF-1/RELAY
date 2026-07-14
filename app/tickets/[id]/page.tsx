@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -48,6 +48,7 @@ import {
   type TicketMessageRecord,
   uploadTicketAttachments,
 } from "@/lib/relay-ticketing";
+import { TakeuchiPartSuggestions } from "@/components/takeuchi-part-suggestions";
 import {
   buildEmptyTicketPartDraft,
   createTicketPart,
@@ -255,6 +256,7 @@ export default function TicketDetailPage() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isSavingPart, setIsSavingPart] = useState(false);
   const [isSavingPurchaseOrder, setIsSavingPurchaseOrder] = useState(false);
+  const partFormRef = useRef<HTMLDivElement | null>(null);
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [requesterAvatarUrl, setRequesterAvatarUrl] = useState<string | null>(null);
   const [hasRequesterCollected, setHasRequesterCollected] = useState(false);
@@ -1484,6 +1486,25 @@ export default function TicketDetailPage() {
     }
   }
 
+  function handleApplyTakeuchiSuggestion(part: {
+    part_description: string;
+    part_number: string;
+    suggested_part_number?: string | null;
+    bom_main_group: string;
+    bom_sub_group: string;
+  }) {
+    setPartDraft((current) => ({
+      ...current,
+      part_description: part.part_description,
+      part_number: part.suggested_part_number || part.part_number,
+    }));
+    setPartNotice({
+      type: "success",
+      message: `Applied Takeuchi suggestion from ${part.bom_main_group} · ${part.bom_sub_group}. Review the form and save it below.`,
+    });
+    partFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   async function handleMarkCollected() {
     if (!ticket) {
       return;
@@ -2564,8 +2585,21 @@ export default function TicketDetailPage() {
                             </div>
                           )}
 
+                          <TakeuchiPartSuggestions
+                            ticket={{
+                              machine_make: ticket.machine_make,
+                              machine_model: ticket.machine_model,
+                              machine_serial_number: ticket.machine_serial_number,
+                              machine_verified: ticket.machine_verified,
+                              request_summary: ticket.request_summary,
+                              request_details: ticket.request_details,
+                            }}
+                            isAdmin={isAdmin}
+                            onApplySuggestion={handleApplyTakeuchiSuggestion}
+                          />
+
                           {isAdmin ? (
-                            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div ref={partFormRef} className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
                                   <p className="text-sm font-semibold text-slate-900">
