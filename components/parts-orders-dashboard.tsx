@@ -59,7 +59,6 @@ export function PartsOrdersDashboard({
   const snapshot = buildOrdersSnapshot(orders);
   const availableMonths = Array.from(new Set(monthlySpendSnapshots.map((item) => item.month_start)));
   const selectedMonthRows = monthlySpendSnapshots.filter((item) => item.month_start === selectedSpendMonth);
-  const [isReadyExportMenuOpen, setIsReadyExportMenuOpen] = useState(false);
   const [includeAllReadyFields, setIncludeAllReadyFields] = useState(false);
   const canShowReadyExportControls = activeFilter === "ready" || activeFilter === "all";
 
@@ -103,64 +102,60 @@ export function PartsOrdersDashboard({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <div className="flex flex-col">
-            <button
-              type="button"
-              onClick={() => setIsReadyExportMenuOpen((current) => !current)}
-              disabled={!canShowReadyExportControls}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Export Ready
-            </button>
-            {canShowReadyExportControls && isReadyExportMenuOpen ? (
-              <div className="mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_24px_70px_-20px_rgba(15,23,42,0.22)]">
-                <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={includeAllReadyFields}
-                    onChange={(event) => setIncludeAllReadyFields(event.target.checked)}
-                    className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
-                  />
-                  <span>
-                    <span className="block font-semibold text-slate-900">Include all fields</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate-500">
-                      Adds machine ref, job number, supplier, requester, notes, and timestamps where available.
-                    </span>
-                  </span>
-                </label>
-                <div className="mt-3 grid gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onExportReadyCsv(includeAllReadyFields);
-                      setIsReadyExportMenuOpen(false);
-                    }}
-                    className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-                  >
-                    <span>Export CSV</span>
-                    <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                      CSV
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onEmailReadyOrders(includeAllReadyFields);
-                      setIsReadyExportMenuOpen(false);
-                    }}
-                    className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
-                  >
-                    <span>Email ready list</span>
-                    <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                      Email
-                    </span>
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            disabled
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 opacity-60"
+          >
+            Export Ready
+          </button>
         </div>
       </div>
+
+      {canShowReadyExportControls ? (
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_16px_45px_-34px_rgba(15,23,42,0.35)]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Ready Export
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Export or email the current ready list. Use the checkbox to include machine and ticket fields.
+              </p>
+            </div>
+            <label className="inline-flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={includeAllReadyFields}
+                onChange={(event) => setIncludeAllReadyFields(event.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-950 focus:ring-slate-400"
+              />
+              <span>
+                <span className="block font-semibold text-slate-900">Include all fields</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">
+                  Adds machine ref, job number, supplier, requester, notes, and timestamps where available.
+                </span>
+              </span>
+            </label>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onExportReadyCsv(includeAllReadyFields)}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => onEmailReadyOrders(includeAllReadyFields)}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Email ready list
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <OrdersMetricCard
