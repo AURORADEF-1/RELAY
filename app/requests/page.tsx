@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { ConsoleIcon } from "@/components/console/console-icon";
+import { ConsoleShell } from "@/components/console/console-shell";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
-import { LogoutButton } from "@/components/logout-button";
-import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
 import {
   notifyAdminsOfPartCollected,
@@ -50,7 +50,7 @@ type Ticket = {
 const REQUESTS_VIEW_STORAGE_KEY = "relay-requester-requests-view-mode";
 
 export default function RequestsPage() {
-  const { requesterUnreadCount, adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const { requesterUnreadCount, adminBadgeCount, isAdmin } = useNotifications();
   const [viewMode, setViewMode] = useState<"standard" | "dynamic">(() => {
     if (typeof window === "undefined") {
       return "standard";
@@ -332,50 +332,41 @@ export default function RequestsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
-          <RelayLogo />
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
-            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">
-              Home
-            </Link>
-            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
-              Legal
-            </Link>
-            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">
-              Settings
-            </Link>
-            <Link
-              href="/submit"
-              className="rounded-full px-4 py-2 hover:bg-white"
+    <AuthGuard>
+      <ConsoleShell
+        eyebrow={isAdmin ? "RELAY operations" : "RELAY requester"}
+        title={isAdmin ? "Request search" : "My requests"}
+        searchValue={searchQuery}
+        searchPlaceholder="Search jobs, machines or parts"
+        onSearchChange={setSearchQuery}
+        actions={
+          <>
+            <select
+              value={viewMode}
+              onChange={(event) => {
+                const nextMode = event.target.value as "standard" | "dynamic";
+                setViewMode(nextMode);
+                window.localStorage.setItem(REQUESTS_VIEW_STORAGE_KEY, nextMode);
+              }}
+              className="console-command-select"
+              aria-label="Request view"
             >
-              Submit Ticket
-            </Link>
-            <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
-              Tasks
-              <NotificationBadge count={taskUnreadCount} />
-            </Link>
-            {isAdmin ? (
-              <>
-                <Link
-                  href="/incidents"
-                  className="rounded-full px-4 py-2 hover:bg-white"
-                >
-                  Workshop Control
-                </Link>
-                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
-                  Parts Control
-                  <NotificationBadge count={adminBadgeCount} />
-                </Link>
-              </>
-            ) : null}
-            <LogoutButton />
-          </div>
-        </nav>
-
-        <AuthGuard>
-          <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
+              <option value="standard">Table view</option>
+              <option value="dynamic">Card view</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => void loadTickets()}
+              disabled={isLoading}
+              className="console-command-action"
+            >
+              <ConsoleIcon name="refresh" className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+              <span>{isLoading ? "Syncing" : "Refresh"}</span>
+            </button>
+          </>
+        }
+      >
+        <section className="console-queue-panel !mt-0 p-5 sm:p-6">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl space-y-5">
               <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
@@ -395,7 +386,8 @@ export default function RequestsPage() {
               {activeTicketStatuses.map((status) => (
                 <div
                   key={status}
-                  className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-4 py-3 text-center"
+                  className="request-status-summary"
+                  data-status={status}
                 >
                   <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-500">
                     {status}
@@ -405,38 +397,6 @@ export default function RequestsPage() {
                   </p>
                 </div>
               ))}
-            </div>
-          </div>
-
-          <div className="mt-6 flex justify-end">
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <select
-                value={viewMode}
-                onChange={(event) => {
-                  const nextMode = event.target.value as "standard" | "dynamic";
-                  setViewMode(nextMode);
-                  window.localStorage.setItem(REQUESTS_VIEW_STORAGE_KEY, nextMode);
-                }}
-                className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400"
-              >
-                <option value="standard">Standard View</option>
-                <option value="dynamic">Dynamic View</option>
-              </select>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search job number, plant number, or part"
-                className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 sm:max-w-sm"
-              />
-              <button
-                type="button"
-                onClick={() => void loadTickets()}
-                disabled={isLoading}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isLoading ? "Refreshing..." : "Refresh"}
-              </button>
             </div>
           </div>
 
@@ -460,7 +420,8 @@ export default function RequestsPage() {
                 filteredTickets.map((ticket) => (
                   <article
                     key={ticket.id}
-                    className={`rounded-3xl border bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_-32px_rgba(15,23,42,0.28)] ${getDynamicRequestCardTone(
+                    data-status={ticket.status ?? "PENDING"}
+                    className={`request-ticket-card rounded-3xl border bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_-32px_rgba(15,23,42,0.28)] ${getDynamicRequestCardTone(
                       ticket.status,
                     )} ${isUrgentTicket(ticket) ? "ring-2 ring-red-300" : ""}`}
                   >
@@ -482,6 +443,7 @@ export default function RequestsPage() {
                         </p>
                       </div>
                       <div className="space-y-2 text-right">
+                        <p className="console-section-label">Current status</p>
                         <StatusBadge status={ticket.status ?? "PENDING"} />
                         {isUrgentTicket(ticket) ? (
                           <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-700">
@@ -626,7 +588,7 @@ export default function RequestsPage() {
                       </tr>
                     ) : (
                       filteredTickets.map((ticket) => (
-                        <tr key={ticket.id} className="align-top">
+                        <tr key={ticket.id} className="request-ticket-row align-top" data-status={ticket.status ?? "PENDING"}>
                           <td className="px-6 py-5 text-sm text-slate-600">
                             <div className="space-y-1">
                               <Link
@@ -764,7 +726,8 @@ export default function RequestsPage() {
                   filteredTickets.map((ticket) => (
                     <article
                       key={ticket.id}
-                      className={`rounded-3xl border bg-white p-5 shadow-sm ${
+                      data-status={ticket.status ?? "PENDING"}
+                      className={`request-ticket-card rounded-3xl border bg-white p-5 shadow-sm ${
                         isUrgentTicket(ticket) ? "border-red-200 ring-2 ring-red-200" : "border-slate-200"
                       }`}
                     >
@@ -785,7 +748,10 @@ export default function RequestsPage() {
                             Machine {ticket.machine_reference ?? "-"}
                           </p>
                         </div>
-                        <StatusBadge status={ticket.status ?? "PENDING"} />
+                        <div className="space-y-2 text-right">
+                          <p className="console-section-label">Current status</p>
+                          <StatusBadge status={ticket.status ?? "PENDING"} />
+                        </div>
                       </div>
                       <p className="mt-4 text-sm leading-7 text-slate-600">
                         {ticket.request_summary ?? ticket.request_details ?? "-"}
@@ -873,9 +839,8 @@ export default function RequestsPage() {
             </div>
           )}
           </section>
-        </AuthGuard>
-      </div>
-    </main>
+      </ConsoleShell>
+    </AuthGuard>
   );
 }
 

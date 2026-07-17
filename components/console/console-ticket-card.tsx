@@ -15,9 +15,13 @@ export function ConsoleTicketCard({
   onSelect: () => void;
 }) {
   const summary = ticket.request_summary?.trim() || ticket.request_details?.trim() || "Untitled request";
+  const status = ticket.status?.trim().toUpperCase() || "PENDING";
 
   return (
-    <article className={`console-ticket-card ${selected ? "console-ticket-card-selected" : ""}`}>
+    <article
+      className={`console-ticket-card ${selected ? "console-ticket-card-selected" : ""}`}
+      data-status={status}
+    >
       <button
         type="button"
         className="console-ticket-card-button"
@@ -36,7 +40,10 @@ export function ConsoleTicketCard({
             </div>
             <h3>{summary}</h3>
           </div>
-          <StatusBadge status={ticket.status ?? "PENDING"} />
+          <div className="console-ticket-card-status">
+            <span>Current status</span>
+            <StatusBadge status={status} />
+          </div>
         </div>
 
         <dl className="console-ticket-card-grid">

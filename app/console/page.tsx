@@ -226,12 +226,14 @@ export default function ConsolePage() {
                 <button
                   type="button"
                   key={status}
+                  data-status={status}
                   onClick={() => setStatusFilter(status)}
                   className={statusFilter === status ? "console-status-filter-active" : undefined}
                   aria-pressed={statusFilter === status}
                 >
+                  <i className="console-status-filter-dot" aria-hidden="true" />
                   {status.replaceAll("_", " ")}
-                  <span>
+                  <span className="console-status-filter-count">
                     {status === "ALL" ? tickets.length : tickets.filter((ticket) => ticket.status === status).length}
                   </span>
                 </button>

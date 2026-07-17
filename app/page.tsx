@@ -108,6 +108,8 @@ export default function Home() {
         return;
       }
 
+      router.replace("/requests");
+
       const query = supabase
         .from("tickets")
         .select(
