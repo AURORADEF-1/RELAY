@@ -70,6 +70,25 @@ export type TakeuchiPartSuggestion = TakeuchiPartCatalogRecord & {
   matchReason: string;
 };
 
+const PART_SEARCH_CONCEPTS = [
+  ["vent", "duct", "grille", "louvre", "outlet", "airflow"],
+  ["round", "circular", "circle"],
+  ["window", "glass", "glazing", "windscreen", "windshield"],
+  ["lamp", "light", "lighting", "headlamp", "worklight"],
+  ["hose", "pipe", "tube", "line"],
+  ["seal", "gasket", "oring", "o-ring"],
+  ["track", "crawler", "undercarriage"],
+  ["bucket", "attachment", "implement"],
+  ["cab", "cabin", "operator"],
+  ["filter", "element", "strainer"],
+] as const;
+
+const PART_SEARCH_SYNONYMS = new Map<string, readonly string[]>(
+  PART_SEARCH_CONCEPTS.flatMap((concept) =>
+    concept.map((term) => [term, concept] as const),
+  ),
+);
+
 export function normalizeTakeuchiModel(value: string | null | undefined) {
   return value?.trim().replace(/[\s_-]+/g, "").toUpperCase() || "";
 }
@@ -124,7 +143,24 @@ export function buildTakeuchiCatalogKey(input: {
 }
 
 export function normalizeSearchText(value: string | null | undefined) {
-  return value?.trim().toLowerCase().replace(/\s+/g, " ") || "";
+  return value
+    ?.trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, " ")
+    .replace(/\s+/g, " ") || "";
+}
+
+export function expandPartSearchTerms(value: string | null | undefined) {
+  const normalized = normalizeSearchText(value);
+  const terms = new Set(normalized.split(" ").filter(Boolean));
+
+  for (const term of Array.from(terms)) {
+    for (const synonym of PART_SEARCH_SYNONYMS.get(term) ?? []) {
+      terms.add(synonym);
+    }
+  }
+
+  return Array.from(terms);
 }
 
 export function scoreTakeuchiPartSuggestion(
@@ -166,9 +202,11 @@ export function scoreTakeuchiPartSuggestion(
     score += 25;
   }
 
-  for (const token of normalizedQuery.split(" ").filter(Boolean)) {
+  const originalTokens = new Set(normalizedQuery.split(" ").filter(Boolean));
+  for (const token of expandPartSearchTerms(normalizedQuery)) {
     if (haystack.includes(token)) {
-      score += token.length >= 6 ? 14 : 8;
+      const tokenScore = token.length >= 6 ? 14 : 8;
+      score += originalTokens.has(token) ? tokenScore : Math.max(4, tokenScore - 5);
     }
   }
 
