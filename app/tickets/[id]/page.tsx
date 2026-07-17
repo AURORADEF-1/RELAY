@@ -4,17 +4,15 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
-import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
+import { ConsoleIcon, type ConsoleIconName } from "@/components/console/console-icon";
+import { ConsoleShell } from "@/components/console/console-shell";
 import { TicketStatusWorkflowModal } from "@/components/ticket-status-workflow-modal";
 import { TicketAttachmentGallery } from "@/components/ticket-attachment-gallery";
 import {
   type ChatMessage,
   TicketChatPanel,
 } from "@/components/ticket-chat-panel";
-import { LogoutButton } from "@/components/logout-button";
-import { RelayLogo } from "@/components/relay-logo";
-import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { StatusBadge } from "@/components/status-badge";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import {
@@ -235,8 +233,22 @@ type RequesterAccountOption = {
   full_name: string | null;
 };
 
+type WorkspaceTab = "overview" | "parts" | "activity" | "conversation" | "files";
+
+const workspaceTabs: Array<{
+  id: WorkspaceTab;
+  label: string;
+  icon: ConsoleIconName;
+}> = [
+  { id: "overview", label: "Overview", icon: "clipboard" },
+  { id: "parts", label: "Parts & Purchase Orders", icon: "parts" },
+  { id: "activity", label: "Activity", icon: "activity" },
+  { id: "conversation", label: "Conversation", icon: "message" },
+  { id: "files", label: "Files", icon: "file" },
+];
+
 export default function TicketDetailPage() {
-  const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const { isAdmin } = useNotifications();
   const params = useParams<{ id: string }>();
   const ticketId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [ticket, setTicket] = useState<TicketRecord | null>(null);
@@ -269,6 +281,7 @@ export default function TicketDetailPage() {
     message: string;
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>("overview");
   const [editDraft, setEditDraft] = useState<TicketEditDraft | null>(null);
   const [partDraft, setPartDraft] = useState<TicketPartDraft>(buildEmptyTicketPartDraft());
   const [purchaseOrderDraft, setPurchaseOrderDraft] = useState<TicketPurchaseOrderDraft>(
@@ -402,7 +415,7 @@ export default function TicketDetailPage() {
     }
 
     setIsLoading(false);
-  }, [ticketId]);
+  }, [isAdmin, ticketId]);
 
   const openEditMode = useCallback(() => {
     if (!ticket) {
@@ -434,6 +447,21 @@ export default function TicketDetailPage() {
 
     openEditMode();
   }, [currentUserDisplayName, isEditing, openEditMode, ticket]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      return;
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !statusWorkflowDialog) {
+        handleEditToggle();
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [handleEditToggle, isEditing, statusWorkflowDialog]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1648,50 +1676,11 @@ export default function TicketDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
-          <RelayLogo />
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
-            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">
-              Home
-            </Link>
-            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
-              Legal
-            </Link>
-            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">
-              Settings
-            </Link>
-            <RoleAwareRequestsLink className="rounded-full px-4 py-2 hover:bg-white" />
-            <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
-              Tasks
-              <NotificationBadge count={taskUnreadCount} />
-            </Link>
-            {isAdmin ? (
-              <>
-                <Link
-                  href="/incidents"
-                  className="rounded-full px-4 py-2 hover:bg-white"
-                >
-                  Workshop Control
-                </Link>
-                <Link
-                  href="/control"
-                  className="rounded-full px-4 py-2 hover:bg-white"
-                >
-                  Admin Control
-                </Link>
-                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
-                  Parts Control
-                  <NotificationBadge count={adminBadgeCount} />
-                </Link>
-              </>
-            ) : null}
-            <LogoutButton />
-          </div>
-        </nav>
-
-        <AuthGuard>
+    <AuthGuard>
+      <ConsoleShell
+        eyebrow={isAdmin ? "Operations / ticket" : "My requests / ticket"}
+        title={ticket?.job_number ? `Job ${ticket.job_number}` : "Ticket workspace"}
+      >
           {statusWorkflowDialog ? (
             <TicketStatusWorkflowModal
               mode={statusWorkflowDialog.mode}
@@ -1826,60 +1815,84 @@ export default function TicketDetailPage() {
               }}
             />
           ) : null}
-          <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
-            <div className="flex flex-col gap-8 lg:flex-row lg:justify-between">
-              <div className="space-y-5">
-                <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-                  Request Record
-                </div>
-                <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
-                  Ticket Detail
+          {isEditing ? (
+            <button
+              type="button"
+              className="ticket-edit-drawer-scrim"
+              aria-label="Close edit drawer"
+              onClick={handleEditToggle}
+            />
+          ) : null}
+          <section className="ticket-workspace">
+            <div className="ticket-workspace-header">
+              <div>
+                <p className="console-section-label">Request record</p>
+                <h1>
+                  {ticket?.request_summary?.trim() ||
+                    ticket?.request_details?.trim() ||
+                    "Ticket detail"}
                 </h1>
-                <p className="text-base leading-8 text-slate-600">
-                  Review request information, workflow history, and ticket
-                  commentary in one place.
+                <p>
+                  {ticket?.machine_reference?.trim() || "No machine reference"}
+                  {ticket?.requester_name ? ` · Requested by ${ticket.requester_name}` : ""}
                 </p>
               </div>
-              <div className="self-start">
-                <div className="flex flex-wrap gap-3">
+              <div className="ticket-workspace-actions">
                   {isAdmin ? (
                     <button
                       type="button"
                       onClick={handleEditToggle}
-                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                      className="console-primary-compact-action"
                     >
-                      {isEditing ? "Cancel Edit" : "Edit Ticket"}
-                    </button>
-                  ) : null}
-                  {isAdmin && isEditing ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditing(false);
-                        setEditDraft(ticket ? buildTicketEditDraft(ticket) : null);
-                      }}
-                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                    >
-                      Back to Ticket
+                      Edit ticket
                     </button>
                   ) : null}
                   <button
                     type="button"
                     onClick={() => void loadTicket()}
                     disabled={isLoading}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="console-secondary-compact-action"
                   >
+                    <ConsoleIcon name="refresh" className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
                     {isLoading ? "Refreshing..." : "Refresh"}
                   </button>
-                  <RoleAwareRequestsLink
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                    userLabel="Back to Requests"
-                    adminLabel="Back to Smart Search"
-                    showBadge={false}
-                  />
-                </div>
+                  <Link
+                    href={isAdmin ? "/console" : "/requests"}
+                    className="console-secondary-compact-action"
+                  >
+                    Back to queue
+                  </Link>
               </div>
             </div>
+
+            <nav className="ticket-workspace-tabs" aria-label="Ticket workspace sections">
+              {workspaceTabs.map((tab) => {
+                const count =
+                  tab.id === "parts"
+                    ? ticketParts.length + purchaseOrders.length
+                    : tab.id === "activity"
+                      ? updates.length
+                      : tab.id === "conversation"
+                        ? messages.length
+                        : tab.id === "files"
+                          ? attachments.length
+                          : null;
+
+                return (
+                  <button
+                    type="button"
+                    key={tab.id}
+                    onClick={() => setActiveWorkspaceTab(tab.id)}
+                    className={activeWorkspaceTab === tab.id ? "ticket-workspace-tab-active" : undefined}
+                    aria-pressed={activeWorkspaceTab === tab.id}
+                  >
+                    <ConsoleIcon name={tab.icon} className="h-4 w-4" />
+                    <span>{tab.label}</span>
+                    {count !== null ? <strong>{count}</strong> : null}
+                  </button>
+                );
+              })}
+            </nav>
 
             {errorMessage ? (
               <div className="mt-8 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -1893,8 +1906,16 @@ export default function TicketDetailPage() {
               </div>
             ) : ticket ? (
               <div className="mt-8 space-y-6">
-                <div className="grid gap-6 lg:grid-cols-[1fr_0.95fr]">
-                  <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
+                <div className="grid gap-6">
+                  <section
+                    className={
+                      activeWorkspaceTab === "overview" ||
+                      activeWorkspaceTab === "parts" ||
+                      isEditing
+                        ? "ticket-workspace-panel"
+                        : "hidden"
+                    }
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -1938,7 +1959,22 @@ export default function TicketDetailPage() {
                     ) : null}
 
                     {isAdmin && isEditing && editDraft ? (
-                      <div className="mt-6 space-y-5">
+                      <aside className="ticket-edit-drawer" role="dialog" aria-modal="true" aria-label="Edit ticket">
+                        <div className="ticket-edit-drawer-header">
+                          <div>
+                            <p>Edit request</p>
+                            <h2>Job {ticket.job_number?.trim() || "—"}</h2>
+                          </div>
+                          <button
+                            type="button"
+                            className="console-icon-button"
+                            onClick={handleEditToggle}
+                            aria-label="Close edit drawer"
+                          >
+                            <ConsoleIcon name="close" className="h-5 w-5" />
+                          </button>
+                        </div>
+                        <div className="ticket-edit-drawer-body space-y-5">
                         <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4">
                           {requesterAvatarUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -2237,7 +2273,7 @@ export default function TicketDetailPage() {
                           }
                         />
 
-                        <div className="flex justify-end gap-3">
+                        <div className="ticket-edit-drawer-actions">
                           <button
                             type="button"
                             onClick={() => {
@@ -2257,10 +2293,12 @@ export default function TicketDetailPage() {
                             {isSavingEdit ? "Saving..." : "Save Ticket"}
                           </button>
                         </div>
-                      </div>
+                        </div>
+                      </aside>
                     ) : (
                       <>
-                        <dl className="mt-6 grid gap-5 sm:grid-cols-2">
+                        <div className={activeWorkspaceTab === "overview" ? "" : "hidden"}>
+                          <dl className="mt-6 grid gap-5 sm:grid-cols-2">
                           {!ticket.is_retail_sale ? (
                             <>
                               <DetailItem label="Requester" value={ticket.requester_name} />
@@ -2296,7 +2334,7 @@ export default function TicketDetailPage() {
                             label="Updated"
                             value={formatDate(ticket.updated_at)}
                           />
-                        </dl>
+                          </dl>
 
                         {!ticket.is_retail_sale ? (
                           <div className="mt-6">
@@ -2317,6 +2355,8 @@ export default function TicketDetailPage() {
                           />
                           <DetailBlock label="Admin Notes" value={ticket.notes} />
                         </div>
+                        </div>
+                        <div className={activeWorkspaceTab === "parts" ? "" : "hidden"}>
                         <section
                           id="purchase-orders"
                           className="mt-6 rounded-2xl border border-slate-200 bg-white p-5"
@@ -2765,6 +2805,8 @@ export default function TicketDetailPage() {
                             </div>
                           ) : null}
                         </section>
+                        </div>
+                        <div className={activeWorkspaceTab === "overview" ? "" : "hidden"}>
                         {!isAdmin && ticket.status === "READY" && ticket.bin_location?.trim() ? (
                           <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
                             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
@@ -2826,11 +2868,14 @@ export default function TicketDetailPage() {
                             )}
                           </div>
                         ) : null}
+                        </div>
                       </>
                     )}
                   </section>
 
-                  <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
+                  <section
+                    className={activeWorkspaceTab === "activity" ? "ticket-workspace-panel" : "hidden"}
+                  >
                     <div className="space-y-2">
                       <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Status History & Comments
@@ -2869,30 +2914,33 @@ export default function TicketDetailPage() {
                   </section>
                 </div>
 
-                <TicketAttachmentGallery
-                  attachments={attachments.map((attachment) => ({
-                    id: attachment.id,
-                    name: attachment.file_name ?? "Attachment",
-                    url: attachment.signed_url ?? null,
-                    returnHref: `/tickets/${ticket.id}`,
-                    caption:
-                      attachment.attachment_context === "chat"
-                        ? "Image shared in the ticket conversation"
-                        : "Image uploaded with the parts request",
-                  }))}
-                  allowDownload={isAdmin}
-                  canDeleteAttachmentIds={attachments
-                    .filter(
-                      (attachment) =>
-                        attachment.uploaded_by === currentUserId &&
-                        attachment.attachment_context === "ticket",
-                    )
-                    .map((attachment) => attachment.id)}
-                  deletingAttachmentId={deletingAttachmentId}
-                  onDeleteAttachment={(attachmentId) => void handleDeleteAttachment(attachmentId)}
-                />
+                <div className={activeWorkspaceTab === "files" ? "ticket-tab-surface" : "hidden"}>
+                  <TicketAttachmentGallery
+                    attachments={attachments.map((attachment) => ({
+                      id: attachment.id,
+                      name: attachment.file_name ?? "Attachment",
+                      url: attachment.signed_url ?? null,
+                      returnHref: `/tickets/${ticket.id}`,
+                      caption:
+                        attachment.attachment_context === "chat"
+                          ? "Image shared in the ticket conversation"
+                          : "Image uploaded with the parts request",
+                    }))}
+                    allowDownload={isAdmin}
+                    canDeleteAttachmentIds={attachments
+                      .filter(
+                        (attachment) =>
+                          attachment.uploaded_by === currentUserId &&
+                          attachment.attachment_context === "ticket",
+                      )
+                      .map((attachment) => attachment.id)}
+                    deletingAttachmentId={deletingAttachmentId}
+                    onDeleteAttachment={(attachmentId) => void handleDeleteAttachment(attachmentId)}
+                  />
+                </div>
 
-              <TicketChatPanel
+                <div className={activeWorkspaceTab === "conversation" ? "ticket-tab-surface" : "hidden"}>
+                  <TicketChatPanel
                   ticketId={ticket.id}
                   ticketLabel={ticket.is_retail_sale ? ticket.customer_name ?? "Retail order" : ticket.job_number}
                   ticketStatus={ticket.status ?? "PENDING"}
@@ -2918,7 +2966,8 @@ export default function TicketDetailPage() {
                   operatorChatHref={buildOperatorChatHref(ticket)}
                   operatorSmsHref={buildOperatorSmsHref(ticket)}
                   operatorCallHrefs={buildOperatorCallHrefs()}
-                />
+                  />
+                </div>
               </div>
             ) : (
               <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
@@ -2926,9 +2975,8 @@ export default function TicketDetailPage() {
               </div>
             )}
           </section>
-        </AuthGuard>
-      </div>
-    </main>
+      </ConsoleShell>
+    </AuthGuard>
   );
 }
 
