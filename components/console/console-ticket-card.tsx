@@ -2,6 +2,7 @@
 
 import { StatusBadge } from "@/components/status-badge";
 import { ConsoleIcon } from "@/components/console/console-icon";
+import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
 import type { ConsoleTicket } from "@/lib/console-tickets";
 import { formatConsoleCurrency, formatConsoleDate } from "@/lib/console-tickets";
 
@@ -47,7 +48,10 @@ export function ConsoleTicketCard({
         </div>
 
         <dl className="console-ticket-card-grid">
-          <TicketDatum label="Machine" value={ticket.machine_reference} />
+          <div>
+            <dt>Machine</dt>
+            <dd><MachineReferenceIndicator machine={ticket} /></dd>
+          </div>
           <TicketDatum label="Requester" value={ticket.requester_name} />
           <TicketDatum label="Assigned" value={ticket.assigned_to} />
           <TicketDatum label="Expected" value={formatConsoleDate(ticket.expected_delivery_date)} />

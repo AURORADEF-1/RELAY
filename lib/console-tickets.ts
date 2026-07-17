@@ -3,6 +3,11 @@ export type ConsoleTicket = {
   requester_name: string | null;
   department: string | null;
   machine_reference: string | null;
+  machine_number: string | null;
+  machine_make: string | null;
+  machine_model: string | null;
+  machine_serial_number: string | null;
+  machine_verified: boolean | null;
   job_number: string | null;
   request_summary: string | null;
   request_details: string | null;

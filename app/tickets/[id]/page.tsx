@@ -14,6 +14,7 @@ import {
   TicketChatPanel,
 } from "@/components/ticket-chat-panel";
 import { StatusBadge } from "@/components/status-badge";
+import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import {
   buildOnsiteLocationMapUrl,
@@ -1830,8 +1831,12 @@ export default function TicketDetailPage() {
                     ticket?.request_details?.trim() ||
                     "Ticket detail"}
                 </h1>
-                <p>
-                  {ticket?.machine_reference?.trim() || "No machine reference"}
+                <p className="flex flex-wrap items-center gap-x-1">
+                  {ticket ? (
+                    <MachineReferenceIndicator machine={ticket} />
+                  ) : (
+                    "No machine reference"
+                  )}
                   {ticket?.requester_name ? ` · Requested by ${ticket.requester_name}` : ""}
                 </p>
               </div>

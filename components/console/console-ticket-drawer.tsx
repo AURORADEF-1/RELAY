@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import { StatusBadge } from "@/components/status-badge";
+import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
 import type { ConsoleTicket } from "@/lib/console-tickets";
 import {
   formatConsoleCurrency,
@@ -80,7 +81,10 @@ export function ConsoleTicketDrawer({
           </p>
 
           <dl className="console-drawer-data">
-            <DrawerDatum label="Machine reference" value={ticket.machine_reference} />
+            <div>
+              <dt>Machine reference</dt>
+              <dd><MachineReferenceIndicator machine={ticket} /></dd>
+            </div>
             <DrawerDatum label="Requester" value={ticket.requester_name} />
             <DrawerDatum label="Department" value={ticket.department} />
             <DrawerDatum label="Assigned operator" value={ticket.assigned_to} />

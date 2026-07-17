@@ -16,6 +16,7 @@ import { PartsLookupPanel } from "@/components/parts-lookup-panel";
 import { PartsControlTabs } from "@/components/parts-control-tabs";
 import { RelayLogo } from "@/components/relay-logo";
 import { StatusBadge } from "@/components/status-badge";
+import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
 import { OverdueOrderedRemindersModal } from "@/components/overdue-ordered-reminders-modal";
 import { TicketStatusWorkflowModal } from "@/components/ticket-status-workflow-modal";
 import { FleetHealthPanel } from "@/components/fleet-health-panel";
@@ -4748,7 +4749,7 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
             <div>
               <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Machine Ref</dt>
               <dd className="mt-1">
-                <MachineReferenceHoverCard ticket={ticket} />
+                <MachineReferenceIndicator machine={ticket} />
               </dd>
             </div>
           </>
@@ -5306,79 +5307,6 @@ function AdminMachineDetailItem({
       </dt>
       <dd className="mt-1 text-sm leading-6 text-slate-700">{value || "-"}</dd>
     </div>
-  );
-}
-
-function MachineReferenceHoverCard({ ticket }: { ticket: Ticket }) {
-  const verified = Boolean(ticket.machine_verified);
-  const serialNumber = ticket.machine_serial_number?.trim() || "";
-  const reference = ticket.machine_number?.trim() || ticket.machine_reference?.trim() || "-";
-  const hasHoverCard = verified && Boolean(serialNumber);
-
-  const handleCopySerial = useCallback(async () => {
-    if (!serialNumber) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(serialNumber);
-    } catch {
-      window.prompt("Copy the serial number:", serialNumber);
-    }
-  }, [serialNumber]);
-
-  if (!hasHoverCard) {
-    return <span>{reference}</span>;
-  }
-
-  return (
-    <span className="group relative inline-flex max-w-full">
-      <button
-        type="button"
-        className="inline-flex max-w-full items-center gap-2 rounded-md px-0 py-0 text-left font-medium text-slate-700 underline decoration-dotted decoration-slate-300 underline-offset-4 transition hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
-      >
-        <span className="truncate">{reference}</span>
-        <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
-      </button>
-      <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 w-72 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_20px_55px_-30px_rgba(15,23,42,0.55)]">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Machine verified
-          </p>
-          <div className="mt-2 space-y-2 text-sm text-slate-700">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Make
-              </p>
-              <p className="mt-1 font-medium text-slate-900">
-                {ticket.machine_make?.trim() || "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Model
-              </p>
-              <p className="mt-1 font-medium text-slate-900">
-                {ticket.machine_model?.trim() || "-"}
-              </p>
-            </div>
-            <p className="font-semibold text-slate-900">Serial Number</p>
-            <p className="break-all rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-800">
-              {serialNumber}
-            </p>
-          </div>
-          <div className="mt-3 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={handleCopySerial}
-              className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-            >
-              Copy serial
-            </button>
-          </div>
-        </div>
-      </div>
-    </span>
   );
 }
 

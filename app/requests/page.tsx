@@ -6,6 +6,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import { ConsoleShell } from "@/components/console/console-shell";
 import { NotificationBadge } from "@/components/notification-badge";
+import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
 import { useNotifications } from "@/components/notification-provider";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -34,6 +35,11 @@ type Ticket = {
   visible_to_user_id?: string | null;
   requester_name?: string | null;
   machine_reference: string | null;
+  machine_number?: string | null;
+  machine_make?: string | null;
+  machine_model?: string | null;
+  machine_serial_number?: string | null;
+  machine_verified?: boolean | null;
   job_number: string | null;
   request_summary: string | null;
   request_details: string | null;
@@ -439,7 +445,7 @@ export default function RequestsPage() {
                           </Link>
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
-                          Machine {ticket.machine_reference ?? "-"}
+                          <MachineReferenceIndicator machine={ticket} prefix="Machine " />
                         </p>
                       </div>
                       <div className="space-y-2 text-right">
@@ -598,7 +604,7 @@ export default function RequestsPage() {
                                 {ticket.job_number ?? "No job number"}
                               </Link>
                               <p className="text-xs text-slate-500">
-                                Machine {ticket.machine_reference ?? "-"}
+                                <MachineReferenceIndicator machine={ticket} prefix="Machine " />
                               </p>
                             </div>
                           </td>
@@ -745,7 +751,7 @@ export default function RequestsPage() {
                             </Link>
                           </p>
                           <p className="mt-1 text-sm text-slate-500">
-                            Machine {ticket.machine_reference ?? "-"}
+                            <MachineReferenceIndicator machine={ticket} prefix="Machine " />
                           </p>
                         </div>
                         <div className="space-y-2 text-right">
