@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -62,6 +63,7 @@ const mockUpdates: HomepageUpdate[] = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const [updates, setUpdates] = useState<HomepageUpdate[]>(mockUpdates);
   const [updatesMode, setUpdatesMode] = useState<"live" | "mock">("mock");
@@ -98,6 +100,11 @@ export default function Home() {
         setIsLoggedIn(false);
         setCurrentUserId(null);
         setCurrentUserIsAdmin(false);
+        return;
+      }
+
+      if (isAdmin) {
+        router.replace("/console");
         return;
       }
 
@@ -155,7 +162,7 @@ export default function Home() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [router]);
 
   async function handleQuickSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
