@@ -17,9 +17,17 @@ import { StatusBadge } from "@/components/status-badge";
 import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import {
+  fetchAdminOperatorRecords,
+  getDefaultAdminOperatorOptions,
+} from "@/lib/admin-operators";
+import {
   buildOnsiteLocationMapUrl,
   formatOnsiteLocationSummary,
 } from "@/lib/onsite-location";
+import {
+  buildMachineSnapshot,
+  lookupMachineRegistryRecord,
+} from "@/lib/machine-registry";
 import { syncMonthlySupplierSpendSnapshotsForMonth } from "@/lib/monthly-supplier-spend";
 import {
   buildSupplierOrderDispatchPlan,
@@ -172,21 +180,17 @@ type TicketUpdate = {
   id?: string;
   status?: string | null;
   comment?: string | null;
-  notes?: string | null;
   created_at?: string | null;
 };
 
 type TicketEditDraft = {
+  requester_user_id: string;
   requester_name: string;
   department: string;
   machine_reference: string;
   job_number: string;
-  request_summary: string;
-  request_details: string;
   status: string;
   assigned_to: string;
-  visible_to_user_id: string;
-  notes: string;
   expected_delivery_date: string;
   lead_time_note: string;
   purchase_order_number: string;
@@ -262,11 +266,17 @@ export default function TicketDetailPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
   const [requesterAccounts, setRequesterAccounts] = useState<RequesterAccountOption[]>([]);
+  const [adminOperatorNames, setAdminOperatorNames] = useState<string[]>(
+    getDefaultAdminOperatorOptions,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [adminNoteDraft, setAdminNoteDraft] = useState("");
+  const [isAddingAdminNote, setIsAddingAdminNote] = useState(false);
+  const [adminNoteNotice, setAdminNoteNotice] = useState("");
   const [isSavingPart, setIsSavingPart] = useState(false);
   const [isSavingPurchaseOrder, setIsSavingPurchaseOrder] = useState(false);
   const partFormRef = useRef<HTMLDivElement | null>(null);
@@ -319,15 +329,27 @@ export default function TicketDetailPage() {
     setEditConflictDialog(null);
 
     if (isAdmin) {
-      try {
-        const requesterRecords = await fetchRequesterAccounts(supabase);
-        setRequesterAccounts(requesterRecords);
-      } catch (requesterError) {
-        console.error("Failed to load requester accounts", requesterError);
+      const [requesterResult, operatorResult] = await Promise.allSettled([
+        fetchRequesterAccounts(supabase),
+        fetchAdminOperatorRecords(supabase),
+      ]);
+
+      if (requesterResult.status === "fulfilled") {
+        setRequesterAccounts(requesterResult.value);
+      } else {
+        console.error("Failed to load requester accounts", requesterResult.reason);
         setRequesterAccounts([]);
+      }
+
+      if (operatorResult.status === "fulfilled") {
+        setAdminOperatorNames(operatorResult.value.map((operator) => operator.name));
+      } else {
+        console.error("Failed to load admin operators", operatorResult.reason);
+        setAdminOperatorNames(getDefaultAdminOperatorOptions());
       }
     } else {
       setRequesterAccounts([]);
+      setAdminOperatorNames(getDefaultAdminOperatorOptions());
     }
 
     const { data: ticketData, error: ticketError } = await supabase
@@ -425,6 +447,8 @@ export default function TicketDetailPage() {
 
     setIsEditing(true);
     setEditDraft(buildTicketEditDraft(ticket));
+    setAdminNoteDraft("");
+    setAdminNoteNotice("");
   }, [ticket]);
 
   const handleEditToggle = useCallback(() => {
@@ -585,7 +609,7 @@ export default function TicketDetailPage() {
         ticketId: ticket.id,
         status: ticket.status ?? "PENDING",
         assignedTo: ticket.assigned_to,
-        latestUpdate: updates[0]?.comment ?? updates[0]?.notes ?? ticket.notes,
+        latestUpdate: updates[0]?.comment ?? ticket.notes,
         requesterName: ticket.requester_name,
         department: ticket.department,
         machineReference: ticket.machine_reference,
@@ -594,7 +618,7 @@ export default function TicketDetailPage() {
         requestDetails: ticket.request_details,
         history: updates.map((update) => ({
           status: update.status,
-          comment: update.comment ?? update.notes,
+          comment: update.comment,
           createdAt: update.created_at,
         })),
         recentMessages: messages.slice(-6).map((message) => ({
@@ -649,6 +673,50 @@ export default function TicketDetailPage() {
     } finally {
       setIsAiLoading(false);
     }
+  }
+
+  async function handleAddAdminNote() {
+    if (!ticket || !isAdmin) {
+      setErrorMessage("Admin access is required for this action.");
+      return;
+    }
+
+    const comment = adminNoteDraft.trim();
+    if (!comment) {
+      setAdminNoteNotice("Enter an admin note before adding it.");
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setIsAddingAdminNote(true);
+    setAdminNoteNotice("");
+    setErrorMessage("");
+
+    const actorName = currentUserDisplayName || currentUserId || "Administrator";
+    const { data, error } = await supabase
+      .from("ticket_updates")
+      .insert({
+        ticket_id: ticket.id,
+        comment: `Admin note by ${actorName}: ${comment}`,
+      })
+      .select("id, status, comment, created_at")
+      .single();
+
+    if (error) {
+      setErrorMessage(sanitizeUserFacingError(error, "Unable to add the admin note."));
+      setIsAddingAdminNote(false);
+      return;
+    }
+
+    setUpdates((current) => [data as TicketUpdate, ...current]);
+    setAdminNoteDraft("");
+    setAdminNoteNotice("Admin note added to the activity chain.");
+    setIsAddingAdminNote(false);
   }
 
   async function handleSaveTicketEdit(confirmedWorkflow?: {
@@ -724,6 +792,8 @@ export default function TicketDetailPage() {
     const currentIsUrgent = Boolean(ticket.is_urgent);
     const assignmentChanged = editDraft.assigned_to.trim() !== (ticket.assigned_to?.trim() ?? "");
     const urgentFlagChanged = nextIsUrgent !== currentIsUrgent;
+    const machineReferenceChanged =
+      editDraft.machine_reference.trim() !== (ticket.machine_reference?.trim() ?? "");
 
     if (workflowRequirement && !confirmedWorkflow) {
       setStatusWorkflowDialog({
@@ -914,17 +984,52 @@ export default function TicketDetailPage() {
       return;
     }
 
+    let machinePatch: Partial<TicketRecord> = {};
+    if (machineReferenceChanged) {
+      try {
+        const machineRecord = await lookupMachineRegistryRecord(
+          supabase,
+          editDraft.machine_reference,
+        );
+        machinePatch =
+          buildMachineSnapshot(
+            machineRecord,
+            currentUserDisplayName || currentUserId || "Administrator",
+          ) ?? {
+            machine_number: null,
+            machine_number_normalized: null,
+            machine_fleet_type: null,
+            machine_item_description: null,
+            machine_make: null,
+            machine_model: null,
+            machine_serial_number: null,
+            machine_status: null,
+            machine_quantity: null,
+            machine_buying_price: null,
+            machine_selling_price: null,
+            machine_source_sheet: null,
+            machine_source_row: null,
+            machine_verified: false,
+            machine_verified_at: null,
+            machine_verified_by: null,
+          };
+      } catch (machineError) {
+        setErrorMessage(
+          sanitizeUserFacingError(machineError, "Unable to verify the edited machine reference."),
+        );
+        setIsSavingEdit(false);
+        return;
+      }
+    }
+
     const ticketPatch = {
+      user_id: editDraft.requester_user_id.trim() || null,
       requester_name: editDraft.requester_name.trim() || null,
       department: editDraft.department.trim() || null,
       machine_reference: editDraft.machine_reference.trim() || null,
       job_number: editDraft.job_number.trim() || null,
-      request_summary: editDraft.request_summary.trim() || null,
-      request_details: editDraft.request_details.trim() || null,
       status: editDraft.status.trim() || null,
       assigned_to: editDraft.assigned_to.trim() || null,
-      visible_to_user_id: editDraft.visible_to_user_id.trim() || null,
-      notes: editDraft.notes.trim() || null,
       expected_delivery_date: nextExpectedDeliveryDate.trim() || null,
       lead_time_note: nextLeadTimeNote.trim() || null,
       purchase_order_number: nextPurchaseOrderNumber.trim() || null,
@@ -977,6 +1082,7 @@ export default function TicketDetailPage() {
           ? ticket.urgent_reminder_dismissed_by ?? null
           : null,
       updated_at: new Date().toISOString(),
+      ...machinePatch,
       ...(ticket.is_retail_sale
         ? {
             retail_sales_reference: nextRetailSalesReference.trim() || null,
@@ -1091,21 +1197,6 @@ export default function TicketDetailPage() {
       }
     }
 
-    if ((ticket.notes ?? "").trim() !== (ticketPatch.notes ?? "").trim() && ticketPatch.notes) {
-      const { error: noteError } = await supabase.from("ticket_updates").insert({
-        ticket_id: ticket.id,
-        comment: ticketPatch.notes,
-      });
-
-      if (noteError) {
-        setErrorMessage(
-          sanitizeUserFacingError(noteError, "Unable to save the ticket note."),
-        );
-        setIsSavingEdit(false);
-        return;
-      }
-    }
-
     setTicket((current) =>
       current
         ? {
@@ -1169,7 +1260,7 @@ export default function TicketDetailPage() {
         : null;
     if (ticket.status !== ticketPatch.status && !ticket.is_retail_sale) {
       void notifyRequesterStatusChanged(supabase, {
-        userId: ticket.user_id,
+        userId: ticketPatch.user_id,
         ticketId: ticket.id,
         jobNumber: ticket.job_number,
         nextStatus: ticketPatch.status ?? "PENDING",
@@ -1997,15 +2088,47 @@ export default function TicketDetailPage() {
                           </div>
                         </div>
                         <div className="grid gap-5 sm:grid-cols-2">
-                          <EditField
-                            label="Requester"
-                            value={editDraft.requester_name}
-                            onChange={(value) =>
-                              setEditDraft((current) =>
-                                current ? { ...current, requester_name: value } : current,
-                              )
-                            }
-                          />
+                          <label className="space-y-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                              Requester
+                            </span>
+                            <select
+                              value={editDraft.requester_user_id}
+                              onChange={(event) => {
+                                const requester = requesterAccounts.find(
+                                  (account) => account.user_id === event.target.value,
+                                );
+                                setEditDraft((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        requester_user_id: event.target.value,
+                                        requester_name:
+                                          requester?.full_name ?? requester?.user_id ?? current.requester_name,
+                                      }
+                                    : current,
+                                );
+                              }}
+                              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                            >
+                              {!editDraft.requester_user_id ? (
+                                <option value="">Select requester</option>
+                              ) : null}
+                              {editDraft.requester_user_id &&
+                              !requesterAccounts.some(
+                                (account) => account.user_id === editDraft.requester_user_id,
+                              ) ? (
+                                <option value={editDraft.requester_user_id}>
+                                  {editDraft.requester_name || "Current requester"}
+                                </option>
+                              ) : null}
+                              {requesterAccounts.map((account) => (
+                                <option key={account.user_id} value={account.user_id}>
+                                  {account.full_name ?? account.user_id}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
                           <EditSelect
                             label="Department"
                             value={editDraft.department}
@@ -2034,34 +2157,29 @@ export default function TicketDetailPage() {
                               )
                             }
                           />
-                          <EditField
-                            label="Assigned User"
-                            value={editDraft.assigned_to}
-                            onChange={(value) =>
-                              setEditDraft((current) =>
-                                current ? { ...current, assigned_to: value } : current,
-                              )
-                            }
-                          />
-                          <label className="space-y-2 sm:col-span-2">
+                          <label className="space-y-2">
                             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Requester visibility
+                              Assigned User
                             </span>
                             <select
-                              value={editDraft.visible_to_user_id}
+                              value={editDraft.assigned_to}
                               onChange={(event) =>
                                 setEditDraft((current) =>
                                   current
-                                    ? { ...current, visible_to_user_id: event.target.value }
+                                    ? { ...current, assigned_to: event.target.value }
                                     : current,
                                 )
                               }
                               className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                             >
-                              <option value="">Original requester only</option>
-                              {requesterAccounts.map((account) => (
-                                <option key={account.user_id} value={account.user_id}>
-                                  {account.full_name ?? account.user_id}
+                              <option value="">Unassigned</option>
+                              {editDraft.assigned_to &&
+                              !adminOperatorNames.includes(editDraft.assigned_to) ? (
+                                <option value={editDraft.assigned_to}>{editDraft.assigned_to}</option>
+                              ) : null}
+                              {adminOperatorNames.map((operator) => (
+                                <option key={operator} value={operator}>
+                                  {operator}
                                 </option>
                               ))}
                             </select>
@@ -2239,42 +2357,34 @@ export default function TicketDetailPage() {
                           ) : null}
                         </div>
 
-                        <EditArea
-                          label="Request Summary"
-                          value={editDraft.request_summary}
-                          onChange={(value) =>
-                            setEditDraft((current) =>
-                              current ? { ...current, request_summary: value } : current,
-                            )
-                          }
-                        />
-                        <EditArea
-                          label="Request Details"
-                          value={editDraft.request_details}
-                          onChange={(value) =>
-                            setEditDraft((current) =>
-                              current ? { ...current, request_details: value } : current,
-                            )
-                          }
-                        />
-                        <EditArea
-                          label="Admin Notes"
-                          value={editDraft.notes}
-                          onChange={(value) =>
-                            setEditDraft((current) =>
-                              current ? { ...current, notes: value } : current,
-                            )
-                          }
-                        />
-                        <EditArea
-                          label="Lead Time Note"
-                          value={editDraft.lead_time_note}
-                          onChange={(value) =>
-                            setEditDraft((current) =>
-                              current ? { ...current, lead_time_note: value } : current,
-                            )
-                          }
-                        />
+                        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <EditArea
+                            label="Add Admin Note"
+                            value={adminNoteDraft}
+                            onChange={(value) => {
+                              setAdminNoteDraft(value);
+                              setAdminNoteNotice("");
+                            }}
+                          />
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-xs leading-5 text-slate-500">
+                              Each note is added as a separate entry in the activity chain.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void handleAddAdminNote()}
+                              disabled={isAddingAdminNote || !adminNoteDraft.trim()}
+                              className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {isAddingAdminNote ? "Adding..." : "Add Note"}
+                            </button>
+                          </div>
+                          {adminNoteNotice ? (
+                            <p className="mt-3 text-xs font-semibold text-emerald-700">
+                              {adminNoteNotice}
+                            </p>
+                          ) : null}
+                        </section>
 
                         <div className="ticket-edit-drawer-actions">
                           <button
@@ -2282,6 +2392,8 @@ export default function TicketDetailPage() {
                             onClick={() => {
                               setIsEditing(false);
                               setEditDraft(buildTicketEditDraft(ticket));
+                              setAdminNoteDraft("");
+                              setAdminNoteNotice("");
                             }}
                             className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                           >
@@ -2356,7 +2468,6 @@ export default function TicketDetailPage() {
                             label="Request Details"
                             value={ticket.request_details ?? ticket.request_summary}
                           />
-                          <DetailBlock label="Admin Notes" value={ticket.notes} />
                         </div>
                         </div>
                         <div className={activeWorkspaceTab === "parts" ? "" : "hidden"}>
@@ -2908,7 +3019,7 @@ export default function TicketDetailPage() {
                               </p>
                             </div>
                             <p className="mt-4 text-sm leading-7 text-slate-600">
-                              {update.comment ?? update.notes ?? "Status updated."}
+                              {update.comment ?? "Status updated."}
                             </p>
                           </article>
                         ))
@@ -2949,7 +3060,6 @@ export default function TicketDetailPage() {
                   ticketStatus={ticket.status ?? "PENDING"}
                   latestUpdate={
                     updates[0]?.comment ??
-                    updates[0]?.notes ??
                     "No recent chat summary available."
                   }
                   assignedTo={ticket.assigned_to}
@@ -3091,16 +3201,13 @@ function buildOperatorSmsHref(ticket: TicketRecord) {
 
 function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
   return {
+    requester_user_id: ticket.user_id ?? "",
     requester_name: ticket.requester_name ?? "",
     department: ticket.department ?? "",
     machine_reference: ticket.machine_reference ?? "",
     job_number: ticket.job_number ?? "",
-    request_summary: ticket.request_summary ?? "",
-    request_details: ticket.request_details ?? "",
     status: ticket.status ?? "PENDING",
     assigned_to: ticket.assigned_to ?? "",
-    visible_to_user_id: ticket.visible_to_user_id ?? "",
-    notes: ticket.notes ?? "",
     expected_delivery_date: toDateInputValue(ticket.expected_delivery_date),
     lead_time_note: ticket.lead_time_note ?? "",
     purchase_order_number: ticket.purchase_order_number ?? "",
