@@ -23,7 +23,6 @@ export type ConsoleTicket = {
 export type ConsoleTicketUpdate = {
   ticket_id: string;
   comment: string | null;
-  notes: string | null;
   created_at: string | null;
 };
 
@@ -38,7 +37,7 @@ export function mergeLatestTicketNotes(
       continue;
     }
 
-    const note = update.comment?.trim() || update.notes?.trim();
+    const note = update.comment?.trim();
     if (note) {
       latestNoteByTicketId.set(update.ticket_id, note);
     }

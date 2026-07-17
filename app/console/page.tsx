@@ -92,7 +92,7 @@ export default function ConsolePage() {
       if (ticketIds.length > 0) {
         const { data: updateData, error: updateError } = await supabase
           .from("ticket_updates")
-          .select("ticket_id, comment, notes, created_at")
+          .select("ticket_id, comment, created_at")
           .in("ticket_id", ticketIds)
           .order("created_at", { ascending: false });
 
