@@ -2821,6 +2821,7 @@ export default function AdminPage() {
     try {
       const ticketContext: RelayAiContext = {
         ticketId: selectedChatTicket.id,
+        audience: "admin",
         status: selectedChatTicket.status ?? "PENDING",
         assignedTo: selectedChatTicket.assigned_to,
         latestUpdate:
@@ -2837,6 +2838,10 @@ export default function AdminPage() {
         binLocation: selectedChatTicket.bin_location,
         orderedAt: selectedChatTicket.ordered_at,
         readyAt: selectedChatTicket.ready_at,
+        isRetailSale: selectedChatTicket.is_retail_sale,
+        customerName: selectedChatTicket.customer_name,
+        retailSalesReference: selectedChatTicket.retail_sales_reference,
+        orderAmount: selectedChatTicket.order_amount,
         history: [],
         recentMessages: chatMessages.slice(-6).map((message) => ({
           senderRole: message.sender_role,

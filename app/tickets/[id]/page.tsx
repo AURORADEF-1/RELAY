@@ -605,6 +605,7 @@ export default function TicketDetailPage() {
     try {
       const ticketContext: RelayAiContext = {
         ticketId: ticket.id,
+        audience: isAdmin ? "admin" : "requester",
         status: ticket.status ?? "PENDING",
         assignedTo: ticket.assigned_to,
         latestUpdate: updates[0]?.comment ?? ticket.notes,
@@ -620,6 +621,10 @@ export default function TicketDetailPage() {
         binLocation: ticket.bin_location,
         orderedAt: ticket.ordered_at,
         readyAt: ticket.ready_at,
+        isRetailSale: ticket.is_retail_sale,
+        customerName: ticket.customer_name,
+        retailSalesReference: ticket.retail_sales_reference,
+        orderAmount: ticket.order_amount,
         history: updates.map((update) => ({
           status: update.status,
           comment: update.comment,

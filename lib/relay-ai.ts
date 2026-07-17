@@ -1,5 +1,6 @@
 export type RelayAiContext = {
   ticketId: string;
+  audience?: "admin" | "requester";
   status: string;
   assignedTo?: string | null;
   latestUpdate?: string | null;
@@ -15,6 +16,10 @@ export type RelayAiContext = {
   binLocation?: string | null;
   orderedAt?: string | null;
   readyAt?: string | null;
+  isRetailSale?: boolean | null;
+  customerName?: string | null;
+  retailSalesReference?: string | null;
+  orderAmount?: number | null;
   history: Array<{
     status?: string | null;
     comment?: string | null;
@@ -49,6 +54,7 @@ export function buildRelayAiInput(
     JSON.stringify(
       {
         ticketId: context.ticketId,
+        audience: context.audience ?? "requester",
         status: context.status,
         assignedTo: context.assignedTo ?? null,
         latestUpdate: context.latestUpdate ?? null,
@@ -64,6 +70,10 @@ export function buildRelayAiInput(
         binLocation: context.binLocation ?? null,
         orderedAt: context.orderedAt ?? null,
         readyAt: context.readyAt ?? null,
+        isRetailSale: context.isRetailSale ?? false,
+        customerName: context.customerName ?? null,
+        retailSalesReference: context.retailSalesReference ?? null,
+        orderAmount: context.orderAmount ?? null,
         history: context.history,
         recentMessages: context.recentMessages,
       },
