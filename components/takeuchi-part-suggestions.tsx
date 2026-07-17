@@ -9,17 +9,10 @@ import {
   normalizeTakeuchiModel,
   parseTakeuchiSerialNumber,
   type TakeuchiPartCatalogRecord,
-  type TakeuchiPartSuggestion,
 } from "@/lib/takeuchi-parts-catalog";
 import { getSupabaseClient } from "@/lib/supabase";
-import {
-  buildSemanticPartCandidates,
-  mergeSemanticPartMatches,
-  parseSemanticPartMatches,
-} from "@/lib/takeuchi-semantic-matching";
 
 type TakeuchiTicketContext = {
-  id: string;
   machine_make?: string | null;
   machine_model?: string | null;
   machine_serial_number?: string | null;
@@ -40,10 +33,7 @@ export function TakeuchiPartSuggestions({
   const [catalog, setCatalog] = useState<TakeuchiPartCatalogRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isSmartMatching, setIsSmartMatching] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [smartMatchMessage, setSmartMatchMessage] = useState("");
-  const [semanticSuggestions, setSemanticSuggestions] = useState<TakeuchiPartSuggestion[] | null>(null);
 
   const machineModel = ticket.machine_model?.trim() ?? "";
   const machineMake = ticket.machine_make?.trim() ?? "";
@@ -138,62 +128,6 @@ export function TakeuchiPartSuggestions({
     return buildTakeuchiPartSuggestions(catalog, query, { limit: 12 });
   }, [catalog, requestContext, searchTerm]);
 
-  const displayedSuggestions = semanticSuggestions ?? visibleSuggestions;
-  const activeQuery = searchTerm.trim() || requestContext.trim();
-
-  async function runSmartMatch() {
-    const supabase = getSupabaseClient();
-    if (!supabase || !activeQuery) {
-      setSmartMatchMessage("Enter a description or add request details before smart matching.");
-      return;
-    }
-
-    setIsSmartMatching(true);
-    setSmartMatchMessage("");
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error("Sign in again to use smart matching.");
-      }
-
-      const candidates = buildSemanticPartCandidates(visibleSuggestions, catalog).map((part) => ({
-        id: part.id,
-        partNumber: part.suggested_part_number || part.part_number,
-        description: part.part_description,
-        mainGroup: part.bom_main_group,
-        subGroup: part.bom_sub_group,
-        bomItem: part.bom_item,
-      }));
-      const response = await fetch(`/api/tickets/${ticket.id}/part-suggestions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ query: activeQuery, candidates }),
-      });
-      const payload = (await response.json()) as { matches?: unknown; error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error || "Smart matching is temporarily unavailable.");
-      }
-
-      const matches = parseSemanticPartMatches({ matches: payload.matches });
-      const ranked = mergeSemanticPartMatches(catalog, matches);
-      setSemanticSuggestions(ranked);
-      setSmartMatchMessage(
-        ranked.length > 0
-          ? `Smart match found ${ranked.length} meaning-based candidate${ranked.length === 1 ? "" : "s"}.`
-          : "No confident meaning-based matches were found.",
-      );
-    } catch (error) {
-      setSemanticSuggestions(null);
-      setSmartMatchMessage(error instanceof Error ? error.message : "Smart matching is temporarily unavailable.");
-    } finally {
-      setIsSmartMatching(false);
-    }
-  }
-
   if (!isAdmin) {
     return null;
   }
@@ -237,7 +171,7 @@ export function TakeuchiPartSuggestions({
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
             Matches
           </p>
-          <p className="mt-1 text-2xl font-semibold text-slate-950">{displayedSuggestions.length}</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-950">{visibleSuggestions.length}</p>
         </div>
       </div>
 
@@ -246,33 +180,18 @@ export function TakeuchiPartSuggestions({
           Search description, BOM item, main group, or part number
           <input
             value={searchTerm}
-            onChange={(event) => {
-              setSearchTerm(event.target.value);
-              setSemanticSuggestions(null);
-              setSmartMatchMessage("");
-            }}
+            onChange={(event) => setSearchTerm(event.target.value)}
             placeholder="track idler, undercarriage, hydraulic..."
             className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400"
           />
         </label>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Lookup mode</p>
-          <button
-            type="button"
-            onClick={() => void runSmartMatch()}
-            disabled={isSmartMatching || !activeQuery || catalog.length === 0}
-            className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-amber-500 px-4 text-xs font-bold uppercase tracking-[0.14em] text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSmartMatching ? "Understanding request..." : "Smart match meaning"}
-          </button>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Zero-cost smart lookup</p>
+          <p className="mt-1 leading-6">
+            Matches workshop terms and catalogue synonyms locally. No paid AI request is made.
+          </p>
         </div>
       </div>
-
-      {smartMatchMessage ? (
-        <p className="mt-3 text-sm font-medium text-amber-900" aria-live="polite">
-          {smartMatchMessage}
-        </p>
-      ) : null}
 
       {errorMessage ? (
         <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -285,12 +204,12 @@ export function TakeuchiPartSuggestions({
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
             Loading Takeuchi suggestions...
           </div>
-        ) : displayedSuggestions.length === 0 ? (
+        ) : visibleSuggestions.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
             No Takeuchi catalogue rows match this machine yet.
           </div>
         ) : (
-          displayedSuggestions.map((part) => (
+          visibleSuggestions.map((part) => (
             <article
               key={part.id}
               className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"

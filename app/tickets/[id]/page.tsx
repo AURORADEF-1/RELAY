@@ -2750,7 +2750,6 @@ export default function TicketDetailPage() {
 
                           <TakeuchiPartSuggestions
                             ticket={{
-                              id: ticket.id,
                               machine_make: ticket.machine_make,
                               machine_model: ticket.machine_model,
                               machine_serial_number: ticket.machine_serial_number,
