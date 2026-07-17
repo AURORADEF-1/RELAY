@@ -2021,15 +2021,6 @@ export default function AdminPage() {
       updatePayload.overdue_reminder_dismissed_by = null;
     }
 
-    const {
-      is_urgent: _ignoredUrgentFlag,
-      urgent_flagged_at: _ignoredUrgentFlaggedAt,
-      urgent_flagged_by: _ignoredUrgentFlaggedBy,
-      urgent_reminder_dismissed_at: _ignoredUrgentDismissedAt,
-      urgent_reminder_dismissed_by: _ignoredUrgentDismissedBy,
-      ...updatePayloadWithoutUrgency
-    } = updatePayload;
-
     let updateQuery = supabase
       .from("tickets")
       .update(updatePayload)
@@ -2360,15 +2351,7 @@ export default function AdminPage() {
         ? currentTicket.urgent_flagged_at
         : nextUpdatedAt
       : null;
-    const {
-      is_urgent: _ignoredUrgentFlag,
-      urgent_flagged_at: _ignoredUrgentFlaggedAt,
-      urgent_flagged_by: _ignoredUrgentFlaggedBy,
-      urgent_reminder_dismissed_at: _ignoredUrgentDismissedAt,
-      urgent_reminder_dismissed_by: _ignoredUrgentDismissedBy,
-      visible_to_user_id: _ignoredVisibleToUserId,
-      ...updatePayloadWithoutUrgency
-    } = {
+    const updatePayload = {
       assigned_to: nextAssignedTo || null,
       notes: nextNotes || null,
       visible_to_user_id: nextVisibleToUserId,
@@ -2390,27 +2373,14 @@ export default function AdminPage() {
           : null,
       updated_at: nextUpdatedAt,
     };
+    const updatePayloadWithoutUrgency = {
+      assigned_to: updatePayload.assigned_to,
+      notes: updatePayload.notes,
+      updated_at: updatePayload.updated_at,
+    };
     let updateQuery = supabase
       .from("tickets")
-      .update({
-        assigned_to: nextAssignedTo || null,
-        notes: nextNotes || null,
-        visible_to_user_id: nextVisibleToUserId,
-        is_urgent: nextIsUrgent,
-        urgent_flagged_at: nextUrgentTimestamp,
-        urgent_flagged_by: nextIsUrgent
-          ? currentIsUrgent && currentTicket.urgent_flagged_by
-            ? currentTicket.urgent_flagged_by
-            : currentUserDisplayName || currentUserId || "Administrator"
-          : null,
-        urgent_reminder_dismissed_at: nextIsUrgent && !assignmentChanged && !urgentChanged
-          ? currentTicket.urgent_reminder_dismissed_at ?? null
-          : null,
-        urgent_reminder_dismissed_by: nextIsUrgent && !assignmentChanged && !urgentChanged
-          ? currentTicket.urgent_reminder_dismissed_by ?? null
-          : null,
-        updated_at: nextUpdatedAt,
-      })
+      .update(updatePayload)
       .eq("id", ticketId);
 
     if (currentTicket.updated_at) {
@@ -2504,6 +2474,8 @@ export default function AdminPage() {
   }, [
     activeTicketOperationIds,
     beginTicketOperation,
+    currentUserDisplayName,
+    currentUserId,
     drafts,
     finishTicketOperation,
     loadTickets,

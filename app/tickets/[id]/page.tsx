@@ -989,14 +989,12 @@ export default function TicketDetailPage() {
         : {}),
     };
 
-    const {
-      is_urgent: _ignoredUrgentFlag,
-      urgent_flagged_at: _ignoredUrgentFlaggedAt,
-      urgent_flagged_by: _ignoredUrgentFlaggedBy,
-      urgent_reminder_dismissed_at: _ignoredUrgentDismissedAt,
-      urgent_reminder_dismissed_by: _ignoredUrgentDismissedBy,
-      ...ticketPatchWithoutUrgency
-    } = ticketPatch;
+    const ticketPatchWithoutUrgency: Record<string, unknown> = { ...ticketPatch };
+    delete ticketPatchWithoutUrgency.is_urgent;
+    delete ticketPatchWithoutUrgency.urgent_flagged_at;
+    delete ticketPatchWithoutUrgency.urgent_flagged_by;
+    delete ticketPatchWithoutUrgency.urgent_reminder_dismissed_at;
+    delete ticketPatchWithoutUrgency.urgent_reminder_dismissed_by;
 
     let { error: updateError } = await supabase
       .from("tickets")
