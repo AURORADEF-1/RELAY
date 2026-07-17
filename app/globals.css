@@ -1066,6 +1066,43 @@ select:focus-visible {
   overflow-x: auto;
 }
 
+.console-queue-controls {
+  display: grid;
+  min-width: 0;
+  justify-items: end;
+  gap: 0.65rem;
+}
+
+.console-view-switch {
+  display: inline-flex;
+  gap: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--background-muted);
+  padding: 0.2rem;
+}
+
+.console-view-switch button {
+  min-height: 1.9rem;
+  border-radius: 999px;
+  padding: 0.38rem 0.72rem;
+  color: var(--foreground-subtle);
+  font-size: 0.65rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.console-view-switch button:hover {
+  color: var(--foreground-strong);
+}
+
+.console-view-switch .console-view-switch-active {
+  background: var(--background-panel-strong);
+  color: var(--foreground-strong);
+  box-shadow: 0 6px 18px -12px rgba(15, 23, 42, 0.7);
+}
+
 .console-status-filters button {
   display: inline-flex;
   min-height: 2rem;
@@ -1298,6 +1335,264 @@ select:focus-visible {
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+}
+
+.console-dynamic-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.75rem, 1.2vw, 1.15rem);
+  padding: clamp(0.8rem, 1.4vw, 1.25rem);
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 32%),
+    radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--foreground-subtle) 7%, transparent), transparent 28%),
+    var(--background-muted);
+}
+
+.console-dynamic-card {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--status-border, var(--border));
+  border-top: 4px solid var(--status-color, var(--foreground-subtle));
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--status-background) 58%, transparent), transparent 42%),
+    color-mix(in srgb, var(--background-panel-strong) 84%, transparent);
+  box-shadow:
+    0 24px 54px -38px color-mix(in srgb, var(--status-color) 44%, rgba(15, 23, 42, 0.34)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52);
+  overflow: hidden;
+  isolation: isolate;
+  backdrop-filter: blur(22px) saturate(128%);
+  animation: console-dynamic-card-enter 380ms both cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.console-dynamic-card:nth-child(2n) {
+  animation-delay: 45ms;
+}
+
+.console-dynamic-card:nth-child(3n) {
+  animation-delay: 90ms;
+}
+
+.console-dynamic-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -5rem;
+  right: -4rem;
+  width: 11rem;
+  height: 11rem;
+  border-radius: 999px;
+  background: var(--status-background, var(--background-muted));
+  filter: blur(2px);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.console-dynamic-card:hover,
+.console-dynamic-card-selected {
+  transform: translateY(-3px);
+  border-color: var(--status-color, var(--border-strong));
+  box-shadow:
+    0 30px 70px -38px color-mix(in srgb, var(--status-color) 58%, rgba(15, 23, 42, 0.45)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.console-dynamic-card-selected {
+  outline: 2px solid var(--status-color, var(--accent));
+  outline-offset: 2px;
+}
+
+.console-dynamic-card-button {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  cursor: pointer;
+}
+
+.console-dynamic-card-button:focus-visible {
+  border-radius: 1.1rem;
+  box-shadow: inset 0 0 0 3px var(--status-color, var(--accent));
+}
+
+.console-dynamic-card-content {
+  padding: clamp(1rem, 1.6vw, 1.35rem);
+  pointer-events: none;
+}
+
+.console-dynamic-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.console-dynamic-card-kicker {
+  color: var(--status-color, var(--foreground-subtle));
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.console-dynamic-card-header h3 {
+  margin-top: 0.35rem;
+  color: var(--foreground-strong);
+  font-family: var(--font-mono);
+  font-size: clamp(1.55rem, 2.2vw, 2.35rem);
+  line-height: 1;
+  font-weight: 760;
+  letter-spacing: -0.065em;
+}
+
+.console-dynamic-card-header h3 span {
+  color: var(--foreground-subtle);
+  font-size: 0.58em;
+  letter-spacing: 0.04em;
+}
+
+.console-dynamic-card-state {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 0.4rem;
+}
+
+.console-dynamic-card-state strong {
+  border-radius: 999px;
+  background: var(--danger);
+  padding: 0.28rem 0.55rem;
+  color: white;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.console-dynamic-card-summary {
+  min-height: 3.15rem;
+  margin-top: 1rem;
+  color: var(--foreground-strong);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  font-weight: 640;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.console-dynamic-machine {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+  border: 1px solid var(--status-border, var(--border));
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--background-panel-strong) 70%, transparent);
+  padding: 0.65rem 0.75rem;
+  color: var(--foreground);
+  font-size: 0.78rem;
+  font-weight: 680;
+}
+
+.console-dynamic-machine > span:first-child {
+  color: var(--foreground-subtle);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.console-dynamic-data {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--background-panel-strong) 62%, transparent);
+  overflow: hidden;
+}
+
+.console-dynamic-data > div {
+  min-width: 0;
+  padding: 0.7rem 0.75rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.console-dynamic-data > div:nth-child(2n) {
+  border-right: 0;
+}
+
+.console-dynamic-data > div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.console-dynamic-data dt,
+.console-dynamic-card-footer span {
+  color: var(--foreground-subtle);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.console-dynamic-data dd {
+  margin-top: 0.32rem;
+  color: var(--foreground);
+  font-size: 0.76rem;
+  font-weight: 620;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.console-dynamic-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+  color: var(--status-color, var(--foreground-subtle));
+}
+
+.console-dynamic-card-footer > div {
+  min-width: 0;
+}
+
+.console-dynamic-card-footer p {
+  margin-top: 0.3rem;
+  color: var(--foreground-muted);
+  font-size: 0.73rem;
+  line-height: 1.45;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.console-dynamic-grid .console-ticket-skeleton {
+  height: 31rem;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+}
+
+@keyframes console-dynamic-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .console-error-state,
@@ -1591,6 +1886,15 @@ select:focus-visible {
   .console-status-filters {
     width: 100%;
   }
+
+  .console-queue-controls {
+    width: 100%;
+    justify-items: start;
+  }
+
+  .console-dynamic-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -1611,6 +1915,19 @@ select:focus-visible {
 
   .console-content {
     padding: 0.75rem;
+  }
+
+  .console-dynamic-grid {
+    grid-template-columns: 1fr;
+    padding: 0.7rem;
+  }
+
+  .console-view-switch {
+    width: 100%;
+  }
+
+  .console-view-switch button {
+    flex: 1;
   }
 
   .console-overview-strip {
@@ -1664,6 +1981,13 @@ select:focus-visible {
 
   .console-ticket-card-note p {
     margin-top: 0.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-dynamic-card {
+    animation: none;
+    transition: none;
   }
 }
 

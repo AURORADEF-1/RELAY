@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { ConsoleIcon } from "@/components/console/console-icon";
+import { ConsoleDynamicTicketCard } from "@/components/console/console-dynamic-ticket-card";
 import { ConsoleShell } from "@/components/console/console-shell";
 import { ConsoleTicketCard } from "@/components/console/console-ticket-card";
 import { ConsoleTicketDrawer } from "@/components/console/console-ticket-drawer";
@@ -42,13 +43,25 @@ const CONSOLE_TICKET_FIELDS = [
   "updated_at",
 ].join(", ");
 
+const CONSOLE_VIEW_STORAGE_KEY = "relay-operations-console-view-v1";
+
 type StatusFilter = "ALL" | (typeof activeTicketStatuses)[number];
+type ConsoleView = "list" | "dynamic";
 
 export default function ConsolePage() {
   const [tickets, setTickets] = useState<ConsoleTicket[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [view, setView] = useState<ConsoleView>(() => {
+    if (typeof window === "undefined") {
+      return "list";
+    }
+
+    return window.localStorage.getItem(CONSOLE_VIEW_STORAGE_KEY) === "dynamic"
+      ? "dynamic"
+      : "list";
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -226,30 +239,48 @@ export default function ConsolePage() {
                   : "Connecting to Supabase"}
               </p>
             </div>
-            <div className="console-status-filters" role="group" aria-label="Filter by status">
-              {(["ALL", ...activeTicketStatuses] as StatusFilter[]).map((status) => (
-                <button
-                  type="button"
-                  key={status}
-                  data-status={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={statusFilter === status ? "console-status-filter-active" : undefined}
-                  aria-pressed={statusFilter === status}
-                >
-                  <i className="console-status-filter-dot" aria-hidden="true" />
-                  {status.replaceAll("_", " ")}
-                  <span className="console-status-filter-count">
-                    {status === "ALL" ? tickets.length : tickets.filter((ticket) => ticket.status === status).length}
-                  </span>
-                </button>
-              ))}
+            <div className="console-queue-controls">
+              <div className="console-view-switch" role="group" aria-label="Ticket view">
+                {(["list", "dynamic"] as ConsoleView[]).map((option) => (
+                  <button
+                    type="button"
+                    key={option}
+                    className={view === option ? "console-view-switch-active" : undefined}
+                    onClick={() => {
+                      setView(option);
+                      window.localStorage.setItem(CONSOLE_VIEW_STORAGE_KEY, option);
+                    }}
+                    aria-pressed={view === option}
+                  >
+                    {option === "list" ? "List view" : "Dynamic view"}
+                  </button>
+                ))}
+              </div>
+              <div className="console-status-filters" role="group" aria-label="Filter by status">
+                {(["ALL", ...activeTicketStatuses] as StatusFilter[]).map((status) => (
+                  <button
+                    type="button"
+                    key={status}
+                    data-status={status}
+                    onClick={() => setStatusFilter(status)}
+                    className={statusFilter === status ? "console-status-filter-active" : undefined}
+                    aria-pressed={statusFilter === status}
+                  >
+                    <i className="console-status-filter-dot" aria-hidden="true" />
+                    {status.replaceAll("_", " ")}
+                    <span className="console-status-filter-count">
+                      {status === "ALL" ? tickets.length : tickets.filter((ticket) => ticket.status === status).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           {errorMessage ? <div className="console-error-state">{errorMessage}</div> : null}
 
           {isLoading ? (
-            <div className="console-ticket-list" aria-label="Loading tickets">
+            <div className={view === "dynamic" ? "console-dynamic-grid" : "console-ticket-list"} aria-label="Loading tickets">
               {Array.from({ length: 5 }).map((_, index) => (
                 <div key={index} className="console-ticket-skeleton" />
               ))}
@@ -263,15 +294,24 @@ export default function ConsolePage() {
               </div>
             </div>
           ) : (
-            <div className="console-ticket-list">
-              {filteredTickets.map((ticket) => (
-                <ConsoleTicketCard
-                  key={ticket.id}
-                  ticket={ticket}
-                  selected={selectedTicketId === ticket.id}
-                  onSelect={() => setSelectedTicketId(ticket.id)}
-                />
-              ))}
+            <div className={view === "dynamic" ? "console-dynamic-grid" : "console-ticket-list"}>
+              {filteredTickets.map((ticket) =>
+                view === "dynamic" ? (
+                  <ConsoleDynamicTicketCard
+                    key={ticket.id}
+                    ticket={ticket}
+                    selected={selectedTicketId === ticket.id}
+                    onSelect={() => setSelectedTicketId(ticket.id)}
+                  />
+                ) : (
+                  <ConsoleTicketCard
+                    key={ticket.id}
+                    ticket={ticket}
+                    selected={selectedTicketId === ticket.id}
+                    onSelect={() => setSelectedTicketId(ticket.id)}
+                  />
+                ),
+              )}
             </div>
           )}
         </section>
