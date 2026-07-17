@@ -78,6 +78,7 @@ import {
   type TicketPurchaseOrderRecord,
   type TicketPurchaseOrderStatus,
 } from "@/lib/ticket-purchase-orders";
+import { answerTicketQuestionInBrowser } from "@/lib/browser-ticket-assistant";
 import type { RelayAiContext } from "@/lib/relay-ai";
 import {
   buildRequesterReturnComment,
@@ -109,7 +110,7 @@ import { fetchRequesterAccounts } from "@/lib/requester-accounts";
 import type { SupplierOrderDispatchPreference } from "@/lib/order-communications";
 import { ticketStatuses } from "@/lib/statuses";
 import { sanitizeUserFacingError } from "@/lib/security";
-import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 
 const OPERATOR_NUMBERS = [
   { label: "Call Operator 1", number: "07955273861" },
@@ -602,12 +603,6 @@ export default function TicketDetailPage() {
     setErrorMessage("");
 
     try {
-      const accessToken = await getSupabaseAccessToken();
-
-      if (!accessToken) {
-        throw new Error("Authentication is required.");
-      }
-
       const ticketContext: RelayAiContext = {
         ticketId: ticket.id,
         status: ticket.status ?? "PENDING",
@@ -619,6 +614,12 @@ export default function TicketDetailPage() {
         jobNumber: ticket.job_number,
         requestSummary: ticket.request_summary,
         requestDetails: ticket.request_details,
+        expectedDeliveryDate: ticket.expected_delivery_date,
+        purchaseOrderNumber: ticket.purchase_order_number,
+        supplierName: ticket.supplier_name,
+        binLocation: ticket.bin_location,
+        orderedAt: ticket.ordered_at,
+        readyAt: ticket.ready_at,
         history: updates.map((update) => ({
           status: update.status,
           comment: update.comment,
@@ -631,23 +632,7 @@ export default function TicketDetailPage() {
         })),
       };
 
-      const response = await fetch(`/api/tickets/${ticket.id}/ai`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          question,
-          ticketContext,
-        }),
-      });
-
-      const payload = (await response.json()) as { message?: string; error?: string };
-
-      if (!response.ok || !payload.message) {
-        throw new Error(payload.error || "AI request failed.");
-      }
+      const answer = await answerTicketQuestionInBrowser(question, ticketContext);
 
       const aiSenderUserId = currentUserId ?? ticket.user_id;
 
@@ -662,7 +647,7 @@ export default function TicketDetailPage() {
           ticket_id: ticket.id,
           sender_user_id: aiSenderUserId,
           sender_role: "ai",
-          message_text: payload.message ?? null,
+          message_text: answer,
           attachment_url: null,
           attachment_type: null,
           is_ai_message: true,
@@ -3147,7 +3132,7 @@ function resolveSenderName(
   senderNameByUserId: Record<string, string>,
 ) {
   if (message.is_ai_message || message.sender_role === "ai") {
-    return "RELAY Assistant";
+    return "RELAY Local Assistant";
   }
 
   if (message.sender_role === "requester") {

@@ -171,7 +171,7 @@ export function TicketChatPanel({
                             {message.senderName}
                           </p>
                           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
-                            {message.isAiMessage ? "AI Assistant" : message.senderRole}
+                            {message.isAiMessage ? "Local Assistant" : message.senderRole}
                           </p>
                         </div>
                         <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--foreground-subtle)]">
@@ -286,9 +286,12 @@ export function TicketChatPanel({
               disabled={isAiLoading}
               className="aurora-button-secondary px-5"
             >
-              {isAiLoading ? "Asking AI..." : "Ask AI"}
+              {isAiLoading ? "Loading local assistant..." : "Ask Local Assistant"}
             </button>
           </div>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--foreground-subtle)]">
+            Runs on this device. The first answer downloads the model; ticket text is not sent to an AI API.
+          </p>
 
           {showQuickActions ? (
             <div className="mt-5 rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] p-4">

@@ -60,6 +60,7 @@ import {
   uploadTicketAttachments,
 } from "@/lib/relay-ticketing";
 import type { RelayAiContext } from "@/lib/relay-ai";
+import { answerTicketQuestionInBrowser } from "@/lib/browser-ticket-assistant";
 import type { SmartSearchResponse, SmartSearchResult, SmartSearchScope } from "@/lib/admin-smart-search";
 import {
   notifyRequesterOfOperatorMessage,
@@ -2818,12 +2819,6 @@ export default function AdminPage() {
     setErrorMessage("");
 
     try {
-      const accessToken = await getSupabaseAccessToken();
-
-      if (!accessToken) {
-        throw new Error("Authentication is required.");
-      }
-
       const ticketContext: RelayAiContext = {
         ticketId: selectedChatTicket.id,
         status: selectedChatTicket.status ?? "PENDING",
@@ -2836,6 +2831,12 @@ export default function AdminPage() {
         jobNumber: selectedChatTicket.job_number,
         requestSummary: selectedChatTicket.request_summary,
         requestDetails: selectedChatTicket.request_details,
+        expectedDeliveryDate: selectedChatTicket.expected_delivery_date,
+        purchaseOrderNumber: selectedChatTicket.purchase_order_number,
+        supplierName: selectedChatTicket.supplier_name,
+        binLocation: selectedChatTicket.bin_location,
+        orderedAt: selectedChatTicket.ordered_at,
+        readyAt: selectedChatTicket.ready_at,
         history: [],
         recentMessages: chatMessages.slice(-6).map((message) => ({
           senderRole: message.sender_role,
@@ -2844,23 +2845,7 @@ export default function AdminPage() {
         })),
       };
 
-      const response = await fetch(`/api/tickets/${selectedChatTicket.id}/ai`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          question,
-          ticketContext,
-        }),
-      });
-
-      const payload = (await response.json()) as { message?: string; error?: string };
-
-      if (!response.ok || !payload.message) {
-        throw new Error(payload.error || "AI request failed.");
-      }
+      const answer = await answerTicketQuestionInBrowser(question, ticketContext);
 
       const aiSenderUserId = currentUserId ?? selectedChatTicket.user_id;
 
@@ -2875,7 +2860,7 @@ export default function AdminPage() {
           ticket_id: selectedChatTicket.id,
           sender_user_id: aiSenderUserId,
           sender_role: "ai",
-          message_text: payload.message ?? null,
+          message_text: answer,
           attachment_url: null,
           attachment_type: null,
           is_ai_message: true,
@@ -5318,7 +5303,7 @@ function resolveSenderName(
   senderNameByUserId: Record<string, string>,
 ) {
   if (message.is_ai_message || message.sender_role === "ai") {
-    return "RELAY Assistant";
+    return "RELAY Local Assistant";
   }
 
   if (message.sender_role === "requester") {

@@ -9,6 +9,12 @@ export type RelayAiContext = {
   jobNumber?: string | null;
   requestSummary?: string | null;
   requestDetails?: string | null;
+  expectedDeliveryDate?: string | null;
+  purchaseOrderNumber?: string | null;
+  supplierName?: string | null;
+  binLocation?: string | null;
+  orderedAt?: string | null;
+  readyAt?: string | null;
   history: Array<{
     status?: string | null;
     comment?: string | null;
@@ -52,6 +58,12 @@ export function buildRelayAiInput(
         jobNumber: context.jobNumber ?? null,
         requestSummary: context.requestSummary ?? null,
         requestDetails: context.requestDetails ?? null,
+        expectedDeliveryDate: context.expectedDeliveryDate ?? null,
+        purchaseOrderNumber: context.purchaseOrderNumber ?? null,
+        supplierName: context.supplierName ?? null,
+        binLocation: context.binLocation ?? null,
+        orderedAt: context.orderedAt ?? null,
+        readyAt: context.readyAt ?? null,
         history: context.history,
         recentMessages: context.recentMessages,
       },
