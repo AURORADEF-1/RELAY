@@ -8,6 +8,10 @@ import { ConsoleShell } from "@/components/console/console-shell";
 import { ConsoleTicketCard } from "@/components/console/console-ticket-card";
 import { ConsoleTicketDrawer } from "@/components/console/console-ticket-drawer";
 import {
+  ConsoleTicketActionModal,
+  type ConsoleTicketAction,
+} from "@/components/console/console-ticket-action-modal";
+import {
   type ConsoleTicket,
   type ConsoleTicketUpdate,
   formatConsoleCurrency,
@@ -19,6 +23,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 
 const CONSOLE_TICKET_FIELDS = [
   "id",
+  "user_id",
   "requester_name",
   "department",
   "machine_reference",
@@ -51,6 +56,7 @@ type ConsoleView = "list" | "dynamic";
 export default function ConsolePage() {
   const [tickets, setTickets] = useState<ConsoleTicket[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [ticketAction, setTicketAction] = useState<ConsoleTicketAction | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState<ConsoleView>(() => {
@@ -302,6 +308,8 @@ export default function ConsolePage() {
                     ticket={ticket}
                     selected={selectedTicketId === ticket.id}
                     onSelect={() => setSelectedTicketId(ticket.id)}
+                    onAddNote={() => setTicketAction({ mode: "note", ticket })}
+                    onChangeStatus={() => setTicketAction({ mode: "status", ticket })}
                   />
                 ) : (
                   <ConsoleTicketCard
@@ -317,6 +325,12 @@ export default function ConsolePage() {
         </section>
 
         <ConsoleTicketDrawer ticket={selectedTicket} onClose={closeTicketDrawer} />
+        <ConsoleTicketActionModal
+          key={ticketAction ? `${ticketAction.mode}-${ticketAction.ticket.id}` : "closed"}
+          action={ticketAction}
+          onClose={() => setTicketAction(null)}
+          onSaved={() => void loadTickets(false)}
+        />
       </ConsoleShell>
     </AuthGuard>
   );

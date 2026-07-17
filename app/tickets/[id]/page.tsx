@@ -15,6 +15,8 @@ import {
 } from "@/components/ticket-chat-panel";
 import { StatusBadge } from "@/components/status-badge";
 import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
+import { AdminCollectionConfirmation } from "@/components/admin-collection-confirmation";
+import { RequesterCollectionCode } from "@/components/requester-collection-code";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import {
   fetchAdminOperatorRecords,
@@ -79,9 +81,10 @@ import {
 import type { RelayAiContext } from "@/lib/relay-ai";
 import {
   buildRequesterReturnComment,
+  isRequesterCollectedComment,
   isRequesterReturnComment,
-  REQUESTER_COLLECTED_COMMENT,
 } from "@/lib/requester-ticket-actions";
+import { confirmOwnTicketCollectionManually } from "@/lib/ticket-collection";
 import {
   buildOrderedWorkflowComment,
   buildReadyWorkflowComment,
@@ -392,7 +395,7 @@ export default function TicketDetailPage() {
       setPurchaseOrderDraft(buildEmptyTicketPurchaseOrderDraft());
       setHasRequesterCollected(
         (updateData ?? []).some(
-          (update) => update.comment === REQUESTER_COLLECTED_COMMENT,
+          (update) => isRequesterCollectedComment(update.comment),
         ),
       );
       setHasRequesterReturnRequested(
@@ -1639,27 +1642,7 @@ export default function TicketDetailPage() {
     setErrorMessage("");
 
     try {
-      const { data: existingCollectedUpdate, error: existingCollectedError } = await supabase
-        .from("ticket_updates")
-        .select("id")
-        .eq("ticket_id", ticket.id)
-        .eq("comment", REQUESTER_COLLECTED_COMMENT)
-        .limit(1);
-
-      if (existingCollectedError) {
-        throw new Error(existingCollectedError.message);
-      }
-
-      if ((existingCollectedUpdate ?? []).length === 0) {
-        const { error: insertError } = await supabase.from("ticket_updates").insert({
-          ticket_id: ticket.id,
-          comment: REQUESTER_COLLECTED_COMMENT,
-        });
-
-        if (insertError) {
-          throw new Error(insertError.message);
-        }
-      }
+      await confirmOwnTicketCollectionManually(supabase, ticket.id);
 
       setHasRequesterCollected(true);
 
@@ -2401,7 +2384,16 @@ export default function TicketDetailPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void handleSaveTicketEdit()}
+                            onClick={() => {
+                              if (
+                                editDraft.status === "COMPLETED" &&
+                                ticket.status !== "COMPLETED" &&
+                                !window.confirm("Are you sure you want to mark this request COMPLETED?")
+                              ) {
+                                return;
+                              }
+                              void handleSaveTicketEdit();
+                            }}
                             disabled={isSavingEdit}
                             className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                           >
@@ -2454,6 +2446,23 @@ export default function TicketDetailPage() {
                         {!ticket.is_retail_sale ? (
                           <div className="mt-6">
                             <MachineDetailsCard ticket={ticket} />
+                          </div>
+                        ) : null}
+
+                        {isAdmin && ticket.status === "READY" && !hasRequesterCollected ? (
+                          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                            <div className="mb-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                                Collection verification
+                              </p>
+                              <p className="mt-1 text-sm text-emerald-900/75">
+                                Bin {ticket.bin_location?.trim() || "not recorded"} · verify the requester QR or verbal code.
+                              </p>
+                            </div>
+                            <AdminCollectionConfirmation
+                              ticketId={ticket.id}
+                              onConfirmed={() => void loadTicket()}
+                            />
                           </div>
                         ) : null}
 
@@ -2943,6 +2952,10 @@ export default function TicketDetailPage() {
                               </div>
                             ) : (
                               <div className="space-y-4">
+                                <RequesterCollectionCode
+                                  ticketId={ticket.id}
+                                  jobNumber={ticket.job_number}
+                                />
                                 <div className="flex flex-wrap gap-3">
                                   <button
                                     type="button"

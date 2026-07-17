@@ -89,7 +89,7 @@ import {
 import { fetchRequesterAccounts } from "@/lib/requester-accounts";
 import {
   extractRequesterReturnReason,
-  REQUESTER_COLLECTED_COMMENT,
+  isRequesterCollectedComment,
 } from "@/lib/requester-ticket-actions";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { formatSupplierDisplayName, normalizeSupplierEmail } from "@/lib/suppliers";
@@ -1013,7 +1013,7 @@ export default function AdminPage() {
           setCollectedTicketIds(
             new Set(
               (updatesResult.value.data ?? [])
-                .filter((update) => update.comment === REQUESTER_COLLECTED_COMMENT)
+                .filter((update) => isRequesterCollectedComment(update.comment))
                 .map((update) => update.ticket_id)
                 .filter((ticketId): ticketId is string => typeof ticketId === "string"),
             ),

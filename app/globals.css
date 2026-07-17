@@ -1508,6 +1508,32 @@ select:focus-visible {
   text-transform: uppercase;
 }
 
+.console-dynamic-ready-bin {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+  border: 1px solid rgba(4, 120, 87, 0.28);
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(4, 120, 87, 0.08));
+  padding: 0.8rem;
+  color: #047857;
+}
+
+.console-dynamic-ready-bin span {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.console-dynamic-ready-bin strong {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
 .console-dynamic-data {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1561,6 +1587,162 @@ select:focus-visible {
   border-top: 1px solid var(--border);
   padding-top: 0.85rem;
   color: var(--status-color, var(--foreground-subtle));
+}
+
+.console-dynamic-card-actions {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+  pointer-events: auto;
+}
+
+.console-dynamic-card-actions button {
+  min-height: 2.35rem;
+  border: 1px solid var(--status-border, var(--border));
+  border-radius: 0.72rem;
+  background: color-mix(in srgb, var(--background-panel-strong) 76%, transparent);
+  color: var(--foreground-muted);
+  font-size: 0.7rem;
+  font-weight: 760;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.console-dynamic-card-actions button:last-child {
+  background: var(--status-color, var(--accent));
+  color: white;
+}
+
+.console-dynamic-card-actions button:hover {
+  border-color: var(--status-color, var(--border-strong));
+  color: var(--foreground-strong);
+}
+
+.console-dynamic-card-actions button:last-child:hover {
+  color: white;
+  filter: brightness(1.08);
+}
+
+.console-action-modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 7, 18, 0.48);
+  padding: 1rem;
+  backdrop-filter: blur(8px);
+}
+
+.console-action-modal {
+  width: min(32rem, 100%);
+  border: 1px solid var(--border-strong);
+  border-radius: 1.35rem;
+  background: var(--background-panel-strong);
+  padding: 1.2rem;
+  box-shadow: 0 40px 100px -40px rgba(3, 7, 18, 0.75);
+}
+
+.console-action-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.console-action-modal-heading p,
+.console-action-field > span {
+  color: var(--foreground-subtle);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.console-action-modal-heading h2 {
+  margin-top: 0.3rem;
+  color: var(--foreground-strong);
+  font-size: 1.25rem;
+  font-weight: 720;
+}
+
+.console-action-modal-heading > button,
+.console-action-modal-footer button:first-child,
+.console-action-confirmation button:first-child {
+  color: var(--foreground-subtle);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.console-action-field {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+}
+
+.console-action-field textarea,
+.console-action-field select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--background-field);
+  padding: 0.8rem;
+  color: var(--foreground);
+  font-size: 0.86rem;
+  outline: none;
+}
+
+.console-action-error {
+  margin-top: 0.75rem;
+  border-radius: 0.65rem;
+  background: var(--danger-soft);
+  padding: 0.65rem;
+  color: var(--danger);
+  font-size: 0.75rem;
+}
+
+.console-action-modal-footer,
+.console-action-confirmation > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.console-action-modal-footer button,
+.console-action-confirmation button {
+  min-height: 2.5rem;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.76rem;
+  font-weight: 740;
+}
+
+.console-action-modal-footer button:last-child,
+.console-action-confirmation button:last-child {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.console-action-confirmation {
+  margin-top: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--background-muted);
+  padding: 1rem;
+}
+
+.console-action-confirmation strong {
+  color: var(--foreground-strong);
+}
+
+.console-action-confirmation p {
+  margin-top: 0.5rem;
+  color: var(--foreground-muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
 }
 
 .console-dynamic-card-footer > div {
@@ -1992,6 +2174,167 @@ select:focus-visible {
 }
 
 /* Ticket workspace inside the reusable console shell */
+
+.requester-collection-code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid rgba(4, 120, 87, 0.28);
+  border-radius: 1rem;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(255, 255, 255, 0.72));
+  padding: 1rem;
+}
+
+.requester-collection-code p,
+.admin-collection-confirmation-heading p {
+  color: #047857;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.requester-collection-code span,
+.admin-collection-confirmation-heading span {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--foreground-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.requester-collection-code button,
+.admin-confirm-collection-trigger,
+.admin-collection-controls button {
+  min-height: 2.5rem;
+  border-radius: 0.75rem;
+  background: #047857;
+  padding: 0.55rem 0.85rem;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.requester-collection-code > strong,
+.requester-collection-error {
+  width: 100%;
+  color: var(--danger);
+  font-size: 0.75rem;
+}
+
+.requester-collection-code-active {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  justify-content: initial;
+}
+
+.requester-collection-qr {
+  border-radius: 0.85rem;
+  background: white;
+  padding: 0.55rem;
+  box-shadow: 0 16px 40px -26px rgba(15, 23, 42, 0.5);
+}
+
+.requester-collection-qr img {
+  display: block;
+  width: min(12rem, 42vw);
+  height: auto;
+}
+
+.requester-collection-code-copy strong {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--foreground-strong);
+  font-family: var(--font-mono);
+  font-size: clamp(1.8rem, 6vw, 3rem);
+  letter-spacing: 0.14em;
+}
+
+.requester-collection-code-copy small {
+  display: block;
+  margin: 0.55rem 0 0.8rem;
+  color: var(--foreground-subtle);
+  font-size: 0.68rem;
+}
+
+.admin-collection-confirmation {
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, white 76%, transparent);
+  padding: 0.85rem;
+}
+
+.admin-collection-confirmation-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-collection-confirmation-heading > button {
+  color: var(--foreground-subtle);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.admin-collection-video {
+  width: 100%;
+  max-height: 18rem;
+  margin-top: 0.8rem;
+  border-radius: 0.8rem;
+  background: #020617;
+  object-fit: cover;
+}
+
+.admin-collection-controls {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) auto auto;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.admin-collection-controls input {
+  min-width: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.75rem;
+  background: white;
+  padding: 0.6rem 0.75rem;
+  color: #0f172a;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.admin-collection-controls button:nth-of-type(1) {
+  border: 1px solid rgba(4, 120, 87, 0.28);
+  background: white;
+  color: #047857;
+}
+
+.admin-collection-notice {
+  margin-top: 0.7rem;
+  color: var(--foreground-muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .requester-collection-code-active {
+    grid-template-columns: 1fr;
+  }
+
+  .requester-collection-qr {
+    justify-self: center;
+  }
+
+  .admin-collection-controls {
+    grid-template-columns: 1fr;
+  }
+}
 
 .ticket-workspace {
   border: 1px solid var(--border);

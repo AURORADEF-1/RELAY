@@ -10,10 +10,14 @@ export function ConsoleDynamicTicketCard({
   ticket,
   selected,
   onSelect,
+  onAddNote,
+  onChangeStatus,
 }: {
   ticket: ConsoleTicket;
   selected: boolean;
   onSelect: () => void;
+  onAddNote: () => void;
+  onChangeStatus: () => void;
 }) {
   const status = ticket.status?.trim().toUpperCase() || "PENDING";
   const summary = ticket.request_summary?.trim() || ticket.request_details?.trim() || "Untitled request";
@@ -52,6 +56,13 @@ export function ConsoleDynamicTicketCard({
           <MachineReferenceIndicator machine={ticket} />
         </div>
 
+        {status === "READY" ? (
+          <div className="console-dynamic-ready-bin">
+            <span>Ready for collection</span>
+            <strong>BIN {ticket.bin_location?.trim() || "NOT SET"}</strong>
+          </div>
+        ) : null}
+
         <dl className="console-dynamic-data">
           <DynamicDatum label="Requester" value={ticket.requester_name} />
           <DynamicDatum label="Department" value={ticket.department} />
@@ -62,6 +73,11 @@ export function ConsoleDynamicTicketCard({
           <DynamicDatum label="Order value" value={formatConsoleCurrency(ticket.order_amount)} mono />
           <DynamicDatum label="Bin" value={ticket.bin_location} />
         </dl>
+
+        <div className="console-dynamic-card-actions">
+          <button type="button" onClick={onAddNote}>Add note</button>
+          <button type="button" onClick={onChangeStatus}>Change status</button>
+        </div>
 
         <footer className="console-dynamic-card-footer">
           <div>

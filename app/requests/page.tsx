@@ -16,9 +16,10 @@ import {
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import {
   buildRequesterReturnComment,
+  isRequesterCollectedComment,
   isRequesterReturnComment,
-  REQUESTER_COLLECTED_COMMENT,
 } from "@/lib/requester-ticket-actions";
+import { confirmOwnTicketCollectionManually } from "@/lib/ticket-collection";
 import { formatOperationalDate } from "@/lib/ticket-operational";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { activeTicketStatuses } from "@/lib/statuses";
@@ -146,7 +147,7 @@ export default function RequestsPage() {
       setCollectedTicketIds(
         new Set(
           (updates ?? [])
-            .filter((update) => update.comment === REQUESTER_COLLECTED_COMMENT)
+            .filter((update) => isRequesterCollectedComment(update.comment))
             .map((update) => update.ticket_id)
             .filter((ticketId): ticketId is string => typeof ticketId === "string"),
         ),
@@ -207,27 +208,7 @@ export default function RequestsPage() {
     setErrorMessage("");
 
     try {
-      const { data: existingCollectedUpdate, error: existingCollectedError } = await supabase
-        .from("ticket_updates")
-        .select("id")
-        .eq("ticket_id", ticket.id)
-        .eq("comment", REQUESTER_COLLECTED_COMMENT)
-        .limit(1);
-
-      if (existingCollectedError) {
-        throw new Error(existingCollectedError.message);
-      }
-
-      if ((existingCollectedUpdate ?? []).length === 0) {
-        const { error: insertError } = await supabase.from("ticket_updates").insert({
-          ticket_id: ticket.id,
-          comment: REQUESTER_COLLECTED_COMMENT,
-        });
-
-        if (insertError) {
-          throw new Error(insertError.message);
-        }
-      }
+      await confirmOwnTicketCollectionManually(supabase, ticket.id);
 
       setCollectedTicketIds((current) => new Set(current).add(ticket.id));
 

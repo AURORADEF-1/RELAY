@@ -1,5 +1,6 @@
 export type ConsoleTicket = {
   id: string;
+  user_id: string | null;
   requester_name: string | null;
   department: string | null;
   machine_reference: string | null;
