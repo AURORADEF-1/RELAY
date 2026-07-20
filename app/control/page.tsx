@@ -1,74 +1,82 @@
 "use client";
 
+import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
 import { AdminHealthPanel } from "@/components/admin-health-panel";
 import { AdminOperatorManagementPanel } from "@/components/admin-operator-management-panel";
 import { AdminOperationsOverview } from "@/components/admin-operations-overview";
 import { AdminSessionControlPanel } from "@/components/admin-session-control-panel";
-import Link from "next/link";
-import { NotificationBadge } from "@/components/notification-badge";
-import { useNotifications } from "@/components/notification-provider";
-import { LogoutButton } from "@/components/logout-button";
-import { RelayLogo } from "@/components/relay-logo";
-import { ThemeToggleButton } from "@/components/theme-toggle-button";
+import { ConsoleIcon } from "@/components/console/console-icon";
+import { ConsoleShell } from "@/components/console/console-shell";
+import { PageHeader } from "@/components/layout/page-header";
+
+const controlSections = [
+  { href: "#overview", label: "Operations overview" },
+  { href: "#operators", label: "Operator names" },
+  { href: "#health", label: "System health" },
+  { href: "#sessions", label: "Session tools" },
+];
 
 export default function ControlPage() {
-  const { requesterUnreadCount, adminBadgeCount } = useNotifications();
-
   return (
     <AuthGuard requiredRole="admin">
-      <main className="aurora-shell">
-        <div className="aurora-shell-inner max-w-6xl space-y-8">
-          <nav className="aurora-nav">
-            <RelayLogo />
-            <div className="aurora-nav-links text-sm font-medium">
-              <Link href="/" className="aurora-link">
-                Home
-              </Link>
-              <Link href="/admin?tab=search" className="aurora-link">
-                Smart Search
-                <NotificationBadge count={requesterUnreadCount} />
-              </Link>
-              <Link href="/incidents" className="aurora-link">
-                Workshop Control
-              </Link>
-              <Link href="/admin" className="aurora-link">
-                Parts Control
-                <NotificationBadge count={adminBadgeCount} />
-              </Link>
-              <Link
-                href="/control"
-                className="aurora-link aurora-link-active"
-              >
-                Admin Control
-              </Link>
-              <Link
-                href="/control/operations"
-                target="_blank"
-                rel="noreferrer"
-                className="aurora-link"
-              >
-                Open Ops View
-              </Link>
-              <Link
-                href="/wallboard"
-                target="_blank"
-                rel="noreferrer"
-                className="aurora-link"
-              >
-                TV Wallboard
-              </Link>
-              <ThemeToggleButton />
-              <LogoutButton />
-            </div>
+      <ConsoleShell
+        eyebrow="RELAY administration"
+        title="Admin control"
+        contentClassName="console-content-admin"
+      >
+        <div className="admin-control-page">
+          <PageHeader
+            title="Admin Control"
+            description="Monitor operational health, maintain operator reporting, and manage active RELAY sessions from one administrative workspace."
+            meta={
+              <>
+                <span className="relay-live-label"><i /> Live administration data</span>
+                <span>Restricted to RELAY administrators</span>
+              </>
+            }
+            actions={
+              <>
+                <Link href="/control/operations" target="_blank" rel="noreferrer" className="relay-button relay-button-secondary">
+                  <ConsoleIcon name="activity" className="h-4 w-4" />
+                  Open operations view
+                </Link>
+                <Link href="/wallboard" target="_blank" rel="noreferrer" className="relay-button relay-button-primary">
+                  <ConsoleIcon name="wallboard" className="h-4 w-4" />
+                  TV wallboard
+                </Link>
+              </>
+            }
+          />
+
+          <nav className="admin-control-subnav" aria-label="Admin control sections">
+            {controlSections.map((section) => (
+              <a key={section.href} href={section.href}>
+                {section.label}
+              </a>
+            ))}
           </nav>
 
-          <AdminOperationsOverview />
-          <AdminOperatorManagementPanel />
-          <AdminHealthPanel />
-          <AdminSessionControlPanel />
+          <div className="admin-control-workspace">
+            <div id="overview" className="admin-control-section-anchor">
+              <AdminOperationsOverview />
+            </div>
+
+            <div className="admin-control-support-grid">
+              <div id="operators" className="admin-control-section-anchor">
+                <AdminOperatorManagementPanel />
+              </div>
+              <div id="health" className="admin-control-section-anchor">
+                <AdminHealthPanel />
+              </div>
+            </div>
+
+            <div id="sessions" className="admin-control-section-anchor">
+              <AdminSessionControlPanel />
+            </div>
+          </div>
         </div>
-      </main>
+      </ConsoleShell>
     </AuthGuard>
   );
 }

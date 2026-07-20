@@ -592,7 +592,7 @@ export function AdminOperationsOverview() {
   }, [snapshot]);
 
   return (
-    <section className="aurora-section overflow-hidden">
+    <section className="aurora-section admin-control-panel admin-control-overview overflow-hidden">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="aurora-kicker">
@@ -878,7 +878,7 @@ function OverviewMetricCard({
   }[accent];
 
   return (
-    <article className={`rounded-[1.5rem] border p-5 shadow-[var(--shadow-soft)] ${accentClasses}`}>
+    <article className={`admin-control-metric rounded-[1.5rem] border p-5 shadow-[var(--shadow-soft)] ${accentClasses}`}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
         {label}
       </p>
@@ -896,7 +896,7 @@ function OverviewStat({
   value: string;
 }) {
   return (
-    <article className="rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4">
+    <article className="admin-control-stat rounded-[1.125rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
         {label}
       </p>

@@ -153,7 +153,7 @@ export function AdminOperatorManagementPanel() {
   }
 
   return (
-    <section className="aurora-section mt-6">
+    <section className="aurora-section admin-control-panel admin-control-operators">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="aurora-kicker">Admin Ops</div>
@@ -185,7 +185,7 @@ export function AdminOperatorManagementPanel() {
       ) : null}
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[1fr_0.95fr]">
-        <div className="rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-5 shadow-[var(--shadow-soft)]">
+        <div className="admin-control-form-card rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-5 shadow-[var(--shadow-soft)]">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
             Add operator
           </p>
@@ -210,7 +210,7 @@ export function AdminOperatorManagementPanel() {
           </p>
         </div>
 
-        <div className="rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-5 shadow-[var(--shadow-soft)]">
+        <div className="admin-control-form-card rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-5 shadow-[var(--shadow-soft)]">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
             Current list
           </p>
@@ -225,7 +225,7 @@ export function AdminOperatorManagementPanel() {
               operators.map((operator) => (
                 <div
                   key={operator.name}
-                  className="flex items-center justify-between gap-3 rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel)] px-4 py-3"
+                  className="admin-control-list-row flex items-center justify-between gap-3 rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel)] px-4 py-3"
                 >
                   <div>
                     <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">

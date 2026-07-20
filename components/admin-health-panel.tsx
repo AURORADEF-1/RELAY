@@ -63,7 +63,7 @@ export function AdminHealthPanel() {
   const lastEvent = healthSummary.recentEvents[0] ?? null;
 
   return (
-    <section className="aurora-section">
+    <section className="aurora-section admin-control-panel admin-control-health">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="aurora-kicker">
@@ -175,7 +175,7 @@ function HealthMetricCard({
         : "border-emerald-200 bg-emerald-50 text-emerald-800";
 
   return (
-    <article className={`rounded-[1.5rem] border p-5 shadow-[var(--shadow-soft)] ${toneClasses}`}>
+    <article className={`admin-control-metric rounded-[1.5rem] border p-5 shadow-[var(--shadow-soft)] ${toneClasses}`}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em]">{label}</p>
       <p className="mt-3 text-3xl font-semibold">{value}</p>
       <p className="mt-3 text-sm leading-6 opacity-90">{helper}</p>

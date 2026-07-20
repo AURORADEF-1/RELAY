@@ -3402,6 +3402,225 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   }
 }
 
+/* Admin control workspace */
+.console-content-admin {
+  max-width: 118.75rem;
+  padding: clamp(1rem, 2vw, 2.5rem);
+}
+
+.admin-control-page {
+  width: 100%;
+}
+
+.admin-control-page .relay-page-header h1 {
+  font-size: clamp(1.8rem, 2.2vw, 2.15rem);
+}
+
+.admin-control-page .relay-page-header-copy > p {
+  max-width: 64rem;
+  font-size: 0.94rem;
+}
+
+.admin-control-subnav {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  border-block: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 94%, transparent);
+  scrollbar-width: thin;
+}
+
+.admin-control-subnav a {
+  min-height: 2.75rem;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  border-bottom: 2px solid transparent;
+  padding: 0.65rem 0.8rem 0.55rem;
+  color: var(--foreground-muted);
+  font-size: 0.875rem;
+  font-weight: 680;
+}
+
+.admin-control-subnav a:hover,
+.admin-control-subnav a:focus-visible {
+  border-bottom-color: var(--accent);
+  color: var(--foreground-strong);
+}
+
+.admin-control-workspace {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.admin-control-section-anchor {
+  min-width: 0;
+  scroll-margin-top: 5.5rem;
+}
+
+.admin-control-support-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+
+.admin-control-page .admin-control-panel {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--background-panel-strong);
+  padding: clamp(1rem, 1.5vw, 1.35rem);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.admin-control-page .aurora-kicker {
+  border-color: var(--border);
+  background: var(--background-muted);
+  color: var(--foreground-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.admin-control-page .admin-control-panel .aurora-heading {
+  margin-top: 0.55rem !important;
+  color: var(--foreground-strong);
+  font-size: 1.2rem !important;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.admin-control-page .admin-control-panel .aurora-copy {
+  margin-top: 0.4rem;
+  color: var(--foreground-muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.admin-control-page .aurora-button-primary,
+.admin-control-page .aurora-button-secondary,
+.admin-control-page .aurora-button-danger {
+  min-height: 2.65rem;
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.84rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.admin-control-page .aurora-input {
+  min-height: 2.65rem;
+  border-radius: 0.65rem;
+  font-size: 0.875rem;
+}
+
+.admin-control-page .aurora-subpanel,
+.admin-control-form-card {
+  border-color: var(--border);
+  border-radius: 0.8rem !important;
+  background: var(--background-raised);
+  box-shadow: none !important;
+}
+
+.admin-control-metric {
+  min-height: 8.25rem;
+  border-radius: 0.8rem !important;
+  padding: 1rem !important;
+  box-shadow: none !important;
+}
+
+.admin-control-metric > p:first-child,
+.admin-control-stat > p:first-child {
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.admin-control-metric > p:nth-child(2) {
+  margin-top: 0.55rem;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.admin-control-metric > p:last-child {
+  margin-top: 0.65rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.admin-control-stat {
+  border-radius: 0.7rem !important;
+  padding: 0.8rem !important;
+  box-shadow: none !important;
+}
+
+.admin-control-stat > p:last-child {
+  margin-top: 0.35rem;
+  font-size: 1.45rem;
+}
+
+.admin-control-list-row {
+  border-radius: 0.7rem !important;
+  background: var(--background-raised) !important;
+  box-shadow: none !important;
+}
+
+.admin-control-list-row:hover {
+  border-color: var(--border-strong);
+}
+
+.admin-control-health .admin-control-metric {
+  background: var(--background-raised) !important;
+  color: var(--foreground-strong) !important;
+}
+
+.admin-control-page .aurora-empty {
+  min-height: 5rem;
+  border-radius: 0.7rem;
+  background: var(--background-muted);
+  color: var(--foreground-muted);
+  font-size: 0.84rem;
+}
+
+@media (max-width: 1499px) {
+  .admin-control-support-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-control-page .relay-page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-control-page .relay-page-header-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .console-content-admin {
+    padding: 0.8rem;
+  }
+
+  .admin-control-page .relay-page-header-actions > * {
+    flex: 1 1 100%;
+  }
+
+  .admin-control-page .admin-control-panel {
+    padding: 0.9rem;
+  }
+
+  .admin-control-subnav a {
+    padding-inline: 0.65rem;
+  }
+}
+
 /* Ticket workspace inside the reusable console shell */
 
 .requester-collection-code {

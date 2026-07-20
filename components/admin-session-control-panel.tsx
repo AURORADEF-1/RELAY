@@ -123,7 +123,7 @@ export function AdminSessionControlPanel() {
   }
 
   return (
-    <section className="aurora-section">
+    <section className="aurora-section admin-control-panel admin-control-sessions">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="aurora-kicker">
@@ -175,7 +175,7 @@ export function AdminSessionControlPanel() {
             return (
               <article
                 key={user.user_id}
-                className="rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4 shadow-[var(--shadow-soft)]"
+                className="admin-control-list-row rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] px-4 py-4 shadow-[var(--shadow-soft)]"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="space-y-1">
