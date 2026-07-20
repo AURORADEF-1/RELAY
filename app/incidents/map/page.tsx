@@ -3,12 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
-import { NotificationBadge } from "@/components/notification-badge";
-import { useNotifications } from "@/components/notification-provider";
-import { LogoutButton } from "@/components/logout-button";
-import { RelayLogo } from "@/components/relay-logo";
-import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
-import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
+import { ConsoleIcon } from "@/components/console/console-icon";
+import { PageHeader } from "@/components/layout/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -33,6 +30,11 @@ type LeafletMap = {
   fitBounds: (bounds: unknown, options?: unknown) => void;
 };
 
+type LeafletMarker = {
+  bindPopup: (html: string) => LeafletMarker;
+  openPopup: () => void;
+};
+
 declare global {
   interface Window {
     L?: {
@@ -46,10 +48,7 @@ declare global {
         coords: [number, number],
         options: Record<string, unknown>,
       ) => {
-        addTo: (map: LeafletMap) => {
-          bindPopup: (html: string) => void;
-          openPopup?: () => void;
-        };
+        addTo: (map: LeafletMap) => LeafletMarker;
       };
       latLngBounds: (coords: Array<[number, number]>) => unknown;
     };
@@ -61,14 +60,15 @@ const LEAFLET_SCRIPT_ID = "relay-leaflet-script";
 const ONSITE_MAP_REFRESH_INTERVAL_MS = 30000;
 
 export default function WorkshopControlMapPage() {
-  const { adminBadgeCount, isAdmin } = useNotifications();
   const [tickets, setTickets] = useState<OnsiteTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<LeafletMap | null>(null);
+  const markerRefs = useRef(new Map<string, LeafletMarker>());
 
   const loadTickets = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
@@ -217,6 +217,7 @@ export default function WorkshopControlMapPage() {
       const L = window.L;
       const map = L.map(mapRef.current);
       leafletMapRef.current = map;
+      markerRefs.current.clear();
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
@@ -246,7 +247,7 @@ export default function WorkshopControlMapPage() {
           </div>
         `;
 
-        L.circleMarker(
+        const marker = L.circleMarker(
           [ticket.location_lat as number, ticket.location_lng as number],
           {
             radius: 10,
@@ -258,6 +259,7 @@ export default function WorkshopControlMapPage() {
         )
           .addTo(map)
           .bindPopup(popupHtml);
+        markerRefs.current.set(ticket.id, marker);
       });
 
       map.fitBounds(bounds, { padding: [32, 32] });
@@ -275,83 +277,26 @@ export default function WorkshopControlMapPage() {
   }, [liveOnsiteJobs]);
 
   return (
-    <div className="workshop-legacy-page min-h-screen bg-[radial-gradient(circle_at_top,#0f172a_0%,#111827_45%,#020617_100%)] px-6 py-6 text-slate-100">
-      <div className="mx-auto max-w-[120rem] space-y-6">
-        <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/10 bg-white/5 px-5 py-4 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.8)] backdrop-blur">
-          <RelayLogo />
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-300">
-            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white/10">
-              Home
-            </Link>
-            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white/10">
-              Legal
-            </Link>
-            <Link href="/submit" className="rounded-full px-4 py-2 hover:bg-white/10">
-              Submit Ticket
-            </Link>
-            <RoleAwareRequestsLink className="rounded-full px-4 py-2 hover:bg-white/10" />
-            <Link
-              href="/incidents"
-              className="rounded-full bg-white px-4 py-2 font-semibold text-slate-950"
-            >
-              Workshop Control
-            </Link>
-            {isAdmin ? (
-              <>
-                <Link href="/control" className="rounded-full px-4 py-2 hover:bg-white/10">
-                  Admin Control
-                </Link>
-                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white/10">
-                  Parts Control
-                  <NotificationBadge count={adminBadgeCount} />
-                </Link>
-              </>
-            ) : null}
-            <LogoutButton />
-          </div>
-        </nav>
-
+    <div className="workshop-legacy-page workshop-map-page">
+      <div>
         <AuthGuard requiredRole="admin">
-          <section className="rounded-[2rem] border border-white/10 bg-white/5 p-8 shadow-[0_32px_90px_-48px_rgba(15,23,42,0.85)] backdrop-blur">
-            <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
-              <div className="space-y-5">
-                <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">
-                  Onsite Mapping
-                </div>
-                <div className="space-y-3">
-                  <h1 className="text-5xl font-semibold tracking-[-0.05em] text-white sm:text-6xl">
-                    Live Onsite Map
-                  </h1>
-                  <p className="max-w-3xl text-lg leading-8 text-slate-300">
-                    Plotting all live onsite jobs with saved geolocation data from RELAY ticket submissions.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <InfoCard label="Live Pins" value={String(liveOnsiteJobs.length)} />
-                <InfoCard
-                  label="Last Sync"
-                  value={lastUpdatedAt ? formatDateTime(lastUpdatedAt) : "Waiting..."}
-                />
-                <button
-                  type="button"
-                  onClick={() => void loadTickets({ silent: true })}
-                  className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 text-left transition hover:bg-white/15"
-                >
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-                    Control
-                  </p>
-                  <p className="mt-2 text-xl font-semibold text-white">
-                    {isRefreshing ? "Refreshing..." : "Refresh Now"}
-                  </p>
+          <section>
+            <PageHeader
+              title="Live Onsite Map"
+              description="Track every active onsite job with saved geolocation data and open the linked request directly from its marker."
+              meta={
+                <>
+                  <span className="relay-live-label"><i /> {liveOnsiteJobs.length} live pin{liveOnsiteJobs.length === 1 ? "" : "s"}</span>
+                  <span>Last sync {lastUpdatedAt ? formatDateTime(lastUpdatedAt) : "waiting"}</span>
+                </>
+              }
+              actions={
+                <button type="button" onClick={() => void loadTickets({ silent: true })} disabled={isRefreshing} className="relay-button relay-button-primary">
+                  <ConsoleIcon name="refresh" className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                  {isRefreshing ? "Refreshing" : "Refresh map"}
                 </button>
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <WorkshopIncidentsTabs activeTab="map" />
-            </div>
+              }
+            />
 
             {errorMessage ? (
               <div className="mt-6 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
@@ -359,76 +304,75 @@ export default function WorkshopControlMapPage() {
               </div>
             ) : null}
 
-            <div className="mt-8 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-              <section className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/5">
-                <div ref={mapRef} className="h-[38rem] w-full" />
+            <div className="workshop-map-grid">
+              <section className="workshop-map-canvas" aria-label="Live onsite job map">
+                <div ref={mapRef} />
               </section>
 
-              <section className="rounded-[1.75rem] border border-white/10 bg-white/5 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
+              <section className="workshop-map-jobs">
+                <div className="workshop-map-jobs-header">
+                  <h2>
                     Live Onsite Jobs
-                  </p>
-                  <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-sm font-semibold text-white">
+                  </h2>
+                  <span className="relay-count-badge">
                     {liveOnsiteJobs.length}
                   </span>
                 </div>
 
-                <div className="mt-4 space-y-3">
+                <div className="workshop-map-job-list">
                   {isLoading ? (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                      Loading onsite jobs...
-                    </div>
+                    <EmptyState title="Loading onsite jobs" description="Synchronising live locations." />
                   ) : liveOnsiteJobs.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                      No live onsite jobs with geolocation are currently available.
-                    </div>
+                    <EmptyState title="No geolocated onsite jobs" description="Jobs appear here when an active onsite request has a confirmed location." />
                   ) : (
                     liveOnsiteJobs.map((ticket) => (
-                      <Link
-                        key={ticket.id}
-                        href={`/tickets/${ticket.id}`}
-                        className="block rounded-2xl border border-white/10 bg-black/15 p-4 transition hover:border-white/20 hover:bg-black/25"
-                      >
+                      <article key={ticket.id} className={`workshop-map-job ${selectedTicketId === ticket.id ? "workshop-map-job-selected" : ""}`}>
+                        <button type="button" onClick={() => { setSelectedTicketId(ticket.id); markerRefs.current.get(ticket.id)?.openPopup(); }} className="workshop-map-job-focus">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="truncate text-lg font-semibold text-white">
+                            <p className="truncate text-base font-semibold text-[color:var(--foreground-strong)]">
                               {ticket.job_number ? `Job ${ticket.job_number}` : ticket.machine_reference ?? "Onsite job"}
                             </p>
-                            <p className="mt-1 truncate text-sm text-slate-300">
+                            <p className="mt-1 truncate text-sm text-[color:var(--foreground-muted)]">
                               {ticket.requester_name ?? "Unknown requester"}
                             </p>
                           </div>
-                          <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200">
+                          <span className="relay-status-badge">
                             {ticket.status ?? "-"}
                           </span>
                         </div>
 
-                        <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-200">
+                        <p className="mt-3 line-clamp-2 text-sm leading-6 text-[color:var(--foreground)]">
                           {ticket.request_summary ?? ticket.request_details ?? "No request summary provided."}
                         </p>
 
-                        <dl className="mt-4 grid gap-2 text-xs text-slate-400">
+                        <dl className="workshop-map-job-details">
                           <div className="flex items-center justify-between gap-3">
                             <dt>Machine</dt>
-                            <dd className="truncate text-right text-slate-200">
+                            <dd>
                               {ticket.machine_reference ?? "-"}
                             </dd>
                           </div>
                           <div className="flex items-center justify-between gap-3">
                             <dt>Location</dt>
-                            <dd className="truncate text-right text-slate-200">
+                            <dd>
                               {ticket.location_summary ?? formatCoordinates(ticket)}
                             </dd>
                           </div>
                           <div className="flex items-center justify-between gap-3">
                             <dt>Assigned</dt>
-                            <dd className="truncate text-right text-slate-200">
+                            <dd>
                               {ticket.assigned_to ?? "Unassigned"}
                             </dd>
                           </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <dt>Updated</dt>
+                            <dd>{ticket.updated_at ? formatDateTime(ticket.updated_at) : "-"}</dd>
+                          </div>
                         </dl>
-                      </Link>
+                        </button>
+                        <Link href={`/tickets/${ticket.id}`} className="relay-inline-link workshop-map-open-ticket">Open ticket</Link>
+                      </article>
                     ))
                   )}
                 </div>
@@ -526,15 +470,4 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4">
-      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-        {label}
-      </p>
-      <p className="mt-2 text-xl font-semibold text-white">{value}</p>
-    </div>
-  );
 }

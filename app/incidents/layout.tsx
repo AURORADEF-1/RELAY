@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AuthGuard } from "@/components/auth-guard";
-import { ConsoleIcon } from "@/components/console/console-icon";
 import { ConsoleShell } from "@/components/console/console-shell";
 import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
 
@@ -18,29 +16,7 @@ export default function WorkshopLayout({ children }: { children: React.ReactNode
       <ConsoleShell
         eyebrow="RELAY workshop"
         title={getWorkshopTitle(pathname)}
-        actions={
-          <div className="hidden items-center gap-2 sm:flex">
-            <Link href="/incidents/damage/new" className="console-command-action">
-              <ConsoleIcon name="file" className="h-4 w-4" />
-              <span>Report damage</span>
-            </Link>
-            <Link href="/incidents/tyres/new" className="console-command-action">
-              <ConsoleIcon name="activity" className="h-4 w-4" />
-              <span>Tyre breakdown</span>
-            </Link>
-          </div>
-        }
       >
-        <section className="workshop-console-overview">
-          <div>
-            <p>Workshop command centre</p>
-            <h2>Incidents, onsite jobs, tasks, and reporting</h2>
-          </div>
-          <span className="workshop-console-live">
-            <span /> Live operational data
-          </span>
-        </section>
-
         <div className="workshop-console-tabs">
           <WorkshopIncidentsTabs activeTab={activeTab} />
         </div>

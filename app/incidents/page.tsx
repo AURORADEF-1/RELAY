@@ -3,13 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
-import { NotificationBadge } from "@/components/notification-badge";
-import { useNotifications } from "@/components/notification-provider";
-import { LogoutButton } from "@/components/logout-button";
-import { RelayLogo } from "@/components/relay-logo";
-import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
-import { ThemeToggleButton } from "@/components/theme-toggle-button";
-import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
+import { ConsoleIcon } from "@/components/console/console-icon";
+import { PageHeader } from "@/components/layout/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SectionCard } from "@/components/ui/section-card";
+import { StatCard } from "@/components/ui/stat-card";
 import { notifyUserTaskAssigned } from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -36,7 +34,6 @@ const activeIncidentStatuses = workshopIncidentStatuses.filter(
 );
 
 export default function IncidentsPage() {
-  const { adminBadgeCount, isAdmin } = useNotifications();
   const { isVisible, isIdle, isInteractive } = usePageActivity();
   const incidentsLoadInFlightRef = useRef(false);
   const incidentsFailureCountRef = useRef(0);
@@ -57,6 +54,7 @@ export default function IncidentsPage() {
   const [now, setNow] = useState(() => new Date());
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserDirectoryRecord[]>([]);
+  const [teamSearch, setTeamSearch] = useState("");
   const [openTasks, setOpenTasks] = useState<UserTaskRecord[]>([]);
   const [taskDraft, setTaskDraft] = useState({
     assignedTo: "",
@@ -322,6 +320,21 @@ export default function IncidentsPage() {
     };
   }, [incidents]);
 
+  const visibleUsers = useMemo(() => {
+    const query = teamSearch.trim().toLowerCase();
+    return [...users]
+      .filter((user) => !query || [user.full_name, user.role, user.user_id].filter(Boolean).join(" ").toLowerCase().includes(query))
+      .sort((left, right) => Number(right.is_active) - Number(left.is_active));
+  }, [teamSearch, users]);
+
+  const openTaskCountByUserId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const task of openTasks) {
+      counts.set(task.assigned_to, (counts.get(task.assigned_to) ?? 0) + 1);
+    }
+    return counts;
+  }, [openTasks]);
+
   async function handleAssignTask() {
     const supabase = getSupabaseClient();
 
@@ -373,105 +386,42 @@ export default function IncidentsPage() {
 
   return (
     <div className="aurora-shell workshop-legacy-page">
-      <div className="aurora-shell-inner max-w-[120rem] space-y-6">
-        <nav className="aurora-nav">
-          <RelayLogo />
-          <div className="aurora-nav-links text-sm font-medium">
-            <Link href="/" className="aurora-link">
-              Home
-            </Link>
-            <Link href="/legal" className="aurora-link">
-              Legal
-            </Link>
-            <Link href="/settings" className="aurora-link">
-              Settings
-            </Link>
-            <Link href="/submit" className="aurora-link">
-              Submit Ticket
-            </Link>
-            <RoleAwareRequestsLink className="aurora-link" />
-            <Link
-              href="/incidents"
-              className="aurora-link aurora-link-active"
-            >
-              Workshop Control
-            </Link>
-            {isAdmin ? (
-              <>
-                <Link href="/control" className="aurora-link">
-                  Admin Control
-                </Link>
-                <Link href="/admin" className="aurora-link">
-                  Parts Control
-                  <NotificationBadge count={adminBadgeCount} />
-                </Link>
-              </>
-            ) : null}
-            <ThemeToggleButton />
-            <LogoutButton />
-          </div>
-        </nav>
-
+      <div className="aurora-shell-inner max-w-[120rem]">
         <AuthGuard requiredRole="admin">
-          <section className="aurora-section">
-            <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
-              <div className="space-y-5">
-                <div className="aurora-kicker">
-                  Live Incident Board
-                </div>
-                <div className="space-y-3">
-                  <h1 className="aurora-title text-5xl sm:text-6xl">
-                    Workshop Control
-                  </h1>
-                  <p className="max-w-3xl text-lg leading-8 text-[color:var(--foreground-muted)]">
-                    Live operational view for damage reports, tyre breakdowns, queue pressure, and workshop response movement.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <InfoCard label="Current Time" value={formatClock(now)} />
-                <InfoCard
-                  label="Last Sync"
-                  value={lastUpdatedAt ? formatDateTime(lastUpdatedAt) : "Waiting..."}
-                />
-                <div className="aurora-panel px-5 py-4">
-                  <p className="aurora-stat-label text-sm">
-                    View
-                  </p>
-                  <div className="mt-3 flex flex-col gap-3">
-                    <select
-                      value={viewMode}
-                      onChange={(event) => {
-                        const nextMode = event.target.value as "standard" | "dynamic";
-                        setViewMode(nextMode);
-                        window.localStorage.setItem(
-                          INCIDENT_DASHBOARD_VIEW_STORAGE_KEY,
-                          nextMode,
-                        );
-                      }}
-                      className="aurora-select"
-                    >
-                      <option value="standard">Standard Board</option>
-                      <option value="dynamic">Dynamic Desktop View</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => void loadIncidents()}
-                      className="aurora-button-secondary justify-start rounded-xl px-4 py-3 text-left"
-                    >
-                      <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
-                        Refresh Now
-                      </p>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <WorkshopIncidentsTabs activeTab="dashboard" />
-            </div>
+          <section className="workshop-dashboard">
+            <PageHeader
+              title="Workshop Control"
+              description="Monitor live incidents, team availability, assigned work, and workshop response from one operational view."
+              meta={
+                <>
+                  <span className="relay-live-label"><i /> Live data</span>
+                  <span>Last refresh {lastUpdatedAt ? formatDateTime(lastUpdatedAt) : "waiting"}</span>
+                  <span className="hidden sm:inline">Current time {formatClock(now)}</span>
+                </>
+              }
+              actions={
+                <>
+                  <select
+                    value={viewMode}
+                    onChange={(event) => {
+                      const nextMode = event.target.value as "standard" | "dynamic";
+                      setViewMode(nextMode);
+                      window.localStorage.setItem(INCIDENT_DASHBOARD_VIEW_STORAGE_KEY, nextMode);
+                    }}
+                    className="relay-control"
+                    aria-label="Workshop board view"
+                  >
+                    <option value="standard">Standard view</option>
+                    <option value="dynamic">Dynamic view</option>
+                  </select>
+                  <button type="button" onClick={() => void loadIncidents()} className="relay-button relay-button-secondary">
+                    <ConsoleIcon name="refresh" className="h-4 w-4" /> Refresh
+                  </button>
+                  <Link href="/incidents/damage/new" className="relay-button relay-button-secondary">Report damage</Link>
+                  <Link href="/incidents/tyres/new" className="relay-button relay-button-primary">Tyre breakdown</Link>
+                </>
+              }
+            />
 
             {errorMessage ? (
               <div className="aurora-alert aurora-alert-error mt-6">
@@ -479,42 +429,41 @@ export default function IncidentsPage() {
               </div>
             ) : null}
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <MetricCard label="Active Incidents" value={String(metrics.activeCount)} tone="slate" />
-              <MetricCard label="Damage Reports" value={String(metrics.damageCount)} tone="rose" />
-              <MetricCard label="Tyre Breakdowns" value={String(metrics.tyreCount)} tone="amber" />
-              <MetricCard label="Awaiting Parts" value={String(metrics.awaitingPartsCount)} tone="blue" />
-              <MetricCard label="Unassigned" value={String(metrics.unassignedCount)} tone="emerald" />
+            <div className="relay-stat-grid relay-stat-grid-five">
+              <StatCard label="Active incidents" value={String(metrics.activeCount)} context="Open workshop records" tone="slate" />
+              <StatCard label="Damage reports" value={String(metrics.damageCount)} context="Active damage cases" tone="red" />
+              <StatCard label="Tyre breakdowns" value={String(metrics.tyreCount)} context="Active tyre cases" tone="amber" />
+              <StatCard label="Awaiting parts" value={String(metrics.awaitingPartsCount)} context="Blocked by parts" tone="blue" />
+              <StatCard label="Unassigned" value={String(metrics.unassignedCount)} context="Needs an owner" tone="green" />
             </div>
 
-            <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_1fr]">
-              <section className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-                      Users
-                    </p>
-                    <p className="text-sm leading-6 text-slate-400">
-                      All known users from RELAY, with a green dot when seen in the last hour.
-                    </p>
-                  </div>
+            <div className="workshop-primary-grid">
+              <SectionCard
+                title="Team availability"
+                description="Active users appear first. Select a person to prefill the task form."
+                action={
                   <button
                     type="button"
                     onClick={() => setIsUsersPanelMinimized((current) => !current)}
-                    className="rounded-full border border-white/10 bg-black/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:border-white/20 hover:bg-black/25 hover:text-white"
+                    className="relay-button relay-button-ghost"
                   >
                     {isUsersPanelMinimized ? "Expand" : "Minimise"}
                   </button>
-                </div>
+                }
+              >
 
                 {!isUsersPanelMinimized ? (
-                  <div className="mt-6 space-y-3">
-                    {users.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                      No users are available yet.
-                    </div>
+                  <div className="relay-section-body">
+                    <label className="relay-search-field">
+                      <ConsoleIcon name="search" className="h-4 w-4" />
+                      <span className="sr-only">Search team</span>
+                      <input value={teamSearch} onChange={(event) => setTeamSearch(event.target.value)} placeholder="Search team" />
+                    </label>
+                    {visibleUsers.length === 0 ? (
+                      <EmptyState title="No users found" description={teamSearch ? "Try a different name or role." : "No RELAY users are available yet."} />
                   ) : (
-                    users.map((user) => (
+                    <div className="relay-user-list">
+                    {visibleUsers.map((user) => (
                       <button
                         key={user.user_id}
                         type="button"
@@ -524,79 +473,53 @@ export default function IncidentsPage() {
                             assignedTo: user.user_id,
                           }))
                         }
-                        className={`w-full rounded-2xl border p-4 text-left transition ${
-                          taskDraft.assignedTo === user.user_id
-                            ? "border-white/20 bg-white/10 text-white"
-                            : "border-white/10 bg-black/15 hover:border-white/20 hover:bg-black/25"
-                        }`}
+                        className={`relay-user-row ${taskDraft.assignedTo === user.user_id ? "relay-user-row-selected" : ""}`}
                       >
                         <div className="flex items-center justify-between gap-4">
                           <div>
                             <p className="text-sm font-semibold">
                               {user.full_name ?? user.user_id}
                             </p>
-                            <p
-                              className={`mt-1 text-xs font-medium uppercase tracking-[0.16em] ${
-                                taskDraft.assignedTo === user.user_id
-                                  ? "text-slate-300"
-                                  : "text-slate-400"
-                              }`}
-                            >
+                            <p className="relay-user-meta">
                               {user.role ?? "user"} · {user.is_active && user.last_seen_at
                                 ? `Seen ${formatHoursAgo(user.last_seen_at)}`
-                                : "Offline"}
+                                : "Offline"} · {openTaskCountByUserId.get(user.user_id) ?? 0} open task{(openTaskCountByUserId.get(user.user_id) ?? 0) === 1 ? "" : "s"}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span
-                              className={`h-3 w-3 rounded-full ${
-                                user.is_active ? "bg-emerald-400 shadow-[0_0_18px_rgba(74,222,128,0.65)]" : "bg-slate-600"
-                              }`}
-                            />
-                            <span
-                              className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
-                                taskDraft.assignedTo === user.user_id
-                                  ? "border border-white/20 bg-white/10 text-white"
-                                  : user.is_active
-                                    ? "border border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-                                    : "border border-white/10 bg-black/10 text-slate-400"
-                              }`}
-                            >
+                            <span className={`relay-presence-dot ${user.is_active ? "relay-presence-active" : ""}`} />
+                            <span className={`relay-status-badge ${user.is_active ? "relay-status-success" : ""}`}>
                               {user.is_active ? "Active" : "Offline"}
                             </span>
                           </div>
                         </div>
                       </button>
-                    ))
+                    ))}
+                    </div>
                     )}
                   </div>
                 ) : null}
-              </section>
+              </SectionCard>
 
-              <section className="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-                      Send Task
-                    </p>
-                    <p className="text-sm leading-6 text-slate-400">
-                      Click a user, assign a task, and it will appear in their task view.
-                    </p>
-                  </div>
+              <SectionCard
+                title="Create and manage tasks"
+                description="Assign work and review the current open task queue."
+                action={
                   <button
                     type="button"
                     onClick={() => setIsTaskPanelMinimized((current) => !current)}
-                    className="rounded-full border border-white/10 bg-black/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:border-white/20 hover:bg-black/25 hover:text-white"
+                    className="relay-button relay-button-ghost"
                   >
                     {isTaskPanelMinimized ? "Expand" : "Minimise"}
                   </button>
-                </div>
+                }
+              >
 
                 {!isTaskPanelMinimized ? (
                   <>
-                    <div className="mt-6 space-y-4">
-                  <label className="space-y-2">
-                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    <div className="relay-task-form">
+                  <label className="relay-field">
+                    <span>
                       Assigned User
                     </span>
                     <select
@@ -607,7 +530,7 @@ export default function IncidentsPage() {
                           assignedTo: event.target.value,
                         }))
                       }
-                      className="h-11 w-full rounded-xl border border-white/10 bg-black/15 px-4 text-sm text-white outline-none transition focus:border-white/20"
+                      className="relay-control"
                     >
                       <option value="">Select user</option>
                       {users.map((user) => (
@@ -618,8 +541,8 @@ export default function IncidentsPage() {
                     </select>
                   </label>
 
-                  <label className="space-y-2">
-                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  <label className="relay-field">
+                    <span>
                       Task Title
                     </span>
                     <input
@@ -631,12 +554,12 @@ export default function IncidentsPage() {
                         }))
                       }
                       placeholder="Example: Check damage photos for job 483321"
-                      className="h-11 w-full rounded-xl border border-white/10 bg-black/15 px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-white/20"
+                      className="relay-control"
                     />
                   </label>
 
-                  <label className="space-y-2">
-                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  <label className="relay-field relay-field-wide">
+                    <span>
                       Task Detail
                     </span>
                     <textarea
@@ -649,7 +572,7 @@ export default function IncidentsPage() {
                       }
                       rows={4}
                       placeholder="Add any extra instruction for the assigned user."
-                      className="w-full rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm leading-7 text-white outline-none transition placeholder:text-slate-500 focus:border-white/20"
+                      className="relay-control relay-textarea"
                     />
                   </label>
 
@@ -657,40 +580,38 @@ export default function IncidentsPage() {
                     type="button"
                     onClick={() => void handleAssignTask()}
                     disabled={isAssigningTask}
-                    className="inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="relay-button relay-button-primary"
                   >
                     {isAssigningTask ? "Assigning..." : "Send Task"}
                   </button>
                     </div>
 
-                    <div className="mt-6 space-y-3">
+                    <div className="relay-open-tasks">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        <h3>
                           Open Tasks
-                        </p>
+                        </h3>
                         <Link
                           href="/incidents/tasks"
-                          className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-200"
+                          className="relay-inline-link"
                         >
                           Manage Tasks
                         </Link>
                       </div>
                       {openTasks.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                          No open tasks assigned yet.
-                        </div>
+                        <EmptyState title="No open tasks" description="Newly assigned tasks will appear here." />
                       ) : (
                         openTasks.slice(0, 6).map((task) => (
                           <article
                             key={task.id}
-                            className="rounded-2xl border border-white/10 bg-black/15 p-4"
+                            className="relay-task-row"
                           >
-                            <p className="text-sm font-semibold text-white">{task.title}</p>
-                            <p className="mt-1 text-sm text-slate-400">
+                            <p className="font-semibold text-[color:var(--foreground-strong)]">{task.title}</p>
+                            <p className="mt-1 text-sm text-[color:var(--foreground-muted)]">
                               {task.assignee_name ?? task.assigned_to}
                             </p>
                             {task.description ? (
-                              <p className="mt-3 text-sm leading-6 text-slate-300">
+                              <p className="mt-2 text-sm leading-6 text-[color:var(--foreground-muted)]">
                                 {task.description}
                               </p>
                             ) : null}
@@ -700,7 +621,7 @@ export default function IncidentsPage() {
                     </div>
                   </>
                 ) : null}
-              </section>
+              </SectionCard>
             </div>
 
             {viewMode === "dynamic" ? (
@@ -897,46 +818,6 @@ export default function IncidentsPage() {
           </section>
         </AuthGuard>
       </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "slate" | "amber" | "emerald" | "rose" | "blue";
-}) {
-  const toneClasses: Record<string, string> = {
-    slate: "border-white/10 bg-white/5",
-    amber: "border-amber-400/20 bg-amber-500/10",
-    emerald: "border-emerald-400/20 bg-emerald-500/10",
-    rose: "border-rose-400/20 bg-rose-500/10",
-    blue: "border-sky-400/20 bg-sky-500/10",
-  };
-
-  return (
-    <div className={`rounded-[1.5rem] border p-5 ${toneClasses[tone]}`}>
-      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-        {label}
-      </p>
-      <p className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4">
-      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-        {label}
-      </p>
-      <p className="mt-2 text-xl font-semibold text-white">{value}</p>
     </div>
   );
 }

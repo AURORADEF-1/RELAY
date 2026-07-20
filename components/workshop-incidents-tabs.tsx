@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SubNavigation } from "@/components/layout/sub-navigation";
 
 type WorkshopIncidentsTab =
   | "dashboard"
@@ -31,22 +31,6 @@ export function WorkshopIncidentsTabs({
   activeTab: WorkshopIncidentsTab;
 }) {
   return (
-    <div className="aurora-pill-group w-full">
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((tab) => (
-          <Link
-            key={tab.key}
-            href={tab.href}
-            className={`aurora-pill ${
-              activeTab === tab.key
-                ? "aurora-pill-active"
-                : ""
-            }`}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </div>
-    </div>
+    <SubNavigation label="Workshop sections" items={tabs} activeItem={activeTab} />
   );
 }

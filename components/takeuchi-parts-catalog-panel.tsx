@@ -16,10 +16,12 @@ import { getSupabaseClient } from "@/lib/supabase";
 
 const TAKEUCHI_CATALOG_MIGRATION_HINT = "Apply docs/takeuchi-parts-catalog-schema.sql and try again.";
 const TAKEUCHI_OPEN_ENDED_SERIAL_MAX = 999999999;
+const CATALOGUE_PAGE_SIZE = 200;
 
 export function TakeuchiPartsCatalogPanel() {
   const [catalog, setCatalog] = useState<TakeuchiPartCatalogRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -119,6 +121,19 @@ export function TakeuchiPartsCatalogPanel() {
     };
   }, [catalog]);
 
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm]);
+
+  const pageCount = Math.max(1, Math.ceil(visibleCatalog.length / CATALOGUE_PAGE_SIZE));
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount - 1));
+  }, [pageCount]);
+  const visiblePage = visibleCatalog.slice(
+    page * CATALOGUE_PAGE_SIZE,
+    (page + 1) * CATALOGUE_PAGE_SIZE,
+  );
+
   const handleImportFile = useCallback(async () => {
     if (!selectedFile) {
       setNotice({
@@ -189,7 +204,7 @@ export function TakeuchiPartsCatalogPanel() {
   }, [loadCatalog, selectedFile]);
 
   return (
-    <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-5">
+    <section className="takeuchi-catalog-panel">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -275,9 +290,17 @@ export function TakeuchiPartsCatalogPanel() {
         </label>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white">
+      <div className="parts-data-table-wrap">
+        <div className="parts-table-toolbar sticky left-0">
+          <span>{visibleCatalog.length.toLocaleString()} matching rows</span>
+          <div className="flex items-center gap-2">
+            <button type="button" className="relay-button relay-button-ghost" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>Previous</button>
+            <span>Page {page + 1} of {pageCount}</span>
+            <button type="button" className="relay-button relay-button-ghost" disabled={page >= pageCount - 1} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}>Next</button>
+          </div>
+        </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-left">
+          <table className="parts-data-table">
             <thead className="bg-slate-50">
               <tr className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 <th className="px-4 py-3">Main Group</th>
@@ -301,7 +324,7 @@ export function TakeuchiPartsCatalogPanel() {
                   </td>
                 </tr>
               ) : (
-                visibleCatalog.map((row) => (
+                visiblePage.map((row) => (
                   <tr key={row.id} className="align-top">
                     <td className="px-4 py-4 text-sm font-medium text-slate-900">
                       <div>{row.bom_main_group}</div>
