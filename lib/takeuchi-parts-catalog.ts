@@ -81,6 +81,9 @@ const PART_SEARCH_CONCEPTS = [
   ["bucket", "attachment", "implement"],
   ["cab", "cabin", "operator"],
   ["filter", "element", "strainer"],
+  ["deadman", "safety", "lock", "pilot", "presence", "isolation"],
+  ["aircon", "air-conditioning", "ac", "compressor", "refrigeration"],
+  ["cable", "wire", "linkage", "control"],
 ] as const;
 
 const PART_SEARCH_SYNONYMS = new Map<string, readonly string[]>(
