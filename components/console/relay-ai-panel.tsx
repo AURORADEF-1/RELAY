@@ -9,6 +9,12 @@ import {
   type RelayAnalyticsSnapshot,
 } from "@/lib/relay-console-ai";
 import {
+  executeRelayAiAssignment,
+  parseRelayAiAssignmentCommand,
+  prepareRelayAiAssignment,
+  type RelayAiAssignmentDraft,
+} from "@/lib/relay-ai-assignment-actions";
+import {
   createRelayAiTicket,
   parseRelayAiTicketDraft,
   type RelayAiTicketDraft,
@@ -30,19 +36,23 @@ type RelayAiMessage = {
     draft: RelayAiTicketDraft;
     status: "pending" | "submitting" | "cancelled" | "submitted";
   };
+  assignmentAction?: {
+    draft: RelayAiAssignmentDraft;
+    status: "pending" | "submitting" | "cancelled" | "submitted";
+  };
 };
 
 const STARTER_MESSAGE: RelayAiMessage = {
   id: "welcome",
   role: "assistant",
-  text: "Ask me about jobs, PO numbers, delivery ETAs, suppliers, demand, spend, queues or admin performance. I can also prepare a new ticket, but I will always show a confirmation review before submitting it.",
+  text: "Ask me about jobs, PO numbers, delivery ETAs, suppliers, demand, spend, queues or admin performance. I can prepare tickets and job assignments, but I always show a confirmation review before changing RELAY data.",
 };
 
 const SUGGESTED_QUESTIONS = [
   "Which machine reference has the highest requests?",
   "Who is our main supplier?",
   "Generate an admin performance report",
-  "Show PO 53956 supplier and delivery ETA",
+  "Assign job 25630 to Tom",
 ];
 
 const CACHE_WINDOW_MS = 60_000;
@@ -106,6 +116,25 @@ export function RelayAiPanel({
     setIsThinking(true);
 
     try {
+      const assignmentCommand = parseRelayAiAssignmentCommand(question);
+      if (assignmentCommand) {
+        const snapshot = await getSnapshot();
+        const supabase = getSupabaseClient();
+        if (!supabase) throw new Error("Supabase is not configured.");
+        const assignmentDraft = await prepareRelayAiAssignment(supabase, snapshot, assignmentCommand);
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: "I found the job and admin account. Review the assignment below and confirm it before I update the ticket or notify the assignee.",
+            assignmentAction: { draft: assignmentDraft, status: "pending" },
+            sourceNote: "Preview only. The ticket and notifications have not been changed.",
+          },
+        ]);
+        return;
+      }
+
       const ticketDraft = parseRelayAiTicketDraft(question);
       if (ticketDraft) {
         if (ticketDraft.missing.length > 0) {
@@ -153,6 +182,54 @@ export function RelayAiPanel({
           id: `assistant-error-${Date.now()}`,
           role: "assistant",
           text: error instanceof Error ? error.message : "RELAY AI could not query the live dataset.",
+        },
+      ]);
+    } finally {
+      setIsThinking(false);
+    }
+  }
+
+  function updateAssignmentAction(
+    messageId: string,
+    updater: (action: NonNullable<RelayAiMessage["assignmentAction"]>) => NonNullable<RelayAiMessage["assignmentAction"]>,
+  ) {
+    setMessages((current) => current.map((message) =>
+      message.id === messageId && message.assignmentAction
+        ? { ...message, assignmentAction: updater(message.assignmentAction) }
+        : message,
+    ));
+  }
+
+  async function confirmAssignment(messageId: string, assignmentDraft: RelayAiAssignmentDraft) {
+    if (isThinking) return;
+    updateAssignmentAction(messageId, (action) => ({ ...action, status: "submitting" }));
+    setIsThinking(true);
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error("Supabase is not configured.");
+      const result = await executeRelayAiAssignment(supabase, assignmentDraft);
+      updateAssignmentAction(messageId, (action) => ({ ...action, status: "submitted" }));
+      snapshotRef.current = null;
+      setSyncedAt(null);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-assigned-${Date.now()}`,
+          role: "assistant",
+          text: `Job ${assignmentDraft.jobNumber} is now assigned to ${assignmentDraft.assigneeLabel}. ${assignmentDraft.assigneeFullName} has been sent a closeable RELAY AI assignment notification.${result.warnings.length ? `\n\nWarnings: ${result.warnings.join(" ")}` : ""}`,
+          facts: ["Assignment saved", assignmentDraft.assigneeLabel, "Notification sent"],
+          sourceNote: `Confirmed by ${result.actorName}. The assignment is recorded in the ticket activity chain.`,
+        },
+      ]);
+    } catch (error) {
+      updateAssignmentAction(messageId, (action) => ({ ...action, status: "pending" }));
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-error-${Date.now()}`,
+          role: "assistant",
+          text: error instanceof Error ? error.message : "The job could not be assigned.",
+          sourceNote: "Assignment failed. No confirmation of a successful notification was recorded.",
         },
       ]);
     } finally {
@@ -272,6 +349,44 @@ export function RelayAiPanel({
                       <ConsoleIcon name="file" className="h-4 w-4" />
                       Download CSV report
                     </button>
+                  ) : null}
+                  {message.assignmentAction ? (
+                    <div className={`relay-ai-ticket-review relay-ai-ticket-review-${message.assignmentAction.status}`}>
+                      <div className="relay-ai-ticket-review-heading">
+                        <div>
+                          <span>Pending action</span>
+                          <strong>Assign job {message.assignmentAction.draft.jobNumber}</strong>
+                        </div>
+                        <b>{message.assignmentAction.status === "submitted" ? "Submitted" : message.assignmentAction.status === "cancelled" ? "Cancelled" : "Requires confirmation"}</b>
+                      </div>
+                      <dl>
+                        <div><dt>Job number</dt><dd>{message.assignmentAction.draft.jobNumber}</dd></div>
+                        <div><dt>Machine</dt><dd>{message.assignmentAction.draft.machineReference || "Not recorded"}</dd></div>
+                        <div><dt>Current assignee</dt><dd>{message.assignmentAction.draft.currentAssignee || "Unassigned"}</dd></div>
+                        <div><dt>New assignee</dt><dd>{message.assignmentAction.draft.assigneeLabel} ({message.assignmentAction.draft.assigneeFullName})</dd></div>
+                        <div className="relay-ai-ticket-review-wide"><dt>Request</dt><dd>{message.assignmentAction.draft.requestSummary}</dd></div>
+                        <div className="relay-ai-ticket-review-wide"><dt>Notification</dt><dd>Closeable popup: “Job {message.assignmentAction.draft.jobNumber} assigned by RELAY AI”</dd></div>
+                      </dl>
+                      {message.assignmentAction.status === "pending" ? (
+                        <div className="relay-ai-ticket-review-actions">
+                          <button
+                            type="button"
+                            className="relay-ai-ticket-confirm"
+                            disabled={isThinking}
+                            onClick={() => void confirmAssignment(message.id, message.assignmentAction!.draft)}
+                          >
+                            Confirm assignment and notify
+                          </button>
+                          <button
+                            type="button"
+                            className="relay-ai-ticket-cancel"
+                            onClick={() => updateAssignmentAction(message.id, (action) => ({ ...action, status: "cancelled" }))}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                   {message.ticketAction ? (
                     <div className={`relay-ai-ticket-review relay-ai-ticket-review-${message.ticketAction.status}`}>

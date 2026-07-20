@@ -7,6 +7,7 @@ export type RelayNotificationType =
   | "requester_message"
   | "operator_message"
   | "task_assigned"
+  | "job_assigned"
   | "ready_reminder"
   | "ready_for_collection"
   | "part_collected"
@@ -253,6 +254,27 @@ export async function notifyUserTaskAssigned(
   ]);
 }
 
+export async function notifyAdminJobAssigned(
+  supabase: SupabaseClient,
+  payload: {
+    userId: string;
+    ticketId: string;
+    jobNumber: string;
+    requestSummary: string;
+    assignedBy: string;
+  },
+) {
+  await insertNotifications(supabase, [
+    {
+      user_id: payload.userId,
+      ticket_id: payload.ticketId,
+      type: "job_assigned",
+      title: `Job ${clampNotificationText(payload.jobNumber, 80)} assigned by RELAY AI`,
+      body: `${clampNotificationText(payload.requestSummary, 170)} Assigned by ${clampNotificationText(payload.assignedBy, 50)}.`,
+    },
+  ]);
+}
+
 export async function ensureReadyReminderNotifications(
   supabase: SupabaseClient,
   userId: string,
@@ -471,6 +493,10 @@ async function insertNotifications(
   const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
   if (response.ok) {
+    void broadcastNotificationRefresh(
+      supabase,
+      notifications.map((notification) => notification.user_id),
+    ).catch((error) => console.error("Failed to broadcast notification refresh", error));
     return;
   }
 
@@ -508,4 +534,40 @@ async function insertNotifications(
   if (directInsertError) {
     throw new Error(`${dispatchErrorMessage} Direct insert fallback failed: ${directInsertError.message}`);
   }
+
+  void broadcastNotificationRefresh(
+    supabase,
+    notifications.map((notification) => notification.user_id),
+  ).catch((error) => console.error("Failed to broadcast notification refresh", error));
+}
+
+async function broadcastNotificationRefresh(
+  supabase: SupabaseClient,
+  userIds: string[],
+) {
+  await Promise.all(Array.from(new Set(userIds)).map(async (userId) => {
+    const channel = supabase.channel(`relay-notifications-${userId}`);
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        void supabase.removeChannel(channel);
+        resolve();
+      };
+      const timeoutId = setTimeout(finish, 2500);
+
+      channel.subscribe((status) => {
+        if (settled || status !== "SUBSCRIBED") return;
+        void channel.send({
+          type: "broadcast",
+          event: "refresh",
+          payload: {},
+        }).finally(() => {
+          clearTimeout(timeoutId);
+          finish();
+        });
+      });
+    });
+  }));
 }

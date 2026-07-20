@@ -17,6 +17,7 @@ const allowedNotificationTypes = new Set<RelayNotificationType>([
   "requester_message",
   "operator_message",
   "task_assigned",
+  "job_assigned",
   "ready_reminder",
   "ready_for_collection",
   "part_collected",

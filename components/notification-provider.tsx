@@ -93,6 +93,7 @@ const ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-browser-notification-prompt
 const REQUESTER_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-browser-notification-prompted-requester";
 const TOASTED_NOTIFICATION_IDS_STORAGE_PREFIX = "relay-toasted-notification-ids";
 const MAX_STORED_TOASTED_NOTIFICATION_IDS = 120;
+const JOB_ASSIGNMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
   "operator_message",
@@ -183,7 +184,7 @@ function shouldTrackUserPresence(pathname: string, adminUser: boolean) {
 
 function shouldPromptBrowserNotifications(pathname: string, adminUser: boolean) {
   if (adminUser) {
-    return pathname === "/admin";
+    return pathname === "/admin" || pathname === "/console";
   }
 
   return pathname === "/requests" || pathname.startsWith("/tickets/");
@@ -563,8 +564,21 @@ export function NotificationProvider({
         const completedNotificationIds = adminUser
           ? new Set<string>()
           : await clearArchivedTicketNotifications(supabase, userId, unreadNotifications);
+        const staleAssignmentNotificationIds = unreadNotifications
+          .filter((notification) =>
+            notification.type === "job_assigned" &&
+            Date.now() - new Date(notification.created_at).getTime() > JOB_ASSIGNMENT_MAX_AGE_MS,
+          )
+          .map((notification) => notification.id);
+        if (staleAssignmentNotificationIds.length > 0) {
+          await markNotificationsRead(supabase, staleAssignmentNotificationIds);
+        }
+        const inactiveNotificationIds = new Set([
+          ...completedNotificationIds,
+          ...staleAssignmentNotificationIds,
+        ]);
         const activeUnreadNotifications = unreadNotifications.filter(
-          (notification) => !completedNotificationIds.has(notification.id),
+          (notification) => !inactiveNotificationIds.has(notification.id),
         );
         const unreadTaskNotifications = activeUnreadNotifications.filter(
           (notification) => notification.type === "task_assigned",
@@ -574,10 +588,13 @@ export function NotificationProvider({
         );
         const nextUnreadIds = new Set(activeUnreadNotifications.map((notification) => notification.id));
 
-        const shouldShowToasts =
-          options?.showToasts &&
-          !adminUser &&
-          unreadNotificationsInitializedRef.current;
+        const toastableNotifications = adminUser
+          ? activeUnreadNotifications.filter((notification) => notification.type === "job_assigned")
+          : activeUnreadNotifications;
+        const shouldShowToasts = options?.showToasts && (
+          unreadNotificationsInitializedRef.current ||
+          toastableNotifications.some((notification) => notification.type === "job_assigned")
+        );
 
         if (adminUser) {
           setToasts((current) => current.filter((toast) => toast.persistent));
@@ -585,11 +602,12 @@ export function NotificationProvider({
 
         if (shouldShowToasts) {
           const toastedNotificationIds = readToastedNotificationIds(userId);
-          const nextToasts = activeUnreadNotifications
+          const nextToasts = toastableNotifications
             .filter(
               (notification) =>
                 !knownUnreadIdsRef.current.has(notification.id) &&
-                !toastedNotificationIds.has(notification.id),
+                !toastedNotificationIds.has(notification.id) &&
+                (unreadNotificationsInitializedRef.current || notification.type === "job_assigned"),
             )
             .sort(
               (left, right) =>
@@ -601,7 +619,9 @@ export function NotificationProvider({
               title: notification.title,
               description: notification.body ?? "New RELAY activity.",
               href:
-                notification.type === "task_assigned"
+                notification.type === "job_assigned" && notification.ticket_id
+                  ? `/tickets/${notification.ticket_id}`
+                  : notification.type === "task_assigned"
                   ? "/tasks"
                   : notification.ticket_id
                     ? `/tickets/${notification.ticket_id}`
@@ -611,12 +631,14 @@ export function NotificationProvider({
               persistent:
                 notification.type === "operator_message" ||
                 notification.type === "ready_reminder" ||
-                notification.type === "ready_for_collection",
+                notification.type === "ready_for_collection" ||
+                notification.type === "job_assigned",
             });
             if (
               notification.type === "operator_message" ||
               notification.type === "ready_reminder" ||
-              notification.type === "ready_for_collection"
+              notification.type === "ready_for_collection" ||
+              notification.type === "job_assigned"
             ) {
               pushBrowserNotification({
                 title: notification.title,
@@ -691,7 +713,7 @@ export function NotificationProvider({
         }
 
         const notificationsToMarkRead = adminUser
-          ? unreadNotifications
+          ? unreadNotifications.filter((notification) => notification.type !== "job_assigned")
           : currentPath === "/tasks"
             ? unreadNotifications.filter((notification) => notification.type === "task_assigned")
             : currentPath.startsWith("/tickets/")
@@ -986,6 +1008,20 @@ export function NotificationProvider({
             table: "notifications",
             filter: `user_id=eq.${user.id}`,
           },
+          async () => {
+            if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+              return;
+            }
+
+            await syncUnreadNotifications(supabase, user.id, adminUser, {
+              showToasts: true,
+            });
+          },
+        );
+
+        channel.on(
+          "broadcast",
+          { event: "refresh" },
           async () => {
             if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
               return;
