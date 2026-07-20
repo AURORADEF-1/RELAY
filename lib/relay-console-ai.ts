@@ -44,6 +44,7 @@ export type RelayAnalyticsTicket = {
   machine_model: string | null;
   job_number: string | null;
   request_summary: string | null;
+  request_details: string | null;
   status: string | null;
   assigned_to: string | null;
   expected_delivery_date: string | null;
@@ -58,6 +59,7 @@ export type RelayAnalyticsTicket = {
   updated_at: string | null;
   ordered_at: string | null;
   ready_at: string | null;
+  notes: string | null;
 };
 
 export type RelayAnalyticsPurchaseOrder = {
@@ -91,6 +93,7 @@ const TICKET_FIELDS = [
   "machine_model",
   "job_number",
   "request_summary",
+  "request_details",
   "status",
   "assigned_to",
   "expected_delivery_date",
@@ -105,6 +108,7 @@ const TICKET_FIELDS = [
   "updated_at",
   "ordered_at",
   "ready_at",
+  "notes",
 ].join(",");
 
 const PURCHASE_ORDER_FIELDS = [
@@ -237,6 +241,68 @@ function ticketLine(ticket: RelayAnalyticsTicket) {
     ? ticket.customer_name?.trim() || "Retail order"
     : ticket.machine_reference?.trim() || "No machine";
   return `• ${ticket.job_number?.trim() || ticket.id.slice(0, 8)} · ${reference} · ${ticket.requester_name?.trim() || "Unknown requester"}`;
+}
+
+function dedupeRequestDescription(ticket: RelayAnalyticsTicket) {
+  const summary = ticket.request_summary?.trim() || "";
+  const details = ticket.request_details?.trim() || "";
+  const normalizedSummary = normalize(summary);
+  const normalizedDetails = normalize(details);
+  if (!summary && !details) return "Not recorded";
+  if (!summary || normalizedSummary === normalizedDetails) return details || summary;
+  if (!details || normalizedSummary.includes(normalizedDetails)) return summary;
+  if (normalizedDetails.includes(normalizedSummary)) return details;
+  return `${summary}. ${details}`;
+}
+
+function nextActionForTicket(ticket: RelayAnalyticsTicket) {
+  switch (ticket.status) {
+    case "PENDING": return "Validate the request, assign an operator and choose the next workflow stage.";
+    case "ESTIMATE": return "Confirm supplier price, availability and lead time before preparing the estimate.";
+    case "QUOTE": return "Confirm approval or requested changes before progressing the order.";
+    case "QUERY": return "Resolve the recorded query with the requester and add the answer to the ticket.";
+    case "IN_PROGRESS": return "Confirm the part and supplier, then record PO and delivery details when ordered.";
+    case "ORDERED": return `Monitor the ${formatDate(ticket.expected_delivery_date)} expected delivery and chase the supplier if it slips.`;
+    case "READY": return `Confirm collection from bin ${ticket.bin_location?.trim() || "not recorded"} using the QR or verbal code.`;
+    case "COMPLETED": return "No action is required unless a correction, return or audit note is needed.";
+    default: return "Review the ticket and record the next operational update.";
+  }
+}
+
+function findJobMatches(question: string, tickets: RelayAnalyticsTicket[]) {
+  const identifiers = new Set(
+    question
+      .match(/[a-z0-9][a-z0-9/_-]{2,}/gi)
+      ?.map((value) => normalize(value)) ?? [],
+  );
+  return tickets.filter((ticket) => {
+    const jobNumber = normalize(ticket.job_number);
+    return Boolean(jobNumber) && identifiers.has(jobNumber);
+  });
+}
+
+function answerJobLookup(matches: RelayAnalyticsTicket[]): RelayConsoleAiAnswer {
+  const ordered = [...matches].sort((left, right) =>
+    new Date(right.created_at ?? "").getTime() - new Date(left.created_at ?? "").getTime(),
+  );
+  const blocks = ordered.slice(0, 5).map((ticket) => [
+    `Job ${ticket.job_number?.trim() || "not recorded"}`,
+    `Request: ${dedupeRequestDescription(ticket)}`,
+    `Machine: ${ticket.machine_reference?.trim() || "not recorded"}`,
+    `Requester: ${ticket.requester_name?.trim() || "not recorded"}${ticket.department?.trim() ? ` · ${ticket.department.trim()}` : ""}`,
+    `Status: ${ticket.status || "UNKNOWN"} · Assigned to: ${ticket.assigned_to?.trim() || "unassigned"}`,
+    `Supplier: ${ticket.supplier_name?.trim() || "not recorded"} · PO: ${ticket.purchase_order_number?.trim() || "not recorded"}`,
+    `Expected delivery: ${formatDate(ticket.expected_delivery_date)} · Bin: ${ticket.bin_location?.trim() || "not recorded"}`,
+    ticket.notes?.trim() ? `Latest recorded note: ${ticket.notes.trim()}` : null,
+    `Recommended next action: ${nextActionForTicket(ticket)}`,
+    `Open ticket: /tickets/${ticket.id}`,
+  ].filter(Boolean).join("\n"));
+
+  return {
+    text: blocks.join("\n\n"),
+    facts: [`${formatNumber(matches.length)} ticket${matches.length === 1 ? "" : "s"}`, matches[0]?.status || "UNKNOWN", matches[0]?.assigned_to?.trim() || "Unassigned"],
+    sourceNote: "Exact job-number match against live accessible ticket rows.",
+  };
 }
 
 function supplierRecords(snapshot: RelayAnalyticsSnapshot) {
@@ -418,6 +484,9 @@ export async function answerRelayConsoleQuestion(
   question: string,
   snapshot: RelayAnalyticsSnapshot,
 ) {
+  const jobMatches = findJobMatches(question, snapshot.tickets);
+  if (jobMatches.length > 0) return answerJobLookup(jobMatches);
+
   const intent = await detectIntent(question);
   switch (intent) {
     case "machines": return answerMachines(snapshot);
