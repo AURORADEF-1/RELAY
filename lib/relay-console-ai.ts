@@ -74,9 +74,16 @@ export type RelayAnalyticsPurchaseOrder = {
   created_at: string | null;
 };
 
+export type RelayAnalyticsCompletionEvent = {
+  ticket_id: string;
+  status: string | null;
+  created_at: string | null;
+};
+
 export type RelayAnalyticsSnapshot = {
   tickets: RelayAnalyticsTicket[];
   purchaseOrders: RelayAnalyticsPurchaseOrder[];
+  completionEvents: RelayAnalyticsCompletionEvent[];
   loadedAt: Date;
 };
 
@@ -86,9 +93,15 @@ export type RelayConsoleAiAnswer = {
   sourceNote: string;
   download?: {
     filename: string;
-    content: string;
-    mimeType: string;
+    label?: string;
+    content?: string;
+    mimeType?: string;
+    workbook?: {
+      sheetName: string;
+      rows: Array<Array<string | number>>;
+    };
   };
+  copyText?: string;
 };
 
 const TICKET_FIELDS = [
@@ -127,6 +140,8 @@ const PURCHASE_ORDER_FIELDS = [
   "po_status",
   "created_at",
 ].join(",");
+
+const COMPLETION_EVENT_FIELDS = "ticket_id,status,created_at";
 
 const PAGE_SIZE = 1000;
 
@@ -173,12 +188,31 @@ async function loadAllPurchaseOrders(supabase: SupabaseClient) {
   return rows;
 }
 
+async function loadAllCompletionEvents(supabase: SupabaseClient) {
+  const rows: RelayAnalyticsCompletionEvent[] = [];
+  for (let start = 0; ; start += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("ticket_updates")
+      .select(COMPLETION_EVENT_FIELDS)
+      .eq("status", "COMPLETED")
+      .order("created_at", { ascending: false })
+      .range(start, start + PAGE_SIZE - 1);
+
+    if (error) throw new Error(error.message);
+    const page = (data ?? []) as unknown as RelayAnalyticsCompletionEvent[];
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 export async function loadRelayAnalyticsSnapshot(supabase: SupabaseClient) {
-  const [tickets, purchaseOrders] = await Promise.all([
+  const [tickets, purchaseOrders, completionEvents] = await Promise.all([
     loadAllTickets(supabase),
     loadAllPurchaseOrders(supabase),
+    loadAllCompletionEvents(supabase),
   ]);
-  return { tickets, purchaseOrders, loadedAt: new Date() } satisfies RelayAnalyticsSnapshot;
+  return { tickets, purchaseOrders, completionEvents, loadedAt: new Date() } satisfies RelayAnalyticsSnapshot;
 }
 
 type GroupValue = { key: string; label: string; count: number; total: number };
@@ -411,6 +445,197 @@ function detectIntentFromWords(question: string): AnalyticsIntent {
 function csvCell(value: string | number) {
   const text = String(value);
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+type KpiDateRange = {
+  start: Date | null;
+  end: Date | null;
+  label: string;
+};
+
+function startOfWeek(date: Date) {
+  const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = result.getDay() || 7;
+  result.setDate(result.getDate() - day + 1);
+  return result;
+}
+
+function parseReportDate(value: string) {
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const ukMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const parts = isoMatch
+    ? [Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3])]
+    : ukMatch
+      ? [Number(ukMatch[3]), Number(ukMatch[2]), Number(ukMatch[1])]
+      : null;
+  if (!parts) return null;
+  const date = new Date(parts[0], parts[1] - 1, parts[2]);
+  return date.getFullYear() === parts[0] && date.getMonth() === parts[1] - 1 && date.getDate() === parts[2]
+    ? date
+    : null;
+}
+
+function kpiDateRange(question: string): KpiDateRange {
+  const query = normalize(question);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const explicitRange = query.match(/(?:from|between)\s+(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\s+(?:to|and)\s+(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
+  if (explicitRange) {
+    const start = parseReportDate(explicitRange[1]);
+    const inclusiveEnd = parseReportDate(explicitRange[2]);
+    if (start && inclusiveEnd && inclusiveEnd >= start) {
+      const end = new Date(inclusiveEnd);
+      end.setDate(end.getDate() + 1);
+      return { start, end, label: `${formatDate(start.toISOString())} to ${formatDate(inclusiveEnd.toISOString())}` };
+    }
+  }
+  if (query.includes("this month")) {
+    return {
+      start: new Date(now.getFullYear(), now.getMonth(), 1),
+      end: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+      label: now.toLocaleDateString("en-GB", { month: "long", year: "numeric" }),
+    };
+  }
+  if (query.includes("last month")) {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return {
+      start,
+      end: new Date(now.getFullYear(), now.getMonth(), 1),
+      label: start.toLocaleDateString("en-GB", { month: "long", year: "numeric" }),
+    };
+  }
+  if (query.includes("this week")) {
+    const start = startOfWeek(now);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return { start, end, label: `week commencing ${formatDate(start.toISOString())}` };
+  }
+  if (query.includes("last week")) {
+    const end = startOfWeek(now);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 7);
+    return { start, end, label: `week commencing ${formatDate(start.toISOString())}` };
+  }
+  if (query.includes("today")) {
+    const end = new Date(today);
+    end.setDate(end.getDate() + 1);
+    return { start: today, end, label: formatDate(today.toISOString()) };
+  }
+  const daysMatch = query.match(/(?:last|past)\s+(\d{1,3})\s+days?/);
+  if (daysMatch) {
+    const days = Math.min(Number(daysMatch[1]), 366);
+    return { start: new Date(now.getTime() - days * 86_400_000), end: now, label: `last ${days} days` };
+  }
+  if (query.includes("this year")) {
+    return {
+      start: new Date(now.getFullYear(), 0, 1),
+      end: new Date(now.getFullYear() + 1, 0, 1),
+      label: String(now.getFullYear()),
+    };
+  }
+  return { start: null, end: null, label: "all recorded time" };
+}
+
+function completionDateByTicket(snapshot: RelayAnalyticsSnapshot) {
+  const dates = new Map<string, string>();
+  for (const event of snapshot.completionEvents) {
+    if (event.created_at && !dates.has(event.ticket_id)) dates.set(event.ticket_id, event.created_at);
+  }
+  return dates;
+}
+
+function answerOperatorCompletionKpi(
+  question: string,
+  snapshot: RelayAnalyticsSnapshot,
+): RelayConsoleAiAnswer | null {
+  const query = ` ${normalize(question)} `;
+  if (!/\b(?:completed|complete|finished)\b/.test(query) || !/\b(?:jobs?|tickets?|requests?)\b/.test(query)) {
+    return null;
+  }
+
+  const operators = rankGroups(snapshot.tickets.map((ticket) => ({ label: ticket.assigned_to })));
+  const operatorMatches = operators.filter((candidate) => {
+    if (query.includes(` ${candidate.key} `)) return true;
+    const firstName = candidate.key.split(" ")[0];
+    return Boolean(firstName) && query.includes(` ${firstName} `);
+  });
+  const operator = operatorMatches.length === 1 ? operatorMatches[0] : null;
+  if (!operator) return null;
+
+  const range = kpiDateRange(question);
+  const completionDates = completionDateByTicket(snapshot);
+  const rows = snapshot.tickets
+    .filter((ticket) => normalize(ticket.assigned_to) === operator.key)
+    .map((ticket) => {
+      const recordedCompletion = completionDates.get(ticket.id) ?? null;
+      const completionDate = recordedCompletion || (ticket.status === "COMPLETED" ? ticket.updated_at : null);
+      return { ticket, completionDate, usedFallback: !recordedCompletion && Boolean(completionDate) };
+    })
+    .filter((row): row is { ticket: RelayAnalyticsTicket; completionDate: string; usedFallback: boolean } => Boolean(row.completionDate))
+    .filter((row) => {
+      const time = new Date(row.completionDate).getTime();
+      return Number.isFinite(time)
+        && (!range.start || time >= range.start.getTime())
+        && (!range.end || time < range.end.getTime());
+    })
+    .sort((left, right) => new Date(right.completionDate).getTime() - new Date(left.completionDate).getTime());
+  const fallbackCount = rows.filter((row) => row.usedFallback).length;
+
+  const workbookRows: Array<Array<string | number>> = [[
+    "Job number",
+    "Machine reference",
+    "Request",
+    "Requester",
+    "Department",
+    "Assigned operator",
+    "Created date",
+    "Ordered date",
+    "Completed date",
+    "Elapsed days",
+    "Supplier",
+    "PO number",
+    "Delivery ETA",
+  ]];
+  for (const row of rows) {
+    const created = new Date(row.ticket.created_at ?? "").getTime();
+    const completed = new Date(row.completionDate).getTime();
+    const elapsedDays = Number.isFinite(created) && Number.isFinite(completed) && completed >= created
+      ? Number(((completed - created) / 86_400_000).toFixed(1))
+      : "";
+    workbookRows.push([
+      row.ticket.job_number?.trim() || row.ticket.id,
+      row.ticket.machine_reference?.trim() || "",
+      dedupeRequestDescription(row.ticket),
+      row.ticket.requester_name?.trim() || "",
+      row.ticket.department?.trim() || "",
+      operator.label,
+      row.ticket.created_at ? formatDate(row.ticket.created_at) : "",
+      row.ticket.ordered_at ? formatDate(row.ticket.ordered_at) : "",
+      formatDate(row.completionDate),
+      elapsedDays,
+      row.ticket.supplier_name?.trim() || "",
+      row.ticket.purchase_order_number?.trim() || "",
+      row.ticket.expected_delivery_date ? formatDate(row.ticket.expected_delivery_date) : "",
+    ]);
+  }
+
+  const detail = rows.slice(0, 10).map((row) =>
+    `• ${row.ticket.job_number?.trim() || row.ticket.id.slice(0, 8)} · completed ${formatDate(row.completionDate)} · ${row.ticket.machine_reference?.trim() || "no machine"}`,
+  ).join("\n");
+  const safeOperator = operator.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return {
+    text: `${operator.label} completed ${formatNumber(rows.length)} job${rows.length === 1 ? "" : "s"} in ${range.label}.${detail ? `\n\nCompletion date order\n${detail}` : ""}`,
+    facts: [`${formatNumber(rows.length)} completed`, range.label, "Excel available"],
+    sourceNote: `Completion dates use ticket activity records${fallbackCount ? `, with updated_at fallback for ${fallbackCount} legacy ticket${fallbackCount === 1 ? "" : "s"}` : ""}. Results are sorted by completion date, newest first.`,
+    download: {
+      filename: `relay-${safeOperator}-completed-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      label: "Download Excel report",
+      workbook: {
+        sheetName: `${operator.label} completed`.slice(0, 31),
+        rows: workbookRows,
+      },
+    },
+  };
 }
 
 function answerAdminPerformance(snapshot: RelayAnalyticsSnapshot): RelayConsoleAiAnswer {
@@ -648,6 +873,9 @@ export async function answerRelayConsoleQuestion(
   question: string,
   snapshot: RelayAnalyticsSnapshot,
 ): Promise<RelayConsoleAiAnswer> {
+  const completionKpi = answerOperatorCompletionKpi(question, snapshot);
+  if (completionKpi) return completionKpi;
+
   const isExplicitPoLookup = /\bpo\b|purchase order/i.test(question);
   const poMatches = findPurchaseOrderMatches(question, snapshot);
   if (isExplicitPoLookup && poMatches.length > 0) return answerPurchaseOrderLookup(poMatches, snapshot);

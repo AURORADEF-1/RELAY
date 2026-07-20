@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ConsoleIcon } from "@/components/console/console-icon";
+import { lookupMachineRegistryRecord } from "@/lib/machine-registry";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import {
   answerRelayConsoleQuestion,
@@ -14,6 +15,10 @@ import {
   prepareRelayAiAssignment,
   type RelayAiAssignmentDraft,
 } from "@/lib/relay-ai-assignment-actions";
+import {
+  answerMachineRegistryLookup,
+  parseRelayAiMachineReference,
+} from "@/lib/relay-ai-machine-lookup";
 import {
   createRelayAiTicket,
   parseRelayAiTicketDraft,
@@ -29,9 +34,15 @@ type RelayAiMessage = {
   sourceNote?: string;
   download?: {
     filename: string;
-    content: string;
-    mimeType: string;
+    label?: string;
+    content?: string;
+    mimeType?: string;
+    workbook?: {
+      sheetName: string;
+      rows: Array<Array<string | number>>;
+    };
   };
+  copyText?: string;
   ticketAction?: {
     draft: RelayAiTicketDraft;
     status: "pending" | "submitting" | "cancelled" | "submitted";
@@ -49,9 +60,9 @@ const STARTER_MESSAGE: RelayAiMessage = {
 };
 
 const SUGGESTED_QUESTIONS = [
-  "Which machine reference has the highest requests?",
+  "Show machine reference 19592 make, model and serial",
+  "How many jobs has Tom completed this month?",
   "Who is our main supplier?",
-  "Generate an admin performance report",
   "Assign job 25630 to Tom",
 ];
 
@@ -162,6 +173,29 @@ export function RelayAiPanel({
         return;
       }
 
+      const machineReference = parseRelayAiMachineReference(question);
+      if (machineReference) {
+        const supabase = getSupabaseClient();
+        if (!supabase) throw new Error("Supabase is not configured.");
+        const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+        if (!user || !isAdmin) throw new Error("Admin access is required for RELAY AI.");
+        const machine = await lookupMachineRegistryRecord(supabase, machineReference);
+        const answer = answerMachineRegistryLookup(machineReference, machine);
+        setSyncedAt(new Date());
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: answer.text,
+            facts: answer.facts,
+            sourceNote: answer.sourceNote,
+            copyText: answer.copyText,
+          },
+        ]);
+        return;
+      }
+
       const snapshot = await getSnapshot();
       const answer = await answerRelayConsoleQuestion(question, snapshot);
       setMessages((current) => [
@@ -173,6 +207,7 @@ export function RelayAiPanel({
           facts: answer.facts,
           sourceNote: answer.sourceNote,
           download: answer.download,
+          copyText: answer.copyText,
         },
       ]);
     } catch (error) {
@@ -282,7 +317,19 @@ export function RelayAiPanel({
     }
   }
 
-  function downloadReport(download: NonNullable<RelayAiMessage["download"]>) {
+  async function downloadReport(download: NonNullable<RelayAiMessage["download"]>) {
+    if (download.workbook) {
+      const XLSX = await import("xlsx");
+      const worksheet = XLSX.utils.aoa_to_sheet(download.workbook.rows);
+      worksheet["!cols"] = download.workbook.rows[0]?.map((_, columnIndex) => ({
+        wch: Math.min(48, Math.max(12, ...download.workbook!.rows.map((row) => String(row[columnIndex] ?? "").length))),
+      }));
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, download.workbook.sheetName);
+      XLSX.writeFile(workbook, download.filename);
+      return;
+    }
+    if (!download.content) return;
     const url = URL.createObjectURL(new Blob([download.content], { type: download.mimeType }));
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -345,9 +392,19 @@ export function RelayAiPanel({
                     </div>
                   ) : null}
                   {message.download ? (
-                    <button type="button" className="relay-ai-download" onClick={() => downloadReport(message.download!)}>
+                    <button type="button" className="relay-ai-download" onClick={() => void downloadReport(message.download!)}>
                       <ConsoleIcon name="file" className="h-4 w-4" />
-                      Download CSV report
+                      {message.download.label || "Download CSV report"}
+                    </button>
+                  ) : null}
+                  {message.copyText ? (
+                    <button
+                      type="button"
+                      className="relay-ai-download"
+                      onClick={() => void navigator.clipboard.writeText(message.copyText!)}
+                    >
+                      <ConsoleIcon name="file" className="h-4 w-4" />
+                      Copy machine details
                     </button>
                   ) : null}
                   {message.assignmentAction ? (
