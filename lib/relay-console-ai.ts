@@ -9,6 +9,7 @@ type AnalyticsIntent =
   | "requesters"
   | "departments"
   | "operators"
+  | "admin_performance"
   | "statuses"
   | "spend"
   | "overdue"
@@ -25,6 +26,7 @@ const ANALYTICS_INTENTS: Array<{ intent: AnalyticsIntent; examples: string }> = 
   { intent: "requesters", examples: "Who raises the most requests? Show the busiest requesters." },
   { intent: "departments", examples: "Which department creates the most tickets? Show demand by department." },
   { intent: "operators", examples: "Who handles the most jobs? Show workload by assigned operator." },
+  { intent: "admin_performance", examples: "Generate an admin performance report. Compare operator output, completion, overdue work and time to ready." },
   { intent: "statuses", examples: "How many requests are in each status? Show the queue breakdown." },
   { intent: "spend", examples: "What is our supplier spend and order value? Who has the highest spend?" },
   { intent: "overdue", examples: "Which orders are overdue or due now? What needs chasing?" },
@@ -82,6 +84,11 @@ export type RelayConsoleAiAnswer = {
   text: string;
   facts: string[];
   sourceNote: string;
+  download?: {
+    filename: string;
+    content: string;
+    mimeType: string;
+  };
 };
 
 const TICKET_FIELDS = [
@@ -281,6 +288,71 @@ function findJobMatches(question: string, tickets: RelayAnalyticsTicket[]) {
   });
 }
 
+function questionIdentifiers(question: string) {
+  return new Set(
+    question
+      .match(/[a-z0-9][a-z0-9/_-]{2,}/gi)
+      ?.map((value) => normalize(value)) ?? [],
+  );
+}
+
+function findPurchaseOrderMatches(question: string, snapshot: RelayAnalyticsSnapshot) {
+  const identifiers = questionIdentifiers(question);
+  const linked = snapshot.purchaseOrders.filter((order) =>
+    identifiers.has(normalize(order.purchase_order_number)),
+  );
+  const linkedTicketIds = new Set(linked.map((order) => order.ticket_id));
+  const legacy = snapshot.tickets
+    .filter((ticket) =>
+      !linkedTicketIds.has(ticket.id) &&
+      Boolean(ticket.purchase_order_number) &&
+      identifiers.has(normalize(ticket.purchase_order_number)),
+    )
+    .map((ticket) => ({
+      id: `legacy-${ticket.id}`,
+      ticket_id: ticket.id,
+      supplier_name: ticket.supplier_name?.trim() || "Not recorded",
+      purchase_order_number: ticket.purchase_order_number?.trim() || "Not recorded",
+      order_amount: ticket.order_amount,
+      po_status: ticket.status === "COMPLETED" ? "COMPLETED" : "OPEN",
+      created_at: ticket.ordered_at ?? ticket.created_at,
+    }));
+  return [...linked, ...legacy];
+}
+
+function answerPurchaseOrderLookup(
+  matches: RelayAnalyticsPurchaseOrder[],
+  snapshot: RelayAnalyticsSnapshot,
+): RelayConsoleAiAnswer {
+  const ticketsById = new Map(snapshot.tickets.map((ticket) => [ticket.id, ticket]));
+  const blocks = matches.slice(0, 8).map((order) => {
+    const ticket = ticketsById.get(order.ticket_id);
+    return [
+      `PO ${order.purchase_order_number}`,
+      `Supplier: ${order.supplier_name || "not recorded"}`,
+      `PO status: ${order.po_status || "not recorded"} · Value: ${order.order_amount === null ? "not recorded" : formatCurrency(order.order_amount)}`,
+      `Job: ${ticket?.job_number?.trim() || "not recorded"} · Machine: ${ticket?.machine_reference?.trim() || "not recorded"}`,
+      `Request: ${ticket ? dedupeRequestDescription(ticket) : "linked ticket is not accessible"}`,
+      `Ticket status: ${ticket?.status || "not recorded"} · Assigned to: ${ticket?.assigned_to?.trim() || "unassigned"}`,
+      `Ordered: ${formatDate(ticket?.ordered_at ?? order.created_at)} · Delivery ETA: ${formatDate(ticket?.expected_delivery_date)}`,
+      ticket ? `Recommended next action: ${nextActionForTicket(ticket)}` : null,
+      ticket ? `Open ticket: /tickets/${ticket.id}` : null,
+    ].filter(Boolean).join("\n");
+  });
+
+  return {
+    text: blocks.join("\n\n"),
+    facts: [
+      `${formatNumber(matches.length)} PO${matches.length === 1 ? "" : "s"}`,
+      matches[0]?.supplier_name || "Supplier not recorded",
+      ticketsById.get(matches[0]?.ticket_id)?.expected_delivery_date
+        ? `ETA ${formatDate(ticketsById.get(matches[0].ticket_id)?.expected_delivery_date)}`
+        : "ETA not recorded",
+    ],
+    sourceNote: "Exact PO-number match against linked purchase orders and legacy ticket PO fields.",
+  };
+}
+
 function answerJobLookup(matches: RelayAnalyticsTicket[]): RelayConsoleAiAnswer {
   const ordered = [...matches].sort((left, right) =>
     new Date(right.created_at ?? "").getTime() - new Date(left.created_at ?? "").getTime(),
@@ -319,6 +391,7 @@ function supplierRecords(snapshot: RelayAnalyticsSnapshot) {
 
 function detectIntentFromWords(question: string): AnalyticsIntent {
   const query = ` ${normalize(question)} `;
+  if (/(admin|operator).*(performance|productivity|report|output)|performance report/.test(query)) return "admin_performance";
   if (/machine|fleet|plant ref/.test(query)) return "machines";
   if (/supplier|vendor/.test(query)) return /spend|value|cost/.test(query) ? "spend" : "suppliers";
   if (/spend|order value|cost/.test(query)) return "spend";
@@ -335,7 +408,98 @@ function detectIntentFromWords(question: string): AnalyticsIntent {
   return "overview";
 }
 
+function csvCell(value: string | number) {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function answerAdminPerformance(snapshot: RelayAnalyticsSnapshot): RelayConsoleAiAnswer {
+  const now = Date.now();
+  const ordersByTicket = new Map<string, number>();
+  for (const order of snapshot.purchaseOrders) {
+    if (order.po_status === "CANCELLED") continue;
+    ordersByTicket.set(order.ticket_id, (ordersByTicket.get(order.ticket_id) ?? 0) + (order.order_amount ?? 0));
+  }
+
+  const grouped = new Map<string, {
+    name: string;
+    assigned: number;
+    completed: number;
+    active: number;
+    overdue: number;
+    urgent: number;
+    readyDurations: number[];
+    orderValue: number;
+  }>();
+
+  for (const ticket of snapshot.tickets) {
+    const name = ticket.assigned_to?.trim();
+    if (!isMeaningfulLabel(name)) continue;
+    const key = normalize(name);
+    const row = grouped.get(key) ?? {
+      name: name as string,
+      assigned: 0,
+      completed: 0,
+      active: 0,
+      overdue: 0,
+      urgent: 0,
+      readyDurations: [],
+      orderValue: 0,
+    };
+    row.assigned += 1;
+    if (ticket.status === "COMPLETED") row.completed += 1;
+    else row.active += 1;
+    if (ticket.is_urgent && ticket.status !== "COMPLETED") row.urgent += 1;
+    const eta = new Date(ticket.expected_delivery_date ?? "").getTime();
+    if (ticket.status === "ORDERED" && Number.isFinite(eta) && eta < now) row.overdue += 1;
+    const created = new Date(ticket.created_at ?? "").getTime();
+    const ready = new Date(ticket.ready_at ?? "").getTime();
+    if (Number.isFinite(created) && Number.isFinite(ready) && ready >= created) {
+      row.readyDurations.push((ready - created) / 86_400_000);
+    }
+    row.orderValue += ordersByTicket.has(ticket.id)
+      ? ordersByTicket.get(ticket.id) ?? 0
+      : ticket.order_amount ?? 0;
+    grouped.set(key, row);
+  }
+
+  const rows = Array.from(grouped.values()).sort(
+    (left, right) => right.completed - left.completed || right.assigned - left.assigned || left.name.localeCompare(right.name),
+  );
+  const detail = rows.slice(0, 10).map((row) => {
+    const completionRate = row.assigned > 0 ? (row.completed / row.assigned) * 100 : 0;
+    const averageReady = row.readyDurations.length
+      ? row.readyDurations.reduce((total, value) => total + value, 0) / row.readyDurations.length
+      : null;
+    return `• ${row.name} · ${formatNumber(row.completed)} completed / ${formatNumber(row.assigned)} assigned (${completionRate.toFixed(1)}%) · ${formatNumber(row.active)} active · ${formatNumber(row.overdue)} overdue · ${averageReady === null ? "no time-to-ready data" : `${averageReady.toFixed(1)} days avg to ready`}`;
+  }).join("\n");
+  const csvHeader = ["Operator", "Assigned", "Completed", "Completion rate", "Active", "Urgent active", "Overdue ordered", "Average days to ready", "Recorded PO value"];
+  const csvRows = rows.map((row) => {
+    const completionRate = row.assigned > 0 ? (row.completed / row.assigned) * 100 : 0;
+    const averageReady = row.readyDurations.length
+      ? row.readyDurations.reduce((total, value) => total + value, 0) / row.readyDurations.length
+      : "";
+    return [row.name, row.assigned, row.completed, completionRate.toFixed(1), row.active, row.urgent, row.overdue, typeof averageReady === "number" ? averageReady.toFixed(1) : "", row.orderValue]
+      .map(csvCell)
+      .join(",");
+  });
+
+  return {
+    text: rows.length
+      ? `Admin performance report\n\n${detail}\n\nThese are workload and workflow indicators, not a quality score. Completion rate is all-time and can be affected by reassignment, ticket age and data completeness.`
+      : "No assigned operator data is available for a performance report.",
+    facts: [`${formatNumber(rows.length)} operators`, `${formatNumber(snapshot.tickets.length)} tickets`, "CSV available"],
+    sourceNote: "All accessible tickets and linked POs; time-to-ready uses recorded created_at and ready_at timestamps.",
+    download: {
+      filename: `relay-admin-performance-${new Date().toISOString().slice(0, 10)}.csv`,
+      content: [csvHeader.map(csvCell).join(","), ...csvRows].join("\n"),
+      mimeType: "text/csv;charset=utf-8",
+    },
+  };
+}
+
 async function detectIntent(question: string) {
+  if (detectIntentFromWords(question) === "admin_performance") return "admin_performance";
   try {
     const match = await rankBrowserSemanticIntent(question, ANALYTICS_INTENTS);
     if (match && match.score >= 0.27) return match.intent;
@@ -483,9 +647,14 @@ function answerOverview(snapshot: RelayAnalyticsSnapshot): RelayConsoleAiAnswer 
 export async function answerRelayConsoleQuestion(
   question: string,
   snapshot: RelayAnalyticsSnapshot,
-) {
+): Promise<RelayConsoleAiAnswer> {
+  const isExplicitPoLookup = /\bpo\b|purchase order/i.test(question);
+  const poMatches = findPurchaseOrderMatches(question, snapshot);
+  if (isExplicitPoLookup && poMatches.length > 0) return answerPurchaseOrderLookup(poMatches, snapshot);
+
   const jobMatches = findJobMatches(question, snapshot.tickets);
   if (jobMatches.length > 0) return answerJobLookup(jobMatches);
+  if (poMatches.length > 0) return answerPurchaseOrderLookup(poMatches, snapshot);
 
   const intent = await detectIntent(question);
   switch (intent) {
@@ -495,6 +664,7 @@ export async function answerRelayConsoleQuestion(
     case "requesters": return answerRankedTickets(snapshot, "requester_name", "Top requesters", "No requester names are recorded.");
     case "departments": return answerRankedTickets(snapshot, "department", "Top departments", "No departments are recorded.");
     case "operators": return answerRankedTickets(snapshot, "assigned_to", "Operator workload", "No operator assignments are recorded.");
+    case "admin_performance": return answerAdminPerformance(snapshot);
     case "statuses": return answerStatuses(snapshot);
     case "overdue": return answerAttention(snapshot, "overdue");
     case "urgent": return answerAttention(snapshot, "urgent");

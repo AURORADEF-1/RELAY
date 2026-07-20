@@ -8,6 +8,11 @@ import {
   loadRelayAnalyticsSnapshot,
   type RelayAnalyticsSnapshot,
 } from "@/lib/relay-console-ai";
+import {
+  createRelayAiTicket,
+  parseRelayAiTicketDraft,
+  type RelayAiTicketDraft,
+} from "@/lib/relay-ai-ticket-actions";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type RelayAiMessage = {
@@ -16,19 +21,28 @@ type RelayAiMessage = {
   text: string;
   facts?: string[];
   sourceNote?: string;
+  download?: {
+    filename: string;
+    content: string;
+    mimeType: string;
+  };
+  ticketAction?: {
+    draft: RelayAiTicketDraft;
+    status: "pending" | "submitting" | "cancelled" | "submitted";
+  };
 };
 
 const STARTER_MESSAGE: RelayAiMessage = {
   id: "welcome",
   role: "assistant",
-  text: "Ask me about operational demand, machines, suppliers, spend, requesters, departments, operator workload, overdue orders, urgent work or ready collections. I analyse live RELAY data using safe read-only queries.",
+  text: "Ask me about jobs, PO numbers, delivery ETAs, suppliers, demand, spend, queues or admin performance. I can also prepare a new ticket, but I will always show a confirmation review before submitting it.",
 };
 
 const SUGGESTED_QUESTIONS = [
   "Which machine reference has the highest requests?",
   "Who is our main supplier?",
-  "What needs attention today?",
-  "Show ready jobs and bin locations",
+  "Generate an admin performance report",
+  "Show PO 53956 supplier and delivery ETA",
 ];
 
 const CACHE_WINDOW_MS = 60_000;
@@ -92,6 +106,33 @@ export function RelayAiPanel({
     setIsThinking(true);
 
     try {
+      const ticketDraft = parseRelayAiTicketDraft(question);
+      if (ticketDraft) {
+        if (ticketDraft.missing.length > 0) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: `assistant-${Date.now()}`,
+              role: "assistant",
+              text: `I can prepare that ticket, but I still need: ${ticketDraft.missing.join(", ")}. Include those details in one request and I will show a confirmation card before anything is submitted.`,
+              sourceNote: "No ticket was created. RELAY AI only executes a complete draft after explicit confirmation.",
+            },
+          ]);
+          return;
+        }
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: "I have prepared the ticket below. Review every field, choose the department, then explicitly confirm if it is correct.",
+            ticketAction: { draft: ticketDraft.draft, status: "pending" },
+            sourceNote: "Draft only. No Supabase write has occurred.",
+          },
+        ]);
+        return;
+      }
+
       const snapshot = await getSnapshot();
       const answer = await answerRelayConsoleQuestion(question, snapshot);
       setMessages((current) => [
@@ -102,6 +143,7 @@ export function RelayAiPanel({
           text: answer.text,
           facts: answer.facts,
           sourceNote: answer.sourceNote,
+          download: answer.download,
         },
       ]);
     } catch (error) {
@@ -116,6 +158,60 @@ export function RelayAiPanel({
     } finally {
       setIsThinking(false);
     }
+  }
+
+  function updateTicketAction(messageId: string, updater: (action: NonNullable<RelayAiMessage["ticketAction"]>) => NonNullable<RelayAiMessage["ticketAction"]>) {
+    setMessages((current) => current.map((message) =>
+      message.id === messageId && message.ticketAction
+        ? { ...message, ticketAction: updater(message.ticketAction) }
+        : message,
+    ));
+  }
+
+  async function confirmTicket(messageId: string, ticketDraft: RelayAiTicketDraft) {
+    if (isThinking || !ticketDraft.department) return;
+    updateTicketAction(messageId, (action) => ({ ...action, status: "submitting" }));
+    setIsThinking(true);
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error("Supabase is not configured.");
+      const result = await createRelayAiTicket(supabase, ticketDraft);
+      updateTicketAction(messageId, (action) => ({ ...action, status: "submitted" }));
+      snapshotRef.current = null;
+      setSyncedAt(null);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-created-${Date.now()}`,
+          role: "assistant",
+          text: `Ticket ${ticketDraft.jobNumber} was created as PENDING for ${ticketDraft.machineReference}. The machine reference was ${result.machineVerified ? "verified and its registry snapshot was attached" : "not found in the machine registry, so it remains unverified"}.\n\nOpen ticket: /tickets/${result.id}${result.warnings.length ? `\n\nWarnings: ${result.warnings.join(" ")}` : ""}`,
+          facts: ["Ticket submitted", "PENDING", result.machineVerified ? "Machine verified" : "Machine unverified"],
+          sourceNote: `Created by ${result.requesterName} after explicit confirmation.`,
+        },
+      ]);
+    } catch (error) {
+      updateTicketAction(messageId, (action) => ({ ...action, status: "pending" }));
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-error-${Date.now()}`,
+          role: "assistant",
+          text: error instanceof Error ? error.message : "The ticket could not be created.",
+          sourceNote: "Submission failed. Review the draft before trying again.",
+        },
+      ]);
+    } finally {
+      setIsThinking(false);
+    }
+  }
+
+  function downloadReport(download: NonNullable<RelayAiMessage["download"]>) {
+    const url = URL.createObjectURL(new Blob([download.content], { type: download.mimeType }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = download.filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   function startNewChat() {
@@ -171,6 +267,67 @@ export function RelayAiPanel({
                       {message.facts.map((fact) => <span key={fact}>{fact}</span>)}
                     </div>
                   ) : null}
+                  {message.download ? (
+                    <button type="button" className="relay-ai-download" onClick={() => downloadReport(message.download!)}>
+                      <ConsoleIcon name="file" className="h-4 w-4" />
+                      Download CSV report
+                    </button>
+                  ) : null}
+                  {message.ticketAction ? (
+                    <div className={`relay-ai-ticket-review relay-ai-ticket-review-${message.ticketAction.status}`}>
+                      <div className="relay-ai-ticket-review-heading">
+                        <div>
+                          <span>Pending action</span>
+                          <strong>Create parts ticket</strong>
+                        </div>
+                        <b>{message.ticketAction.status === "submitted" ? "Submitted" : message.ticketAction.status === "cancelled" ? "Cancelled" : "Requires confirmation"}</b>
+                      </div>
+                      <dl>
+                        <div><dt>Job number</dt><dd>{message.ticketAction.draft.jobNumber}</dd></div>
+                        <div><dt>Machine</dt><dd>{message.ticketAction.draft.machineReference}</dd></div>
+                        <div><dt>Requester</dt><dd>Signed-in administrator</dd></div>
+                        <div>
+                          <dt>Department</dt>
+                          <dd>
+                            <select
+                              aria-label="Ticket department"
+                              value={message.ticketAction.draft.department}
+                              disabled={message.ticketAction.status !== "pending"}
+                              onChange={(event) => updateTicketAction(message.id, (action) => ({
+                                ...action,
+                                draft: { ...action.draft, department: event.target.value as RelayAiTicketDraft["department"] },
+                              }))}
+                            >
+                              <option value="">Choose department</option>
+                              <option value="Yard">Yard</option>
+                              <option value="Onsite">Onsite</option>
+                            </select>
+                          </dd>
+                        </div>
+                        <div className="relay-ai-ticket-review-wide"><dt>Request</dt><dd>{message.ticketAction.draft.requestDetails}</dd></div>
+                        <div><dt>Initial status</dt><dd>PENDING</dd></div>
+                      </dl>
+                      {message.ticketAction.status === "pending" ? (
+                        <div className="relay-ai-ticket-review-actions">
+                          <button
+                            type="button"
+                            className="relay-ai-ticket-confirm"
+                            disabled={!message.ticketAction.draft.department || isThinking}
+                            onClick={() => void confirmTicket(message.id, message.ticketAction!.draft)}
+                          >
+                            Confirm and submit ticket
+                          </button>
+                          <button
+                            type="button"
+                            className="relay-ai-ticket-cancel"
+                            onClick={() => updateTicketAction(message.id, (action) => ({ ...action, status: "cancelled" }))}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {message.sourceNote ? (
                     <p className="relay-ai-source">
                       <ConsoleIcon name="file" className="h-3.5 w-3.5" />
@@ -221,7 +378,7 @@ export function RelayAiPanel({
                   void submitQuestion();
                 }
               }}
-              placeholder="Ask RELAY about machines, suppliers, queues or spend..."
+              placeholder="Ask about a job, PO, report, or prepare a ticket..."
               disabled={isThinking}
             />
             <button
@@ -233,7 +390,7 @@ export function RelayAiPanel({
               <ConsoleIcon name="chevron" className="h-5 w-5 -rotate-90" />
             </button>
           </div>
-          <p>Read-only analytics. Answers use accessible RELAY records and may need operational verification.</p>
+          <p>Analytics are read-only. Ticket actions require an explicit confirmation and use your signed-in permissions.</p>
         </footer>
       </section>
     </>
