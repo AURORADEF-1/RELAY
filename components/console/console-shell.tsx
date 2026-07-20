@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { LogoutButton } from "@/components/logout-button";
 import { NotificationBadge } from "@/components/notification-badge";
@@ -9,6 +9,8 @@ import { useNotifications } from "@/components/notification-provider";
 import { RelayLogo } from "@/components/relay-logo";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { ConsoleIcon, type ConsoleIconName } from "@/components/console/console-icon";
+import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { getSupabaseClient } from "@/lib/supabase";
 
 type ConsoleShellProps = {
   children: React.ReactNode;
@@ -29,12 +31,14 @@ type NavigationItem = {
   adminOnly?: boolean;
   badge?: "admin" | "requester" | "tasks";
   external?: boolean;
+  tab?: string;
 };
 
 const navigation: NavigationItem[] = [
   { href: "/console", label: "Operations", icon: "console", adminOnly: true },
   { href: "/submit", label: "New request", icon: "ticket" },
   { href: "/requests", label: "My requests", icon: "clipboard", badge: "requester" },
+  { href: "/admin?tab=lookup", label: "Parts Knowledge", icon: "parts", adminOnly: true, tab: "lookup" },
   { href: "/admin", label: "Parts control", icon: "parts", adminOnly: true, badge: "admin" },
   { href: "/incidents", label: "Workshop", icon: "workshop", adminOnly: true },
   { href: "/tasks", label: "Tasks", icon: "activity", badge: "tasks" },
@@ -54,10 +58,38 @@ export function ConsoleShell({
   isRelayAiOpen = false,
 }: ConsoleShellProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { adminBadgeCount, isAdmin, requesterUnreadCount, taskUnreadCount } = useNotifications();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [signedInUserName, setSignedInUserName] = useState("Signed in");
   const searchRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    void getCurrentUserWithRole(supabase)
+      .then(({ user, profile }) => {
+        if (!isMounted) {
+          return;
+        }
+
+        const displayName = profile?.display_name?.trim();
+        setSignedInUserName(displayName || user?.email?.trim() || "Signed in");
+      })
+      .catch(() => {
+        // Authentication handling remains with AuthGuard; the shell keeps a safe fallback label.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -137,7 +169,7 @@ export function ConsoleShell({
 
         <div className="console-sidebar-context" aria-hidden={isCollapsed}>
           <span className="console-live-dot" />
-          <span>Live workspace</span>
+          <span title={signedInUserName}>{signedInUserName}</span>
         </div>
 
         <nav className="console-navigation" aria-label="Primary navigation">
@@ -158,10 +190,12 @@ export function ConsoleShell({
             </button>
           ) : null}
           {visibleNavigation.map((item) => {
+            const activeTab = searchParams.get("tab");
             const active =
-              pathname === item.href ||
+              (item.tab ? pathname === "/admin" && activeTab === item.tab : pathname === item.href) ||
               (item.href !== "/" && pathname.startsWith(`${item.href}/`)) ||
-              (item.href === "/console" && pathname.startsWith("/tickets/"));
+              (item.href === "/console" && pathname.startsWith("/tickets/")) ||
+              (item.href === "/admin" && pathname === "/admin" && !activeTab);
             const badgeCount = getBadgeCount(item);
 
             return (
