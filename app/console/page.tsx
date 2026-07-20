@@ -7,6 +7,7 @@ import { ConsoleDynamicTicketCard } from "@/components/console/console-dynamic-t
 import { ConsoleShell } from "@/components/console/console-shell";
 import { ConsoleTicketCard } from "@/components/console/console-ticket-card";
 import { ConsoleTicketDrawer } from "@/components/console/console-ticket-drawer";
+import { RelayAiPanel } from "@/components/console/relay-ai-panel";
 import {
   ConsoleTicketActionModal,
   type ConsoleTicketAction,
@@ -71,6 +72,7 @@ export default function ConsolePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isRelayAiOpen, setIsRelayAiOpen] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const closeTicketDrawer = useCallback(() => setSelectedTicketId(null), []);
 
@@ -215,6 +217,8 @@ export default function ConsolePage() {
         title="Operations console"
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
+        onOpenRelayAi={() => setIsRelayAiOpen(true)}
+        isRelayAiOpen={isRelayAiOpen}
         actions={
           <button
             type="button"
@@ -331,6 +335,7 @@ export default function ConsolePage() {
           onClose={() => setTicketAction(null)}
           onSaved={() => void loadTickets(false)}
         />
+        <RelayAiPanel isOpen={isRelayAiOpen} onClose={() => setIsRelayAiOpen(false)} />
       </ConsoleShell>
     </AuthGuard>
   );

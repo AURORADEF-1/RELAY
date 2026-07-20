@@ -1,4 +1,4 @@
-import type { FeatureExtractionPipelineType } from "@huggingface/transformers";
+import { rankBrowserSemanticIntent } from "@/lib/browser-semantic-model";
 import type { RelayAiContext } from "@/lib/relay-ai";
 
 type TicketIntent =
@@ -32,54 +32,8 @@ const INTENTS: Array<{ intent: TicketIntent; examples: string }> = [
   { intent: "latest", examples: "What is the latest update or message? Has anything changed recently?" },
 ];
 
-let extractorPromise: Promise<FeatureExtractionPipelineType> | null = null;
-
-async function getExtractor() {
-  if (!extractorPromise) {
-    extractorPromise = import("@huggingface/transformers")
-      .then(({ pipeline }) =>
-        pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
-          dtype: "q8",
-        }),
-      )
-      .catch((error) => {
-        extractorPromise = null;
-        throw error;
-      });
-  }
-
-  return extractorPromise;
-}
-
-function dotProduct(left: number[], right: number[]) {
-  let total = 0;
-  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
-    total += left[index] * right[index];
-  }
-  return total;
-}
-
 async function detectTicketIntent(question: string) {
-  const extractor = await getExtractor();
-  const embeddings = await extractor(
-    [question, ...INTENTS.map((item) => item.examples)],
-    { pooling: "mean", normalize: true },
-  );
-  const vectors = embeddings.tolist() as number[][];
-  const questionVector = vectors[0];
-
-  if (!questionVector) {
-    return null;
-  }
-
-  return INTENTS.reduce<{ intent: TicketIntent; score: number } | null>(
-    (best, item, index) => {
-      const intentVector = vectors[index + 1];
-      const score = intentVector ? dotProduct(questionVector, intentVector) : 0;
-      return !best || score > best.score ? { intent: item.intent, score } : best;
-    },
-    null,
-  );
+  return rankBrowserSemanticIntent(question, INTENTS);
 }
 
 function detectTicketIntentFromWords(question: string): TicketIntent {

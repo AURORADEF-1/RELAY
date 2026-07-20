@@ -761,6 +761,37 @@ select:focus-visible {
   color: var(--accent-foreground);
 }
 
+.console-relay-ai-nav {
+  position: relative;
+  border-color: color-mix(in srgb, var(--success) 25%, var(--border));
+  background:
+    linear-gradient(110deg, color-mix(in srgb, var(--success-soft) 58%, transparent), transparent 68%),
+    var(--background-panel-strong);
+}
+
+.console-relay-ai-nav:hover,
+.console-relay-ai-nav-active {
+  border-color: color-mix(in srgb, var(--success) 58%, var(--border));
+  background: color-mix(in srgb, var(--success-soft) 78%, var(--background-panel-strong));
+  color: var(--foreground-strong);
+}
+
+.console-relay-ai-nav-badge {
+  display: inline-flex;
+  min-width: 1.65rem;
+  height: 1.2rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--success) 32%, var(--border));
+  border-radius: 999px;
+  background: var(--background-panel-strong);
+  color: var(--success);
+  font-family: var(--font-mono);
+  font-size: 0.57rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
 .console-nav-icon {
   width: 1.15rem;
   height: 1.15rem;
@@ -1958,6 +1989,394 @@ select:focus-visible {
   padding: 1rem 1.2rem;
 }
 
+/* RELAY AI operations panel */
+
+.relay-ai-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+  border: 0;
+  background: rgba(3, 7, 18, 0.38);
+  backdrop-filter: blur(3px);
+}
+
+.relay-ai-panel {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 90;
+  display: grid;
+  width: min(47rem, 96vw);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  border-left: 1px solid var(--border-strong);
+  background: var(--background-panel-strong);
+  box-shadow: -32px 0 96px -50px rgba(15, 23, 42, 0.7);
+  animation: relay-ai-panel-enter 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes relay-ai-panel-enter {
+  from {
+    transform: translateX(2rem);
+    opacity: 0;
+  }
+}
+
+.relay-ai-header {
+  display: grid;
+  min-height: 5.25rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 1.1rem;
+}
+
+.relay-ai-brand-mark {
+  position: relative;
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--success) 38%, var(--border));
+  border-radius: 0.8rem;
+  background:
+    radial-gradient(circle at 20% 15%, color-mix(in srgb, var(--success) 22%, transparent), transparent 52%),
+    var(--background-muted);
+  color: var(--foreground-strong);
+}
+
+.relay-ai-brand-mark > span {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-soft);
+}
+
+.relay-ai-heading p {
+  color: var(--foreground-subtle);
+  font-size: 0.61rem;
+  font-weight: 760;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.relay-ai-heading h2 {
+  margin-top: 0.22rem;
+  color: var(--foreground-strong);
+  font-size: 1.08rem;
+  font-weight: 720;
+  letter-spacing: -0.025em;
+}
+
+.relay-ai-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.relay-ai-header-button {
+  min-height: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--background-panel-strong);
+  padding: 0 0.85rem;
+  color: var(--foreground-muted);
+  font-size: 0.72rem;
+  font-weight: 680;
+}
+
+.relay-ai-header-button:hover {
+  border-color: var(--border-strong);
+  color: var(--foreground-strong);
+}
+
+.relay-ai-header-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.relay-ai-status-bar {
+  display: flex;
+  min-height: 2.35rem;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background-muted) 76%, transparent);
+  padding: 0 1.2rem;
+  color: var(--foreground-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+}
+
+.relay-ai-status-bar i {
+  width: 1px;
+  height: 0.8rem;
+  background: var(--border-strong);
+}
+
+.relay-ai-status-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-soft);
+}
+
+.relay-ai-conversation {
+  min-height: 0;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--success-soft) 40%, transparent), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--background-muted) 52%, transparent), transparent 24%);
+}
+
+.relay-ai-conversation-inner {
+  width: min(100%, 44rem);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 2rem clamp(1rem, 4vw, 2.2rem) 3rem;
+}
+
+.relay-ai-message {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
+  gap: 0.85rem;
+  margin-top: 1.6rem;
+}
+
+.relay-ai-message:first-child {
+  margin-top: 0;
+}
+
+.relay-ai-message-user {
+  grid-template-columns: minmax(0, 1fr) 2.2rem;
+}
+
+.relay-ai-message-user .relay-ai-message-avatar {
+  grid-column: 2;
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.relay-ai-message-user .relay-ai-message-content {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  max-width: 86%;
+  border: 1px solid var(--border);
+  border-radius: 1rem 0.3rem 1rem 1rem;
+  background: var(--background-muted);
+  padding: 0.8rem 1rem;
+}
+
+.relay-ai-message-avatar {
+  display: inline-flex;
+  width: 2.2rem;
+  height: 2.2rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border));
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--success-soft) 70%, var(--background-panel-strong));
+  color: var(--foreground-strong);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.relay-ai-message-content {
+  min-width: 0;
+}
+
+.relay-ai-message-author {
+  margin-bottom: 0.42rem;
+  color: var(--foreground-strong);
+  font-size: 0.75rem;
+  font-weight: 720;
+}
+
+.relay-ai-message-user .relay-ai-message-author {
+  display: none;
+}
+
+.relay-ai-message-text {
+  color: var(--foreground-muted);
+  font-size: 0.88rem;
+  line-height: 1.78;
+  white-space: pre-wrap;
+}
+
+.relay-ai-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.relay-ai-facts span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--background-panel-strong);
+  padding: 0.28rem 0.55rem;
+  color: var(--foreground-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.61rem;
+}
+
+.relay-ai-source {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.65rem;
+  color: var(--foreground-subtle);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+.relay-ai-source svg {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+}
+
+.relay-ai-suggestions {
+  margin: 2rem 0 0 3.05rem;
+}
+
+.relay-ai-suggestions > p {
+  color: var(--foreground-subtle);
+  font-size: 0.62rem;
+  font-weight: 760;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.relay-ai-suggestions > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.relay-ai-suggestions button {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--background-panel-strong) 88%, transparent);
+  padding: 0.65rem 0.8rem;
+  color: var(--foreground-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.relay-ai-suggestions button:hover {
+  border-color: color-mix(in srgb, var(--success) 42%, var(--border));
+  color: var(--foreground-strong);
+}
+
+.relay-ai-suggestions button svg {
+  flex: 0 0 auto;
+}
+
+.relay-ai-thinking {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.relay-ai-thinking span {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 999px;
+  background: var(--foreground-subtle);
+  animation: relay-ai-thinking 1.1s ease-in-out infinite;
+}
+
+.relay-ai-thinking span:nth-child(2) { animation-delay: 120ms; }
+.relay-ai-thinking span:nth-child(3) { animation-delay: 240ms; }
+
+@keyframes relay-ai-thinking {
+  0%, 70%, 100% { transform: translateY(0); opacity: 0.4; }
+  35% { transform: translateY(-0.3rem); opacity: 1; }
+}
+
+.relay-ai-composer-wrap {
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background-panel-strong) 94%, transparent);
+  padding: 1rem clamp(1rem, 4vw, 2rem) 0.8rem;
+  backdrop-filter: blur(18px);
+}
+
+.relay-ai-composer {
+  display: grid;
+  width: min(100%, 40rem);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.6rem;
+  margin: 0 auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 1rem;
+  background: var(--background-field);
+  padding: 0.6rem;
+  box-shadow: 0 18px 45px -32px rgba(15, 23, 42, 0.55);
+}
+
+.relay-ai-composer:focus-within {
+  border-color: color-mix(in srgb, var(--success) 55%, var(--border-strong));
+  box-shadow: var(--ring), 0 18px 45px -32px rgba(15, 23, 42, 0.55);
+}
+
+.relay-ai-composer textarea {
+  max-height: 8rem;
+  resize: none;
+  border: 0;
+  background: transparent;
+  padding: 0.45rem 0.5rem;
+  color: var(--foreground);
+  font-size: 0.84rem;
+  line-height: 1.55;
+  outline: 0;
+}
+
+.relay-ai-composer textarea::placeholder {
+  color: var(--foreground-subtle);
+}
+
+.relay-ai-composer > button {
+  display: inline-flex;
+  width: 2.45rem;
+  height: 2.45rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.7rem;
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.relay-ai-composer > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.relay-ai-composer-wrap > p {
+  margin: 0.55rem auto 0;
+  color: var(--foreground-subtle);
+  font-size: 0.61rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .console-primary-action {
   display: inline-flex;
   width: 100%;
@@ -2080,6 +2499,66 @@ select:focus-visible {
 }
 
 @media (max-width: 720px) {
+  .relay-ai-panel {
+    width: 100vw;
+    border-left: 0;
+  }
+
+  .relay-ai-header {
+    padding-inline: 0.8rem;
+  }
+
+  .relay-ai-header-button {
+    width: 2.5rem;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .relay-ai-header-button::before {
+    content: "+";
+    font-size: 1.15rem;
+  }
+
+  .relay-ai-status-bar {
+    padding-inline: 0.85rem;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .relay-ai-conversation-inner {
+    padding: 1.25rem 0.85rem 2rem;
+  }
+
+  .relay-ai-message {
+    grid-template-columns: 1.85rem minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+
+  .relay-ai-message-user {
+    grid-template-columns: minmax(0, 1fr) 1.85rem;
+  }
+
+  .relay-ai-message-avatar {
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+
+  .relay-ai-message-user .relay-ai-message-content {
+    max-width: 94%;
+  }
+
+  .relay-ai-suggestions {
+    margin-left: 2.5rem;
+  }
+
+  .relay-ai-suggestions > div {
+    grid-template-columns: 1fr;
+  }
+
+  .relay-ai-composer-wrap {
+    padding: 0.75rem 0.75rem 0.6rem;
+  }
+
   .console-command-bar {
     grid-template-columns: 1fr auto;
     gap: 0.7rem;

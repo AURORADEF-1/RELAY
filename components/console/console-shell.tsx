@@ -18,6 +18,8 @@ type ConsoleShellProps = {
   searchPlaceholder?: string;
   onSearchChange?: (value: string) => void;
   actions?: React.ReactNode;
+  onOpenRelayAi?: () => void;
+  isRelayAiOpen?: boolean;
 };
 
 type NavigationItem = {
@@ -48,6 +50,8 @@ export function ConsoleShell({
   searchPlaceholder = "Search jobs, machines or requesters",
   onSearchChange,
   actions,
+  onOpenRelayAi,
+  isRelayAiOpen = false,
 }: ConsoleShellProps) {
   const pathname = usePathname();
   const { adminBadgeCount, isAdmin, requesterUnreadCount, taskUnreadCount } = useNotifications();
@@ -137,6 +141,22 @@ export function ConsoleShell({
         </div>
 
         <nav className="console-navigation" aria-label="Primary navigation">
+          {onOpenRelayAi ? (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenRelayAi();
+                setIsMobileOpen(false);
+              }}
+              className={`console-nav-item console-relay-ai-nav ${isRelayAiOpen ? "console-relay-ai-nav-active" : ""}`}
+              title={isCollapsed ? "RELAY AI" : undefined}
+              aria-pressed={isRelayAiOpen}
+            >
+              <ConsoleIcon name="message" className="console-nav-icon" />
+              <span className="console-nav-label">RELAY AI</span>
+              <span className="console-relay-ai-nav-badge">AI</span>
+            </button>
+          ) : null}
           {visibleNavigation.map((item) => {
             const active =
               pathname === item.href ||
