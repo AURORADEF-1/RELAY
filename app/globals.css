@@ -827,6 +827,145 @@ select:focus-visible {
   padding-inline: 0;
 }
 
+/* Shared new-shell treatment for Workshop and Parts Knowledge. */
+.workshop-console-overview,
+.parts-knowledge-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--success) 12%, transparent), transparent 38%),
+    var(--background-raised);
+  padding: 1.15rem 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.workshop-console-overview p,
+.parts-knowledge-overview p {
+  color: var(--foreground-subtle);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.workshop-console-overview h2,
+.parts-knowledge-overview h2 {
+  margin-top: 0.35rem;
+  color: var(--foreground-strong);
+  font-size: clamp(1rem, 2vw, 1.3rem);
+  font-weight: 680;
+  letter-spacing: -0.025em;
+}
+
+.workshop-console-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--foreground-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.workshop-console-live > span {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 999px;
+  background: var(--success);
+  box-shadow: 0 0 0 4px var(--success-soft);
+}
+
+.workshop-console-tabs {
+  margin-top: 0.8rem;
+}
+
+.workshop-console-tabs .aurora-pill-group {
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--background-raised);
+  padding: 0.45rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.workshop-shell-content {
+  margin-top: 0.8rem;
+}
+
+.workshop-shell-content > .workshop-legacy-page {
+  min-height: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.workshop-shell-content > .workshop-legacy-page > div,
+.workshop-shell-content .aurora-frame {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workshop-shell-content > .workshop-legacy-page > div > nav,
+.workshop-shell-content .aurora-nav,
+.workshop-shell-content .aurora-pill-group {
+  display: none;
+}
+
+.workshop-shell-content > .workshop-legacy-page > div > .space-y-8,
+.workshop-shell-content .aurora-surface {
+  margin-top: 0 !important;
+}
+
+.parts-knowledge-source-key {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem 1rem;
+  color: var(--foreground-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.parts-knowledge-source-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.parts-knowledge-source-key i {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 999px;
+}
+
+.parts-knowledge-console {
+  margin-top: 0.8rem;
+}
+
+.parts-knowledge-console > section {
+  border-color: var(--border);
+  border-radius: 0.7rem;
+  background: var(--background-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 767px) {
+  .workshop-console-overview,
+  .parts-knowledge-overview {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .parts-knowledge-source-key {
+    justify-content: flex-start;
+  }
+}
+
 .console-sidebar-footer {
   border-top: 1px solid var(--border);
   padding: 0.75rem;

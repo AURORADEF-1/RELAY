@@ -372,7 +372,7 @@ export default function IncidentsPage() {
   }
 
   return (
-    <main className="aurora-shell">
+    <div className="aurora-shell workshop-legacy-page">
       <div className="aurora-shell-inner max-w-[120rem] space-y-6">
         <nav className="aurora-nav">
           <RelayLogo />
@@ -897,7 +897,7 @@ export default function IncidentsPage() {
           </section>
         </AuthGuard>
       </div>
-    </main>
+    </div>
   );
 }
 

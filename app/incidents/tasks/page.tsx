@@ -184,7 +184,7 @@ export default function WorkshopTasksPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
+    <div className="workshop-legacy-page min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-7xl space-y-8">
         <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
           <RelayLogo />
@@ -381,7 +381,7 @@ export default function WorkshopTasksPage() {
           </section>
         </AuthGuard>
       </div>
-    </main>
+    </div>
   );
 }
 

@@ -275,7 +275,7 @@ export default function WorkshopControlMapPage() {
   }, [liveOnsiteJobs]);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#0f172a_0%,#111827_45%,#020617_100%)] px-6 py-6 text-slate-100">
+    <div className="workshop-legacy-page min-h-screen bg-[radial-gradient(circle_at_top,#0f172a_0%,#111827_45%,#020617_100%)] px-6 py-6 text-slate-100">
       <div className="mx-auto max-w-[120rem] space-y-6">
         <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/10 bg-white/5 px-5 py-4 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.8)] backdrop-blur">
           <RelayLogo />
@@ -437,7 +437,7 @@ export default function WorkshopControlMapPage() {
           </section>
         </AuthGuard>
       </div>
-    </main>
+    </div>
   );
 }
 
