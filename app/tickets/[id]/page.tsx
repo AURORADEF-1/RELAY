@@ -1597,12 +1597,12 @@ export default function TicketDetailPage() {
     }
   }
 
-  function handleApplyTakeuchiSuggestion(part: {
+  function handleApplyPartSuggestion(part: {
     part_description: string;
     part_number: string;
     suggested_part_number?: string | null;
-    bom_main_group: string;
-    bom_sub_group: string;
+    source_label: string;
+    evidence: string;
   }) {
     setPartDraft((current) => ({
       ...current,
@@ -1611,7 +1611,7 @@ export default function TicketDetailPage() {
     }));
     setPartNotice({
       type: "success",
-      message: `Applied Takeuchi suggestion from ${part.bom_main_group} · ${part.bom_sub_group}. Review the form and save it below.`,
+      message: `Applied ${part.source_label} suggestion. Review the evidence and save it below if the fitment is correct.`,
     });
     partFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -2740,6 +2740,10 @@ export default function TicketDetailPage() {
 
                           <TakeuchiPartSuggestions
                             ticket={{
+                              ticket_id: ticket.id,
+                              machine_number: ticket.machine_number,
+                              machine_number_normalized: ticket.machine_number_normalized,
+                              machine_reference: ticket.machine_reference,
                               machine_make: ticket.machine_make,
                               machine_model: ticket.machine_model,
                               machine_serial_number: ticket.machine_serial_number,
@@ -2748,7 +2752,7 @@ export default function TicketDetailPage() {
                               request_details: ticket.request_details,
                             }}
                             isAdmin={isAdmin}
-                            onApplySuggestion={handleApplyTakeuchiSuggestion}
+                            onApplySuggestion={handleApplyPartSuggestion}
                           />
 
                           {isAdmin ? (

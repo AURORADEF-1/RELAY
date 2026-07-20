@@ -46,6 +46,9 @@ type PartsLookupRow = {
   updated_at: string | null;
 };
 
+const PARTS_LOOKUP_SELECT =
+  "id,source_ticket_part_id,ticket_id,ticket_purchase_order_id,job_number,machine_number,machine_number_normalized,machine_reference,machine_fleet_type,machine_make,machine_model,machine_serial_number,part_description,part_number,quantity,supplier_name,notes,created_at,updated_at";
+
 export async function fetchPartsLookup(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("parts_lookup")
@@ -58,6 +61,62 @@ export async function fetchPartsLookup(supabase: SupabaseClient) {
   }
 
   return ((data ?? []) as PartsLookupRow[]).map(normalizePartsLookupRow);
+}
+
+export async function fetchPartsLookupCandidates(
+  supabase: SupabaseClient,
+  machine: {
+    machineNumberNormalized?: string | null;
+    machineMake?: string | null;
+    machineModel?: string | null;
+  },
+) {
+  const machineNumberNormalized = machine.machineNumberNormalized?.trim() || "";
+  const machineMake = machine.machineMake?.trim() || "";
+  const machineModel = machine.machineModel?.trim() || "";
+  const queries: Array<PromiseLike<{ data: unknown; error: { message: string } | null }>> = [];
+
+  if (machineNumberNormalized) {
+    queries.push(
+      supabase
+        .from("parts_lookup")
+        .select(PARTS_LOOKUP_SELECT)
+        .eq("machine_number_normalized", machineNumberNormalized)
+        .order("updated_at", { ascending: false })
+        .limit(200),
+    );
+  }
+
+  if (machineMake && machineModel) {
+    queries.push(
+      supabase
+        .from("parts_lookup")
+        .select(PARTS_LOOKUP_SELECT)
+        .ilike("machine_make", machineMake)
+        .ilike("machine_model", machineModel)
+        .order("updated_at", { ascending: false })
+        .limit(500),
+    );
+  }
+
+  if (queries.length === 0) {
+    return [];
+  }
+
+  const results = await Promise.all(queries);
+  const rowsById = new Map<string, PartsLookupRow>();
+
+  for (const result of results) {
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+
+    for (const row of (result.data ?? []) as PartsLookupRow[]) {
+      rowsById.set(row.id, row);
+    }
+  }
+
+  return Array.from(rowsById.values()).map(normalizePartsLookupRow);
 }
 
 function normalizePartsLookupRow(row: PartsLookupRow): PartsLookupRecord {
