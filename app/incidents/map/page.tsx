@@ -28,11 +28,13 @@ type OnsiteTicket = {
 type LeafletMap = {
   remove: () => void;
   fitBounds: (bounds: unknown, options?: unknown) => void;
+  invalidateSize: (options?: { animate?: boolean }) => void;
 };
 
 type LeafletMarker = {
   bindPopup: (html: string) => LeafletMarker;
   openPopup: () => void;
+  on: (event: string, handler: () => void) => LeafletMarker;
 };
 
 declare global {
@@ -69,6 +71,7 @@ export default function WorkshopControlMapPage() {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<LeafletMap | null>(null);
   const markerRefs = useRef(new Map<string, LeafletMarker>());
+  const jobCardRefs = useRef(new Map<string, HTMLElement>());
 
   const loadTickets = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
@@ -196,6 +199,32 @@ export default function WorkshopControlMapPage() {
   );
 
   useEffect(() => {
+    const mapElement = mapRef.current;
+
+    if (!mapElement) {
+      return;
+    }
+
+    let animationFrameId = 0;
+    const resizeMap = () => {
+      window.cancelAnimationFrame(animationFrameId);
+      animationFrameId = window.requestAnimationFrame(() => {
+        leafletMapRef.current?.invalidateSize({ animate: false });
+      });
+    };
+    const resizeObserver = new ResizeObserver(resizeMap);
+
+    resizeObserver.observe(mapElement);
+    window.addEventListener("resize", resizeMap);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", resizeMap);
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  useEffect(() => {
     let isCancelled = false;
 
     async function renderMap() {
@@ -258,7 +287,11 @@ export default function WorkshopControlMapPage() {
           },
         )
           .addTo(map)
-          .bindPopup(popupHtml);
+          .bindPopup(popupHtml)
+          .on("click", () => {
+            setSelectedTicketId(ticket.id);
+            jobCardRefs.current.get(ticket.id)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          });
         markerRefs.current.set(ticket.id, marker);
       });
 
@@ -277,7 +310,7 @@ export default function WorkshopControlMapPage() {
   }, [liveOnsiteJobs]);
 
   return (
-    <div className="workshop-legacy-page workshop-map-page">
+    <div className="workshop-map-page">
       <div>
         <AuthGuard requiredRole="admin">
           <section>
@@ -326,7 +359,17 @@ export default function WorkshopControlMapPage() {
                     <EmptyState title="No geolocated onsite jobs" description="Jobs appear here when an active onsite request has a confirmed location." />
                   ) : (
                     liveOnsiteJobs.map((ticket) => (
-                      <article key={ticket.id} className={`workshop-map-job ${selectedTicketId === ticket.id ? "workshop-map-job-selected" : ""}`}>
+                      <article
+                        key={ticket.id}
+                        ref={(element) => {
+                          if (element) {
+                            jobCardRefs.current.set(ticket.id, element);
+                          } else {
+                            jobCardRefs.current.delete(ticket.id);
+                          }
+                        }}
+                        className={`workshop-map-job ${selectedTicketId === ticket.id ? "workshop-map-job-selected" : ""}`}
+                      >
                         <button type="button" onClick={() => { setSelectedTicketId(ticket.id); markerRefs.current.get(ticket.id)?.openPopup(); }} className="workshop-map-job-focus">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -337,7 +380,7 @@ export default function WorkshopControlMapPage() {
                               {ticket.requester_name ?? "Unknown requester"}
                             </p>
                           </div>
-                          <span className="relay-status-badge">
+                          <span className={`relay-status-badge ${getMapStatusClass(ticket.status)}`}>
                             {ticket.status ?? "-"}
                           </span>
                         </div>
@@ -356,9 +399,15 @@ export default function WorkshopControlMapPage() {
                           <div className="flex items-center justify-between gap-3">
                             <dt>Location</dt>
                             <dd>
-                              {ticket.location_summary ?? formatCoordinates(ticket)}
+                              {ticket.location_summary ?? "Saved onsite location"}
                             </dd>
                           </div>
+                          {!ticket.location_summary ? (
+                            <div className="workshop-map-coordinates">
+                              <dt>Coordinates</dt>
+                              <dd>{formatCoordinates(ticket)}</dd>
+                            </div>
+                          ) : null}
                           <div className="flex items-center justify-between gap-3">
                             <dt>Assigned</dt>
                             <dd>
@@ -449,6 +498,26 @@ function getMarkerColor(status: string | null) {
       return "#a855f7";
     default:
       return "#94a3b8";
+  }
+}
+
+function getMapStatusClass(status: string | null) {
+  switch (status) {
+    case "PENDING":
+      return "workshop-map-status-pending";
+    case "QUERY":
+      return "workshop-map-status-query";
+    case "IN_PROGRESS":
+      return "workshop-map-status-progress";
+    case "ORDERED":
+      return "workshop-map-status-ordered";
+    case "READY":
+      return "workshop-map-status-ready";
+    case "ESTIMATE":
+    case "QUOTE":
+      return "workshop-map-status-quote";
+    default:
+      return "";
   }
 }
 

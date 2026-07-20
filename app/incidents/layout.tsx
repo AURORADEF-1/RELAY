@@ -16,6 +16,7 @@ export default function WorkshopLayout({ children }: { children: React.ReactNode
       <ConsoleShell
         eyebrow="RELAY workshop"
         title={getWorkshopTitle(pathname)}
+        contentClassName="console-content-workshop"
       >
         <div className="workshop-console-tabs">
           <WorkshopIncidentsTabs activeTab={activeTab} />

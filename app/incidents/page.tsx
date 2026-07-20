@@ -385,8 +385,8 @@ export default function IncidentsPage() {
   }
 
   return (
-    <div className="aurora-shell workshop-legacy-page">
-      <div className="aurora-shell-inner max-w-[120rem]">
+    <div className="workshop-dashboard-page">
+      <div>
         <AuthGuard requiredRole="admin">
           <section className="workshop-dashboard">
             <PageHeader
@@ -400,7 +400,7 @@ export default function IncidentsPage() {
                 </>
               }
               actions={
-                <>
+                <div className="workshop-header-controls">
                   <select
                     value={viewMode}
                     onChange={(event) => {
@@ -408,7 +408,7 @@ export default function IncidentsPage() {
                       setViewMode(nextMode);
                       window.localStorage.setItem(INCIDENT_DASHBOARD_VIEW_STORAGE_KEY, nextMode);
                     }}
-                    className="relay-control"
+                    className="relay-control workshop-view-select"
                     aria-label="Workshop board view"
                   >
                     <option value="standard">Standard view</option>
@@ -419,7 +419,7 @@ export default function IncidentsPage() {
                   </button>
                   <Link href="/incidents/damage/new" className="relay-button relay-button-secondary">Report damage</Link>
                   <Link href="/incidents/tyres/new" className="relay-button relay-button-primary">Tyre breakdown</Link>
-                </>
+                </div>
               }
             />
 
@@ -445,9 +445,11 @@ export default function IncidentsPage() {
                   <button
                     type="button"
                     onClick={() => setIsUsersPanelMinimized((current) => !current)}
-                    className="relay-button relay-button-ghost"
+                    className="relay-panel-toggle"
+                    aria-label={isUsersPanelMinimized ? "Expand team availability" : "Minimise team availability"}
+                    title={isUsersPanelMinimized ? "Expand panel" : "Minimise panel"}
                   >
-                    {isUsersPanelMinimized ? "Expand" : "Minimise"}
+                    <ConsoleIcon name="chevron" className={`h-4 w-4 ${isUsersPanelMinimized ? "rotate-90" : "-rotate-90"}`} />
                   </button>
                 }
               >
@@ -508,9 +510,11 @@ export default function IncidentsPage() {
                   <button
                     type="button"
                     onClick={() => setIsTaskPanelMinimized((current) => !current)}
-                    className="relay-button relay-button-ghost"
+                    className="relay-panel-toggle"
+                    aria-label={isTaskPanelMinimized ? "Expand task management" : "Minimise task management"}
+                    title={isTaskPanelMinimized ? "Expand panel" : "Minimise panel"}
                   >
-                    {isTaskPanelMinimized ? "Expand" : "Minimise"}
+                    <ConsoleIcon name="chevron" className={`h-4 w-4 ${isTaskPanelMinimized ? "rotate-90" : "-rotate-90"}`} />
                   </button>
                 }
               >
@@ -624,95 +628,106 @@ export default function IncidentsPage() {
               </SectionCard>
             </div>
 
+            <div className="workshop-incident-heading">
+              <div>
+                <h2>Incident Workflow</h2>
+                <p>Live workshop incidents grouped by current status.</p>
+              </div>
+              <div className="workshop-incident-summary">
+                <span className="relay-live-label"><i /> {metrics.activeCount} live</span>
+                <span>{viewMode === "dynamic" ? "Dynamic view" : "Standard view"}</span>
+              </div>
+            </div>
+
             {viewMode === "dynamic" ? (
-              <div className="mt-8 grid gap-4 xl:grid-cols-3">
+              <div className="workshop-incident-board workshop-incident-board-dynamic">
                 {activeIncidentStatuses.map((status) => (
                   <section
                     key={status}
-                    className="rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82)_0%,rgba(15,23,42,0.56)_100%)] p-4"
+                    className="workshop-incident-lane workshop-incident-lane-dynamic"
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="workshop-incident-lane-header">
                       <div>
-                        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${getIncidentTone(status)}`}>
+                        <span className={`workshop-incident-status ${getIncidentTone(status)}`}>
                           {formatIncidentStatus(status)}
                         </span>
-                        <p className="mt-3 text-xs uppercase tracking-[0.16em] text-slate-400">
+                        <p className="workshop-incident-lane-meta">
                           {groupedIncidents[status].length} live incident
                           {groupedIncidents[status].length === 1 ? "" : "s"}
                         </p>
                       </div>
-                      <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-sm font-semibold text-white">
+                      <span className="workshop-incident-count">
                         {groupedIncidents[status].length}
                       </span>
                     </div>
 
-                    <div className="mt-4 space-y-3">
+                    <div className="workshop-incident-list">
                       {isLoading ? (
-                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                        <div className="workshop-incident-empty">
                           Loading lane...
                         </div>
                       ) : groupedIncidents[status].length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                          No live incidents in this lane.
+                        <div className="workshop-incident-empty">
+                          No live incidents
                         </div>
                       ) : (
                         groupedIncidents[status].map((incident) => (
                           <Link
                             key={incident.id}
                             href={`/incidents/${incident.id}`}
-                            className={`block rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[0_20px_50px_-34px_rgba(15,23,42,0.7)] ${getDynamicIncidentCardTone(
+                            className={`workshop-incident-card workshop-incident-card-dynamic ${getDynamicIncidentCardTone(
                               incident.status,
                             )}`}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="truncate text-lg font-semibold text-white">
+                                <p className="workshop-incident-job">
                                   {incident.job_number
                                     ? `Job ${incident.job_number}`
                                     : incident.machine_reference}
                                 </p>
-                                <p className="mt-1 truncate text-sm text-slate-300">
+                                <p className="workshop-incident-byline">
                                   {formatIncidentType(incident.incident_type)} · {incident.reported_by || "Unknown reporter"}
                                 </p>
                               </div>
-                              <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200">
+                              <span className="workshop-incident-chip">
                                 {incident.location_type}
                               </span>
                             </div>
 
-                            <p className="mt-4 line-clamp-4 text-sm leading-6 text-slate-200">
+                            <p className="workshop-incident-description line-clamp-4">
                               {incident.description}
                             </p>
 
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200">
+                            <div className="workshop-incident-chips">
+                              <span className="workshop-incident-chip">
                                 {incident.severity}
                               </span>
-                              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] font-semibold text-slate-200">
+                              <span className="workshop-incident-chip">
                                 {incident.assigned_to || "Unassigned"}
                               </span>
-                              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] font-semibold text-slate-200">
+                              <span className="workshop-incident-chip">
                                 {formatRelativeTime(incident.updated_at)}
                               </span>
                             </div>
 
-                            <dl className="mt-4 grid gap-2 text-xs text-slate-400">
+                            <dl className="workshop-incident-details">
                               <div className="flex items-center justify-between gap-3">
                                 <dt>Machine</dt>
-                                <dd className="truncate text-right text-slate-200">
+                                <dd>
                                   {incident.machine_reference || "-"}
                                 </dd>
                               </div>
                               <div className="flex items-center justify-between gap-3">
                                 <dt>Location</dt>
-                                <dd className="truncate text-right text-slate-200">
+                                <dd>
                                   {incident.location_summary || incident.location_type}
                                 </dd>
                               </div>
                             </dl>
 
                             {incident.linked_parts_ticket_id ? (
-                              <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">
+                              <div className="workshop-incident-linked">
                                 Linked Parts Request
                               </div>
                             ) : null}
@@ -724,86 +739,86 @@ export default function IncidentsPage() {
                 ))}
               </div>
             ) : (
-              <div className="mt-8 grid gap-4 xl:grid-cols-6">
+              <div className="workshop-incident-board workshop-incident-board-standard">
                 {activeIncidentStatuses.map((status) => (
                   <section
                     key={status}
-                    className="min-h-[24rem] rounded-[1.75rem] border border-white/10 bg-white/5 p-4"
+                    className="workshop-incident-lane"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${getIncidentTone(status)}`}>
+                    <div className="workshop-incident-lane-header">
+                      <span className={`workshop-incident-status ${getIncidentTone(status)}`}>
                         {formatIncidentStatus(status)}
                       </span>
-                      <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-sm font-semibold text-white">
+                      <span className="workshop-incident-count">
                         {groupedIncidents[status].length}
                       </span>
                     </div>
 
-                    <div className="mt-4 space-y-3">
+                    <div className="workshop-incident-list">
                       {isLoading ? (
-                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
+                        <div className="workshop-incident-empty">
                           Loading lane...
                         </div>
                       ) : groupedIncidents[status].length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-400">
-                          No live incidents in this lane.
+                        <div className="workshop-incident-empty">
+                          No live incidents
                         </div>
                       ) : (
                         groupedIncidents[status].map((incident) => (
                           <Link
                             key={incident.id}
                             href={`/incidents/${incident.id}`}
-                            className="block rounded-2xl border border-white/10 bg-black/15 p-4 transition hover:border-white/20 hover:bg-black/25"
+                            className="workshop-incident-card"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="truncate text-lg font-semibold text-white">
+                                <p className="workshop-incident-job">
                                   {incident.job_number
                                     ? `Job ${incident.job_number}`
                                     : incident.machine_reference}
                                 </p>
-                                <p className="mt-1 truncate text-sm text-slate-300">
+                                <p className="workshop-incident-byline">
                                   {formatIncidentType(incident.incident_type)} · {incident.reported_by || "Unknown reporter"}
                                 </p>
                               </div>
-                              <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200">
+                              <span className="workshop-incident-chip">
                                 {incident.location_type}
                               </span>
                             </div>
 
-                            <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-200">
+                            <p className="workshop-incident-description line-clamp-3">
                               {incident.description}
                             </p>
 
-                            <dl className="mt-4 grid gap-2 text-xs text-slate-400">
+                            <dl className="workshop-incident-details">
                               <div className="flex items-center justify-between gap-3">
                                 <dt>Machine</dt>
-                                <dd className="truncate text-right text-slate-200">
+                                <dd>
                                   {incident.machine_reference || "-"}
                                 </dd>
                               </div>
                               <div className="flex items-center justify-between gap-3">
                                 <dt>Assigned</dt>
-                                <dd className="truncate text-right text-slate-200">
+                                <dd>
                                   {incident.assigned_to || "Unassigned"}
                                 </dd>
                               </div>
                               <div className="flex items-center justify-between gap-3">
                                 <dt>Severity</dt>
-                                <dd className="truncate text-right text-slate-200">
+                                <dd>
                                   {incident.severity}
                                 </dd>
                               </div>
                               <div className="flex items-center justify-between gap-3">
                                 <dt>Updated</dt>
-                                <dd className="truncate text-right text-slate-200">
+                                <dd>
                                   {formatRelativeTime(incident.updated_at)}
                                 </dd>
                               </div>
                             </dl>
 
                             {incident.linked_parts_ticket_id ? (
-                              <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">
+                              <div className="workshop-incident-linked">
                                 Linked Parts Request
                               </div>
                             ) : null}
@@ -872,37 +887,37 @@ function formatIncidentStatus(value: string) {
 function getIncidentTone(status: string) {
   switch (status) {
     case "REPORTED":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+      return "workshop-incident-status-reported";
     case "ASSESSED":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+      return "workshop-incident-status-assessed";
     case "AWAITING_PARTS":
-      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
+      return "workshop-incident-status-parts";
     case "PARTS_ASSIGNED":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+      return "workshop-incident-status-assigned";
     case "IN_REPAIR":
-      return "border-indigo-400/20 bg-indigo-500/10 text-indigo-200";
+      return "workshop-incident-status-repair";
     case "READY":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+      return "workshop-incident-status-ready";
     default:
-      return "border-white/10 bg-white/10 text-slate-200";
+      return "workshop-incident-status-neutral";
   }
 }
 
 function getDynamicIncidentCardTone(status: string) {
   switch (status) {
     case "REPORTED":
-      return "border-rose-400/20 bg-rose-500/10";
+      return "workshop-incident-card-reported";
     case "ASSESSED":
-      return "border-amber-400/20 bg-amber-500/10";
+      return "workshop-incident-card-assessed";
     case "AWAITING_PARTS":
-      return "border-sky-400/20 bg-sky-500/10";
+      return "workshop-incident-card-parts";
     case "PARTS_ASSIGNED":
-      return "border-emerald-400/20 bg-emerald-500/10";
+      return "workshop-incident-card-assigned";
     case "IN_REPAIR":
-      return "border-indigo-400/20 bg-indigo-500/10";
+      return "workshop-incident-card-repair";
     case "READY":
-      return "border-teal-400/20 bg-teal-500/10";
+      return "workshop-incident-card-ready";
     default:
-      return "border-white/10 bg-white/5";
+      return "workshop-incident-card-neutral";
   }
 }

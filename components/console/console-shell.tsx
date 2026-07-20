@@ -14,6 +14,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 
 type ConsoleShellProps = {
   children: React.ReactNode;
+  contentClassName?: string;
   eyebrow?: string;
   title: string;
   searchValue?: string;
@@ -47,6 +48,7 @@ const navigation: NavigationItem[] = [
 
 export function ConsoleShell({
   children,
+  contentClassName = "",
   eyebrow = "RELAY operations",
   title,
   searchValue,
@@ -267,7 +269,7 @@ export function ConsoleShell({
           </div>
         </header>
 
-        <main className="console-content">{children}</main>
+        <main className={`console-content ${contentClassName}`.trim()}>{children}</main>
       </div>
     </div>
   );
