@@ -30,6 +30,7 @@ type NavigationItem = {
   label: string;
   icon: ConsoleIconName;
   adminOnly?: boolean;
+  fleetMemberOnly?: boolean;
   badge?: "admin" | "requester" | "tasks";
   external?: boolean;
 };
@@ -38,6 +39,7 @@ const navigation: NavigationItem[] = [
   { href: "/console", label: "Operations", icon: "console", adminOnly: true },
   { href: "/submit", label: "New request", icon: "ticket" },
   { href: "/requests", label: "My requests", icon: "clipboard", badge: "requester" },
+  { href: "/fleet", label: "My Fleet", icon: "fleet", fleetMemberOnly: true },
   { href: "/parts-knowledge", label: "Parts Knowledge", icon: "parts", adminOnly: true },
   { href: "/admin", label: "Parts control", icon: "parts", adminOnly: true, badge: "admin" },
   { href: "/incidents", label: "Workshop", icon: "workshop", adminOnly: true },
@@ -63,6 +65,7 @@ export function ConsoleShell({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [signedInUserName, setSignedInUserName] = useState("Signed in");
+  const [hasCustomerFleet, setHasCustomerFleet] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -74,13 +77,28 @@ export function ConsoleShell({
     }
 
     void getCurrentUserWithRole(supabase)
-      .then(({ user, profile }) => {
+      .then(async ({ user, profile }) => {
         if (!isMounted) {
           return;
         }
 
         const displayName = profile?.display_name?.trim();
         setSignedInUserName(displayName || user?.email?.trim() || "Signed in");
+
+        if (!user) {
+          setHasCustomerFleet(false);
+          return;
+        }
+
+        const { data } = await supabase
+          .from("customer_fleet_members")
+          .select("fleet_id")
+          .eq("user_id", user.id)
+          .limit(1);
+
+        if (isMounted) {
+          setHasCustomerFleet(Boolean(data?.length));
+        }
       })
       .catch(() => {
         // Authentication handling remains with AuthGuard; the shell keeps a safe fallback label.
@@ -139,7 +157,9 @@ export function ConsoleShell({
     return 0;
   }
 
-  const visibleNavigation = navigation.filter((item) => !item.adminOnly || isAdmin);
+  const visibleNavigation = navigation.filter(
+    (item) => (!item.adminOnly || isAdmin) && (!item.fleetMemberOnly || hasCustomerFleet),
+  );
 
   return (
     <div className={`console-shell ${isCollapsed ? "console-shell-collapsed" : ""}`}>

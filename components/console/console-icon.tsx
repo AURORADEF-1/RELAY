@@ -6,6 +6,7 @@ export type ConsoleIconName =
   | "command"
   | "console"
   | "file"
+  | "fleet"
   | "menu"
   | "message"
   | "parts"
@@ -53,6 +54,14 @@ export function ConsoleIcon({
       <>
         <path d="M6 3h8l4 4v14H6z" />
         <path d="M14 3v5h5M9 13h6M9 17h6" />
+      </>
+    ),
+    fleet: (
+      <>
+        <path d="M4 18V8l4-3 4 3 4-3 4 3v10" />
+        <path d="M4 12h16M8 9v6M12 9v6M16 9v6" />
+        <circle cx="7" cy="19" r="2" />
+        <circle cx="17" cy="19" r="2" />
       </>
     ),
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
