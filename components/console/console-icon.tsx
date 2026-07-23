@@ -58,10 +58,9 @@ export function ConsoleIcon({
     ),
     fleet: (
       <>
-        <path d="M4 18V8l4-3 4 3 4-3 4 3v10" />
-        <path d="M4 12h16M8 9v6M12 9v6M16 9v6" />
-        <circle cx="7" cy="19" r="2" />
-        <circle cx="17" cy="19" r="2" />
+        <path d="M4 17h11.5a2 2 0 0 1 0 4H4a2 2 0 0 1 0-4Z" />
+        <path d="M6 17v-5h8l3 3v2M9 12V7h4l3 5" />
+        <path d="m13 7 4-4 2 1-3 8M19 4l2 6-3 2" />
       </>
     ),
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
