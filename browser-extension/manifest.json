@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "RELAY Parts Lookup",
+  "version": "1.0.0",
+  "description": "Match RELAY machine and parts context against the visible content of the current supplier website.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "action": {
+    "default_title": "RELAY Parts Lookup",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://relay-ryoz.vercel.app/*",
+        "https://relay-auroradef-1s-projects.vercel.app/*",
+        "https://relay-git-main-auroradef-1s-projects.vercel.app/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "relay-bridge.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

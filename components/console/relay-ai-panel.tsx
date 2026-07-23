@@ -36,6 +36,7 @@ import {
   type RelayAiTicketDraft,
 } from "@/lib/relay-ai-ticket-actions";
 import { getSupabaseClient } from "@/lib/supabase";
+import { normalizeWorkshopPartQuery } from "@/lib/takeuchi-parts-catalog";
 
 type RelayAiMessage = {
   id: string;
@@ -54,6 +55,7 @@ type RelayAiMessage = {
     };
   };
   copyText?: string;
+  externalLookup?: RelayExternalLookupContext;
   ticketAction?: {
     draft: RelayAiTicketDraft;
     status: "pending" | "submitting" | "cancelled" | "submitted";
@@ -63,6 +65,24 @@ type RelayAiMessage = {
     status: "pending" | "submitting" | "cancelled" | "submitted";
   };
 };
+
+type RelayExternalLookupContext = {
+  machineReference: string;
+  make: string;
+  model: string;
+  serialNumber: string;
+  requestDescription: string;
+};
+
+type RelayExternalLookupResult = {
+  pageTitle: string;
+  pageUrl: string;
+  candidateText: string;
+  partNumber: string;
+  confidence: string;
+};
+
+const RELAY_EXTERNAL_LOOKUP_EVENT = "relay:external-lookup-result";
 
 const STARTER_MESSAGE: RelayAiMessage = {
   id: "welcome",
@@ -111,6 +131,41 @@ export function RelayAiPanel({
   useEffect(() => {
     if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [isOpen, isThinking, messages]);
+
+  useEffect(() => {
+    function receiveExternalLookupResult(event: Event) {
+      const result = (event as CustomEvent<RelayExternalLookupResult>).detail;
+      if (
+        !result
+        || typeof result.pageUrl !== "string"
+        || typeof result.candidateText !== "string"
+      ) {
+        return;
+      }
+
+      const pageTitle = String(result.pageTitle || "Supplier website").slice(0, 160);
+      const pageUrl = String(result.pageUrl).slice(0, 2_000);
+      const candidateText = String(result.candidateText).slice(0, 1_500);
+      const partNumber = String(result.partNumber || "").slice(0, 120);
+      const confidence = String(result.confidence || "Possible match").slice(0, 80);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-external-${Date.now()}`,
+          role: "assistant",
+          text: `Browser lookup suggestion from ${pageTitle}\n\n${candidateText}${partNumber ? `\n\nPossible part number: ${partNumber}` : ""}\n\nThis is an unverified website suggestion. Confirm the machine, serial range and part number before using it on a ticket or order.`,
+          facts: ["External website", confidence, "Requires verification"],
+          sourceNote: `User-selected visible page content from ${pageUrl}. RELAY did not access website credentials or confirm fitment.`,
+          copyText: [partNumber && `Part number: ${partNumber}`, candidateText, pageUrl]
+            .filter(Boolean)
+            .join("\n"),
+        },
+      ]);
+    }
+
+    window.addEventListener(RELAY_EXTERNAL_LOOKUP_EVENT, receiveExternalLookupResult);
+    return () => window.removeEventListener(RELAY_EXTERNAL_LOOKUP_EVENT, receiveExternalLookupResult);
+  }, []);
 
   async function getSnapshot() {
     const cached = snapshotRef.current;
@@ -334,6 +389,7 @@ export function RelayAiPanel({
           machineReference: machinePartQuestion.machineReference,
           requestDetails: machinePartQuestion.description,
         });
+        const machine = answer.machine;
         setSyncedAt(new Date());
         setMessages((current) => [
           ...current,
@@ -343,6 +399,15 @@ export function RelayAiPanel({
             text: answer.text,
             facts: answer.facts,
             sourceNote: answer.sourceNote,
+            externalLookup: machine
+              ? {
+                  machineReference: machine.machine_number,
+                  make: machine.make || "",
+                  model: machine.model || machine.item_description || "",
+                  serialNumber: machine.serial_number || "",
+                  requestDescription: normalizeWorkshopPartQuery(machinePartQuestion.description),
+                }
+              : undefined,
           },
         ]);
         return;
@@ -558,6 +623,27 @@ export function RelayAiPanel({
     URL.revokeObjectURL(url);
   }
 
+  function sendToBrowserLookup(context: RelayExternalLookupContext) {
+    window.postMessage(
+      {
+        source: "relay-app",
+        type: "RELAY_PART_LOOKUP_CONTEXT",
+        payload: context,
+      },
+      window.location.origin,
+    );
+    setMessages((current) => [
+      ...current,
+      {
+        id: `assistant-browser-${Date.now()}`,
+        role: "assistant",
+        text: "Browser lookup prepared. Open the supplier or manufacturer page, select the RELAY Parts Lookup extension, then choose Scan current page. A selected candidate can be sent back into this conversation.",
+        facts: ["Read-only lookup", "User-triggered scan", "No automatic fitment"],
+        sourceNote: "Only machine and request context was shared with the local extension. No RELAY credentials were included.",
+      },
+    ]);
+  }
+
   function startNewChat() {
     setMessages([STARTER_MESSAGE]);
     setDraft("");
@@ -628,6 +714,16 @@ export function RelayAiPanel({
                     >
                       <ConsoleIcon name="file" className="h-4 w-4" />
                       Copy machine details
+                    </button>
+                  ) : null}
+                  {message.externalLookup ? (
+                    <button
+                      type="button"
+                      className="relay-ai-download"
+                      onClick={() => sendToBrowserLookup(message.externalLookup!)}
+                    >
+                      <ConsoleIcon name="search" className="h-4 w-4" />
+                      Search current website
                     </button>
                   ) : null}
                   {message.assignmentAction ? (

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RELAY Parts Lookup</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header class="brand">
+        <span class="brand-mark" aria-hidden="true">R</span>
+        <div>
+          <p>RELAY</p>
+          <h1>Parts Lookup</h1>
+        </div>
+        <span class="local-badge">Local</span>
+      </header>
+
+      <section id="context-card" class="context-card" aria-live="polite">
+        <div class="section-heading">
+          <span>Lookup context</span>
+          <button id="clear-context" type="button" class="text-button">Clear</button>
+        </div>
+        <div id="empty-context" class="empty-state">
+          Ask RELAY AI for a machine part, then select <strong>Search current website</strong>.
+        </div>
+        <dl id="context-details" hidden>
+          <div><dt>Machine</dt><dd id="machine-reference"></dd></div>
+          <div><dt>Model</dt><dd id="machine-model"></dd></div>
+          <div><dt>Serial</dt><dd id="machine-serial"></dd></div>
+          <div class="wide"><dt>Request</dt><dd id="request-description"></dd></div>
+        </dl>
+      </section>
+
+      <button id="fill-search" type="button" class="secondary-button" disabled>
+        Fill website search
+      </button>
+
+      <button id="scan-page" type="button" class="primary-button" disabled>
+        <span>Scan current page</span>
+        <small>Visible content only</small>
+      </button>
+
+      <p id="status" class="status" role="status">Waiting for RELAY lookup context.</p>
+
+      <section id="results-section" class="results-section" hidden>
+        <div class="section-heading">
+          <span>Suggested results</span>
+          <b id="result-count">0</b>
+        </div>
+        <div id="results" class="results"></div>
+      </section>
+
+      <footer>
+        Suggestions are not verified fitment. Confirm model, serial range and part number before ordering.
+      </footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
