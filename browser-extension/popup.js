@@ -59,12 +59,35 @@ function expandedRequestTokens(value) {
   return [...new Set(original.flatMap((token) => [token, ...(PART_SYNONYMS[token] || [])]))];
 }
 
-function extractPartNumber(text) {
-  const labelled = text.match(/\b(?:part|item|stock|product)\s*(?:number|no\.?|#|code)?\s*[:#-]?\s*([A-Z0-9][A-Z0-9./_-]{3,})\b/i);
-  if (labelled) return labelled[1];
+function cleanPartNumber(value) {
+  const cleaned = String(value || "")
+    .trim()
+    .replace(/^[#:\s-]+|[.,;:\s]+$/g, "")
+    .replace(/\s+/g, "")
+    .slice(0, 120);
+  return cleaned.length >= 4
+    && /[0-9]/.test(cleaned)
+    && /^[a-z0-9][a-z0-9./_-]*$/i.test(cleaned)
+    ? cleaned
+    : "";
+}
 
-  const candidates = text.match(/\b(?=[A-Z0-9./_-]{5,}\b)(?=[A-Z0-9./_-]*\d)[A-Z0-9]+(?:[./_-][A-Z0-9]+)+\b/gi);
-  return candidates?.[0] || "";
+function extractPartNumber(candidate) {
+  for (const hint of candidate.partNumberHints || []) {
+    const partNumber = cleanPartNumber(hint);
+    if (partNumber) return partNumber;
+  }
+
+  const labelled = candidate.text.match(
+    /\b(?:manufacturer\s*)?(?:part|item|stock|product|catalog(?:ue)?|oem)\s*(?:number|no\.?|#|code|ref(?:erence)?)?\s*[:#-]?\s*([A-Z0-9][A-Z0-9./_-]{3,40})\b/i
+  );
+  const labelledPartNumber = cleanPartNumber(labelled?.[1]);
+  if (labelledPartNumber) return labelledPartNumber;
+
+  const candidates = candidate.text.match(
+    /\b(?=[A-Z0-9./_-]{5,}\b)(?=[A-Z0-9./_-]*\d)[A-Z0-9]+(?:[./_-][A-Z0-9]+)+\b/gi
+  );
+  return cleanPartNumber(candidates?.[0]);
 }
 
 function scoreCandidate(candidate, context) {
@@ -89,8 +112,8 @@ function scoreCandidate(candidate, context) {
   if (context.serialNumber && haystack.includes(normalize(context.serialNumber))) score += 24;
   if (context.machineReference && haystack.includes(normalize(context.machineReference))) score += 8;
 
-  const partNumber = extractPartNumber(candidate.text);
-  if (partNumber) score += 5;
+  const partNumber = extractPartNumber(candidate);
+  if (partNumber) score += 18;
   if (candidate.link) score += 2;
 
   return {
@@ -103,11 +126,15 @@ function scoreCandidate(candidate, context) {
 }
 
 function rankCandidates(page, context) {
-  return page.items
+  const ranked = page.items
     .map((candidate) => scoreCandidate(candidate, context))
     .filter((candidate) => candidate.requestMatches > 0 && candidate.score >= 12)
-    .sort((left, right) => right.score - left.score || left.text.length - right.text.length)
-    .slice(0, 10);
+    .sort((left, right) => right.score - left.score || left.text.length - right.text.length);
+
+  return {
+    numbered: ranked.filter((candidate) => candidate.partNumber).slice(0, 10),
+    supportingMatches: ranked.filter((candidate) => !candidate.partNumber).length
+  };
 }
 
 function setStatus(message, isError = false) {
@@ -139,7 +166,7 @@ function renderResults() {
   elements.resultsSection.hidden = state.results.length === 0;
   elements.resultCount.textContent = String(state.results.length);
 
-  state.results.forEach((result, index) => {
+  state.results.forEach((result) => {
     const card = document.createElement("article");
     card.className = "result";
 
@@ -147,7 +174,7 @@ function renderResults() {
     topline.className = "result-topline";
     const partNumber = document.createElement("span");
     partNumber.className = "part-number";
-    partNumber.textContent = result.partNumber || `Result ${index + 1}`;
+    partNumber.textContent = result.partNumber;
     const confidence = document.createElement("span");
     confidence.className = `confidence${result.score >= 65 ? " strong" : ""}`;
     confidence.textContent = result.confidence;
@@ -228,12 +255,15 @@ async function scanCurrentPage() {
     }
 
     state.page = page;
-    state.results = rankCandidates(page, state.context);
+    const ranked = rankCandidates(page, state.context);
+    state.results = ranked.numbered;
     renderResults();
     setStatus(
       state.results.length
-        ? `Scanned ${page.items.length} visible page sections. Review the ranked suggestions.`
-        : `Scanned ${page.items.length} visible page sections, but none matched the requested part terms.`,
+        ? `Scraped ${page.items.length} visible and structured page records. Found ${state.results.length} numbered catalogue suggestion${state.results.length === 1 ? "" : "s"}.`
+        : ranked.supportingMatches > 0
+          ? `The page contains ${ranked.supportingMatches} possible text match${ranked.supportingMatches === 1 ? "" : "es"}, but no catalogue part number was exposed. Open a product detail or parts-list page and scan again.`
+          : `Scraped ${page.items.length} visible and structured page records, but none matched the requested part terms.`,
       state.results.length === 0
     );
   } catch (error) {
@@ -327,6 +357,27 @@ function collectVisiblePageCandidates() {
   ];
   const seen = new Set();
   const items = [];
+  const partNumberAttribute = /(?:sku|mpn|part[-_:]?(?:number|no)|product[-_:]?(?:code|id)|item[-_:]?(?:number|no)|stock[-_:]?(?:code|id)|catalog(?:ue)?[-_:]?(?:number|no))/i;
+
+  const addCandidate = ({ text, link = "", partNumberHints = [], source = "Visible page" }) => {
+    const normalizedText = String(text || "").replace(/\s+/g, " ").trim();
+    if (normalizedText.length < 8 || normalizedText.length > 1200 || items.length >= 800) return;
+
+    const normalizedHints = [...new Set(
+      partNumberHints
+        .map((value) => String(value || "").replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+    )];
+    const key = `${normalizedText.toLowerCase()}|${normalizedHints.join("|").toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push({
+      text: normalizedText,
+      link,
+      partNumberHints: normalizedHints,
+      source
+    });
+  };
 
   const isVisible = (element) => {
     const style = window.getComputedStyle(element);
@@ -345,13 +396,91 @@ function collectVisiblePageCandidates() {
       .trim();
     if (text.length < 8 || text.length > 1200) continue;
 
-    const key = text.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
     const linkElement = element.matches("a[href]") ? element : element.querySelector("a[href]");
-    items.push({
+    const partNumberHints = [];
+    const descendants = [...element.querySelectorAll("*")].slice(0, 250);
+    for (const candidateElement of [element, ...descendants]) {
+      for (const attribute of candidateElement.attributes || []) {
+        if (partNumberAttribute.test(attribute.name)) partNumberHints.push(attribute.value);
+      }
+      if (candidateElement.matches("[itemprop='sku'],[itemprop='mpn'],[itemprop='productID']")) {
+        partNumberHints.push(
+          candidateElement.getAttribute("content")
+          || candidateElement.getAttribute("value")
+          || candidateElement.textContent
+          || ""
+        );
+      }
+    }
+    if (linkElement?.href) {
+      try {
+        const linkUrl = new URL(linkElement.href);
+        for (const [name, value] of linkUrl.searchParams) {
+          if (partNumberAttribute.test(name)) partNumberHints.push(value);
+        }
+      } catch {
+        // Ignore malformed links while retaining the visible result text.
+      }
+    }
+    addCandidate({
       text,
-      link: linkElement?.href || ""
+      link: linkElement?.href || "",
+      partNumberHints
+    });
+  }
+
+  const structuredProducts = [];
+  const visitStructuredData = (value) => {
+    if (!value || structuredProducts.length >= 100) return;
+    if (Array.isArray(value)) {
+      value.forEach(visitStructuredData);
+      return;
+    }
+    if (typeof value !== "object") return;
+
+    const type = Array.isArray(value["@type"]) ? value["@type"].join(" ") : value["@type"];
+    if (/product|individualproduct|productmodel/i.test(String(type || ""))) {
+      structuredProducts.push(value);
+    }
+    for (const nested of Object.values(value)) visitStructuredData(nested);
+  };
+  for (const script of document.querySelectorAll("script[type='application/ld+json']")) {
+    try {
+      visitStructuredData(JSON.parse(script.textContent || ""));
+    } catch {
+      // Invalid third-party structured data should not prevent the visible-page scan.
+    }
+  }
+  for (const product of structuredProducts) {
+    const brand = typeof product.brand === "object" ? product.brand?.name : product.brand;
+    const partNumberHints = [
+      product.sku,
+      product.mpn,
+      product.productID,
+      product.productId
+    ];
+    addCandidate({
+      text: [
+        product.name,
+        product.description,
+        brand,
+        partNumberHints.filter(Boolean).join(" ")
+      ].filter(Boolean).join(" · "),
+      link: typeof product.url === "string" ? product.url : "",
+      partNumberHints,
+      source: "Structured product data"
+    });
+  }
+
+  for (const metadata of document.querySelectorAll(
+    "meta[itemprop='sku'],meta[itemprop='mpn'],meta[itemprop='productID'],meta[property='product:retailer_item_id']"
+  )) {
+    const partNumber = metadata.getAttribute("content") || "";
+    addCandidate({
+      text: `${document.title} · Part number ${partNumber}`,
+      link: window.location.href,
+      partNumberHints: [partNumber],
+      source: "Product metadata"
     });
   }
 
@@ -362,10 +491,7 @@ function collectVisiblePageCandidates() {
       .filter((line) => line.length >= 8 && line.length <= 500);
     for (const text of fallbackLines) {
       if (items.length >= 800) break;
-      const key = text.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      items.push({ text, link: "" });
+      addCandidate({ text });
     }
   }
 

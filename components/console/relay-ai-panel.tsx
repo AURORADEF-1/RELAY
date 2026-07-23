@@ -55,6 +55,7 @@ type RelayAiMessage = {
     };
   };
   copyText?: string;
+  copyLabel?: string;
   externalLookup?: RelayExternalLookupContext;
   ticketAction?: {
     draft: RelayAiTicketDraft;
@@ -139,6 +140,8 @@ export function RelayAiPanel({
         !result
         || typeof result.pageUrl !== "string"
         || typeof result.candidateText !== "string"
+        || typeof result.partNumber !== "string"
+        || !result.partNumber.trim()
       ) {
         return;
       }
@@ -153,12 +156,13 @@ export function RelayAiPanel({
         {
           id: `assistant-external-${Date.now()}`,
           role: "assistant",
-          text: `Browser lookup suggestion from ${pageTitle}\n\n${candidateText}${partNumber ? `\n\nPossible part number: ${partNumber}` : ""}\n\nThis is an unverified website suggestion. Confirm the machine, serial range and part number before using it on a ticket or order.`,
-          facts: ["External website", confidence, "Requires verification"],
+          text: `Browser lookup suggestion from ${pageTitle}\n\n${candidateText}\n\nWebsite catalogue part number: ${partNumber}\n\nThis is an unverified website suggestion. Confirm the machine, serial range and part number before using it on a ticket or order.`,
+          facts: ["Catalogue number extracted", confidence, "Requires verification"],
           sourceNote: `User-selected visible page content from ${pageUrl}. RELAY did not access website credentials or confirm fitment.`,
           copyText: [partNumber && `Part number: ${partNumber}`, candidateText, pageUrl]
             .filter(Boolean)
             .join("\n"),
+          copyLabel: "Copy part suggestion",
         },
       ]);
     }
@@ -713,7 +717,7 @@ export function RelayAiPanel({
                       onClick={() => void navigator.clipboard.writeText(message.copyText!)}
                     >
                       <ConsoleIcon name="file" className="h-4 w-4" />
-                      Copy machine details
+                      {message.copyLabel || "Copy machine details"}
                     </button>
                   ) : null}
                   {message.externalLookup ? (

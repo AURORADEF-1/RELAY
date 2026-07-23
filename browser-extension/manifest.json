@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RELAY Parts Lookup",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Match RELAY machine and parts context against the visible content of the current supplier website.",
   "permissions": [
     "activeTab",
