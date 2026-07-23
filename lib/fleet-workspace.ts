@@ -62,7 +62,7 @@ export const fleetMachineGroups = [
   "Loaders",
   "Rollers",
   "Access Equipment",
-  "Tractors",
+  "HGV Trucks",
   "Other Equipment",
 ] as const;
 
@@ -139,8 +139,12 @@ export function getFleetMachineGroup(
   if (/\b(cherry pickers?|boom lifts?|scissor lifts?|access platforms?)\b/.test(description)) {
     return "Access Equipment";
   }
-  if (/\b(tractors?|agricultural)\b/.test(description)) {
-    return "Tractors";
+  if (
+    /\b(tractors?|tractor units?|hgv|hgvs|articulated (?:lorr(?:y|ies)|trucks?)|artics?|road tractors?|lorr(?:y|ies)|trucks?)\b/.test(
+      description,
+    )
+  ) {
+    return "HGV Trucks";
   }
   if (/\b(excavators?|diggers?|mini diggers?)\b/.test(description)) {
     return "Excavators";

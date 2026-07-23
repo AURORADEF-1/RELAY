@@ -142,8 +142,8 @@ export function ConsoleShell({
     const query = searchValue?.trim() ?? "";
 
     if (!isAdmin || !onSearchChange || query.length < 2) {
-      setCommandMachineResults([]);
-      return;
+      const resetId = window.setTimeout(() => setCommandMachineResults([]), 0);
+      return () => window.clearTimeout(resetId);
     }
 
     const abortController = new AbortController();
