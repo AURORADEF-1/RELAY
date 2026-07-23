@@ -22,6 +22,11 @@ import {
   parseRelayAiMachineReference,
 } from "@/lib/relay-ai-machine-lookup";
 import {
+  answerRelayAiTakeuchiPartQuestion,
+  buildRelayAiTicketPartsGuidance,
+  parseRelayAiTakeuchiPartQuestion,
+} from "@/lib/relay-ai-parts-guidance";
+import {
   applyRelayAiTicketSequenceAnswer,
   createRelayAiTicket,
   missingRelayAiTicketFields,
@@ -135,6 +140,43 @@ export function RelayAiPanel({
     }
   }
 
+  async function getTicketPartsGuidance(
+    ticketDraft: RelayAiTicketDraft,
+    includeDescription: boolean,
+  ) {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase is not configured.");
+
+    try {
+      return await buildRelayAiTicketPartsGuidance(supabase, {
+        machineReference: ticketDraft.machineReference,
+        requestDetails: includeDescription ? ticketDraft.requestDetails : "",
+      });
+    } catch (error) {
+      return {
+        text: `Machine and catalogue checks are temporarily unavailable. RELAY will retain the entered machine reference and best part description for the parts team. (${error instanceof Error ? error.message : "unknown lookup error"})`,
+        facts: ["Catalogue check unavailable"],
+        sourceNote: "The read-only catalogue check failed. Ticket confirmation remains available and no fitment was inferred.",
+      };
+    }
+  }
+
+  async function showTicketConfirmation(ticketDraft: RelayAiTicketDraft, completePrompt: boolean) {
+    const guidance = await getTicketPartsGuidance(ticketDraft, true);
+    setTicketSequence(null);
+    setMessages((current) => [
+      ...current,
+      {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        text: `${guidance.text}\n\n${completePrompt ? "I found all four required ticket fields in your request." : "I have all four required ticket fields."} Review the ticket below and explicitly confirm before I submit it.`,
+        facts: guidance.facts,
+        ticketAction: { draft: ticketDraft, status: "pending" },
+        sourceNote: `${guidance.sourceNote} Draft only; no ticket has been submitted.`,
+      },
+    ]);
+  }
+
   async function submitQuestion(value = draft) {
     const question = value.trim();
     if (!question || isThinking) return;
@@ -220,30 +262,23 @@ export function RelayAiPanel({
         const remaining = missingRelayAiTicketFields(sequenceResult.draft);
         if (remaining.length > 0) {
           setTicketSequence(sequenceResult.draft);
+          const guidance = remaining[0] === "requestDetails"
+            ? await getTicketPartsGuidance(sequenceResult.draft, false)
+            : null;
           setMessages((current) => [
             ...current,
             {
               id: `assistant-${Date.now()}`,
               role: "assistant",
-              text: relayAiTicketFieldPrompt(remaining[0]),
-              facts: [`${4 - remaining.length} of 4 fields collected`],
-              sourceNote: "Guided ticket draft. Say “cancel” at any point to discard it.",
+              text: `${guidance ? `${guidance.text}\n\n` : ""}${relayAiTicketFieldPrompt(remaining[0])}`,
+              facts: guidance?.facts ?? [`${4 - remaining.length} of 4 fields collected`],
+              sourceNote: `${guidance ? `${guidance.sourceNote} ` : ""}Guided ticket draft. Say “cancel” at any point to discard it.`,
             },
           ]);
           return;
         }
 
-        setTicketSequence(null);
-        setMessages((current) => [
-          ...current,
-          {
-            id: `assistant-${Date.now()}`,
-            role: "assistant",
-            text: "I have all four required fields. Review the ticket below and explicitly confirm before I submit it.",
-            ticketAction: { draft: sequenceResult.draft, status: "pending" },
-            sourceNote: "Draft only. No Supabase write has occurred.",
-          },
-        ]);
+        await showTicketConfirmation(sequenceResult.draft, false);
         return;
       }
 
@@ -269,26 +304,41 @@ export function RelayAiPanel({
       if (ticketDraft) {
         if (ticketDraft.missing.length > 0) {
           setTicketSequence(ticketDraft.draft);
+          const guidance = ticketDraft.missing[0] === "requestDetails"
+            ? await getTicketPartsGuidance(ticketDraft.draft, false)
+            : null;
           setMessages((current) => [
             ...current,
             {
               id: `assistant-${Date.now()}`,
               role: "assistant",
-              text: `I’ll collect the required ticket fields one at a time. ${relayAiTicketFieldPrompt(ticketDraft.missing[0])}`,
-              facts: [`${4 - ticketDraft.missing.length} of 4 fields collected`],
-              sourceNote: "Guided ticket draft. Say “cancel” at any point to discard it.",
+              text: `I’ll collect the required ticket fields one at a time. ${guidance ? `${guidance.text}\n\n` : ""}${relayAiTicketFieldPrompt(ticketDraft.missing[0])}`,
+              facts: guidance?.facts ?? [`${4 - ticketDraft.missing.length} of 4 fields collected`],
+              sourceNote: `${guidance ? `${guidance.sourceNote} ` : ""}Guided ticket draft. Say “cancel” at any point to discard it.`,
             },
           ]);
           return;
         }
+        await showTicketConfirmation(ticketDraft.draft, true);
+        return;
+      }
+
+      const takeuchiPartQuestion = parseRelayAiTakeuchiPartQuestion(question);
+      if (takeuchiPartQuestion) {
+        const supabase = getSupabaseClient();
+        if (!supabase) throw new Error("Supabase is not configured.");
+        const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+        if (!user || !isAdmin) throw new Error("Admin access is required for Takeuchi catalogue suggestions.");
+        const answer = await answerRelayAiTakeuchiPartQuestion(supabase, takeuchiPartQuestion);
+        setSyncedAt(new Date());
         setMessages((current) => [
           ...current,
           {
             id: `assistant-${Date.now()}`,
             role: "assistant",
-            text: "I found all four required fields in your request. Review the ticket below and explicitly confirm if it is correct.",
-            ticketAction: { draft: ticketDraft.draft, status: "pending" },
-            sourceNote: "Draft only. No Supabase write has occurred.",
+            text: answer.text,
+            facts: answer.facts,
+            sourceNote: answer.sourceNote,
           },
         ]);
         return;

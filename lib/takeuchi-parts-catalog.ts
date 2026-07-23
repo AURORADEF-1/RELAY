@@ -97,13 +97,14 @@ export function normalizeTakeuchiModel(value: string | null | undefined) {
 }
 
 export function buildTakeuchiModelCandidates(value: string | null | undefined) {
-  const normalized = normalizeTakeuchiModel(value);
   const candidates = new Set<string>();
+  const coreModel = value?.match(/\bTB\s*\d{2,4}(?:\s*-\s*\d+)?\b/i)?.[0] ?? "";
 
-  if (normalized) {
+  for (const candidate of [value, coreModel]) {
+    const normalized = normalizeTakeuchiModel(candidate);
+    if (!normalized) continue;
     candidates.add(normalized);
     candidates.add(normalized.replace(/^TAKEUCHI/, ""));
-    candidates.add(normalized.replace(/^TB/, "TB"));
   }
 
   return Array.from(candidates).filter(Boolean);
@@ -221,27 +222,34 @@ export async function fetchTakeuchiPartsCatalog(
   options: {
     machineModel?: string | null;
     serialNumber?: string | null;
+    maxRows?: number;
+    searchText?: string | null;
   } = {},
 ) {
   const normalizedModel = normalizeTakeuchiModel(options.machineModel ?? "");
   const parsedSerial = parseTakeuchiSerialNumber(options.serialNumber ?? "");
+  const maxRows = Math.max(1, options.maxRows ?? Number.MAX_SAFE_INTEGER);
+  const searchTerms = expandPartSearchTerms(options.searchText)
+    .filter((term) => term.length >= 2)
+    .slice(0, 12);
 
   const selectClause =
     "id,catalog_key,machine_make,machine_model,machine_model_normalized,serial_start,serial_end,bom_main_group,bom_sub_group,bom_item,part_number,part_description,suggested_part_number,notes,source_file_name,source_sheet,source_row,created_at,updated_at";
   const pageSize = 1000;
   const allRows: TakeuchiPartCatalogRow[] = [];
 
-  for (let start = 0; ; start += pageSize) {
+  for (let start = 0; start < maxRows; start += pageSize) {
+    const currentPageSize = Math.min(pageSize, maxRows - start);
     let query = supabase
       .from("takeuchi_parts_catalog")
       .select(selectClause)
       .order("bom_main_group", { ascending: true })
       .order("bom_sub_group", { ascending: true })
       .order("part_number", { ascending: true })
-      .range(start, start + pageSize - 1);
+      .range(start, start + currentPageSize - 1);
 
     if (normalizedModel) {
-      const modelCandidates = buildTakeuchiModelCandidates(normalizedModel);
+      const modelCandidates = buildTakeuchiModelCandidates(options.machineModel);
       if (modelCandidates.length === 1) {
         query = query.eq("machine_model_normalized", modelCandidates[0]);
       } else {
@@ -255,6 +263,19 @@ export async function fetchTakeuchiPartsCatalog(
       query = query.lte("serial_start", parsedSerial).gte("serial_end", parsedSerial);
     }
 
+    if (searchTerms.length > 0) {
+      query = query.or(
+        searchTerms.flatMap((term) => [
+          `part_description.ilike.*${term}*`,
+          `part_number.ilike.*${term}*`,
+          `suggested_part_number.ilike.*${term}*`,
+          `bom_main_group.ilike.*${term}*`,
+          `bom_sub_group.ilike.*${term}*`,
+          `bom_item.ilike.*${term}*`,
+        ]).join(","),
+      );
+    }
+
     const { data, error } = await query;
 
     if (error) {
@@ -264,7 +285,7 @@ export async function fetchTakeuchiPartsCatalog(
     const pageRows = (data ?? []) as TakeuchiPartCatalogRow[];
     allRows.push(...pageRows);
 
-    if (pageRows.length < pageSize) {
+    if (pageRows.length < currentPageSize) {
       break;
     }
   }
