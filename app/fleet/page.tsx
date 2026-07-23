@@ -71,7 +71,10 @@ const TICKET_FIELDS = [
   "updated_at",
 ].join(", ");
 
-const MACHINE_RESULT_LIMIT = 100;
+const MACHINE_PAGE_SIZE = 250;
+const MACHINE_SEARCH_LIMIT = 250;
+const MAX_FLEET_MACHINE_RESULTS = 2500;
+const TICKET_MACHINE_BATCH_SIZE = 120;
 const TICKET_RESULT_LIMIT = 2000;
 
 type FleetTab = "overview" | "requests" | "parts" | "activity" | "incidents" | "files";
@@ -290,8 +293,7 @@ function FleetWorkspace() {
       let machineQuery = supabase
         .from("machines")
         .select(MACHINE_FIELDS)
-        .order("machine_number_normalized", { ascending: true })
-        .limit(MACHINE_RESULT_LIMIT);
+        .order("machine_number_normalized", { ascending: true });
 
       if (!access.isAdmin && access.machineIds) {
         machineQuery = machineQuery.in("id", access.machineIds);
@@ -311,7 +313,11 @@ function FleetWorkspace() {
         if (compactTerm && compactTerm !== serverTerm.toUpperCase()) {
           filters.push(`machine_number_normalized.ilike.%${compactTerm}%`);
         }
-        machineQuery = machineQuery.or(filters.join(","));
+        machineQuery = machineQuery
+          .or(filters.join(","))
+          .limit(MACHINE_SEARCH_LIMIT);
+      } else {
+        machineQuery = machineQuery.range(0, MACHINE_PAGE_SIZE - 1);
       }
 
       let countQuery = supabase
@@ -336,6 +342,41 @@ function FleetWorkspace() {
       let rawMachines = (machineResult.data ?? []) as unknown as FleetMachineRecord[];
       const compactServerTerm = normalizeFleetReference(serverTerm);
 
+      if (!serverTerm) {
+        const availableMachineCount = Math.min(
+          countResult.count ?? rawMachines.length,
+          MAX_FLEET_MACHINE_RESULTS,
+        );
+        let offset = rawMachines.length;
+
+        while (
+          offset < availableMachineCount &&
+          rawMachines.length < MAX_FLEET_MACHINE_RESULTS
+        ) {
+          let nextPageQuery = supabase
+            .from("machines")
+            .select(MACHINE_FIELDS)
+            .order("machine_number_normalized", { ascending: true })
+            .range(offset, Math.min(offset + MACHINE_PAGE_SIZE - 1, availableMachineCount - 1));
+
+          if (!access.isAdmin && access.machineIds) {
+            nextPageQuery = nextPageQuery.in("id", access.machineIds);
+          }
+
+          const nextPageResult = await nextPageQuery;
+          if (nextPageResult.error) {
+            throw nextPageResult.error;
+          }
+
+          const nextRows = (nextPageResult.data ?? []) as unknown as FleetMachineRecord[];
+          rawMachines = [...rawMachines, ...nextRows];
+          if (nextRows.length < MACHINE_PAGE_SIZE) {
+            break;
+          }
+          offset += nextRows.length;
+        }
+      }
+
       if (
         rawMachines.length === 0 &&
         compactServerTerm.length >= 5 &&
@@ -353,7 +394,7 @@ function FleetWorkspace() {
             ].join(","),
           )
           .order("machine_number_normalized", { ascending: true })
-          .limit(MACHINE_RESULT_LIMIT);
+          .limit(MACHINE_SEARCH_LIMIT);
 
         if (!access.isAdmin && access.machineIds) {
           fallbackQuery = fallbackQuery.in("id", access.machineIds);
@@ -425,6 +466,12 @@ function FleetWorkspace() {
         .filter((entry) => entry.machines.length > 0),
     [visibleSummaries],
   );
+
+  useEffect(() => {
+    if (groupFilter !== "ALL" && !groupCounts.get(groupFilter)) {
+      setGroupFilter("ALL");
+    }
+  }, [groupCounts, groupFilter]);
 
   useEffect(() => {
     if (
@@ -708,7 +755,13 @@ function FleetWorkspace() {
           <FleetMetric
             label="Matching machines"
             value={summaryMetrics.visibleMachines}
-            detail={debouncedQuery ? "Current search" : `First ${MACHINE_RESULT_LIMIT}`}
+            detail={
+              debouncedQuery
+                ? "Current search"
+                : totalMachineCount > MAX_FLEET_MACHINE_RESULTS
+                  ? `First ${MAX_FLEET_MACHINE_RESULTS.toLocaleString("en-GB")}`
+                  : "Complete registry"
+            }
           />
           <FleetMetric
             label="Linked requests"
@@ -1514,44 +1567,51 @@ async function fetchFleetTickets({
     throw new Error("Supabase environment variables are not configured.");
   }
 
-  const normalizedKeys = Array.from(
-    new Set(machines.map((machine) => machine.machine_number_normalized).filter(Boolean)),
-  );
-  const displayKeys = Array.from(
-    new Set(machines.map((machine) => machine.machine_number).filter(Boolean)),
-  );
-
   function scopeQuery<T extends { or: (filter: string) => T }>(query: T) {
     return isAdmin
       ? query
       : query.or(`user_id.eq.${userId},visible_to_user_id.eq.${userId}`);
   }
 
-  const strongQuery = scopeQuery(
-    supabase
-      .from("tickets")
-      .select(TICKET_FIELDS)
-      .in("machine_number_normalized", normalizedKeys)
-      .order("updated_at", { ascending: false })
-      .limit(TICKET_RESULT_LIMIT),
-  );
-  const referenceQuery = scopeQuery(
-    supabase
-      .from("tickets")
-      .select(TICKET_FIELDS)
-      .in("machine_reference", displayKeys)
-      .order("updated_at", { ascending: false })
-      .limit(TICKET_RESULT_LIMIT),
-  );
-  const numberQuery = scopeQuery(
-    supabase
-      .from("tickets")
-      .select(TICKET_FIELDS)
-      .in("machine_number", displayKeys)
-      .order("updated_at", { ascending: false })
-      .limit(TICKET_RESULT_LIMIT),
-  );
-  const results = await Promise.all([strongQuery, referenceQuery, numberQuery]);
+  const machineBatches = chunkMachines(machines, TICKET_MACHINE_BATCH_SIZE);
+  const ticketQueries = machineBatches.flatMap((batch) => {
+    const batchNormalizedKeys = Array.from(
+      new Set(batch.map((machine) => machine.machine_number_normalized).filter(Boolean)),
+    );
+    const batchDisplayKeys = Array.from(
+      new Set(batch.map((machine) => machine.machine_number).filter(Boolean)),
+    );
+
+    return [
+      scopeQuery(
+        supabase
+          .from("tickets")
+          .select(TICKET_FIELDS)
+          .in("machine_number_normalized", batchNormalizedKeys)
+          .order("updated_at", { ascending: false })
+          .limit(TICKET_RESULT_LIMIT),
+      ),
+      scopeQuery(
+        supabase
+          .from("tickets")
+          .select(TICKET_FIELDS)
+          .is("machine_number_normalized", null)
+          .in("machine_reference", batchDisplayKeys)
+          .order("updated_at", { ascending: false })
+          .limit(TICKET_RESULT_LIMIT),
+      ),
+      scopeQuery(
+        supabase
+          .from("tickets")
+          .select(TICKET_FIELDS)
+          .is("machine_number_normalized", null)
+          .in("machine_number", batchDisplayKeys)
+          .order("updated_at", { ascending: false })
+          .limit(TICKET_RESULT_LIMIT),
+      ),
+    ];
+  });
+  const results = await Promise.all(ticketQueries);
   const firstError = results.find((result) => result.error)?.error;
 
   if (firstError) {
@@ -1566,6 +1626,14 @@ async function fetchFleetTickets({
   }
 
   return Array.from(ticketsById.values());
+}
+
+function chunkMachines(machines: FleetMachineRecord[], size: number) {
+  const chunks: FleetMachineRecord[][] = [];
+  for (let index = 0; index < machines.length; index += size) {
+    chunks.push(machines.slice(index, index + size));
+  }
+  return chunks;
 }
 
 function getServerSearchTerm(query: string) {
