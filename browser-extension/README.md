@@ -21,6 +21,12 @@ The extension transfers a machine and part-search context from RELAY AI to a use
 6. Review the locally ranked matches that include an extracted part, SKU, MPN, product or catalogue number.
 7. Select **Send suggestion to RELAY** for the candidate you want to review.
 
+## Search strategy
+
+- **Takeuchi EPC:** RELAY passes its ranked serial-compatible catalogue numbers to the extension. The website search is filled with the highest-ranked part number, not the model or description. A result is marked verified by the scraper only when the same normalized part number is extracted from the Takeuchi results page.
+- **TVH, eBay and other websites:** the search is filled with the machine model and part description. Extracted catalogue numbers remain unverified supplier or marketplace suggestions.
+- Takeuchi scraper verification confirms that the suggested number appears on the Takeuchi website. It does not independently prove serial-range fitment, supersession or availability.
+
 ## Security and limitations
 
 - Scanning occurs only after the user selects **Scan current page**.

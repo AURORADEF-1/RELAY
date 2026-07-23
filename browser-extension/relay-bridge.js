@@ -28,6 +28,12 @@ window.addEventListener("message", (event) => {
       model: String(payload.model || "").slice(0, 240),
       serialNumber: String(payload.serialNumber || "").slice(0, 120),
       requestDescription: payload.requestDescription.slice(0, 500),
+      suggestedPartNumbers: Array.isArray(payload.suggestedPartNumbers)
+        ? payload.suggestedPartNumbers
+          .map((value) => String(value || "").trim().slice(0, 120))
+          .filter(Boolean)
+          .slice(0, 5)
+        : [],
       capturedAt: new Date().toISOString()
     }
   });
@@ -42,7 +48,11 @@ chrome.runtime.onMessage.addListener((message) => {
       pageUrl: String(message.result.pageUrl || "").slice(0, 2000),
       candidateText: String(message.result.candidateText || "").slice(0, 1500),
       partNumber: String(message.result.partNumber || "").slice(0, 120),
-      confidence: String(message.result.confidence || "").slice(0, 80)
+      confidence: String(message.result.confidence || "").slice(0, 80),
+      verificationType: message.result.verificationType === "takeuchi_exact_part_number"
+        ? "takeuchi_exact_part_number"
+        : "external_catalogue_match",
+      searchedPartNumber: String(message.result.searchedPartNumber || "").slice(0, 120)
     }
   }));
 });

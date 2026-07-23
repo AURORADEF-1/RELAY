@@ -73,6 +73,7 @@ type RelayExternalLookupContext = {
   model: string;
   serialNumber: string;
   requestDescription: string;
+  suggestedPartNumbers: string[];
 };
 
 type RelayExternalLookupResult = {
@@ -81,6 +82,8 @@ type RelayExternalLookupResult = {
   candidateText: string;
   partNumber: string;
   confidence: string;
+  verificationType: "takeuchi_exact_part_number" | "external_catalogue_match";
+  searchedPartNumber: string;
 };
 
 const RELAY_EXTERNAL_LOOKUP_EVENT = "relay:external-lookup-result";
@@ -151,14 +154,24 @@ export function RelayAiPanel({
       const candidateText = String(result.candidateText).slice(0, 1_500);
       const partNumber = String(result.partNumber || "").slice(0, 120);
       const confidence = String(result.confidence || "Possible match").slice(0, 80);
+      const searchedPartNumber = String(result.searchedPartNumber || "").slice(0, 120);
+      const isTakeuchiExactMatch = result.verificationType === "takeuchi_exact_part_number"
+        && Boolean(normalizePartNumber(searchedPartNumber))
+        && normalizePartNumber(searchedPartNumber) === normalizePartNumber(partNumber);
       setMessages((current) => [
         ...current,
         {
           id: `assistant-external-${Date.now()}`,
           role: "assistant",
-          text: `Browser lookup suggestion from ${pageTitle}\n\n${candidateText}\n\nWebsite catalogue part number: ${partNumber}\n\nThis is an unverified website suggestion. Confirm the machine, serial range and part number before using it on a ticket or order.`,
-          facts: ["Catalogue number extracted", confidence, "Requires verification"],
-          sourceNote: `User-selected visible page content from ${pageUrl}. RELAY did not access website credentials or confirm fitment.`,
+          text: isTakeuchiExactMatch
+            ? `Takeuchi website verification\n\nThe scraper found an exact match for RELAY’s suggested catalogue part number: ${partNumber}.\n\n${candidateText}\n\nThe number is verified as present on the Takeuchi website. Confirm serial-range fitment and supersession before ordering.`
+            : `Browser lookup suggestion from ${pageTitle}\n\n${candidateText}\n\nWebsite catalogue part number: ${partNumber}\n\nThis is an unverified supplier-marketplace suggestion. Confirm the machine, serial range and part number before using it on a ticket or order.`,
+          facts: isTakeuchiExactMatch
+            ? ["Takeuchi exact number match", partNumber, "Fitment still requires confirmation"]
+            : ["Catalogue number extracted", confidence, "Requires verification"],
+          sourceNote: isTakeuchiExactMatch
+            ? `Exact normalized part-number match on the user-selected Takeuchi page: ${pageUrl}. Scraper verification confirms presence, not serial-range fitment.`
+            : `User-selected visible page content from ${pageUrl}. RELAY did not access website credentials or confirm fitment.`,
           copyText: [partNumber && `Part number: ${partNumber}`, candidateText, pageUrl]
             .filter(Boolean)
             .join("\n"),
@@ -410,6 +423,11 @@ export function RelayAiPanel({
                   model: machine.model || machine.item_description || "",
                   serialNumber: machine.serial_number || "",
                   requestDescription: normalizeWorkshopPartQuery(machinePartQuestion.description),
+                  suggestedPartNumbers: Array.from(new Set(
+                    answer.suggestions
+                      .map((suggestion) => suggestion.suggested_part_number || suggestion.part_number)
+                      .filter(Boolean),
+                  )).slice(0, 5),
                 }
               : undefined,
           },
@@ -890,4 +908,8 @@ export function RelayAiPanel({
       </section>
     </>
   );
+}
+
+function normalizePartNumber(value: string) {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
