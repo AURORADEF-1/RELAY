@@ -7,19 +7,6 @@ const RELAY_TAB_PATTERNS = [
   "http://127.0.0.1/console*"
 ];
 
-const PART_SYNONYMS = {
-  track: ["crawler", "undercarriage"],
-  crawler: ["track", "undercarriage"],
-  idler: ["roller", "wheel"],
-  roller: ["idler", "wheel"],
-  hose: ["pipe", "tube", "line"],
-  seal: ["gasket", "oring", "o-ring"],
-  lamp: ["light", "headlamp", "worklight"],
-  glass: ["window", "windscreen", "windshield"],
-  filter: ["element", "strainer"],
-  cable: ["wire", "linkage", "control"]
-};
-
 const state = {
   context: null,
   results: [],
@@ -43,23 +30,6 @@ const elements = {
   results: document.querySelector("#results"),
   resultCount: document.querySelector("#result-count")
 };
-
-function normalize(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function tokens(value) {
-  return [...new Set(normalize(value).split(" ").filter((token) => token.length >= 2))];
-}
-
-function expandedRequestTokens(value) {
-  const original = tokens(value);
-  return [...new Set(original.flatMap((token) => [token, ...(PART_SYNONYMS[token] || [])]))];
-}
 
 function normalizePartNumber(value) {
   return String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -111,84 +81,42 @@ function extractPartNumber(candidate) {
   return cleanPartNumber(candidates?.[0]);
 }
 
-function scoreCandidate(candidate, context) {
-  const haystack = normalize(candidate.text);
-  const request = normalize(context.requestDescription);
-  const originalTokens = tokens(request);
-  const expandedTokens = expandedRequestTokens(request);
-  const modelTokens = tokens(context.model).filter((token) => /^tb\d|^[a-z]*\d+[a-z-]*$/.test(token));
-  let score = 0;
-  let requestMatches = 0;
-
-  if (request.length >= 4 && haystack.includes(request)) score += 55;
-  for (const token of expandedTokens) {
-    if (!haystack.includes(token)) continue;
-    const isOriginal = originalTokens.includes(token);
-    score += isOriginal ? (token.length >= 5 ? 16 : 10) : 5;
-    if (isOriginal) requestMatches += 1;
-  }
-  for (const token of modelTokens) {
-    if (haystack.includes(token)) score += 14;
-  }
-  if (context.serialNumber && haystack.includes(normalize(context.serialNumber))) score += 24;
-  if (context.machineReference && haystack.includes(normalize(context.machineReference))) score += 8;
-
+function extractCandidate(candidate) {
   const partNumber = extractPartNumber(candidate);
-  if (partNumber) score += 18;
-  if (candidate.link) score += 2;
-
   return {
     ...candidate,
-    score,
-    requestMatches,
-    partNumber,
-    confidence: score >= 65 ? "Strong page match" : score >= 32 ? "Possible match" : "Broad match"
+    partNumber
   };
 }
 
 function rankCandidates(page, context) {
-  const ranked = page.items
-    .map((candidate) => scoreCandidate(candidate, context))
-    .sort((left, right) => right.score - left.score || left.text.length - right.text.length);
-
-  if (isTakeuchiCatalogueUrl(page.url)) {
-    const searchedPartNumber = preferredSuggestedPartNumber(context);
-    const normalizedSearch = normalizePartNumber(searchedPartNumber);
-    const exactMatches = ranked
-      .filter((candidate) => normalizedSearch
-        && normalizePartNumber(candidate.partNumber) === normalizedSearch)
-      .map((candidate) => ({
-        ...candidate,
-        score: candidate.score + 200,
-        confidence: "Takeuchi number verified",
-        verificationType: "takeuchi_exact_part_number",
-        searchedPartNumber
-      }))
-      .slice(0, 10);
-    return {
-      numbered: exactMatches,
-      supportingMatches: normalizedSearch
-        ? ranked.filter((candidate) =>
-          candidate.text.toUpperCase().replace(/[^A-Z0-9]/g, "").includes(normalizedSearch)
-        ).length
-        : 0,
-      strategy: "takeuchi_part_number",
-      searchedPartNumber
-    };
-  }
-
-  const relevant = ranked.filter((candidate) =>
-    candidate.requestMatches > 0 && candidate.score >= 12)
+  const searchedPartNumber = preferredSuggestedPartNumber(context);
+  const normalizedSearch = normalizePartNumber(searchedPartNumber);
+  const takeuchiCatalogue = isTakeuchiCatalogueUrl(page.url);
+  const exactMatches = page.items
+    .map(extractCandidate)
+    .filter((candidate) => normalizedSearch
+      && normalizePartNumber(candidate.partNumber) === normalizedSearch)
     .map((candidate) => ({
       ...candidate,
-      verificationType: "external_catalogue_match",
-      searchedPartNumber: ""
-    }));
+      score: 200,
+      confidence: takeuchiCatalogue ? "Takeuchi number verified" : "Exact number found",
+      verificationType: takeuchiCatalogue
+        ? "takeuchi_exact_part_number"
+        : "external_catalogue_match",
+      searchedPartNumber
+    }))
+    .slice(0, 10);
+
   return {
-    numbered: relevant.filter((candidate) => candidate.partNumber).slice(0, 10),
-    supportingMatches: relevant.filter((candidate) => !candidate.partNumber).length,
-    strategy: "model_description",
-    searchedPartNumber: ""
+    numbered: exactMatches,
+    supportingMatches: normalizedSearch
+      ? page.items.filter((candidate) =>
+        normalizePartNumber(candidate.text).includes(normalizedSearch)
+      ).length
+      : 0,
+    strategy: "exact_part_number",
+    searchedPartNumber
   };
 }
 
@@ -201,8 +129,9 @@ function renderContext() {
   const context = state.context;
   elements.emptyContext.hidden = Boolean(context);
   elements.contextDetails.hidden = !context;
-  elements.fillSearch.disabled = !context;
-  elements.scan.disabled = !context;
+  const suggestedPartNumber = preferredSuggestedPartNumber(context);
+  elements.fillSearch.disabled = !context || !suggestedPartNumber;
+  elements.scan.disabled = !context || !suggestedPartNumber;
 
   if (!context) {
     setStatus("Waiting for RELAY lookup context.");
@@ -213,10 +142,14 @@ function renderContext() {
   elements.machineModel.textContent = [context.make, context.model].filter(Boolean).join(" ") || "Not recorded";
   elements.machineSerial.textContent = context.serialNumber || "Not recorded";
   elements.requestDescription.textContent = context.requestDescription;
-  const suggestedPartNumber = preferredSuggestedPartNumber(context);
   elements.suggestedPartRow.hidden = !suggestedPartNumber;
   elements.suggestedPartNumber.textContent = suggestedPartNumber;
-  setStatus("Open a supplier or manufacturer page, then scan its visible content.");
+  setStatus(
+    suggestedPartNumber
+      ? `Ready to search every website for exact part number ${suggestedPartNumber}.`
+      : "Select a numbered RELAY catalogue suggestion before searching a website.",
+    !suggestedPartNumber
+  );
 }
 
 function renderResults() {
@@ -295,6 +228,11 @@ async function sendResultToRelay(result) {
 
 async function scanCurrentPage() {
   if (!state.context) return;
+  const suggestedPartNumber = preferredSuggestedPartNumber(state.context);
+  if (!suggestedPartNumber) {
+    setStatus("Select a numbered RELAY catalogue suggestion before scanning any website.", true);
+    return;
+  }
   elements.scan.disabled = true;
   elements.resultsSection.hidden = true;
   setStatus("Reading visible catalogue content on this tab...");
@@ -325,21 +263,17 @@ async function scanCurrentPage() {
     state.results = ranked.numbered;
     renderResults();
     setStatus(
-      ranked.strategy === "takeuchi_part_number"
-        ? state.results.length
-          ? `Verified RELAY’s suggested part number ${ranked.searchedPartNumber} appears exactly on the Takeuchi page.`
-          : `Takeuchi did not expose an exact match for RELAY’s suggested part number ${ranked.searchedPartNumber}. No result was verified.`
-        : state.results.length
-          ? `Scraped ${page.items.length} visible and structured page records. Found ${state.results.length} numbered catalogue suggestion${state.results.length === 1 ? "" : "s"}.`
-          : ranked.supportingMatches > 0
-            ? `The page contains ${ranked.supportingMatches} possible text match${ranked.supportingMatches === 1 ? "" : "es"}, but no catalogue part number was exposed. Open a product detail or parts-list page and scan again.`
-            : `Scraped ${page.items.length} visible and structured page records, but none matched the requested part terms.`,
+      state.results.length
+        ? `Exact part number ${ranked.searchedPartNumber} appears as a product identifier on this page.`
+        : ranked.supportingMatches > 0
+          ? `The page mentions ${ranked.searchedPartNumber}, but does not expose it as a product or catalogue number. Open the product detail page and scan again.`
+          : `The page does not contain exact part number ${ranked.searchedPartNumber}. No result was returned.`,
       state.results.length === 0
     );
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "Unable to scan this page.", true);
   } finally {
-    elements.scan.disabled = !state.context;
+    elements.scan.disabled = !preferredSuggestedPartNumber(state.context);
   }
 }
 
@@ -354,17 +288,11 @@ async function fillWebsiteSearch() {
       throw new Error("Open a normal supplier or manufacturer webpage first.");
     }
 
-    const isTakeuchiCatalogue = isTakeuchiCatalogueUrl(tab.url || "");
     const suggestedPartNumber = preferredSuggestedPartNumber(state.context);
-    if (isTakeuchiCatalogue && !suggestedPartNumber) {
-      throw new Error("RELAY did not produce a numbered Takeuchi catalogue candidate. Refine the part description in RELAY AI first.");
+    if (!suggestedPartNumber) {
+      throw new Error("Select a numbered RELAY catalogue suggestion before searching any website.");
     }
-    const query = isTakeuchiCatalogue
-      ? suggestedPartNumber
-      : [state.context.model, state.context.requestDescription]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
+    const query = suggestedPartNumber;
     const executions = await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
       func: populateVisibleSearchField,
@@ -375,15 +303,11 @@ async function fillWebsiteSearch() {
       throw new Error("No visible website search field was detected. Use the site's search manually, then scan the results.");
     }
 
-    setStatus(
-      isTakeuchiCatalogue
-        ? `Filled the Takeuchi search with RELAY’s top suggested part number ${query}. Submit the search, then scan to verify an exact match.`
-        : `Filled the website search with “${query}”. Review and submit the website search, then scan its results.`
-    );
+    setStatus(`Filled the website search with exact part number ${query}. Submit the search, then scan to verify the same number.`);
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "Unable to fill this website's search.", true);
   } finally {
-    elements.fillSearch.disabled = !state.context;
+    elements.fillSearch.disabled = !preferredSuggestedPartNumber(state.context);
   }
 }
 
