@@ -22,8 +22,11 @@ import {
   parseRelayAiMachineReference,
 } from "@/lib/relay-ai-machine-lookup";
 import {
+  applyRelayAiTicketSequenceAnswer,
   createRelayAiTicket,
+  missingRelayAiTicketFields,
   parseRelayAiTicketDraft,
+  relayAiTicketFieldPrompt,
   type RelayAiTicketDraft,
 } from "@/lib/relay-ai-ticket-actions";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -79,6 +82,7 @@ export function RelayAiPanel({
   const [draft, setDraft] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [syncedAt, setSyncedAt] = useState<Date | null>(null);
+  const [ticketSequence, setTicketSequence] = useState<RelayAiTicketDraft | null>(null);
   const snapshotRef = useRef<RelayAnalyticsSnapshot | null>(null);
   const snapshotPromiseRef = useRef<Promise<RelayAnalyticsSnapshot> | null>(null);
   const questionTimesRef = useRef<number[]>([]);
@@ -173,6 +177,76 @@ export function RelayAiPanel({
     setIsThinking(true);
 
     try {
+      if (ticketSequence) {
+        if (/^(?:(?:cancel|stop)(?:\s+(?:the\s+)?ticket)?|never mind|nevermind)$/i.test(question)) {
+          setTicketSequence(null);
+          setMessages((current) => [
+            ...current,
+            {
+              id: `assistant-${Date.now()}`,
+              role: "assistant",
+              text: "Ticket creation cancelled. No RELAY data was changed.",
+              sourceNote: "The guided draft was discarded without running a database write.",
+            },
+          ]);
+          return;
+        }
+
+        const currentMissing = missingRelayAiTicketFields(ticketSequence);
+        const expectedField = currentMissing[0];
+        if (!expectedField) {
+          setTicketSequence(null);
+          return;
+        }
+        const sequenceResult = applyRelayAiTicketSequenceAnswer(
+          ticketSequence,
+          expectedField,
+          question,
+        );
+        if (sequenceResult.error) {
+          setTicketSequence(sequenceResult.draft);
+          setMessages((current) => [
+            ...current,
+            {
+              id: `assistant-${Date.now()}`,
+              role: "assistant",
+              text: `${sequenceResult.error} ${relayAiTicketFieldPrompt(expectedField)}`,
+              sourceNote: "Guided ticket draft. No database write has occurred.",
+            },
+          ]);
+          return;
+        }
+
+        const remaining = missingRelayAiTicketFields(sequenceResult.draft);
+        if (remaining.length > 0) {
+          setTicketSequence(sequenceResult.draft);
+          setMessages((current) => [
+            ...current,
+            {
+              id: `assistant-${Date.now()}`,
+              role: "assistant",
+              text: relayAiTicketFieldPrompt(remaining[0]),
+              facts: [`${4 - remaining.length} of 4 fields collected`],
+              sourceNote: "Guided ticket draft. Say “cancel” at any point to discard it.",
+            },
+          ]);
+          return;
+        }
+
+        setTicketSequence(null);
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: "I have all four required fields. Review the ticket below and explicitly confirm before I submit it.",
+            ticketAction: { draft: sequenceResult.draft, status: "pending" },
+            sourceNote: "Draft only. No Supabase write has occurred.",
+          },
+        ]);
+        return;
+      }
+
       const assignmentCommand = parseRelayAiAssignmentCommand(question);
       if (assignmentCommand) {
         const supabase = getSupabaseClient();
@@ -194,13 +268,15 @@ export function RelayAiPanel({
       const ticketDraft = parseRelayAiTicketDraft(question);
       if (ticketDraft) {
         if (ticketDraft.missing.length > 0) {
+          setTicketSequence(ticketDraft.draft);
           setMessages((current) => [
             ...current,
             {
               id: `assistant-${Date.now()}`,
               role: "assistant",
-              text: `I can prepare that ticket, but I still need: ${ticketDraft.missing.join(", ")}. Include those details in one request and I will show a confirmation card before anything is submitted.`,
-              sourceNote: "No ticket was created. RELAY AI only executes a complete draft after explicit confirmation.",
+              text: `I’ll collect the required ticket fields one at a time. ${relayAiTicketFieldPrompt(ticketDraft.missing[0])}`,
+              facts: [`${4 - ticketDraft.missing.length} of 4 fields collected`],
+              sourceNote: "Guided ticket draft. Say “cancel” at any point to discard it.",
             },
           ]);
           return;
@@ -210,7 +286,7 @@ export function RelayAiPanel({
           {
             id: `assistant-${Date.now()}`,
             role: "assistant",
-            text: "I have prepared the ticket below. Review every field, choose the department, then explicitly confirm if it is correct.",
+            text: "I found all four required fields in your request. Review the ticket below and explicitly confirm if it is correct.",
             ticketAction: { draft: ticketDraft.draft, status: "pending" },
             sourceNote: "Draft only. No Supabase write has occurred.",
           },
@@ -410,6 +486,7 @@ export function RelayAiPanel({
   function startNewChat() {
     setMessages([STARTER_MESSAGE]);
     setDraft("");
+    setTicketSequence(null);
     window.setTimeout(() => inputRef.current?.focus(), 0);
   }
 

@@ -12,9 +12,15 @@ export type RelayAiTicketDraft = {
   department: RelayAiTicketDepartment | "";
 };
 
+export type RelayAiTicketField =
+  | "jobNumber"
+  | "machineReference"
+  | "requestDetails"
+  | "department";
+
 export type RelayAiTicketDraftResult = {
   draft: RelayAiTicketDraft;
-  missing: Array<"job number" | "machine reference" | "request details">;
+  missing: RelayAiTicketField[];
 };
 
 function cleanCapturedValue(value: string | undefined) {
@@ -25,34 +31,112 @@ function cleanCapturedValue(value: string | undefined) {
     .trim();
 }
 
+function extractTicketFields(value: string): Partial<RelayAiTicketDraft> {
+  const jobNumber = cleanCapturedValue(
+    value.match(/\bjob(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*([a-z0-9][a-z0-9/_-]*)/i)?.[1],
+  );
+  const machineReference = cleanCapturedValue(
+    value.match(
+      /\bmachine(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*(.+?)(?=\s+(?:for|department|requesting|needing|with)\b|[,.;]|$)/i,
+    )?.[1],
+  );
+  const requestDetails = cleanCapturedValue(
+    value.match(/\b(?:for|requesting|needing)\s+(.+?)(?=\s+department\b|[.;]|$)/i)?.[1],
+  );
+  const departmentMatch = value.match(/\b(?:department\s*)?(Onsite|Yard)\b/i)?.[1];
+
+  return {
+    ...(jobNumber ? { jobNumber } : {}),
+    ...(machineReference ? { machineReference } : {}),
+    ...(requestDetails ? { requestDetails } : {}),
+    ...(departmentMatch
+      ? { department: departmentMatch.toLowerCase() === "onsite" ? "Onsite" : "Yard" }
+      : {}),
+  };
+}
+
+export function missingRelayAiTicketFields(draft: RelayAiTicketDraft) {
+  const missing: RelayAiTicketField[] = [];
+  if (!draft.jobNumber.trim()) missing.push("jobNumber");
+  if (!draft.machineReference.trim()) missing.push("machineReference");
+  if (!draft.requestDetails.trim()) missing.push("requestDetails");
+  if (!draft.department) missing.push("department");
+  return missing;
+}
+
+export function relayAiTicketFieldPrompt(field: RelayAiTicketField) {
+  switch (field) {
+    case "jobNumber":
+      return "What is the job number?";
+    case "machineReference":
+      return "What is the machine or fleet reference?";
+    case "requestDetails":
+      return "What part or work is required? Include the relevant description and quantity where known.";
+    case "department":
+      return "Which department is this for: Yard or Onsite?";
+  }
+}
+
+export function applyRelayAiTicketSequenceAnswer(
+  current: RelayAiTicketDraft,
+  expectedField: RelayAiTicketField,
+  answer: string,
+) {
+  const extracted = extractTicketFields(answer);
+  const hasLabelledFields = Object.keys(extracted).length > 0;
+  let next = { ...current, ...extracted };
+  const plainValue = cleanCapturedValue(answer);
+
+  if (!hasLabelledFields) {
+    switch (expectedField) {
+      case "jobNumber":
+        next = { ...next, jobNumber: plainValue };
+        break;
+      case "machineReference":
+        next = { ...next, machineReference: plainValue };
+        break;
+      case "requestDetails":
+        next = { ...next, requestDetails: plainValue };
+        break;
+      case "department": {
+        const department = answer.match(/\b(Onsite|Yard)\b/i)?.[1];
+        if (department) {
+          next = {
+            ...next,
+            department: department.toLowerCase() === "onsite" ? "Onsite" : "Yard",
+          };
+        }
+        break;
+      }
+    }
+  }
+
+  if (expectedField === "department" && !next.department) {
+    return { draft: next, error: "Please answer Yard or Onsite." };
+  }
+  if (expectedField !== "department" && !next[expectedField].trim()) {
+    return { draft: next, error: "That field cannot be empty." };
+  }
+
+  return { draft: next, error: null };
+}
+
 export function parseRelayAiTicketDraft(question: string): RelayAiTicketDraftResult | null {
   const isCreateRequest = /\b(?:create|raise|open|submit|make)\b/i.test(question)
     && /\b(?:ticket|request)\b/i.test(question);
   if (!isCreateRequest) return null;
 
-  const jobNumber = cleanCapturedValue(
-    question.match(/\bjob(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*([a-z0-9][a-z0-9/_-]*)/i)?.[1],
-  );
-  const machineReference = cleanCapturedValue(
-    question.match(
-      /\bmachine(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*(.+?)(?=\s+(?:for|department|requesting|needing|with)\b|[,.;]|$)/i,
-    )?.[1],
-  );
-  const requestDetails = cleanCapturedValue(
-    question.match(/\b(?:for|requesting|needing)\s+(.+?)(?=\s+department\b|[.;]|$)/i)?.[1],
-  );
-  const departmentMatch = question.match(/\b(?:department\s*)?(Onsite|Yard)\b/i)?.[1];
-  const department = departmentMatch
-    ? departmentMatch.toLowerCase() === "onsite" ? "Onsite" : "Yard"
-    : "";
-  const missing: RelayAiTicketDraftResult["missing"] = [];
-  if (!jobNumber) missing.push("job number");
-  if (!machineReference) missing.push("machine reference");
-  if (!requestDetails) missing.push("request details");
+  const extracted = extractTicketFields(question);
+  const draft: RelayAiTicketDraft = {
+    jobNumber: extracted.jobNumber ?? "",
+    machineReference: extracted.machineReference ?? "",
+    requestDetails: extracted.requestDetails ?? "",
+    department: extracted.department ?? "",
+  };
 
   return {
-    draft: { jobNumber, machineReference, requestDetails, department },
-    missing,
+    draft,
+    missing: missingRelayAiTicketFields(draft),
   };
 }
 
