@@ -175,10 +175,9 @@ export function RelayAiPanel({
     try {
       const assignmentCommand = parseRelayAiAssignmentCommand(question);
       if (assignmentCommand) {
-        const snapshot = await getSnapshot();
         const supabase = getSupabaseClient();
         if (!supabase) throw new Error("Supabase is not configured.");
-        const assignmentDraft = await prepareRelayAiAssignment(supabase, snapshot, assignmentCommand);
+        const assignmentDraft = await prepareRelayAiAssignment(supabase, assignmentCommand);
         setMessages((current) => [
           ...current,
           {

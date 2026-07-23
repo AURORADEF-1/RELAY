@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { CORE_ADMIN_OPERATOR_OPTIONS } from "@/lib/admin-operators";
 import { notifyAdminJobAssigned } from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
-import type { RelayAnalyticsSnapshot, RelayAnalyticsTicket } from "@/lib/relay-console-ai";
+import type { RelayAnalyticsTicket } from "@/lib/relay-console-ai";
 
 type AdminProfile = {
   id: string;
@@ -81,14 +81,31 @@ function operatorLabel(query: string, fullName: string) {
 
 export async function prepareRelayAiAssignment(
   supabase: SupabaseClient,
-  snapshot: RelayAnalyticsSnapshot,
   command: RelayAiAssignmentCommand,
 ): Promise<RelayAiAssignmentDraft> {
-  const jobMatches = snapshot.tickets.filter(
-    (ticket) => ticket.job_number?.trim().toLowerCase() === command.jobNumber.toLowerCase(),
-  );
+  const { data: ticketData, error: ticketError } = await supabase
+    .from("tickets")
+    .select("id, job_number, machine_reference, request_summary, request_details, status, assigned_to, updated_at, created_at")
+    .ilike("job_number", command.jobNumber)
+    .order("updated_at", { ascending: false })
+    .limit(10);
+  if (ticketError) throw new Error(ticketError.message);
+
+  const jobMatches = (ticketData ?? []) as RelayAnalyticsTicket[];
   if (jobMatches.length === 0) throw new Error(`I could not find job ${command.jobNumber}. No assignment was made.`);
-  if (jobMatches.length > 1) throw new Error(`Job ${command.jobNumber} matches multiple tickets. Open the ticket and assign it manually.`);
+  const activeMatches = jobMatches.filter((ticket) => ticket.status !== "COMPLETED");
+  if (activeMatches.length === 0) {
+    throw new Error(`All accessible tickets for job ${command.jobNumber} are completed. No assignment was made.`);
+  }
+  if (activeMatches.length > 1) {
+    const choices = activeMatches
+      .slice(0, 5)
+      .map((ticket) =>
+        `${ticket.machine_reference?.trim() || "no machine"} · ${ticket.status || "UNKNOWN"} · /tickets/${ticket.id}`,
+      )
+      .join("\n");
+    throw new Error(`Job ${command.jobNumber} has more than one active ticket. Open the correct record before assigning:\n${choices}`);
+  }
 
   const { data, error } = await supabase
     .from("profiles")
@@ -106,7 +123,7 @@ export async function prepareRelayAiAssignment(
     throw new Error(`“${command.assigneeQuery}” matches more than one admin: ${names}. Use the full name.`);
   }
 
-  const ticket = jobMatches[0];
+  const ticket = activeMatches[0];
   const profile = matches[0];
   const fullName = profile.full_name?.trim();
   if (!fullName) throw new Error("That admin account has no display name and cannot be assigned by RELAY AI.");

@@ -589,22 +589,33 @@ function findPurchaseOrderMatches(question: string, snapshot: RelayAnalyticsSnap
 }
 
 function extractExactLookup(question: string) {
-  const poNumber = question.match(
-    /\b(?:po|purchase\s+order)\s*(?:number|no\.?)?\s*[:#-]?\s*([a-z0-9][a-z0-9/_-]{1,})\b/i,
+  const explicitPoNumber = question.match(
+    /\b(?:po|purchase\s+order)\s+(?:number|no\.?|ref(?:erence)?|id)\s*[:#-]?\s*([a-z0-9][a-z0-9/_-]{1,})\b/i,
   )?.[1];
+  const adjacentPoNumber = question.match(
+    /\b(?:po|purchase\s+order)\s*[:#-]?\s*([a-z0-9][a-z0-9/_-]{1,})\b/i,
+  )?.[1];
+  const poNumber = explicitPoNumber
+    ?? (adjacentPoNumber && /\d/.test(adjacentPoNumber) ? adjacentPoNumber : null);
   if (poNumber) return { type: "purchase_order" as const, identifier: poNumber };
 
+  const explicitJobNumber = question.match(
+    /\b(?:job|ticket|request)\s+(?:number|no\.?|ref(?:erence)?|id)\s*[:#-]?\s*([a-z0-9][a-z0-9/_-]{1,})\b/i,
+  )?.[1];
   const adjacentJobNumber = question.match(
-    /\b(?:job|ticket|request)\s*(?:number|no\.?)?\s*[:#-]?\s*([a-z0-9][a-z0-9/_-]{1,})\b/i,
+    /\b(?:job|ticket)\s*[:#-]?\s*([a-z0-9][a-z0-9/_-]{1,})\b/i,
   )?.[1] ?? question.match(
-    /\b([a-z0-9][a-z0-9/_-]{1,})\s*[-:]?\s*(?:job|ticket|request)\b/i,
+    /\b([a-z0-9][a-z0-9/_-]{1,})\s*[-:]?\s*(?:job|ticket)\b/i,
   )?.[1];
   const ignoredReferences = new Set(["a", "the", "this", "that", "my", "our"]);
-  const jobNumber = adjacentJobNumber && !ignoredReferences.has(adjacentJobNumber.toLowerCase())
-    ? adjacentJobNumber
-    : /\b(?:job|ticket|request)\b/i.test(question)
+  const jobNumber = explicitJobNumber
+    ?? (adjacentJobNumber
+      && /\d/.test(adjacentJobNumber)
+      && !ignoredReferences.has(adjacentJobNumber.toLowerCase())
+      ? adjacentJobNumber
+      : /\b(?:job|ticket)\b/i.test(question)
       ? question.match(/\b\d{3,10}\b/)?.[0]
-      : null;
+      : null);
 
   return jobNumber ? { type: "job" as const, identifier: jobNumber } : null;
 }
