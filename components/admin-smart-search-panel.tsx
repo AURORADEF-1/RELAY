@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { SmartSearchResult, SmartSearchScope } from "@/lib/admin-smart-search";
 
 const entityLabels: Record<SmartSearchResult["entity"], string> = {
+  machine: "Machines",
   ticket: "Tickets",
   order: "Orders",
   incident: "Incidents",
@@ -49,7 +50,7 @@ export function AdminSmartSearchPanel({
               Smart Search
             </p>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Search tickets, orders, incidents, and tasks from one place. Results are fetched only on demand, so there is no background load.
+              Search machines, tickets, orders, incidents, and tasks from one place. Results are fetched only on demand, so there is no background load.
             </p>
           </div>
           <div className="flex w-full max-w-3xl gap-3">

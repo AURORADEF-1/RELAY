@@ -9,8 +9,9 @@ import { useNotifications } from "@/components/notification-provider";
 import { RelayLogo } from "@/components/relay-logo";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { ConsoleIcon, type ConsoleIconName } from "@/components/console/console-icon";
+import type { SmartSearchResult } from "@/lib/admin-smart-search";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
-import { getSupabaseClient } from "@/lib/supabase";
+import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
 
 type ConsoleShellProps = {
   children: React.ReactNode;
@@ -39,7 +40,7 @@ const navigation: NavigationItem[] = [
   { href: "/console", label: "Operations", icon: "console", adminOnly: true },
   { href: "/submit", label: "New request", icon: "ticket" },
   { href: "/requests", label: "My requests", icon: "clipboard", badge: "requester" },
-  { href: "/fleet", label: "My Fleet", icon: "fleet", fleetMemberOnly: true },
+  { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
   { href: "/parts-knowledge", label: "Parts Knowledge", icon: "parts", adminOnly: true },
   { href: "/admin", label: "Parts control", icon: "parts", adminOnly: true, badge: "admin" },
   { href: "/incidents", label: "Workshop", icon: "workshop", adminOnly: true },
@@ -66,6 +67,8 @@ export function ConsoleShell({
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [signedInUserName, setSignedInUserName] = useState("Signed in");
   const [hasCustomerFleet, setHasCustomerFleet] = useState(false);
+  const [commandMachineResults, setCommandMachineResults] = useState<SmartSearchResult[]>([]);
+  const [isCommandSearchFocused, setIsCommandSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -135,6 +138,55 @@ export function ConsoleShell({
     return () => window.removeEventListener("keydown", handleShortcut);
   }, [onSearchChange]);
 
+  useEffect(() => {
+    const query = searchValue?.trim() ?? "";
+
+    if (!isAdmin || !onSearchChange || query.length < 2) {
+      setCommandMachineResults([]);
+      return;
+    }
+
+    const abortController = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const accessToken = await getSupabaseAccessToken();
+        if (!accessToken) {
+          setCommandMachineResults([]);
+          return;
+        }
+
+        const response = await fetch("/api/admin/search", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ query, scope: "live" }),
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          setCommandMachineResults([]);
+          return;
+        }
+
+        const payload = (await response.json()) as { results?: SmartSearchResult[] };
+        setCommandMachineResults(
+          (payload.results ?? []).filter((result) => result.entity === "machine").slice(0, 5),
+        );
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setCommandMachineResults([]);
+        }
+      }
+    }, 320);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      abortController.abort();
+    };
+  }, [isAdmin, onSearchChange, searchValue]);
+
   function toggleCollapsed() {
     const next = !isCollapsed;
     setIsCollapsed(next);
@@ -158,7 +210,9 @@ export function ConsoleShell({
   }
 
   const visibleNavigation = navigation.filter(
-    (item) => (!item.adminOnly || isAdmin) && (!item.fleetMemberOnly || hasCustomerFleet),
+    (item) =>
+      (!item.adminOnly || isAdmin) &&
+      (!item.fleetMemberOnly || isAdmin || hasCustomerFleet),
   );
 
   return (
@@ -200,13 +254,12 @@ export function ConsoleShell({
                 onOpenRelayAi();
                 setIsMobileOpen(false);
               }}
-              className={`console-nav-item console-relay-ai-nav ${isRelayAiOpen ? "console-relay-ai-nav-active" : ""}`}
+              className={`console-nav-item ${isRelayAiOpen ? "console-nav-item-active" : ""}`}
               title={isCollapsed ? "RELAY AI" : undefined}
               aria-pressed={isRelayAiOpen}
             >
               <ConsoleIcon name="message" className="console-nav-icon" />
               <span className="console-nav-label">RELAY AI</span>
-              <span className="console-relay-ai-nav-badge">AI</span>
             </button>
           ) : null}
           {visibleNavigation.map((item) => {
@@ -269,17 +322,38 @@ export function ConsoleShell({
           </div>
 
           {onSearchChange ? (
-            <label className="console-command-search">
-              <ConsoleIcon name="search" className="h-4 w-4" />
-              <span className="sr-only">Search</span>
-              <input
-                ref={searchRef}
-                value={searchValue ?? ""}
-                onChange={(event) => onSearchChange(event.target.value)}
-                placeholder={searchPlaceholder}
-              />
-              <kbd>/</kbd>
-            </label>
+            <div className="console-command-search-wrap">
+              <label className="console-command-search">
+                <ConsoleIcon name="search" className="h-4 w-4" />
+                <span className="sr-only">Search</span>
+                <input
+                  ref={searchRef}
+                  value={searchValue ?? ""}
+                  onChange={(event) => onSearchChange(event.target.value)}
+                  onFocus={() => setIsCommandSearchFocused(true)}
+                  onBlur={() => {
+                    window.setTimeout(() => setIsCommandSearchFocused(false), 120);
+                  }}
+                  placeholder={searchPlaceholder}
+                />
+                <kbd>/</kbd>
+              </label>
+              {isCommandSearchFocused && commandMachineResults.length > 0 ? (
+                <div className="console-command-results" aria-label="Matching machines">
+                  <p>Machines</p>
+                  {commandMachineResults.map((result) => (
+                    <Link key={result.id} href={result.href}>
+                      <ConsoleIcon name="fleet" className="h-4 w-4" />
+                      <span>
+                        <strong>{result.title}</strong>
+                        <small>{result.subtitle}</small>
+                      </span>
+                      <em>{result.meta}</em>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
           <div className="console-command-actions">

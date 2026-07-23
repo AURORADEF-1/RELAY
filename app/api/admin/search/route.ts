@@ -123,7 +123,78 @@ export async function POST(request: NextRequest) {
 
     const warnings: string[] = [];
 
-    const [ticketRows, incidentRows, taskRows] = await Promise.all([
+    const [machineRows, ticketRows, incidentRows, taskRows] = await Promise.all([
+      (async () => {
+        const serverTerm =
+          query
+            .split(/\s+/)
+            .filter(Boolean)
+            .sort((left, right) => right.length - left.length)[0] ?? query;
+        const normalizedReference = serverTerm.replace(/[\s-]+/g, "");
+        const machineSearch = buildIlikeOr(
+          [
+            "machine_number",
+            "machine_number_normalized",
+            "make",
+            "model",
+            "serial_number",
+            "item_description",
+          ],
+          serverTerm,
+        );
+        const normalizedSearch =
+          normalizedReference && normalizedReference !== serverTerm
+            ? `,machine_number_normalized.ilike.*${normalizedReference}*`
+            : "";
+        let result = await supabase
+          .from("machines")
+          .select("id,machine_number,machine_number_normalized,make,model,serial_number,item_description,status,fleet_type,updated_at")
+          .or(`${machineSearch}${normalizedSearch}`)
+          .order("machine_number_normalized", { ascending: true })
+          .limit(MAX_RESULTS_PER_ENTITY * 2);
+
+        if (
+          !result.error &&
+          (result.data?.length ?? 0) === 0 &&
+          normalizedReference.length >= 5 &&
+          normalizedReference === serverTerm.toUpperCase()
+        ) {
+          const fallbackTerm = normalizedReference.slice(0, 3);
+          result = await supabase
+            .from("machines")
+            .select("id,machine_number,machine_number_normalized,make,model,serial_number,item_description,status,fleet_type,updated_at")
+            .or(
+              buildIlikeOr(
+                ["machine_number", "machine_number_normalized", "model"],
+                fallbackTerm,
+              ),
+            )
+            .order("machine_number_normalized", { ascending: true })
+            .limit(MAX_RESULTS_PER_ENTITY * 4);
+        }
+
+        if (result.error) {
+          warnings.push(`Machines: ${result.error.message}`);
+          return [];
+        }
+
+        const queryTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+        return (result.data ?? []).filter((row) => {
+          const haystack = [
+            row.machine_number,
+            row.machine_number_normalized,
+            row.make,
+            row.model,
+            row.serial_number,
+            row.item_description,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+
+          return queryTokens.every((token) => haystack.includes(token));
+        });
+      })(),
       (async () => {
         let ticketQuery = supabase
           .from("tickets")
@@ -197,6 +268,36 @@ export async function POST(request: NextRequest) {
         return result.data ?? [];
       })(),
     ]);
+
+    const machineResults: SmartSearchResult[] = (machineRows ?? []).map((row) => ({
+      entity: "machine",
+      id: String(row.id),
+      title: row.machine_number?.trim() || "Machine",
+      subtitle:
+        [row.make, row.model].filter(Boolean).join(" ") ||
+        row.item_description?.trim() ||
+        "Fleet machine",
+      snippet: truncateSnippet(
+        [row.item_description, row.serial_number ? `Serial ${row.serial_number}` : null]
+          .filter(Boolean)
+          .join(" · "),
+        "No additional machine description recorded.",
+      ),
+      href: `/fleet?machine=${encodeURIComponent(String(row.machine_number_normalized || row.machine_number || ""))}`,
+      meta: [row.status, row.fleet_type].filter(Boolean).join(" · ") || "Machine registry",
+      score:
+        buildSearchScore(
+          [
+            row.machine_number,
+            row.machine_number_normalized,
+            row.make,
+            row.model,
+            row.serial_number,
+            row.item_description,
+          ],
+          query,
+        ) + 30,
+    }));
 
     const ticketResults = (ticketRows ?? []).flatMap((row) => {
       const sharedTitle = row.job_number?.trim()
@@ -290,6 +391,7 @@ export async function POST(request: NextRequest) {
       query,
       scope,
       results: [
+        ...machineResults,
         ...ticketResults,
         ...incidentResults,
         ...taskResults,

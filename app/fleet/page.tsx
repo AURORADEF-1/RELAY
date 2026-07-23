@@ -1,467 +1,1558 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AuthGuard } from "@/components/auth-guard";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import { ConsoleShell } from "@/components/console/console-shell";
+import { RelayAiPanel } from "@/components/console/relay-ai-panel";
+import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import {
-  buildCustomerFleetDashboard,
-  type CustomerFleetMachine,
-  type CustomerFleetMachineSummary,
-  type CustomerFleetPeriod,
-  type CustomerFleetTicket,
-} from "@/lib/customer-fleet";
+  buildFleetMachineSummaries,
+  machineMatchesFleetSearch,
+  normalizeFleetReference,
+  type FleetMachineRecord,
+  type FleetMachineSummary,
+  type FleetTicketRecord,
+} from "@/lib/fleet-workspace";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { sanitizeUserFacingError } from "@/lib/security";
+import { activeTicketStatuses, ticketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
+import type { TicketPartRecord } from "@/lib/ticket-parts";
+import type { TicketPurchaseOrderRecord } from "@/lib/ticket-purchase-orders";
+import type { WorkshopIncidentRecord } from "@/lib/workshop-incidents";
 
-type CustomerFleet = {
+const MACHINE_FIELDS = [
+  "id",
+  "machine_number",
+  "machine_number_normalized",
+  "fleet_type",
+  "item_description",
+  "make",
+  "model",
+  "serial_number",
+  "status",
+  "quantity",
+  "source_sheet",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const TICKET_FIELDS = [
+  "id",
+  "user_id",
+  "requester_name",
+  "department",
+  "machine_reference",
+  "machine_number",
+  "machine_number_normalized",
+  "machine_make",
+  "machine_model",
+  "machine_serial_number",
+  "machine_verified",
+  "job_number",
+  "request_summary",
+  "request_details",
+  "status",
+  "assigned_to",
+  "expected_delivery_date",
+  "supplier_name",
+  "purchase_order_number",
+  "order_amount",
+  "notes",
+  "is_urgent",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const MACHINE_RESULT_LIMIT = 100;
+const TICKET_RESULT_LIMIT = 2000;
+
+type FleetTab = "overview" | "requests" | "parts" | "activity" | "incidents" | "files";
+type RequestFilter = "ALL" | "OPEN" | "URGENT" | (typeof ticketStatuses)[number];
+
+type TicketUpdateRow = {
   id: string;
-  name: string;
-  slug: string;
+  ticket_id: string;
+  status: string | null;
+  comment: string | null;
+  created_at: string | null;
 };
 
-const periodOptions: Array<{ value: CustomerFleetPeriod; label: string }> = [
-  { value: 30, label: "Past 30 days" },
-  { value: 90, label: "Past 90 days" },
-  { value: 365, label: "Past year" },
-  { value: null, label: "All time" },
-];
+type TicketAttachmentRow = {
+  id: string;
+  ticket_id: string;
+  file_name: string | null;
+  mime_type: string | null;
+  attachment_context: string | null;
+  created_at: string | null;
+};
 
-export default function CustomerFleetPage() {
-  const [fleet, setFleet] = useState<CustomerFleet | null>(null);
-  const [machines, setMachines] = useState<CustomerFleetMachine[]>([]);
-  const [tickets, setTickets] = useState<CustomerFleetTicket[]>([]);
-  const [periodDays, setPeriodDays] = useState<CustomerFleetPeriod>(30);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMachineKey, setSelectedMachineKey] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+type FleetAccess = {
+  userId: string;
+  isAdmin: boolean;
+  fleetName: string | null;
+  machineIds: string[] | null;
+};
 
-  const loadFleet = useCallback(async () => {
-    setIsLoading(true);
-    setErrorMessage("");
-
-    try {
-      const supabase = getSupabaseClient();
-
-      if (!supabase) {
-        throw new Error("Supabase environment variables are not configured.");
-      }
-
-      const { user } = await getCurrentUserWithRole(supabase, { forceFresh: true });
-
-      if (!user) {
-        throw new Error("Sign in to view your fleet.");
-      }
-
-      const { data: membership, error: membershipError } = await supabase
-        .from("customer_fleet_members")
-        .select("fleet_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle<{ fleet_id: string }>();
-
-      if (membershipError) {
-        throw membershipError;
-      }
-
-      if (!membership) {
-        setFleet(null);
-        setMachines([]);
-        setTickets([]);
-        setErrorMessage("No customer fleet is assigned to this account.");
-        return;
-      }
-
-      const [fleetResult, assignmentsResult, ticketsResult] = await Promise.all([
-        supabase
-          .from("customer_fleets")
-          .select("id, name, slug")
-          .eq("id", membership.fleet_id)
-          .single<CustomerFleet>(),
-        supabase
-          .from("customer_fleet_machines")
-          .select("machine_id")
-          .eq("fleet_id", membership.fleet_id),
-        supabase
-          .from("tickets")
-          .select(
-            "id, job_number, machine_reference, machine_number, machine_number_normalized, request_summary, request_details, status, created_at, updated_at",
-          )
-          .or(`user_id.eq.${user.id},visible_to_user_id.eq.${user.id}`)
-          .order("created_at", { ascending: false })
-          .limit(2000),
-      ]);
-
-      if (fleetResult.error) {
-        throw fleetResult.error;
-      }
-
-      if (assignmentsResult.error) {
-        throw assignmentsResult.error;
-      }
-
-      if (ticketsResult.error) {
-        throw ticketsResult.error;
-      }
-
-      const machineIds = (assignmentsResult.data ?? [])
-        .map((assignment) => assignment.machine_id)
-        .filter((machineId): machineId is string => typeof machineId === "string");
-
-      let fleetMachines: CustomerFleetMachine[] = [];
-
-      if (machineIds.length > 0) {
-        const { data: machineData, error: machineError } = await supabase
-          .from("machines")
-          .select(
-            "id, machine_number, machine_number_normalized, fleet_type, item_description, make, model, serial_number",
-          )
-          .in("id", machineIds)
-          .order("machine_number_normalized", { ascending: true });
-
-        if (machineError) {
-          throw machineError;
-        }
-
-        fleetMachines = (machineData ?? []) as CustomerFleetMachine[];
-      }
-
-      setFleet(fleetResult.data);
-      setMachines(fleetMachines);
-      setTickets((ticketsResult.data ?? []) as CustomerFleetTicket[]);
-      setSelectedMachineKey((current) =>
-        current && fleetMachines.some((machine) => machine.machine_number_normalized === current)
-          ? current
-          : fleetMachines[0]?.machine_number_normalized ?? null,
-      );
-    } catch (error) {
-      setFleet(null);
-      setMachines([]);
-      setTickets([]);
-      setErrorMessage(sanitizeUserFacingError(error, "Unable to load your fleet right now."));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => void loadFleet(), 0);
-    return () => window.clearTimeout(timeoutId);
-  }, [loadFleet]);
-
-  const dashboard = useMemo(
-    () => buildCustomerFleetDashboard({ machines, tickets, periodDays }),
-    [machines, periodDays, tickets],
+export default function FleetPage() {
+  return (
+    <Suspense fallback={<FleetPageFallback />}>
+      <FleetWorkspace />
+    </Suspense>
   );
-  const filteredMachines = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+}
 
-    if (!query) {
-      return dashboard.machines;
-    }
-
-    return dashboard.machines.filter((machine) =>
-      [
-        machine.machine_number,
-        machine.make,
-        machine.model,
-        machine.serial_number,
-        machine.item_description,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(query),
-    );
-  }, [dashboard.machines, searchQuery]);
-  const selectedMachine =
-    dashboard.machines.find(
-      (machine) => machine.machine_number_normalized === selectedMachineKey,
-    ) ?? filteredMachines[0] ?? null;
-  const periodLabel = periodOptions.find((option) => option.value === periodDays)?.label ?? "Selected period";
-
+function FleetPageFallback() {
   return (
     <AuthGuard>
-      <ConsoleShell
-        eyebrow="RELAY customer fleet"
-        title={fleet?.name ? `${fleet.name} Fleet` : "My Fleet"}
-        searchValue={searchQuery}
-        searchPlaceholder="Search fleet number, model or serial"
-        onSearchChange={setSearchQuery}
-        actions={
-          <>
-            <select
-              className="console-command-select"
-              value={periodDays ?? "all"}
-              onChange={(event) =>
-                setPeriodDays(event.target.value === "all" ? null : Number(event.target.value) as CustomerFleetPeriod)
-              }
-              aria-label="Fleet reporting period"
-            >
-              {periodOptions.map((option) => (
-                <option key={option.label} value={option.value ?? "all"}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="console-command-action"
-              onClick={() => void loadFleet()}
-              disabled={isLoading}
-            >
-              <ConsoleIcon name="refresh" className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-              <span>{isLoading ? "Syncing" : "Refresh"}</span>
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <section className="overflow-hidden rounded-[1.1rem] border border-[var(--border)] bg-[var(--background-raised)] shadow-[var(--shadow-sm)]">
-            <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:p-8">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--success)]">
-                  <span
-                    aria-hidden="true"
-                    className="h-2.5 w-2.5 rounded-full bg-[var(--success)] shadow-[0_0_0_4px_var(--success-soft)]"
-                  />
-                  Verified customer fleet
-                </div>
-                <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-[var(--foreground-strong)] sm:text-4xl">
-                  {fleet?.name ?? "Customer fleet"}
-                </h2>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--foreground-muted)] sm:text-base">
-                  Track verified machines and the requests submitted or shared with this account. Fleet records remain available to RELAY users for machine verification.
-                </p>
-              </div>
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--background-muted)] px-4 py-3 text-sm text-[var(--foreground-muted)]">
-                Reporting period
-                <strong className="ml-2 text-[var(--foreground-strong)]">{periodLabel}</strong>
-              </div>
-            </div>
-          </section>
-
-          {errorMessage ? (
-            <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_30%,var(--border))] bg-[var(--danger-soft)] px-4 py-3 text-sm font-medium text-[var(--danger)]">
-              {errorMessage}
-            </div>
-          ) : null}
-
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Fleet summary">
-            <FleetStat label="Fleet machines" value={dashboard.machines.length} detail="Verified registry records" tone="slate" />
-            <FleetStat label="Requests" value={dashboard.totalRequests} detail={periodLabel} tone="blue" />
-            <FleetStat label="Open requests" value={dashboard.openRequests} detail="Currently active" tone="amber" />
-            <FleetStat label="Ready" value={dashboard.readyRequests} detail="Awaiting collection" tone="green" />
-          </section>
-
-          <section className="grid min-h-[34rem] gap-4 xl:grid-cols-[minmax(0,1fr)_25rem]">
-            <div className="overflow-hidden rounded-[1.1rem] border border-[var(--border)] bg-[var(--background-raised)] shadow-[var(--shadow-sm)]">
-              <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-[var(--foreground-strong)]">Fleet activity</h2>
-                  <p className="mt-1 text-sm text-[var(--foreground-muted)]">Request demand by verified machine</p>
-                </div>
-                <span className="rounded-full border border-[var(--border)] bg-[var(--background-muted)] px-3 py-1 text-xs font-semibold text-[var(--foreground-muted)]">
-                  {filteredMachines.length} machines
-                </span>
-              </div>
-
-              <div className="max-h-[42rem] overflow-auto">
-                {isLoading ? (
-                  <div className="p-6 text-sm text-[var(--foreground-muted)]">Loading fleet records...</div>
-                ) : filteredMachines.length === 0 ? (
-                  <div className="p-6 text-sm text-[var(--foreground-muted)]">No machines match the current search.</div>
-                ) : (
-                  <div className="divide-y divide-[var(--border)]">
-                    {filteredMachines.map((machine) => (
-                      <MachineRow
-                        key={machine.id}
-                        machine={machine}
-                        selected={machine.machine_number_normalized === selectedMachine?.machine_number_normalized}
-                        periodLabel={periodLabel}
-                        onSelect={() => setSelectedMachineKey(machine.machine_number_normalized)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <aside className="rounded-[1.1rem] border border-[var(--border)] bg-[var(--background-raised)] shadow-[var(--shadow-sm)] xl:sticky xl:top-[6rem] xl:h-fit">
-              {selectedMachine ? (
-                <MachineDetail machine={selectedMachine} periodLabel={periodLabel} />
-              ) : (
-                <div className="p-6 text-sm text-[var(--foreground-muted)]">Select a machine to view its request history.</div>
-              )}
-            </aside>
-          </section>
-        </div>
+      <ConsoleShell title="Fleet">
+        <div className="fleet-state-panel">Loading Fleet workspace...</div>
       </ConsoleShell>
     </AuthGuard>
   );
 }
 
-function FleetStat({
-  label,
-  value,
-  detail,
-  tone,
-}: {
-  label: string;
-  value: number;
-  detail: string;
-  tone: "slate" | "blue" | "amber" | "green";
-}) {
-  const accent = {
-    slate: "bg-slate-500",
-    blue: "bg-blue-500",
-    amber: "bg-amber-500",
-    green: "bg-emerald-500",
-  }[tone];
+function FleetWorkspace() {
+  const searchParams = useSearchParams();
+  const requestedMachine = searchParams.get("machine")?.trim() ?? "";
+  const [access, setAccess] = useState<FleetAccess | null>(null);
+  const [machines, setMachines] = useState<FleetMachineRecord[]>([]);
+  const [tickets, setTickets] = useState<FleetTicketRecord[]>([]);
+  const [totalMachineCount, setTotalMachineCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState(requestedMachine);
+  const [debouncedQuery, setDebouncedQuery] = useState(requestedMachine);
+  const [selectedMachineKey, setSelectedMachineKey] = useState<string | null>(
+    requestedMachine ? normalizeFleetReference(requestedMachine) : null,
+  );
+  const [activeTab, setActiveTab] = useState<FleetTab>("overview");
+  const [requestFilter, setRequestFilter] = useState<RequestFilter>("ALL");
+  const [updates, setUpdates] = useState<TicketUpdateRow[]>([]);
+  const [parts, setParts] = useState<TicketPartRecord[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<TicketPurchaseOrderRecord[]>([]);
+  const [incidents, setIncidents] = useState<WorkshopIncidentRecord[]>([]);
+  const [attachments, setAttachments] = useState<TicketAttachmentRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [isRelayAiOpen, setIsRelayAiOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [detailErrorMessage, setDetailErrorMessage] = useState("");
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(searchQuery.trim());
+    }, 280);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!requestedMachine) {
+      return;
+    }
+
+    setSearchQuery((current) =>
+      normalizeFleetReference(current) === normalizeFleetReference(requestedMachine)
+        ? current
+        : requestedMachine,
+    );
+    setSelectedMachineKey(normalizeFleetReference(requestedMachine));
+  }, [requestedMachine]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAccess() {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        setErrorMessage("Supabase environment variables are not configured.");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const { user, isAdmin } = await getCurrentUserWithRole(supabase, {
+          forceFresh: true,
+        });
+
+        if (!user) {
+          throw new Error("Sign in to view Fleet.");
+        }
+
+        if (isAdmin) {
+          if (isMounted) {
+            setAccess({
+              userId: user.id,
+              isAdmin: true,
+              fleetName: null,
+              machineIds: null,
+            });
+          }
+          return;
+        }
+
+        const { data: membership, error: membershipError } = await supabase
+          .from("customer_fleet_members")
+          .select("fleet_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle<{ fleet_id: string }>();
+
+        if (membershipError) {
+          throw membershipError;
+        }
+        if (!membership) {
+          throw new Error("No customer fleet is assigned to this account.");
+        }
+
+        const [fleetResult, assignmentsResult] = await Promise.all([
+          supabase
+            .from("customer_fleets")
+            .select("name")
+            .eq("id", membership.fleet_id)
+            .single<{ name: string }>(),
+          supabase
+            .from("customer_fleet_machines")
+            .select("machine_id")
+            .eq("fleet_id", membership.fleet_id),
+        ]);
+
+        if (fleetResult.error) {
+          throw fleetResult.error;
+        }
+        if (assignmentsResult.error) {
+          throw assignmentsResult.error;
+        }
+
+        const machineIds = (assignmentsResult.data ?? [])
+          .map((assignment) => assignment.machine_id)
+          .filter((machineId): machineId is string => typeof machineId === "string");
+
+        if (isMounted) {
+          setAccess({
+            userId: user.id,
+            isAdmin: false,
+            fleetName: fleetResult.data.name,
+            machineIds,
+          });
+        }
+      } catch (error) {
+        if (isMounted) {
+          setErrorMessage(
+            sanitizeUserFacingError(error, "Unable to verify Fleet access."),
+          );
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadAccess();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const loadFleet = useCallback(async () => {
+    if (!access) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!access.isAdmin && access.machineIds?.length === 0) {
+      setMachines([]);
+      setTickets([]);
+      setTotalMachineCount(0);
+      setErrorMessage("");
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage("");
+
+    try {
+      let machineQuery = supabase
+        .from("machines")
+        .select(MACHINE_FIELDS)
+        .order("machine_number_normalized", { ascending: true })
+        .limit(MACHINE_RESULT_LIMIT);
+
+      if (!access.isAdmin && access.machineIds) {
+        machineQuery = machineQuery.in("id", access.machineIds);
+      }
+
+      const serverTerm = getServerSearchTerm(debouncedQuery);
+      if (serverTerm) {
+        const compactTerm = normalizeFleetReference(serverTerm);
+        const filters = [
+          `machine_number.ilike.%${serverTerm}%`,
+          `machine_number_normalized.ilike.%${serverTerm}%`,
+          `make.ilike.%${serverTerm}%`,
+          `model.ilike.%${serverTerm}%`,
+          `serial_number.ilike.%${serverTerm}%`,
+          `item_description.ilike.%${serverTerm}%`,
+        ];
+        if (compactTerm && compactTerm !== serverTerm.toUpperCase()) {
+          filters.push(`machine_number_normalized.ilike.%${compactTerm}%`);
+        }
+        machineQuery = machineQuery.or(filters.join(","));
+      }
+
+      let countQuery = supabase
+        .from("machines")
+        .select("id", { count: "exact", head: true });
+      if (!access.isAdmin && access.machineIds) {
+        countQuery = countQuery.in("id", access.machineIds);
+      }
+
+      const [machineResult, countResult] = await Promise.all([
+        machineQuery,
+        countQuery,
+      ]);
+
+      if (machineResult.error) {
+        throw machineResult.error;
+      }
+      if (countResult.error) {
+        throw countResult.error;
+      }
+
+      let rawMachines = (machineResult.data ?? []) as unknown as FleetMachineRecord[];
+      const compactServerTerm = normalizeFleetReference(serverTerm);
+
+      if (
+        rawMachines.length === 0 &&
+        compactServerTerm.length >= 5 &&
+        compactServerTerm === serverTerm.toUpperCase()
+      ) {
+        const fallbackTerm = compactServerTerm.slice(0, 3);
+        let fallbackQuery = supabase
+          .from("machines")
+          .select(MACHINE_FIELDS)
+          .or(
+            [
+              `machine_number.ilike.%${fallbackTerm}%`,
+              `machine_number_normalized.ilike.%${fallbackTerm}%`,
+              `model.ilike.%${fallbackTerm}%`,
+            ].join(","),
+          )
+          .order("machine_number_normalized", { ascending: true })
+          .limit(MACHINE_RESULT_LIMIT);
+
+        if (!access.isAdmin && access.machineIds) {
+          fallbackQuery = fallbackQuery.in("id", access.machineIds);
+        }
+
+        const fallbackResult = await fallbackQuery;
+        if (fallbackResult.error) {
+          throw fallbackResult.error;
+        }
+        rawMachines = (fallbackResult.data ?? []) as unknown as FleetMachineRecord[];
+      }
+
+      const matchingMachines = rawMachines.filter((machine) =>
+        machineMatchesFleetSearch(machine, debouncedQuery),
+      );
+      const matchingTickets = await fetchFleetTickets({
+        machines: matchingMachines,
+        userId: access.userId,
+        isAdmin: access.isAdmin,
+      });
+
+      setMachines(matchingMachines);
+      setTickets(matchingTickets);
+      setTotalMachineCount(countResult.count ?? matchingMachines.length);
+      setLastSyncedAt(new Date());
+    } catch (error) {
+      setMachines([]);
+      setTickets([]);
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Unable to load Fleet records right now."),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [access, debouncedQuery]);
+
+  useEffect(() => {
+    void loadFleet();
+  }, [loadFleet, refreshVersion]);
+
+  const summaries = useMemo(
+    () => buildFleetMachineSummaries(machines, tickets),
+    [machines, tickets],
+  );
+
+  useEffect(() => {
+    if (summaries.length === 0) {
+      setSelectedMachineKey(null);
+      return;
+    }
+
+    setSelectedMachineKey((current) => {
+      if (
+        current &&
+        summaries.some(
+          (machine) =>
+            normalizeFleetReference(machine.machine_number_normalized) === current,
+        )
+      ) {
+        return current;
+      }
+
+      const requestedKey = normalizeFleetReference(requestedMachine);
+      const requested = summaries.find(
+        (machine) =>
+          normalizeFleetReference(machine.machine_number_normalized) === requestedKey,
+      );
+
+      if (!requested && window.matchMedia("(max-width: 900px)").matches) {
+        return null;
+      }
+
+      return normalizeFleetReference(
+        requested?.machine_number_normalized ??
+          summaries[0].machine_number_normalized,
+      );
+    });
+  }, [requestedMachine, summaries]);
+
+  const selectedMachine =
+    summaries.find(
+      (machine) =>
+        normalizeFleetReference(machine.machine_number_normalized) ===
+        selectedMachineKey,
+    ) ?? null;
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && selectedMachineKey) {
+        setSelectedMachineKey(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [selectedMachineKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMachineDetail() {
+      const supabase = getSupabaseClient();
+      if (!supabase || !selectedMachine || !access) {
+        setUpdates([]);
+        setParts([]);
+        setPurchaseOrders([]);
+        setIncidents([]);
+        setAttachments([]);
+        return;
+      }
+
+      const ticketIds = selectedMachine.tickets.map((ticket) => ticket.id);
+      setIsDetailLoading(true);
+      setDetailErrorMessage("");
+
+      const emptyResult = Promise.resolve({ data: [], error: null });
+      const updatesQuery =
+        ticketIds.length > 0
+          ? supabase
+              .from("ticket_updates")
+              .select("id, ticket_id, status, comment, created_at")
+              .in("ticket_id", ticketIds)
+              .order("created_at", { ascending: false })
+              .limit(500)
+          : emptyResult;
+      const partsQuery =
+        access.isAdmin && ticketIds.length > 0
+          ? supabase
+              .from("ticket_parts")
+              .select("*")
+              .in("ticket_id", ticketIds)
+              .order("created_at", { ascending: false })
+              .limit(500)
+          : emptyResult;
+      const purchaseOrdersQuery =
+        access.isAdmin && ticketIds.length > 0
+          ? supabase
+              .from("ticket_purchase_orders")
+              .select("*")
+              .in("ticket_id", ticketIds)
+              .order("created_at", { ascending: false })
+              .limit(500)
+          : emptyResult;
+      const attachmentQuery =
+        ticketIds.length > 0
+          ? supabase
+              .from("ticket_attachments")
+              .select("id, ticket_id, file_name, mime_type, attachment_context, created_at")
+              .in("ticket_id", ticketIds)
+              .order("created_at", { ascending: false })
+              .limit(500)
+          : emptyResult;
+      const incidentReferences = Array.from(
+        new Set(
+          [
+            selectedMachine.machine_number,
+            selectedMachine.machine_number_normalized,
+          ].filter(Boolean),
+        ),
+      );
+      const incidentsQuery =
+        access.isAdmin && incidentReferences.length > 0
+          ? supabase
+              .from("workshop_incidents")
+              .select("*")
+              .in("machine_reference", incidentReferences)
+              .order("updated_at", { ascending: false })
+              .limit(200)
+          : emptyResult;
+
+      const results = await Promise.all([
+        updatesQuery,
+        partsQuery,
+        purchaseOrdersQuery,
+        attachmentQuery,
+        incidentsQuery,
+      ]);
+
+      if (!isMounted) {
+        return;
+      }
+
+      const firstError = results.find((result) => result.error)?.error;
+      setUpdates((results[0].data ?? []) as TicketUpdateRow[]);
+      setParts((results[1].data ?? []) as TicketPartRecord[]);
+      setPurchaseOrders((results[2].data ?? []) as TicketPurchaseOrderRecord[]);
+      setAttachments((results[3].data ?? []) as TicketAttachmentRow[]);
+      setIncidents(
+        ((results[4].data ?? []) as WorkshopIncidentRecord[]).filter(
+          (incident) =>
+            normalizeFleetReference(incident.machine_reference) ===
+            normalizeFleetReference(selectedMachine.machine_number_normalized),
+        ),
+      );
+      setDetailErrorMessage(
+        firstError
+          ? "Some linked machine records could not be loaded. Ticket data remains available."
+          : "",
+      );
+      setIsDetailLoading(false);
+    }
+
+    void loadMachineDetail().catch((error) => {
+      if (isMounted) {
+        setDetailErrorMessage(
+          sanitizeUserFacingError(error, "Unable to load linked machine records."),
+        );
+        setIsDetailLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [access, selectedMachine]);
+
+  const summaryMetrics = useMemo(
+    () => ({
+      visibleMachines: summaries.length,
+      linkedRequests: summaries.reduce(
+        (total, machine) => total + machine.total_requests,
+        0,
+      ),
+      openRequests: summaries.reduce(
+        (total, machine) => total + machine.open_requests,
+        0,
+      ),
+      urgentRequests: summaries.reduce(
+        (total, machine) => total + machine.urgent_requests,
+        0,
+      ),
+    }),
+    [summaries],
+  );
+
+  function selectMachine(machine: FleetMachineSummary) {
+    setSelectedMachineKey(normalizeFleetReference(machine.machine_number_normalized));
+    setActiveTab("overview");
+    setRequestFilter("ALL");
+  }
 
   return (
-    <article className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background-raised)] p-5 shadow-[var(--shadow-sm)]">
-      <span className={`absolute inset-y-0 left-0 w-1 ${accent}`} />
-      <p className="text-sm font-semibold text-[var(--foreground-muted)]">{label}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground-strong)]">{value}</p>
-      <p className="mt-1 text-xs text-[var(--foreground-subtle)]">{detail}</p>
-    </article>
+    <AuthGuard>
+      <ConsoleShell
+        eyebrow={access?.isAdmin ? "RELAY machine intelligence" : "RELAY customer fleet"}
+        title="Fleet"
+        searchValue={searchQuery}
+        searchPlaceholder="Search plant number, make, model, serial number or description"
+        onSearchChange={setSearchQuery}
+        onOpenRelayAi={access?.isAdmin ? () => setIsRelayAiOpen(true) : undefined}
+        isRelayAiOpen={isRelayAiOpen}
+        contentClassName="console-content-fleet"
+        actions={
+          <button
+            type="button"
+            className="console-command-action"
+            onClick={() => setRefreshVersion((current) => current + 1)}
+            disabled={isLoading}
+          >
+            <ConsoleIcon
+              name="refresh"
+              className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+            />
+            <span>{isLoading ? "Syncing" : "Refresh"}</span>
+          </button>
+        }
+      >
+        <PageHeader
+          title={access?.fleetName ? `${access.fleetName} Fleet` : "Fleet workspace"}
+          description={
+            access?.isAdmin
+              ? "Search the verified machine registry and inspect every linked RELAY request, part, order and workshop event."
+              : "Track assigned machines and the RELAY requests available to this account."
+          }
+          meta={
+            <>
+              <span className="relay-live-indicator">
+                <span aria-hidden="true" />
+                Live registry
+              </span>
+              <span>
+                {lastSyncedAt
+                  ? `Last synced ${lastSyncedAt.toLocaleTimeString("en-GB", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}`
+                  : "Connecting to Supabase"}
+              </span>
+            </>
+          }
+        />
+
+        {errorMessage ? (
+          <div className="fleet-error-state" role="alert">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        <section className="fleet-summary-strip" aria-label="Fleet summary">
+          <FleetMetric
+            label="Total machines"
+            value={totalMachineCount}
+            detail={access?.isAdmin ? "Registry records" : "Assigned fleet"}
+          />
+          <FleetMetric
+            label="Matching machines"
+            value={summaryMetrics.visibleMachines}
+            detail={debouncedQuery ? "Current search" : `First ${MACHINE_RESULT_LIMIT}`}
+          />
+          <FleetMetric
+            label="Linked requests"
+            value={summaryMetrics.linkedRequests}
+            detail="Across visible machines"
+          />
+          <FleetMetric
+            label="Open requests"
+            value={summaryMetrics.openRequests}
+            detail={`${summaryMetrics.urgentRequests} urgent`}
+            tone={summaryMetrics.urgentRequests > 0 ? "danger" : "default"}
+          />
+        </section>
+
+        <section className="fleet-workspace">
+          <div className="fleet-results-panel">
+            <div className="fleet-panel-heading">
+              <div>
+                <p className="console-section-label">Machine registry</p>
+                <h2>
+                  {isLoading
+                    ? "Searching machines"
+                    : `${summaries.length} matching machine${summaries.length === 1 ? "" : "s"}`}
+                </h2>
+              </div>
+              {debouncedQuery ? (
+                <button type="button" onClick={() => setSearchQuery("")}>
+                  Clear search
+                </button>
+              ) : null}
+            </div>
+
+            <div className="fleet-result-columns" aria-hidden="true">
+              <span>Plant / machine</span>
+              <span>Machine record</span>
+              <span>Requests</span>
+              <span>Last activity</span>
+            </div>
+
+            <div className="fleet-result-list" aria-live="polite">
+              {isLoading ? (
+                <FleetListSkeleton />
+              ) : summaries.length === 0 ? (
+                <div className="fleet-empty-state">
+                  <ConsoleIcon name="fleet" className="h-7 w-7" />
+                  <h3>No matching machines</h3>
+                  <p>
+                    Try a plant number, make, model, serial number or a shorter
+                    machine description.
+                  </p>
+                </div>
+              ) : (
+                summaries.map((machine) => (
+                  <MachineResultRow
+                    key={machine.id}
+                    machine={machine}
+                    selected={
+                      normalizeFleetReference(machine.machine_number_normalized) ===
+                      selectedMachineKey
+                    }
+                    onSelect={() => selectMachine(machine)}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          <aside
+            id="fleet-machine-detail"
+            className={`fleet-detail-panel ${selectedMachine ? "fleet-detail-panel-open" : ""}`}
+            aria-label="Selected machine details"
+          >
+            {selectedMachine ? (
+              <MachineDetailWorkspace
+                machine={selectedMachine}
+                isAdmin={Boolean(access?.isAdmin)}
+                activeTab={activeTab}
+                requestFilter={requestFilter}
+                updates={updates}
+                parts={parts}
+                purchaseOrders={purchaseOrders}
+                incidents={incidents}
+                attachments={attachments}
+                isLoading={isDetailLoading}
+                errorMessage={detailErrorMessage}
+                onTabChange={setActiveTab}
+                onRequestFilterChange={setRequestFilter}
+                onClose={() => setSelectedMachineKey(null)}
+                onViewOpenRequests={() => {
+                  setActiveTab("requests");
+                  setRequestFilter("OPEN");
+                }}
+              />
+            ) : (
+              <div className="fleet-detail-empty">
+                <ConsoleIcon name="fleet" className="h-8 w-8" />
+                <h2>Select a machine</h2>
+                <p>Choose a registry result to inspect its complete RELAY history.</p>
+              </div>
+            )}
+          </aside>
+        </section>
+
+        {access?.isAdmin ? (
+          <RelayAiPanel isOpen={isRelayAiOpen} onClose={() => setIsRelayAiOpen(false)} />
+        ) : null}
+      </ConsoleShell>
+    </AuthGuard>
   );
 }
 
-function MachineRow({
+function MachineResultRow({
   machine,
   selected,
-  periodLabel,
   onSelect,
 }: {
-  machine: CustomerFleetMachineSummary;
+  machine: FleetMachineSummary;
   selected: boolean;
-  periodLabel: string;
   onSelect: () => void;
 }) {
   return (
     <button
       type="button"
+      className={`fleet-result-row ${selected ? "fleet-result-row-selected" : ""}`}
       onClick={onSelect}
-      aria-pressed={selected}
-      className={`grid w-full gap-4 px-5 py-4 text-left transition sm:grid-cols-[6rem_minmax(0,1fr)_7rem_7rem] sm:items-center ${
-        selected
-          ? "bg-[color-mix(in_srgb,var(--accent)_8%,var(--background-raised))] shadow-[inset_3px_0_0_var(--accent)]"
-          : "hover:bg-[var(--background-muted)]"
-      }`}
+      aria-expanded={selected}
+      aria-controls="fleet-machine-detail"
     >
-      <div>
-        <p className="text-xs font-semibold text-[var(--foreground-subtle)]">Fleet ref</p>
-        <p className="mt-1 text-xl font-semibold text-[var(--foreground-strong)]">{machine.machine_number}</p>
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-[var(--foreground-strong)]">
-          {[machine.make, machine.model].filter(Boolean).join(" ") || machine.item_description || "Machine details unavailable"}
-        </p>
-        <p className="mt-1 truncate text-xs text-[var(--foreground-muted)]">
-          Serial {machine.serial_number || "not recorded"} · {formatFleetType(machine.fleet_type)}
-        </p>
-      </div>
-      <div>
-        <p className="text-2xl font-semibold text-[var(--foreground-strong)]">{machine.request_count}</p>
-        <p className="text-xs text-[var(--foreground-subtle)]">{periodLabel.toLowerCase()}</p>
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-[var(--foreground-strong)]">{machine.open_request_count} open</p>
-        <p className="mt-1 text-xs text-[var(--foreground-subtle)]">Last {formatDate(machine.last_request_at)}</p>
-      </div>
+      <span className="fleet-result-primary">
+        <strong>{machine.machine_number}</strong>
+        <small>{formatMachineType(machine.fleet_type)}</small>
+      </span>
+      <span className="fleet-result-machine">
+        <strong>
+          {[machine.make, machine.model].filter(Boolean).join(" ") ||
+            machine.item_description ||
+            "Machine details unavailable"}
+        </strong>
+        <small>
+          {machine.serial_number ? `Serial ${machine.serial_number}` : "Serial not recorded"}
+          {machine.status ? ` · ${formatLabel(machine.status)}` : ""}
+        </small>
+      </span>
+      <span className="fleet-result-requests">
+        <strong>{machine.open_requests} open</strong>
+        <small>{machine.total_requests} total</small>
+      </span>
+      <span className="fleet-result-activity">
+        <strong>{formatDate(machine.last_activity_at)}</strong>
+        <small>
+          {machine.latest_ticket?.job_number
+            ? `Job ${machine.latest_ticket.job_number}`
+            : "Registry activity"}
+        </small>
+      </span>
+      <ConsoleIcon name="chevron" className="fleet-result-chevron" />
     </button>
   );
 }
 
-function MachineDetail({ machine, periodLabel }: { machine: CustomerFleetMachineSummary; periodLabel: string }) {
+function MachineDetailWorkspace({
+  machine,
+  isAdmin,
+  activeTab,
+  requestFilter,
+  updates,
+  parts,
+  purchaseOrders,
+  incidents,
+  attachments,
+  isLoading,
+  errorMessage,
+  onTabChange,
+  onRequestFilterChange,
+  onClose,
+  onViewOpenRequests,
+}: {
+  machine: FleetMachineSummary;
+  isAdmin: boolean;
+  activeTab: FleetTab;
+  requestFilter: RequestFilter;
+  updates: TicketUpdateRow[];
+  parts: TicketPartRecord[];
+  purchaseOrders: TicketPurchaseOrderRecord[];
+  incidents: WorkshopIncidentRecord[];
+  attachments: TicketAttachmentRow[];
+  isLoading: boolean;
+  errorMessage: string;
+  onTabChange: (tab: FleetTab) => void;
+  onRequestFilterChange: (filter: RequestFilter) => void;
+  onClose: () => void;
+  onViewOpenRequests: () => void;
+}) {
+  const tabs: Array<{ id: FleetTab; label: string; count?: number }> = [
+    { id: "overview", label: "Overview" },
+    { id: "requests", label: "Requests", count: machine.total_requests },
+    { id: "parts", label: "Parts & POs", count: parts.length + purchaseOrders.length },
+    { id: "activity", label: "Activity", count: updates.length },
+    { id: "incidents", label: "Incidents", count: incidents.length },
+    { id: "files", label: "Files", count: attachments.length },
+  ];
+  const filteredTickets =
+    requestFilter === "ALL"
+      ? machine.tickets
+      : requestFilter === "OPEN"
+        ? machine.tickets.filter((ticket) =>
+            activeTicketStatuses.includes(
+              (ticket.status?.toUpperCase() ||
+                "PENDING") as (typeof activeTicketStatuses)[number],
+            ),
+          )
+        : requestFilter === "URGENT"
+          ? machine.tickets.filter((ticket) => ticket.is_urgent)
+          : machine.tickets.filter(
+              (ticket) =>
+                (ticket.status?.toUpperCase() || "PENDING") === requestFilter,
+            );
+
   return (
-    <div>
-      <div className="border-b border-[var(--border)] p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--foreground-subtle)]">Fleet reference</p>
-        <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--foreground-strong)]">{machine.machine_number}</p>
-        <p className="mt-2 text-sm font-semibold text-[var(--foreground-strong)]">
-          {[machine.make, machine.model].filter(Boolean).join(" ") || "Machine details unavailable"}
-        </p>
-        <p className="mt-1 text-sm text-[var(--foreground-muted)]">Serial {machine.serial_number || "not recorded"}</p>
+    <div className="fleet-detail-inner">
+      <div className="fleet-detail-header">
+        <div>
+          <div className="fleet-detail-kicker">
+            <span>Plant number</span>
+            <span className="fleet-verified-state">
+              <span aria-hidden="true" />
+              Registry verified
+            </span>
+          </div>
+          <h2>{machine.machine_number}</h2>
+          <p>
+            {[machine.make, machine.model].filter(Boolean).join(" ") ||
+              machine.item_description ||
+              "Machine details unavailable"}
+          </p>
+          <div className="fleet-detail-meta">
+            <span>{machine.serial_number ? `Serial ${machine.serial_number}` : "Serial not recorded"}</span>
+            <span>{machine.status ? formatLabel(machine.status) : "Status not recorded"}</span>
+            <span>Updated {formatDateTime(machine.updated_at)}</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="console-icon-button fleet-detail-close"
+          onClick={onClose}
+          aria-label="Close machine details"
+        >
+          <ConsoleIcon name="close" className="h-4 w-4" />
+        </button>
       </div>
 
-      <dl className="grid grid-cols-2 gap-px bg-[var(--border)]">
-        <DetailMetric label="Requests" value={String(machine.request_count)} detail={periodLabel} />
-        <DetailMetric label="Open" value={String(machine.open_request_count)} detail={`${machine.ready_request_count} ready`} />
-      </dl>
+      <div className="fleet-detail-actions">
+        <Link
+          className="console-primary-action"
+          href={`/submit?machineReference=${encodeURIComponent(machine.machine_number)}`}
+        >
+          Raise request
+        </Link>
+        <button type="button" onClick={onViewOpenRequests}>
+          View open requests
+        </button>
+        <button type="button" onClick={() => onTabChange("overview")}>
+          Open machine record
+        </button>
+        {isAdmin ? (
+          <Link
+            href={`/incidents/damage/new?machineReference=${encodeURIComponent(machine.machine_number)}`}
+          >
+            Report incident
+          </Link>
+        ) : null}
+      </div>
 
-      <div className="p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--foreground-subtle)]">Machine record</p>
-        <p className="mt-2 text-sm leading-6 text-[var(--foreground-muted)]">{machine.item_description || "No additional details recorded."}</p>
+      <div className="fleet-tabs" role="tablist" aria-label="Machine workspace">
+        {tabs.map((tab) => (
+          <button
+            type="button"
+            role="tab"
+            key={tab.id}
+            aria-selected={activeTab === tab.id}
+            aria-controls={`fleet-tab-${tab.id}`}
+            className={activeTab === tab.id ? "fleet-tab-active" : ""}
+            onClick={() => onTabChange(tab.id)}
+          >
+            {tab.label}
+            {typeof tab.count === "number" ? <span>{tab.count}</span> : null}
+          </button>
+        ))}
+      </div>
 
-        <div className="mt-6 flex items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-[var(--foreground-strong)]">Recent requests</h3>
-          <span className="text-xs text-[var(--foreground-subtle)]">Visible to this login</span>
+      {errorMessage ? (
+        <div className="fleet-detail-warning" role="status">
+          {errorMessage}
         </div>
+      ) : null}
 
-        <div className="mt-3 space-y-2">
-          {machine.recent_requests.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--background-muted)] p-4 text-sm text-[var(--foreground-muted)]">
-              No requests are recorded for this machine under this account.
-            </div>
-          ) : (
-            machine.recent_requests.map((ticket) => (
-              <Link
-                key={ticket.id}
-                href={`/tickets/${ticket.id}`}
-                className="block rounded-xl border border-[var(--border)] bg-[var(--background-muted)] p-3 transition hover:border-[var(--border-strong)]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[var(--foreground-strong)]">Job {ticket.job_number || "not assigned"}</p>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--foreground-muted)]">
-                      {ticket.request_summary || ticket.request_details || "No request summary"}
-                    </p>
-                  </div>
-                  <StatusBadge status={ticket.status || "PENDING"} />
+      <div
+        id={`fleet-tab-${activeTab}`}
+        className="fleet-tab-content"
+        role="tabpanel"
+      >
+        {isLoading ? (
+          <div className="fleet-detail-loading">Loading linked records...</div>
+        ) : null}
+        {!isLoading && activeTab === "overview" ? (
+          <MachineOverview machine={machine} />
+        ) : null}
+        {!isLoading && activeTab === "requests" ? (
+          <MachineRequests
+            tickets={filteredTickets}
+            filter={requestFilter}
+            onFilterChange={onRequestFilterChange}
+          />
+        ) : null}
+        {!isLoading && activeTab === "parts" ? (
+          <MachinePartsAndOrders
+            machine={machine}
+            parts={parts}
+            purchaseOrders={purchaseOrders}
+          />
+        ) : null}
+        {!isLoading && activeTab === "activity" ? (
+          <MachineActivity tickets={machine.tickets} updates={updates} />
+        ) : null}
+        {!isLoading && activeTab === "incidents" ? (
+          <MachineIncidents incidents={incidents} isAdmin={isAdmin} />
+        ) : null}
+        {!isLoading && activeTab === "files" ? (
+          <MachineFiles attachments={attachments} tickets={machine.tickets} />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MachineOverview({ machine }: { machine: FleetMachineSummary }) {
+  return (
+    <div className="fleet-overview">
+      <section className="fleet-detail-section">
+        <div className="fleet-section-heading">
+          <h3>Machine record</h3>
+          <span>{formatMachineType(machine.fleet_type)}</span>
+        </div>
+        <dl className="fleet-definition-grid">
+          <FleetDefinition label="Plant number" value={machine.machine_number} />
+          <FleetDefinition label="Make" value={machine.make} />
+          <FleetDefinition label="Model" value={machine.model} />
+          <FleetDefinition label="Serial number" value={machine.serial_number} />
+          <FleetDefinition label="Description" value={machine.item_description} wide />
+          <FleetDefinition label="Status" value={machine.status ? formatLabel(machine.status) : null} />
+          <FleetDefinition label="Quantity" value={machine.quantity ? String(machine.quantity) : null} />
+          <FleetDefinition label="Registry source" value={machine.source_sheet} />
+          <FleetDefinition label="Created" value={formatDateTime(machine.created_at)} />
+          <FleetDefinition label="Updated" value={formatDateTime(machine.updated_at)} />
+        </dl>
+      </section>
+
+      <section className="fleet-overview-metrics">
+        <FleetMiniMetric label="Total requests" value={machine.total_requests} />
+        <FleetMiniMetric label="Open" value={machine.open_requests} />
+        <FleetMiniMetric label="Completed" value={machine.completed_requests} />
+        <FleetMiniMetric label="Urgent" value={machine.urgent_requests} />
+        <FleetMiniMetric
+          label="Linked order value"
+          value={formatCurrency(machine.linked_order_value)}
+        />
+      </section>
+
+      <section className="fleet-detail-section">
+        <div className="fleet-section-heading">
+          <h3>Latest RELAY activity</h3>
+          <span>{formatDateTime(machine.last_activity_at)}</span>
+        </div>
+        {machine.latest_ticket ? (
+          <TicketListItem ticket={machine.latest_ticket} />
+        ) : (
+          <FleetEmptyState message="No RELAY requests are linked to this machine." />
+        )}
+      </section>
+    </div>
+  );
+}
+
+function MachineRequests({
+  tickets,
+  filter,
+  onFilterChange,
+}: {
+  tickets: FleetTicketRecord[];
+  filter: RequestFilter;
+  onFilterChange: (filter: RequestFilter) => void;
+}) {
+  const filters: RequestFilter[] = ["ALL", "OPEN", "URGENT", ...ticketStatuses];
+
+  return (
+    <section className="fleet-detail-section">
+      <div className="fleet-request-filters" role="group" aria-label="Request status">
+        {filters.map((option) => (
+          <button
+            type="button"
+            key={option}
+            className={filter === option ? "fleet-request-filter-active" : ""}
+            onClick={() => onFilterChange(option)}
+          >
+            {formatLabel(option)}
+          </button>
+        ))}
+      </div>
+      {tickets.length > 0 ? (
+        <div className="fleet-ticket-list">
+          {tickets.map((ticket) => (
+            <TicketListItem key={ticket.id} ticket={ticket} detailed />
+          ))}
+        </div>
+      ) : (
+        <FleetEmptyState message="No requests match this status filter." />
+      )}
+    </section>
+  );
+}
+
+function TicketListItem({
+  ticket,
+  detailed = false,
+}: {
+  ticket: FleetTicketRecord;
+  detailed?: boolean;
+}) {
+  return (
+    <Link href={`/tickets/${ticket.id}`} className="fleet-ticket-row">
+      <div className="fleet-ticket-topline">
+        <div>
+          <strong>{ticket.job_number ? `Job ${ticket.job_number}` : "Request without job number"}</strong>
+          {ticket.is_urgent ? <span className="fleet-urgent-label">Urgent</span> : null}
+        </div>
+        <StatusBadge status={ticket.status || "PENDING"} />
+      </div>
+      <p>
+        {ticket.request_summary || ticket.request_details || "No request summary recorded."}
+      </p>
+      {detailed ? (
+        <dl className="fleet-ticket-meta">
+          <div><dt>Requester</dt><dd>{ticket.requester_name || "Not recorded"}</dd></div>
+          <div><dt>Department</dt><dd>{ticket.department || "Not recorded"}</dd></div>
+          <div><dt>Assigned</dt><dd>{ticket.assigned_to || "Unassigned"}</dd></div>
+          <div><dt>Supplier</dt><dd>{ticket.supplier_name || "Not recorded"}</dd></div>
+          <div><dt>PO</dt><dd>{ticket.purchase_order_number || "Not recorded"}</dd></div>
+          <div><dt>Expected</dt><dd>{formatDate(ticket.expected_delivery_date)}</dd></div>
+          <div><dt>Order value</dt><dd>{formatCurrency(ticket.order_amount)}</dd></div>
+          <div><dt>Updated</dt><dd>{formatDateTime(ticket.updated_at)}</dd></div>
+        </dl>
+      ) : (
+        <span className="fleet-ticket-date">Updated {formatDateTime(ticket.updated_at)}</span>
+      )}
+    </Link>
+  );
+}
+
+function MachinePartsAndOrders({
+  machine,
+  parts,
+  purchaseOrders,
+}: {
+  machine: FleetMachineSummary;
+  parts: TicketPartRecord[];
+  purchaseOrders: TicketPurchaseOrderRecord[];
+}) {
+  const ticketsById = new Map(machine.tickets.map((ticket) => [ticket.id, ticket]));
+
+  return (
+    <div className="fleet-detail-stack">
+      <section className="fleet-detail-section">
+        <div className="fleet-section-heading">
+          <h3>Linked parts</h3>
+          <span>{parts.length} records</span>
+        </div>
+        {parts.length > 0 ? (
+          <div className="fleet-data-table-wrap">
+            <table className="fleet-data-table">
+              <thead>
+                <tr>
+                  <th>Part number</th>
+                  <th>Description</th>
+                  <th>Qty</th>
+                  <th>Supplier</th>
+                  <th>Job</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {parts.map((part) => (
+                  <tr key={part.id}>
+                    <td><strong>{part.part_number || "—"}</strong></td>
+                    <td>{part.part_description || "—"}</td>
+                    <td>{part.quantity}</td>
+                    <td>{part.supplier_name || "—"}</td>
+                    <td>
+                      <Link href={`/tickets/${part.ticket_id}`}>
+                        {part.job_number || ticketsById.get(part.ticket_id)?.job_number || "Open"}
+                      </Link>
+                    </td>
+                    <td>{formatLabel(part.part_status)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <FleetEmptyState message="No ticket-linked parts are recorded for this machine." />
+        )}
+      </section>
+
+      <section className="fleet-detail-section">
+        <div className="fleet-section-heading">
+          <h3>Purchase orders</h3>
+          <span>{purchaseOrders.length} records</span>
+        </div>
+        {purchaseOrders.length > 0 ? (
+          <div className="fleet-data-table-wrap">
+            <table className="fleet-data-table">
+              <thead>
+                <tr>
+                  <th>PO</th>
+                  <th>Supplier</th>
+                  <th>Job</th>
+                  <th>Status</th>
+                  <th>Value</th>
+                  <th>Ordered</th>
+                </tr>
+              </thead>
+              <tbody>
+                {purchaseOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td><strong>{order.purchase_order_number}</strong></td>
+                    <td>{order.supplier_name}</td>
+                    <td>
+                      <Link href={`/tickets/${order.ticket_id}`}>
+                        {ticketsById.get(order.ticket_id)?.job_number || "Open"}
+                      </Link>
+                    </td>
+                    <td>{formatLabel(order.po_status)}</td>
+                    <td>{formatCurrency(order.order_amount)}</td>
+                    <td>{formatDate(order.sent_at || order.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <FleetEmptyState message="No ticket-linked purchase orders are recorded for this machine." />
+        )}
+      </section>
+    </div>
+  );
+}
+
+function MachineActivity({
+  tickets,
+  updates,
+}: {
+  tickets: FleetTicketRecord[];
+  updates: TicketUpdateRow[];
+}) {
+  const ticketsById = new Map(tickets.map((ticket) => [ticket.id, ticket]));
+  const timeline = [
+    ...updates.map((update) => ({
+      id: `update-${update.id}`,
+      ticketId: update.ticket_id,
+      title: update.status ? `Status changed to ${formatLabel(update.status)}` : "Ticket update",
+      detail: update.comment || "No additional note recorded.",
+      createdAt: update.created_at,
+    })),
+    ...tickets.map((ticket) => ({
+      id: `ticket-${ticket.id}`,
+      ticketId: ticket.id,
+      title: ticket.job_number ? `Job ${ticket.job_number} created` : "Request created",
+      detail: ticket.request_summary || ticket.request_details || "No request summary recorded.",
+      createdAt: ticket.created_at,
+    })),
+  ].sort(
+    (left, right) =>
+      new Date(right.createdAt || 0).getTime() -
+      new Date(left.createdAt || 0).getTime(),
+  );
+
+  return (
+    <section className="fleet-detail-section">
+      {timeline.length > 0 ? (
+        <ol className="fleet-timeline">
+          {timeline.map((event) => (
+            <li key={event.id}>
+              <span aria-hidden="true" />
+              <div>
+                <div>
+                  <strong>{event.title}</strong>
+                  <time>{formatDateTime(event.createdAt)}</time>
                 </div>
-                <p className="mt-2 text-xs text-[var(--foreground-subtle)]">Raised {formatDate(ticket.created_at)}</p>
-              </Link>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
+                <p>{event.detail}</p>
+                <Link href={`/tickets/${event.ticketId}`}>
+                  {ticketsById.get(event.ticketId)?.job_number
+                    ? `Open job ${ticketsById.get(event.ticketId)?.job_number}`
+                    : "Open request"}
+                </Link>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <FleetEmptyState message="No machine activity is recorded yet." />
+      )}
+    </section>
   );
 }
 
-function DetailMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return (
-    <div className="bg-[var(--background-raised)] p-4">
-      <dt className="text-xs text-[var(--foreground-subtle)]">{label}</dt>
-      <dd className="mt-1 text-2xl font-semibold text-[var(--foreground-strong)]">{value}</dd>
-      <p className="mt-1 text-xs text-[var(--foreground-subtle)]">{detail}</p>
-    </div>
-  );
-}
-
-function formatFleetType(value: string | null) {
-  if (!value) {
-    return "Fleet equipment";
+function MachineIncidents({
+  incidents,
+  isAdmin,
+}: {
+  incidents: WorkshopIncidentRecord[];
+  isAdmin: boolean;
+}) {
+  if (!isAdmin) {
+    return (
+      <FleetEmptyState message="Workshop incidents are available to authorised operational roles." />
+    );
   }
 
-  return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+  return (
+    <section className="fleet-detail-section">
+      {incidents.length > 0 ? (
+        <div className="fleet-ticket-list">
+          {incidents.map((incident) => (
+            <Link
+              key={incident.id}
+              href={`/incidents/${incident.id}`}
+              className="fleet-incident-row"
+            >
+              <div>
+                <strong>{formatLabel(incident.incident_type)}</strong>
+                <StatusBadge status={incident.status} />
+              </div>
+              <p>{incident.description}</p>
+              <span>
+                {formatLabel(incident.severity)} · {incident.location_summary || "Location not recorded"} · Updated {formatDateTime(incident.updated_at)}
+              </span>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <FleetEmptyState message="No workshop incidents are linked to this machine." />
+      )}
+    </section>
+  );
 }
 
-function formatDate(value: string | null) {
+function MachineFiles({
+  attachments,
+  tickets,
+}: {
+  attachments: TicketAttachmentRow[];
+  tickets: FleetTicketRecord[];
+}) {
+  const ticketsById = new Map(tickets.map((ticket) => [ticket.id, ticket]));
+
+  return (
+    <section className="fleet-detail-section">
+      {attachments.length > 0 ? (
+        <div className="fleet-file-list">
+          {attachments.map((attachment) => (
+            <Link key={attachment.id} href={`/tickets/${attachment.ticket_id}`}>
+              <ConsoleIcon name="file" className="h-5 w-5" />
+              <span>
+                <strong>{attachment.file_name || "Ticket attachment"}</strong>
+                <small>
+                  {attachment.mime_type || "File"} ·{" "}
+                  {ticketsById.get(attachment.ticket_id)?.job_number
+                    ? `Job ${ticketsById.get(attachment.ticket_id)?.job_number}`
+                    : "Request attachment"}
+                </small>
+              </span>
+              <time>{formatDate(attachment.created_at)}</time>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <FleetEmptyState message="No request-linked files are available for this machine." />
+      )}
+      <p className="fleet-file-security-note">
+        Files open through the existing ticket workspace so current attachment permissions and signed access remain enforced.
+      </p>
+    </section>
+  );
+}
+
+function FleetMetric({
+  label,
+  value,
+  detail,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  tone?: "default" | "danger";
+}) {
+  return (
+    <article className="fleet-metric" data-tone={tone}>
+      <p>{label}</p>
+      <strong>{value.toLocaleString("en-GB")}</strong>
+      <span>{detail}</span>
+    </article>
+  );
+}
+
+function FleetMiniMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{typeof value === "number" ? value.toLocaleString("en-GB") : value}</strong>
+    </div>
+  );
+}
+
+function FleetDefinition({
+  label,
+  value,
+  wide = false,
+}: {
+  label: string;
+  value: string | null | undefined;
+  wide?: boolean;
+}) {
+  return (
+    <div className={wide ? "fleet-definition-wide" : undefined}>
+      <dt>{label}</dt>
+      <dd>{value || "Not recorded"}</dd>
+    </div>
+  );
+}
+
+function FleetEmptyState({ message }: { message: string }) {
+  return <div className="fleet-inline-empty">{message}</div>;
+}
+
+function FleetListSkeleton() {
+  return (
+    <div className="fleet-list-skeleton" aria-label="Loading machine results">
+      {Array.from({ length: 6 }, (_, index) => (
+        <span key={index} />
+      ))}
+    </div>
+  );
+}
+
+async function fetchFleetTickets({
+  machines,
+  userId,
+  isAdmin,
+}: {
+  machines: FleetMachineRecord[];
+  userId: string;
+  isAdmin: boolean;
+}) {
+  if (machines.length === 0) {
+    return [];
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  const normalizedKeys = Array.from(
+    new Set(machines.map((machine) => machine.machine_number_normalized).filter(Boolean)),
+  );
+  const displayKeys = Array.from(
+    new Set(machines.map((machine) => machine.machine_number).filter(Boolean)),
+  );
+
+  function scopeQuery<T extends { or: (filter: string) => T }>(query: T) {
+    return isAdmin
+      ? query
+      : query.or(`user_id.eq.${userId},visible_to_user_id.eq.${userId}`);
+  }
+
+  const strongQuery = scopeQuery(
+    supabase
+      .from("tickets")
+      .select(TICKET_FIELDS)
+      .in("machine_number_normalized", normalizedKeys)
+      .order("updated_at", { ascending: false })
+      .limit(TICKET_RESULT_LIMIT),
+  );
+  const referenceQuery = scopeQuery(
+    supabase
+      .from("tickets")
+      .select(TICKET_FIELDS)
+      .in("machine_reference", displayKeys)
+      .order("updated_at", { ascending: false })
+      .limit(TICKET_RESULT_LIMIT),
+  );
+  const numberQuery = scopeQuery(
+    supabase
+      .from("tickets")
+      .select(TICKET_FIELDS)
+      .in("machine_number", displayKeys)
+      .order("updated_at", { ascending: false })
+      .limit(TICKET_RESULT_LIMIT),
+  );
+  const results = await Promise.all([strongQuery, referenceQuery, numberQuery]);
+  const firstError = results.find((result) => result.error)?.error;
+
+  if (firstError) {
+    throw firstError;
+  }
+
+  const ticketsById = new Map<string, FleetTicketRecord>();
+  for (const result of results) {
+    for (const ticket of (result.data ?? []) as unknown as FleetTicketRecord[]) {
+      ticketsById.set(ticket.id, ticket);
+    }
+  }
+
+  return Array.from(ticketsById.values());
+}
+
+function getServerSearchTerm(query: string) {
+  return (
+    query
+      .trim()
+      .split(/\s+/)
+      .map((term) => term.replace(/[%(),]/g, ""))
+      .filter(Boolean)
+      .sort((left, right) => right.length - left.length)[0] ?? ""
+  );
+}
+
+function formatMachineType(value: string | null) {
+  return value ? formatLabel(value) : "Fleet equipment";
+}
+
+function formatLabel(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatDate(value: string | null | undefined) {
   if (!value) {
-    return "no requests";
+    return "Not recorded";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Not recorded";
   }
 
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  }).format(new Date(value));
+  }).format(date);
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "Not recorded";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Not recorded";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatCurrency(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "Not recorded";
+  }
+
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+  }).format(value);
 }
