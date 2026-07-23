@@ -147,6 +147,7 @@ export function RelayAiPanel({
   const questionTimesRef = useRef<number[]>([]);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -160,6 +161,33 @@ export function RelayAiPanel({
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const viewport = window.visualViewport;
+
+    function syncToVisibleViewport() {
+      const height = viewport?.height ?? window.innerHeight;
+      const offsetTop = viewport?.offsetTop ?? 0;
+      panel?.style.setProperty("--relay-ai-viewport-height", `${height}px`);
+      panel?.style.setProperty("--relay-ai-viewport-top", `${offsetTop}px`);
+    }
+
+    syncToVisibleViewport();
+    viewport?.addEventListener("resize", syncToVisibleViewport);
+    viewport?.addEventListener("scroll", syncToVisibleViewport);
+    window.addEventListener("orientationchange", syncToVisibleViewport);
+
+    return () => {
+      viewport?.removeEventListener("resize", syncToVisibleViewport);
+      viewport?.removeEventListener("scroll", syncToVisibleViewport);
+      window.removeEventListener("orientationchange", syncToVisibleViewport);
+      panel.style.removeProperty("--relay-ai-viewport-height");
+      panel.style.removeProperty("--relay-ai-viewport-top");
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -880,7 +908,13 @@ export function RelayAiPanel({
   return (
     <>
       <button type="button" className="relay-ai-scrim" aria-label="Close RELAY AI" onClick={onClose} />
-      <section className="relay-ai-panel" role="dialog" aria-modal="true" aria-labelledby="relay-ai-title">
+      <section
+        ref={panelRef}
+        className="relay-ai-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="relay-ai-title"
+      >
         <header className="relay-ai-header">
           <div className="relay-ai-brand-mark" aria-hidden="true">
             <span />

@@ -2186,11 +2186,17 @@ select:focus-visible {
 
 .relay-ai-panel {
   position: fixed;
-  inset: 0 0 0 auto;
+  top: var(--relay-ai-viewport-top, 0);
+  right: 0;
+  bottom: auto;
+  left: auto;
   z-index: 90;
   display: grid;
   width: min(47rem, 96vw);
+  height: var(--relay-ai-viewport-height, 100dvh);
+  max-height: var(--relay-ai-viewport-height, 100dvh);
   grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
   border-left: 1px solid var(--border-strong);
   background: var(--background-panel-strong);
   box-shadow: -32px 0 96px -50px rgba(15, 23, 42, 0.7);
@@ -2313,6 +2319,7 @@ select:focus-visible {
 .relay-ai-conversation {
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background:
     radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--success-soft) 40%, transparent), transparent 30%),
     linear-gradient(180deg, color-mix(in srgb, var(--background-muted) 52%, transparent), transparent 24%);
@@ -2819,14 +2826,19 @@ select:focus-visible {
 }
 
 .relay-ai-composer-wrap {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
   border-top: 1px solid var(--border);
   background: color-mix(in srgb, var(--background-panel-strong) 94%, transparent);
-  padding: 1rem clamp(1rem, 4vw, 2rem) 0.8rem;
+  padding: 1rem clamp(1rem, 4vw, 2rem) max(0.8rem, env(safe-area-inset-bottom));
   backdrop-filter: blur(18px);
 }
 
 .relay-ai-composer {
   display: grid;
+  box-sizing: border-box;
+  min-width: 0;
   width: min(100%, 40rem);
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
@@ -2845,6 +2857,9 @@ select:focus-visible {
 }
 
 .relay-ai-composer textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   max-height: 8rem;
   resize: none;
   border: 0;
@@ -2862,7 +2877,9 @@ select:focus-visible {
 
 .relay-ai-composer > button {
   display: inline-flex;
+  flex: 0 0 auto;
   width: 2.45rem;
+  min-width: 2.45rem;
   height: 2.45rem;
   align-items: center;
   justify-content: center;
@@ -2955,6 +2972,17 @@ select:focus-visible {
 }
 
 @media (max-width: 1023px) {
+  .relay-ai-panel {
+    width: min(42rem, 100vw);
+  }
+
+  .relay-ai-composer > button {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    touch-action: manipulation;
+  }
+
   .console-sidebar {
     width: min(18rem, 88vw);
     transform: translateX(-105%);
@@ -3075,7 +3103,35 @@ select:focus-visible {
   }
 
   .relay-ai-composer-wrap {
-    padding: 0.75rem 0.75rem 0.6rem;
+    padding: 0.65rem 0.65rem max(0.65rem, env(safe-area-inset-bottom));
+  }
+
+  .relay-ai-composer {
+    gap: 0.4rem;
+    border-radius: 0.85rem;
+    padding: 0.42rem;
+  }
+
+  .relay-ai-composer textarea {
+    min-height: 2.75rem;
+    padding: 0.52rem 0.4rem;
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+
+  .relay-ai-composer > button {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    align-self: end;
+    border-radius: 0.65rem;
+    touch-action: manipulation;
+  }
+
+  .relay-ai-composer-wrap > p {
+    margin-top: 0.4rem;
+    padding-inline: 0.25rem;
+    font-size: 0.58rem;
   }
 
   .console-command-bar {
