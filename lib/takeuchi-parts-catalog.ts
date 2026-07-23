@@ -92,6 +92,61 @@ const PART_SEARCH_SYNONYMS = new Map<string, readonly string[]>(
   ),
 );
 
+const WORKSHOP_PART_VOCABULARY = [
+  ...new Set(PART_SEARCH_CONCEPTS.flat()),
+  "idler",
+  "roller",
+  "sprocket",
+  "tensioner",
+  "alternator",
+  "starter",
+  "motor",
+  "pump",
+  "valve",
+  "bearing",
+  "belt",
+  "switch",
+  "sensor",
+  "solenoid",
+] as const;
+
+function editDistance(left: string, right: string) {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    let diagonal = previous[0];
+    previous[0] = leftIndex;
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const above = previous[rightIndex];
+      previous[rightIndex] = Math.min(
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + 1,
+        diagonal + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1),
+      );
+      diagonal = above;
+    }
+  }
+
+  return previous[right.length];
+}
+
+export function normalizeWorkshopPartQuery(value: string | null | undefined) {
+  return normalizeSearchText(value)
+    .split(" ")
+    .filter(Boolean)
+    .map((token) => {
+      if (token.length < 4 || WORKSHOP_PART_VOCABULARY.includes(token as never)) {
+        return token;
+      }
+      const matches = WORKSHOP_PART_VOCABULARY.filter(
+        (candidate) => Math.abs(candidate.length - token.length) <= 1
+          && editDistance(token, candidate) === 1,
+      );
+      return matches.length === 1 ? matches[0] : token;
+    })
+    .join(" ");
+}
+
 export function normalizeTakeuchiModel(value: string | null | undefined) {
   return value?.trim().replace(/[\s_-]+/g, "").toUpperCase() || "";
 }
@@ -229,7 +284,7 @@ export async function fetchTakeuchiPartsCatalog(
   const normalizedModel = normalizeTakeuchiModel(options.machineModel ?? "");
   const parsedSerial = parseTakeuchiSerialNumber(options.serialNumber ?? "");
   const maxRows = Math.max(1, options.maxRows ?? Number.MAX_SAFE_INTEGER);
-  const searchTerms = expandPartSearchTerms(options.searchText)
+  const searchTerms = expandPartSearchTerms(normalizeWorkshopPartQuery(options.searchText))
     .filter((term) => term.length >= 2)
     .slice(0, 12);
 

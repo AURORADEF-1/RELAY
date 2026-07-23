@@ -24,6 +24,7 @@ import {
 import {
   answerRelayAiTakeuchiPartQuestion,
   buildRelayAiTicketPartsGuidance,
+  parseRelayAiMachinePartQuestion,
   parseRelayAiTakeuchiPartQuestion,
 } from "@/lib/relay-ai-parts-guidance";
 import {
@@ -320,6 +321,30 @@ export function RelayAiPanel({
           return;
         }
         await showTicketConfirmation(ticketDraft.draft, true);
+        return;
+      }
+
+      const machinePartQuestion = parseRelayAiMachinePartQuestion(question);
+      if (machinePartQuestion) {
+        const supabase = getSupabaseClient();
+        if (!supabase) throw new Error("Supabase is not configured.");
+        const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+        if (!user || !isAdmin) throw new Error("Admin access is required for Takeuchi catalogue suggestions.");
+        const answer = await buildRelayAiTicketPartsGuidance(supabase, {
+          machineReference: machinePartQuestion.machineReference,
+          requestDetails: machinePartQuestion.description,
+        });
+        setSyncedAt(new Date());
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: answer.text,
+            facts: answer.facts,
+            sourceNote: answer.sourceNote,
+          },
+        ]);
         return;
       }
 

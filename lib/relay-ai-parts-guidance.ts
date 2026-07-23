@@ -6,6 +6,7 @@ import {
   buildTakeuchiModelCandidates,
   buildTakeuchiPartSuggestions,
   fetchTakeuchiPartsCatalog,
+  normalizeWorkshopPartQuery,
   normalizeTakeuchiModel,
   parseTakeuchiSerialNumber,
   type TakeuchiPartSuggestion,
@@ -27,6 +28,11 @@ export type RelayAiPartsGuidance = {
 
 export type RelayAiTakeuchiPartQuestion = {
   model: string;
+  description: string;
+};
+
+export type RelayAiMachinePartQuestion = {
+  machineReference: string;
   description: string;
 };
 
@@ -167,13 +173,17 @@ export async function buildRelayAiTicketPartsGuidance(
     };
   }
 
+  const normalizedDescription = normalizeWorkshopPartQuery(description);
   const catalogue = await fetchTakeuchiPartsCatalog(supabase, {
     machineModel: model,
     serialNumber: machine.serial_number,
     maxRows: RELAY_AI_CATALOGUE_ROW_LIMIT,
-    searchText: description,
+    searchText: normalizedDescription,
   });
-  const suggestions = rankUniqueSuggestions(catalogue, description);
+  const suggestions = rankUniqueSuggestions(catalogue, normalizedDescription);
+  const interpretation = normalizedDescription !== description.toLowerCase()
+    ? `\n\nInterpreted request: “${normalizedDescription}”.`
+    : "";
 
   return {
     machine,
@@ -182,8 +192,8 @@ export async function buildRelayAiTicketPartsGuidance(
     catalogueAvailable: true,
     suggestions,
     text: suggestions.length > 0
-      ? `Machine ${machine.machine_number} is verified and a compatible Takeuchi catalogue is available.\n\nClosest catalogue matches\n${suggestionLines(suggestions)}\n\nThese are catalogue candidates, not confirmed fitment. The parts team must verify the part number before ordering.`
-      : `Machine ${machine.machine_number} is verified and a compatible Takeuchi catalogue is available.\n\nNo match found. Please use the best description available for the parts team.`,
+      ? `Machine ${machine.machine_number} is verified and a compatible Takeuchi catalogue is available.${interpretation}\n\nClosest catalogue matches\n${suggestionLines(suggestions)}\n\nThese are catalogue candidates, not confirmed fitment. The parts team must verify the part number before ordering.`
+      : `Machine ${machine.machine_number} is verified and a compatible Takeuchi catalogue is available.${interpretation}\n\nNo match found. Please use the best description available for the parts team.`,
     facts: [
       "Machine verified",
       "Takeuchi catalogue available",
@@ -191,6 +201,29 @@ export async function buildRelayAiTicketPartsGuidance(
     ],
     sourceNote: `Model and serial-compatible Takeuchi catalogue search, bounded to ${RELAY_AI_CATALOGUE_ROW_LIMIT.toLocaleString("en-GB")} rows. Suggestions are not automatically verified.`,
   };
+}
+
+export function parseRelayAiMachinePartQuestion(
+  question: string,
+): RelayAiMachinePartQuestion | null {
+  const machineMatch = question.match(
+    /\b(?:machine|fleet)(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*([a-z0-9][a-z0-9/_-]*)\b/i,
+  );
+  const machineReference = machineMatch?.[1]?.trim();
+  if (!machineMatch || !machineReference || !/\d/.test(machineReference)) return null;
+
+  const afterMachine = question.slice((machineMatch.index ?? 0) + machineMatch[0].length);
+  const afterDescription = afterMachine.match(
+    /\b(?:i\s+)?(?:need|needs|require|requires|want|wants|looking\s+for)\s+(?:(?:a|an|the)\s+)?(.+?)(?:[.?!]|$)/i,
+  )?.[1];
+  const beforeDescription = question.match(
+    /\b(?:i\s+)?(?:need|require|want|looking\s+for|find)\s+(?:(?:a|an|the)\s+)?(.+?)\s+for\s+(?:machine|fleet)(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*[a-z0-9][a-z0-9/_-]*\b/i,
+  )?.[1];
+  const description = (afterDescription || beforeDescription)
+    ?.trim()
+    .replace(/[,.!?;:]+$/, "");
+
+  return description ? { machineReference, description } : null;
 }
 
 export function parseRelayAiTakeuchiPartQuestion(

@@ -37,11 +37,11 @@ function extractTicketFields(value: string): Partial<RelayAiTicketDraft> {
   );
   const machineReference = cleanCapturedValue(
     value.match(
-      /\bmachine(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*(.+?)(?=\s+(?:for|department|requesting|needing|with)\b|[,.;]|$)/i,
+      /\b(?:machine|fleet)(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*([a-z0-9][a-z0-9/_-]*)\b/i,
     )?.[1],
   );
   const requestDetails = cleanCapturedValue(
-    value.match(/\b(?:for|requesting|needing)\s+(.+?)(?=\s+department\b|[.;]|$)/i)?.[1],
+    value.match(/\b(?:for|requesting|needing|(?:i\s+)?need|(?:i\s+)?require)\s+(.+?)(?=\s+department\b|[.;]|$)/i)?.[1],
   );
   const departmentMatch = value.match(/\b(?:department\s*)?(Onsite|Yard)\b/i)?.[1];
 

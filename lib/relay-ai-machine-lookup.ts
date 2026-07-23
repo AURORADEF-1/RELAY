@@ -3,9 +3,9 @@ import type { RelayConsoleAiAnswer } from "@/lib/relay-console-ai";
 
 export function parseRelayAiMachineReference(question: string) {
   const match = question.match(
-    /\bmachine(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*([a-z0-9][a-z0-9 /_-]*?)(?=\s+(?:make|model|serial|details|information)\b|[,.!?]|$)/i,
+    /\b(?:machine|fleet)(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*([a-z0-9][a-z0-9/_-]*)\b/i,
   );
-  const reference = match?.[1]?.trim().replace(/\s+/g, " ") ?? "";
+  const reference = match?.[1]?.trim() ?? "";
   return /\d/.test(reference) ? reference : null;
 }
 
