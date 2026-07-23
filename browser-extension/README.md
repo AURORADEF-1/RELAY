@@ -14,16 +14,18 @@ The extension transfers a machine and part-search context from RELAY AI to a use
 ## Use
 
 1. Ask RELAY AI for a part using a verified machine reference.
-2. Select **Search current website** beneath the RELAY response.
-3. Open the relevant supplier or manufacturer catalogue page.
-4. Open the extension and optionally select **Fill website search**. Review and submit the website's search yourself.
-5. Select **Scan current page** after the website displays its results.
-6. Review the locally ranked matches that include an extracted part, SKU, MPN, product or catalogue number.
-7. Select **Send suggestion to RELAY** for the candidate you want to review.
+2. Review RELAY's ranked catalogue candidates and select the closest description.
+3. Select **Send selected number to extension**.
+4. Open the relevant supplier or manufacturer catalogue page.
+5. Open the extension and optionally select **Fill website search**. Review and submit the website's search yourself.
+6. Select **Scan current page** after the website displays its results.
+7. Review the locally ranked matches that include an extracted part, SKU, MPN, product or catalogue number.
+8. Select **Send suggestion to RELAY** for the candidate you want to review.
+9. Mark the returned suggestion **Correct** or **Incorrect** in RELAY. Incorrect feedback is session-only and lets you return to the candidate list to choose another number.
 
 ## Search strategy
 
-- **Takeuchi EPC:** RELAY passes its ranked serial-compatible catalogue numbers to the extension. The website search is filled with the highest-ranked part number, not the model or description. A result is marked verified by the scraper only when the same normalized part number is extracted from the Takeuchi results page.
+- **Takeuchi EPC:** RELAY displays its ranked serial-compatible catalogue numbers and descriptions first. The user selects one candidate, and only that number is passed to the extension. A result is marked verified by the scraper only when the same normalized part number is extracted from the Takeuchi results page.
 - **TVH, eBay and other websites:** the search is filled with the machine model and part description. Extracted catalogue numbers remain unverified supplier or marketplace suggestions.
 - Takeuchi scraper verification confirms that the suggested number appears on the Takeuchi website. It does not independently prove serial-range fitment, supersession or availability.
 

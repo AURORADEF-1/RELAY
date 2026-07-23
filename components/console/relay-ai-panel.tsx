@@ -57,6 +57,10 @@ type RelayAiMessage = {
   copyText?: string;
   copyLabel?: string;
   externalLookup?: RelayExternalLookupContext;
+  externalFeedback?: {
+    partNumber: string;
+    status: "pending" | "correct" | "incorrect";
+  };
   ticketAction?: {
     draft: RelayAiTicketDraft;
     status: "pending" | "submitting" | "cancelled" | "submitted";
@@ -73,7 +77,15 @@ type RelayExternalLookupContext = {
   model: string;
   serialNumber: string;
   requestDescription: string;
-  suggestedPartNumbers: string[];
+  candidates: RelayExternalPartCandidate[];
+  selectedPartNumber: string;
+};
+
+type RelayExternalPartCandidate = {
+  partNumber: string;
+  description: string;
+  bomGroup: string;
+  matchReason: string;
 };
 
 type RelayExternalLookupResult = {
@@ -176,6 +188,10 @@ export function RelayAiPanel({
             .filter(Boolean)
             .join("\n"),
           copyLabel: "Copy part suggestion",
+          externalFeedback: {
+            partNumber,
+            status: "pending",
+          },
         },
       ]);
     }
@@ -407,6 +423,19 @@ export function RelayAiPanel({
           requestDetails: machinePartQuestion.description,
         });
         const machine = answer.machine;
+        const externalCandidates = Array.from(new Map(
+          answer.suggestions.map((suggestion) => {
+            const partNumber = suggestion.suggested_part_number || suggestion.part_number;
+            return [partNumber, {
+              partNumber,
+              description: suggestion.part_description || suggestion.bom_sub_group,
+              bomGroup: [suggestion.bom_main_group, suggestion.bom_item]
+                .filter(Boolean)
+                .join(" · "),
+              matchReason: suggestion.matchReason,
+            }] as const;
+          }),
+        ).values()).slice(0, 5);
         setSyncedAt(new Date());
         setMessages((current) => [
           ...current,
@@ -416,18 +445,15 @@ export function RelayAiPanel({
             text: answer.text,
             facts: answer.facts,
             sourceNote: answer.sourceNote,
-            externalLookup: machine
+            externalLookup: machine && externalCandidates.length > 0
               ? {
                   machineReference: machine.machine_number,
                   make: machine.make || "",
                   model: machine.model || machine.item_description || "",
                   serialNumber: machine.serial_number || "",
                   requestDescription: normalizeWorkshopPartQuery(machinePartQuestion.description),
-                  suggestedPartNumbers: Array.from(new Set(
-                    answer.suggestions
-                      .map((suggestion) => suggestion.suggested_part_number || suggestion.part_number)
-                      .filter(Boolean),
-                  )).slice(0, 5),
+                  candidates: externalCandidates,
+                  selectedPartNumber: externalCandidates[0].partNumber,
                 }
               : undefined,
           },
@@ -645,12 +671,65 @@ export function RelayAiPanel({
     URL.revokeObjectURL(url);
   }
 
+  function selectExternalCandidate(messageId: string, partNumber: string) {
+    setMessages((current) => current.map((message) =>
+      message.id === messageId && message.externalLookup
+        ? {
+            ...message,
+            externalLookup: {
+              ...message.externalLookup,
+              selectedPartNumber: partNumber,
+            },
+          }
+        : message));
+  }
+
+  function updateExternalFeedback(
+    messageId: string,
+    status: "correct" | "incorrect",
+  ) {
+    setMessages((current) => {
+      const feedback = current.find((message) => message.id === messageId)?.externalFeedback;
+      const updated = current.map((message) =>
+        message.id === messageId && message.externalFeedback
+          ? {
+              ...message,
+              externalFeedback: {
+                ...message.externalFeedback,
+                status,
+              },
+            }
+          : message);
+      return status === "incorrect"
+        ? [
+            ...updated,
+            {
+              id: `assistant-feedback-${Date.now()}`,
+              role: "assistant",
+              text: `Part ${feedback?.partNumber || "suggestion"} was marked incorrect for this chat. Return to the earlier catalogue candidate list, select the next closest description, and send that number to the extension.`,
+              facts: ["Incorrect suggestion", "Session feedback only", "No database change"],
+              sourceNote: "This feedback affects the current conversation only and was not written to Supabase.",
+            },
+          ]
+        : updated;
+    });
+  }
+
   function sendToBrowserLookup(context: RelayExternalLookupContext) {
+    const selectedPartNumber = context.selectedPartNumber.trim();
+    if (!selectedPartNumber) return;
     window.postMessage(
       {
         source: "relay-app",
         type: "RELAY_PART_LOOKUP_CONTEXT",
-        payload: context,
+        payload: {
+          machineReference: context.machineReference,
+          make: context.make,
+          model: context.model,
+          serialNumber: context.serialNumber,
+          requestDescription: context.requestDescription,
+          suggestedPartNumbers: [selectedPartNumber],
+        },
       },
       window.location.origin,
     );
@@ -659,8 +738,8 @@ export function RelayAiPanel({
       {
         id: `assistant-browser-${Date.now()}`,
         role: "assistant",
-        text: "Browser lookup prepared. Open the supplier or manufacturer page, select the RELAY Parts Lookup extension, then choose Scan current page. A selected candidate can be sent back into this conversation.",
-        facts: ["Read-only lookup", "User-triggered scan", "No automatic fitment"],
+        text: `Browser lookup prepared for selected catalogue number ${selectedPartNumber}. Open the supplier or manufacturer page, select the RELAY Parts Lookup extension, then fill the website search and scan the results.`,
+        facts: [selectedPartNumber, "User-selected candidate", "No automatic fitment"],
         sourceNote: "Only machine and request context was shared with the local extension. No RELAY credentials were included.",
       },
     ]);
@@ -739,14 +818,74 @@ export function RelayAiPanel({
                     </button>
                   ) : null}
                   {message.externalLookup ? (
-                    <button
-                      type="button"
-                      className="relay-ai-download"
-                      onClick={() => sendToBrowserLookup(message.externalLookup!)}
-                    >
-                      <ConsoleIcon name="search" className="h-4 w-4" />
-                      Search current website
-                    </button>
+                    <div className="relay-ai-part-picker">
+                      <div className="relay-ai-part-picker-heading">
+                        <div>
+                          <span>Choose before website lookup</span>
+                          <strong>Select the closest catalogue description</strong>
+                        </div>
+                        <b>{message.externalLookup.candidates.length} candidates</b>
+                      </div>
+                      <div className="relay-ai-part-picker-options">
+                        {message.externalLookup.candidates.map((candidate) => {
+                          const isSelected =
+                            candidate.partNumber === message.externalLookup!.selectedPartNumber;
+                          return (
+                            <button
+                              key={`${candidate.partNumber}-${candidate.description}`}
+                              type="button"
+                              aria-pressed={isSelected}
+                              className={isSelected ? "relay-ai-part-option-selected" : ""}
+                              onClick={() => selectExternalCandidate(message.id, candidate.partNumber)}
+                            >
+                              <span className="relay-ai-part-option-radio" aria-hidden="true" />
+                              <span className="relay-ai-part-option-copy">
+                                <strong>{candidate.partNumber}</strong>
+                                <span>{candidate.description}</span>
+                                <small>{candidate.bomGroup || "Catalogue group not recorded"} · {candidate.matchReason}</small>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="relay-ai-part-picker-actions">
+                        <button
+                          type="button"
+                          className="relay-ai-ticket-confirm"
+                          onClick={() => sendToBrowserLookup(message.externalLookup!)}
+                        >
+                          <ConsoleIcon name="search" className="h-4 w-4" />
+                          Send selected number to extension
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {message.externalFeedback ? (
+                    <div className={`relay-ai-external-feedback relay-ai-external-feedback-${message.externalFeedback.status}`}>
+                      <span>
+                        {message.externalFeedback.status === "pending"
+                          ? "Was this website suggestion correct?"
+                          : message.externalFeedback.status === "correct"
+                            ? "Marked correct for this chat"
+                            : "Marked incorrect for this chat"}
+                      </span>
+                      {message.externalFeedback.status === "pending" ? (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => updateExternalFeedback(message.id, "correct")}
+                          >
+                            Correct suggestion
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateExternalFeedback(message.id, "incorrect")}
+                          >
+                            Incorrect suggestion
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                   {message.assignmentAction ? (
                     <div className={`relay-ai-ticket-review relay-ai-ticket-review-${message.assignmentAction.status}`}>

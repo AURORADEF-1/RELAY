@@ -2386,6 +2386,182 @@ select:focus-visible {
   border-color: var(--success);
 }
 
+.relay-ai-part-picker {
+  margin-top: 0.9rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 0.85rem;
+  background: var(--background-panel-strong);
+}
+
+.relay-ai-part-picker-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent-soft) 46%, var(--background-muted));
+  padding: 0.72rem 0.8rem;
+}
+
+.relay-ai-part-picker-heading div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.relay-ai-part-picker-heading span {
+  color: var(--foreground-subtle);
+  font-size: 0.57rem;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.relay-ai-part-picker-heading strong {
+  color: var(--foreground-strong);
+  font-size: 0.76rem;
+}
+
+.relay-ai-part-picker-heading b {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 0.24rem 0.45rem;
+  color: var(--foreground-muted);
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+}
+
+.relay-ai-part-picker-options {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.65rem;
+}
+
+.relay-ai-part-picker-options > button {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.55rem;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.62rem;
+  background: var(--background-panel);
+  padding: 0.62rem;
+  color: inherit;
+  text-align: left;
+}
+
+.relay-ai-part-picker-options > button:hover {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 24%, var(--background-panel));
+}
+
+.relay-ai-part-picker-options > .relay-ai-part-option-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--background-panel));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.relay-ai-part-option-radio {
+  width: 0.86rem;
+  height: 0.86rem;
+  margin-top: 0.12rem;
+  border: 2px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--background-field);
+}
+
+.relay-ai-part-option-selected .relay-ai-part-option-radio {
+  border: 3px solid var(--accent);
+}
+
+.relay-ai-part-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.16rem;
+}
+
+.relay-ai-part-option-copy strong {
+  color: var(--foreground-strong);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.relay-ai-part-option-copy span {
+  color: var(--foreground-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.relay-ai-part-option-copy small {
+  overflow: hidden;
+  color: var(--foreground-subtle);
+  font-size: 0.61rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relay-ai-part-picker-actions {
+  border-top: 1px solid var(--border);
+  padding: 0.65rem;
+}
+
+.relay-ai-part-picker-actions button {
+  display: inline-flex;
+  min-height: 2.4rem;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 0.55rem;
+  padding: 0 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 720;
+}
+
+.relay-ai-external-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--background-panel-strong);
+  padding: 0.58rem 0.65rem;
+}
+
+.relay-ai-external-feedback > span {
+  color: var(--foreground-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.relay-ai-external-feedback > div {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.relay-ai-external-feedback button {
+  min-height: 1.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.45rem;
+  background: var(--background-field);
+  padding: 0 0.5rem;
+  color: var(--foreground-muted);
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.relay-ai-external-feedback-correct {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+  background: color-mix(in srgb, var(--success-soft) 54%, var(--background-panel-strong));
+}
+
+.relay-ai-external-feedback-incorrect {
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+  background: color-mix(in srgb, var(--danger-soft) 46%, var(--background-panel-strong));
+}
+
 .relay-ai-ticket-review {
   margin-top: 0.9rem;
   overflow: hidden;
