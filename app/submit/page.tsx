@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { RelayAiPanel } from "@/components/console/relay-ai-panel";
 import { FileUploadPanel } from "@/components/file-upload-panel";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -82,6 +83,7 @@ export default function SubmitPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [queuedPhotos, setQueuedPhotos] = useState<File[]>([]);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isRelayAiOpen, setIsRelayAiOpen] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [locationDraft, setLocationDraft] = useState<{
     lat: number;
@@ -588,6 +590,13 @@ export default function SubmitPage() {
               Settings
             </Link>
             <RoleAwareRequestsLink className="aurora-link" />
+            <button
+              type="button"
+              className="aurora-link"
+              onClick={() => setIsRelayAiOpen(true)}
+            >
+              RELAY AI
+            </button>
             <Link href="/tasks" className="aurora-link">
               Tasks
               <NotificationBadge count={taskUnreadCount} />
@@ -933,6 +942,12 @@ export default function SubmitPage() {
           </section>
         </AuthGuard>
       </div>
+      <RelayAiPanel
+        key={isAdmin ? "relay-ai-full" : "relay-ai-requester"}
+        isOpen={isRelayAiOpen}
+        onClose={() => setIsRelayAiOpen(false)}
+        accessMode={isAdmin ? "full" : "requester"}
+      />
     </main>
   );
 }

@@ -63,6 +63,7 @@ type RelayAiMessage = {
   };
   ticketAction?: {
     draft: RelayAiTicketDraft;
+    requesterName: string;
     status: "pending" | "submitting" | "cancelled" | "submitted";
   };
   assignmentAction?: {
@@ -106,6 +107,12 @@ const STARTER_MESSAGE: RelayAiMessage = {
   text: "Ask me about jobs, PO numbers, delivery ETAs, suppliers, demand, spend, queues or admin performance. I can prepare tickets and job assignments, but I always show a confirmation review before changing RELAY data.",
 };
 
+const REQUESTER_STARTER_MESSAGE: RelayAiMessage = {
+  id: "welcome",
+  role: "assistant",
+  text: "Tell me the machine and what you need in normal workshop language. I’ll verify the machine, check compatible catalogue data, collect any missing ticket details, and show you a complete approval review before submitting anything.",
+};
+
 const SUGGESTED_QUESTIONS = [
   "Show machine reference 19592 make, model and serial",
   "List Shred Station's fleet and request counts",
@@ -113,14 +120,24 @@ const SUGGESTED_QUESTIONS = [
   "Who is our main supplier?",
 ];
 
+const REQUESTER_SUGGESTED_QUESTIONS = [
+  "Machine 22421, I need a 1000hr service kit",
+  "Create a request for machine 23157",
+  "Show machine 19592 make, model and serial",
+];
+
 export function RelayAiPanel({
   isOpen,
   onClose,
+  accessMode = "full",
 }: {
   isOpen: boolean;
   onClose: () => void;
+  accessMode?: "full" | "requester";
 }) {
-  const [messages, setMessages] = useState<RelayAiMessage[]>([STARTER_MESSAGE]);
+  const [messages, setMessages] = useState<RelayAiMessage[]>([
+    accessMode === "requester" ? REQUESTER_STARTER_MESSAGE : STARTER_MESSAGE,
+  ]);
   const [draft, setDraft] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [syncedAt, setSyncedAt] = useState<Date | null>(null);
@@ -201,6 +218,9 @@ export function RelayAiPanel({
   }, []);
 
   async function getSnapshot() {
+    if (accessMode !== "full") {
+      throw new Error("Requester RELAY AI is limited to machine checks and guided ticket creation.");
+    }
     const cached = snapshotRef.current;
     if (
       cached
@@ -240,6 +260,7 @@ export function RelayAiPanel({
       return await buildRelayAiTicketPartsGuidance(supabase, {
         machineReference: ticketDraft.machineReference,
         requestDetails: includeDescription ? ticketDraft.requestDetails : "",
+        includeCatalogue: accessMode === "full",
       });
     } catch (error) {
       return {
@@ -251,6 +272,14 @@ export function RelayAiPanel({
   }
 
   async function showTicketConfirmation(ticketDraft: RelayAiTicketDraft, completePrompt: boolean) {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Supabase is not configured.");
+    const { user, profile } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+    if (!user) throw new Error("Sign in before preparing a ticket.");
+    const requesterName = profile?.display_name?.trim()
+      || user.user_metadata?.full_name?.trim()
+      || user.email?.split("@")[0]
+      || "Requester";
     const guidance = await getTicketPartsGuidance(ticketDraft, true);
     setTicketSequence(null);
     setMessages((current) => [
@@ -260,7 +289,7 @@ export function RelayAiPanel({
         role: "assistant",
         text: `${guidance.text}\n\n${completePrompt ? "I found all four required ticket fields in your request." : "I have all four required ticket fields."} Review the ticket below and explicitly confirm before I submit it.`,
         facts: guidance.facts,
-        ticketAction: { draft: ticketDraft, status: "pending" },
+        ticketAction: { draft: ticketDraft, requesterName, status: "pending" },
         sourceNote: `${guidance.sourceNote} Draft only; no ticket has been submitted.`,
       },
     ]);
@@ -373,6 +402,18 @@ export function RelayAiPanel({
 
       const assignmentCommand = parseRelayAiAssignmentCommand(question);
       if (assignmentCommand) {
+        if (accessMode !== "full") {
+          setMessages((current) => [
+            ...current,
+            {
+              id: `assistant-${Date.now()}`,
+              role: "assistant",
+              text: "Job assignment is restricted to RELAY administrators. I can help you verify a machine and prepare your own request ticket.",
+              sourceNote: "No database query or write was run.",
+            },
+          ]);
+          return;
+        }
         const supabase = getSupabaseClient();
         if (!supabase) throw new Error("Supabase is not configured.");
         const assignmentDraft = await prepareRelayAiAssignment(supabase, assignmentCommand);
@@ -389,12 +430,17 @@ export function RelayAiPanel({
         return;
       }
 
-      const ticketDraft = parseRelayAiTicketDraft(question);
+      const ticketDraft = parseRelayAiTicketDraft(question, {
+        allowLooseMachineRequest: accessMode === "requester",
+      });
       if (ticketDraft) {
         if (ticketDraft.missing.length > 0) {
           setTicketSequence(ticketDraft.draft);
-          const guidance = ticketDraft.missing[0] === "requestDetails"
-            ? await getTicketPartsGuidance(ticketDraft.draft, false)
+          const guidance = ticketDraft.draft.machineReference
+            ? await getTicketPartsGuidance(
+                ticketDraft.draft,
+                Boolean(ticketDraft.draft.requestDetails),
+              )
             : null;
           setMessages((current) => [
             ...current,
@@ -416,11 +462,12 @@ export function RelayAiPanel({
       if (machinePartQuestion) {
         const supabase = getSupabaseClient();
         if (!supabase) throw new Error("Supabase is not configured.");
-        const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
-        if (!user || !isAdmin) throw new Error("Admin access is required for Takeuchi catalogue suggestions.");
+        const { user } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+        if (!user) throw new Error("Sign in before checking machine catalogue suggestions.");
         const answer = await buildRelayAiTicketPartsGuidance(supabase, {
           machineReference: machinePartQuestion.machineReference,
           requestDetails: machinePartQuestion.description,
+          includeCatalogue: accessMode === "full",
         });
         const machine = answer.machine;
         const externalCandidates = Array.from(new Map(
@@ -463,10 +510,23 @@ export function RelayAiPanel({
 
       const takeuchiPartQuestion = parseRelayAiTakeuchiPartQuestion(question);
       if (takeuchiPartQuestion) {
+        if (accessMode !== "full") {
+          setMessages((current) => [
+            ...current,
+            {
+              id: `assistant-${Date.now()}`,
+              role: "assistant",
+              text: "Please provide the machine or fleet reference as well as the part description. I’ll verify the exact machine and carry your description into a ticket draft.",
+              facts: ["Verified machine reference required"],
+              sourceNote: "Requester mode does not expose the parts team’s manufacturer catalogue.",
+            },
+          ]);
+          return;
+        }
         const supabase = getSupabaseClient();
         if (!supabase) throw new Error("Supabase is not configured.");
-        const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
-        if (!user || !isAdmin) throw new Error("Admin access is required for Takeuchi catalogue suggestions.");
+        const { user } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+        if (!user) throw new Error("Sign in before checking Takeuchi catalogue suggestions.");
         const answer = await answerRelayAiTakeuchiPartQuestion(supabase, takeuchiPartQuestion);
         setSyncedAt(new Date());
         setMessages((current) => [
@@ -486,8 +546,8 @@ export function RelayAiPanel({
       if (machineReference) {
         const supabase = getSupabaseClient();
         if (!supabase) throw new Error("Supabase is not configured.");
-        const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
-        if (!user || !isAdmin) throw new Error("Admin access is required for RELAY AI.");
+        const { user } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+        if (!user) throw new Error("Sign in before checking a machine.");
         const machine = await lookupMachineRegistryRecord(supabase, machineReference);
         const answer = answerMachineRegistryLookup(machineReference, machine);
         setSyncedAt(new Date());
@@ -508,7 +568,20 @@ export function RelayAiPanel({
       const supabase = getSupabaseClient();
       if (!supabase) throw new Error("Supabase is not configured.");
       const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
-      if (!user || !isAdmin) throw new Error("Admin access is required for RELAY AI.");
+      if (!user) throw new Error("Sign in before using RELAY AI.");
+      if (accessMode !== "full" || !isAdmin) {
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: "I can help you create a request using normal language. Include the machine reference and what you need, for example: “Machine 22421, I need a 1000hr service kit.”",
+            facts: ["Requester ticket assistant", "Approval required before submission"],
+            sourceNote: "Requester mode does not expose operational analytics or other users’ ticket data.",
+          },
+        ]);
+        return;
+      }
       const exactAnswer = await answerRelayConsoleExactLookup(supabase, question);
       if (exactAnswer) {
         setSyncedAt(new Date());
@@ -610,6 +683,56 @@ export function RelayAiPanel({
         ? { ...message, ticketAction: updater(message.ticketAction) }
         : message,
     ));
+  }
+
+  function captureTicketLocation(messageId: string) {
+    if (!("geolocation" in navigator)) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-location-${Date.now()}`,
+          role: "assistant",
+          text: "Current location is unavailable on this device. You can still submit the Onsite request without coordinates.",
+          sourceNote: "No location was attached to the draft.",
+        },
+      ]);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        updateTicketAction(messageId, (action) => ({
+          ...action,
+          draft: {
+            ...action.draft,
+            location: {
+              lat,
+              lng,
+              summary: `Onsite coordinates ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+              confirmed: true,
+            },
+          },
+        }));
+      },
+      () => {
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-location-${Date.now()}`,
+            role: "assistant",
+            text: "Location permission was denied or unavailable. You can still approve the Onsite request without coordinates.",
+            sourceNote: "No location was attached to the draft.",
+          },
+        ]);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 8_000,
+        maximumAge: 60_000,
+      },
+    );
   }
 
   async function confirmTicket(messageId: string, ticketDraft: RelayAiTicketDraft) {
@@ -746,7 +869,7 @@ export function RelayAiPanel({
   }
 
   function startNewChat() {
-    setMessages([STARTER_MESSAGE]);
+    setMessages([accessMode === "requester" ? REQUESTER_STARTER_MESSAGE : STARTER_MESSAGE]);
     setDraft("");
     setTicketSequence(null);
     window.setTimeout(() => inputRef.current?.focus(), 0);
@@ -764,7 +887,7 @@ export function RelayAiPanel({
             <ConsoleIcon name="message" className="h-5 w-5" />
           </div>
           <div className="relay-ai-heading">
-            <p>Operations intelligence</p>
+            <p>{accessMode === "requester" ? "Request assistant" : "Operations intelligence"}</p>
             <h2 id="relay-ai-title">RELAY AI</h2>
           </div>
           <div className="relay-ai-header-actions">
@@ -937,7 +1060,7 @@ export function RelayAiPanel({
                       <dl>
                         <div><dt>Job number</dt><dd>{message.ticketAction.draft.jobNumber}</dd></div>
                         <div><dt>Machine</dt><dd>{message.ticketAction.draft.machineReference}</dd></div>
-                        <div><dt>Requester</dt><dd>Signed-in administrator</dd></div>
+                        <div><dt>Requester</dt><dd>{message.ticketAction.requesterName}</dd></div>
                         <div>
                           <dt>Department</dt>
                           <dd>
@@ -947,7 +1070,11 @@ export function RelayAiPanel({
                               disabled={message.ticketAction.status !== "pending"}
                               onChange={(event) => updateTicketAction(message.id, (action) => ({
                                 ...action,
-                                draft: { ...action.draft, department: event.target.value as RelayAiTicketDraft["department"] },
+                                draft: {
+                                  ...action.draft,
+                                  department: event.target.value as RelayAiTicketDraft["department"],
+                                  location: event.target.value === "Onsite" ? action.draft.location : null,
+                                },
                               }))}
                             >
                               <option value="">Choose department</option>
@@ -957,6 +1084,27 @@ export function RelayAiPanel({
                           </dd>
                         </div>
                         <div className="relay-ai-ticket-review-wide"><dt>Request</dt><dd>{message.ticketAction.draft.requestDetails}</dd></div>
+                        <div className="relay-ai-ticket-review-wide">
+                          <dt>Location</dt>
+                          <dd>
+                            {message.ticketAction.draft.department === "Onsite" ? (
+                              message.ticketAction.draft.location?.confirmed ? (
+                                message.ticketAction.draft.location.summary
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="relay-ai-ticket-cancel"
+                                  disabled={message.ticketAction.status !== "pending"}
+                                  onClick={() => captureTicketLocation(message.id)}
+                                >
+                                  Use current location
+                                </button>
+                              )
+                            ) : (
+                              "Yard request"
+                            )}
+                          </dd>
+                        </div>
                         <div><dt>Initial status</dt><dd>PENDING</dd></div>
                       </dl>
                       {message.ticketAction.status === "pending" ? (
@@ -994,7 +1142,7 @@ export function RelayAiPanel({
               <div className="relay-ai-suggestions">
                 <p>Try asking</p>
                 <div>
-                  {SUGGESTED_QUESTIONS.map((question) => (
+                  {(accessMode === "requester" ? REQUESTER_SUGGESTED_QUESTIONS : SUGGESTED_QUESTIONS).map((question) => (
                     <button key={question} type="button" onClick={() => void submitQuestion(question)}>
                       {question}
                       <ConsoleIcon name="chevron" className="h-4 w-4" />
@@ -1030,7 +1178,9 @@ export function RelayAiPanel({
                   void submitQuestion();
                 }
               }}
-              placeholder="Ask about a job, PO, report, or prepare a ticket..."
+              placeholder={accessMode === "requester"
+                ? "Example: Machine 22421, I need a 1000hr service kit"
+                : "Ask about a job, PO, report, or prepare a ticket..."}
               disabled={isThinking}
             />
             <button
@@ -1042,7 +1192,11 @@ export function RelayAiPanel({
               <ConsoleIcon name="chevron" className="h-5 w-5 -rotate-90" />
             </button>
           </div>
-          <p>Analytics use bounded, cached reads. Ticket actions require explicit confirmation and your signed-in permissions.</p>
+          <p>
+            {accessMode === "requester"
+              ? "Machine and catalogue checks use bounded reads. Nothing is submitted until you approve the ticket review."
+              : "Analytics use bounded, cached reads. Ticket actions require explicit confirmation and your signed-in permissions."}
+          </p>
         </footer>
       </section>
     </>

@@ -108,6 +108,7 @@ export async function buildRelayAiTicketPartsGuidance(
   input: {
     machineReference: string;
     requestDetails?: string;
+    includeCatalogue?: boolean;
   },
 ): Promise<RelayAiPartsGuidance> {
   const machine = await lookupMachineRegistryRecord(supabase, input.machineReference);
@@ -125,6 +126,26 @@ export async function buildRelayAiTicketPartsGuidance(
   }
 
   const takeuchi = isTakeuchiMachine(machine);
+  if (input.includeCatalogue === false) {
+    const machineLabel = [machine.make, machine.model].filter(Boolean).join(" ")
+      || machine.item_description;
+    const requestDescription = input.requestDetails?.trim();
+    return {
+      machine,
+      machineVerified: true,
+      isTakeuchi: takeuchi,
+      catalogueAvailable: false,
+      suggestions: [],
+      text: `Machine ${machine.machine_number} is verified as ${machineLabel}${machine.serial_number ? `, serial ${machine.serial_number}` : ""}.${requestDescription ? ` RELAY captured the request as “${requestDescription}”.` : ""}`,
+      facts: [
+        "Machine verified",
+        machine.make || "Make not recorded",
+        requestDescription ? "Request description captured" : "Request description required",
+      ],
+      sourceNote: "Authenticated requester lookup against the verified machine registry. Catalogue rows remain restricted to the parts team.",
+    };
+  }
+
   if (!takeuchi) {
     return {
       machine,

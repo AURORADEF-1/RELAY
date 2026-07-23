@@ -9,6 +9,7 @@ import { useNotifications } from "@/components/notification-provider";
 import { RelayLogo } from "@/components/relay-logo";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { ConsoleIcon, type ConsoleIconName } from "@/components/console/console-icon";
+import { RelayAiPanel } from "@/components/console/relay-ai-panel";
 import type { SmartSearchResult } from "@/lib/admin-smart-search";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
@@ -65,6 +66,7 @@ export function ConsoleShell({
   const { adminBadgeCount, isAdmin, requesterUnreadCount, taskUnreadCount } = useNotifications();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isInternalRelayAiOpen, setIsInternalRelayAiOpen] = useState(false);
   const [signedInUserName, setSignedInUserName] = useState("Signed in");
   const [hasCustomerFleet, setHasCustomerFleet] = useState(false);
   const [commandMachineResults, setCommandMachineResults] = useState<SmartSearchResult[]>([]);
@@ -214,6 +216,7 @@ export function ConsoleShell({
       (!item.adminOnly || isAdmin) &&
       (!item.fleetMemberOnly || isAdmin || hasCustomerFleet),
   );
+  const effectiveRelayAiOpen = onOpenRelayAi ? isRelayAiOpen : isInternalRelayAiOpen;
 
   return (
     <div className={`console-shell ${isCollapsed ? "console-shell-collapsed" : ""}`}>
@@ -247,21 +250,23 @@ export function ConsoleShell({
         </div>
 
         <nav className="console-navigation" aria-label="Primary navigation">
-          {onOpenRelayAi ? (
-            <button
-              type="button"
-              onClick={() => {
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenRelayAi) {
                 onOpenRelayAi();
-                setIsMobileOpen(false);
-              }}
-              className={`console-nav-item ${isRelayAiOpen ? "console-nav-item-active" : ""}`}
-              title={isCollapsed ? "RELAY AI" : undefined}
-              aria-pressed={isRelayAiOpen}
-            >
-              <ConsoleIcon name="message" className="console-nav-icon" />
-              <span className="console-nav-label">RELAY AI</span>
-            </button>
-          ) : null}
+              } else {
+                setIsInternalRelayAiOpen(true);
+              }
+              setIsMobileOpen(false);
+            }}
+            className={`console-nav-item ${effectiveRelayAiOpen ? "console-nav-item-active" : ""}`}
+            title={isCollapsed ? "RELAY AI" : undefined}
+            aria-pressed={effectiveRelayAiOpen}
+          >
+            <ConsoleIcon name="message" className="console-nav-icon" />
+            <span className="console-nav-label">RELAY AI</span>
+          </button>
           {visibleNavigation.map((item) => {
             const active =
               pathname === item.href ||
@@ -365,6 +370,14 @@ export function ConsoleShell({
 
         <main className={`console-content ${contentClassName}`.trim()}>{children}</main>
       </div>
+      {!onOpenRelayAi ? (
+        <RelayAiPanel
+          key={isAdmin ? "relay-ai-full" : "relay-ai-requester"}
+          isOpen={isInternalRelayAiOpen}
+          onClose={() => setIsInternalRelayAiOpen(false)}
+          accessMode={isAdmin ? "full" : "requester"}
+        />
+      ) : null}
     </div>
   );
 }

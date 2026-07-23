@@ -5,11 +5,19 @@ import { getCurrentUserWithRole } from "@/lib/profile-access";
 
 export type RelayAiTicketDepartment = "Onsite" | "Yard";
 
+export type RelayAiTicketLocation = {
+  lat: number;
+  lng: number;
+  summary: string;
+  confirmed: true;
+};
+
 export type RelayAiTicketDraft = {
   jobNumber: string;
   machineReference: string;
   requestDetails: string;
   department: RelayAiTicketDepartment | "";
+  location?: RelayAiTicketLocation | null;
 };
 
 export type RelayAiTicketField =
@@ -121,10 +129,18 @@ export function applyRelayAiTicketSequenceAnswer(
   return { draft: next, error: null };
 }
 
-export function parseRelayAiTicketDraft(question: string): RelayAiTicketDraftResult | null {
+export function parseRelayAiTicketDraft(
+  question: string,
+  options?: { allowLooseMachineRequest?: boolean },
+): RelayAiTicketDraftResult | null {
   const isCreateRequest = /\b(?:create|raise|open|submit|make)\b/i.test(question)
     && /\b(?:ticket|request)\b/i.test(question);
-  if (!isCreateRequest) return null;
+  const isLooseMachineRequest = Boolean(
+    options?.allowLooseMachineRequest
+      && /\b(?:machine|fleet)(?:\s*(?:number|no\.?|ref(?:erence)?))?\s*(?:is|:|#|-)?\s*[a-z0-9][a-z0-9/_-]*\b/i.test(question)
+      && /\b(?:(?:i|we)\s+(?:need|require|want)|(?:machine|fleet)\s+[a-z0-9][a-z0-9/_-]*\s+needs?)\b/i.test(question),
+  );
+  if (!isCreateRequest && !isLooseMachineRequest) return null;
 
   const extracted = extractTicketFields(question);
   const draft: RelayAiTicketDraft = {
@@ -144,8 +160,8 @@ export async function createRelayAiTicket(
   supabase: SupabaseClient,
   draft: RelayAiTicketDraft,
 ) {
-  const { user, profile, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
-  if (!user || !isAdmin) throw new Error("Admin access is required to create a ticket.");
+  const { user, profile } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+  if (!user) throw new Error("Sign in before creating a ticket.");
   if (!draft.jobNumber.trim() || !draft.machineReference.trim() || !draft.requestDetails.trim()) {
     throw new Error("Job number, machine reference and request details are required.");
   }
@@ -156,7 +172,7 @@ export async function createRelayAiTicket(
   const requesterName = profile?.display_name?.trim()
     || user.user_metadata?.full_name?.trim()
     || user.email?.split("@")[0]
-    || "Administrator";
+    || "Requester";
   const machineRecord = await lookupMachineRegistryRecord(supabase, draft.machineReference);
   const machineSnapshot = buildMachineSnapshot(machineRecord, user.id);
   const machineReference = draft.machineReference.trim();
@@ -187,10 +203,10 @@ export async function createRelayAiTicket(
     request_summary: requestDetails,
     status: "PENDING",
     is_retail_sale: false,
-    location_lat: null,
-    location_lng: null,
-    location_summary: null,
-    location_confirmed: false,
+    location_lat: draft.location?.confirmed ? draft.location.lat : null,
+    location_lng: draft.location?.confirmed ? draft.location.lng : null,
+    location_summary: draft.location?.confirmed ? draft.location.summary : null,
+    location_confirmed: Boolean(draft.location?.confirmed),
   };
 
   const { data: ticket, error: insertError } = await supabase
