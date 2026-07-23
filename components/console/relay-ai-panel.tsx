@@ -5,8 +5,10 @@ import { ConsoleIcon } from "@/components/console/console-icon";
 import { lookupMachineRegistryRecord } from "@/lib/machine-registry";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import {
+  answerRelayConsoleExactLookup,
   answerRelayConsoleQuestion,
   loadRelayAnalyticsSnapshot,
+  RELAY_AI_GUARDRAILS,
   type RelayAnalyticsSnapshot,
 } from "@/lib/relay-console-ai";
 import {
@@ -66,8 +68,6 @@ const SUGGESTED_QUESTIONS = [
   "Who is our main supplier?",
 ];
 
-const CACHE_WINDOW_MS = 60_000;
-
 export function RelayAiPanel({
   isOpen,
   onClose,
@@ -80,6 +80,8 @@ export function RelayAiPanel({
   const [isThinking, setIsThinking] = useState(false);
   const [syncedAt, setSyncedAt] = useState<Date | null>(null);
   const snapshotRef = useRef<RelayAnalyticsSnapshot | null>(null);
+  const snapshotPromiseRef = useRef<Promise<RelayAnalyticsSnapshot> | null>(null);
+  const questionTimesRef = useRef<number[]>([]);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -102,22 +104,66 @@ export function RelayAiPanel({
 
   async function getSnapshot() {
     const cached = snapshotRef.current;
-    if (cached && Date.now() - cached.loadedAt.getTime() < CACHE_WINDOW_MS) return cached;
+    if (
+      cached
+      && Date.now() - cached.loadedAt.getTime() < RELAY_AI_GUARDRAILS.cacheWindowMs
+    ) {
+      return cached;
+    }
+    if (snapshotPromiseRef.current) return snapshotPromiseRef.current;
 
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error("Supabase is not configured.");
-    const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
-    if (!user || !isAdmin) throw new Error("Admin access is required for RELAY AI.");
+    snapshotPromiseRef.current = (async () => {
+      const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+      if (!user || !isAdmin) throw new Error("Admin access is required for RELAY AI.");
 
-    const snapshot = await loadRelayAnalyticsSnapshot(supabase);
-    snapshotRef.current = snapshot;
-    setSyncedAt(snapshot.loadedAt);
-    return snapshot;
+      const snapshot = await loadRelayAnalyticsSnapshot(supabase);
+      snapshotRef.current = snapshot;
+      setSyncedAt(snapshot.loadedAt);
+      return snapshot;
+    })();
+
+    try {
+      return await snapshotPromiseRef.current;
+    } finally {
+      snapshotPromiseRef.current = null;
+    }
   }
 
   async function submitQuestion(value = draft) {
     const question = value.trim();
     if (!question || isThinking) return;
+    if (question.length > RELAY_AI_GUARDRAILS.maxQuestionLength) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-limit-${Date.now()}`,
+          role: "assistant",
+          text: `Please shorten the question to ${RELAY_AI_GUARDRAILS.maxQuestionLength} characters or fewer. This protects RELAY from accidental broad or repeated requests.`,
+          sourceNote: "No database query was run.",
+        },
+      ]);
+      return;
+    }
+
+    const now = Date.now();
+    questionTimesRef.current = questionTimesRef.current.filter(
+      (time) => now - time < RELAY_AI_GUARDRAILS.questionWindowMs,
+    );
+    if (questionTimesRef.current.length >= RELAY_AI_GUARDRAILS.maxQuestionsPerWindow) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-rate-limit-${Date.now()}`,
+          role: "assistant",
+          text: "RELAY AI has paused new questions briefly because this session reached its query guardrail. Existing answers and downloads remain available; try again in a few minutes.",
+          sourceNote: "No database query was run. This session allows 20 questions per five minutes.",
+        },
+      ]);
+      return;
+    }
+    questionTimesRef.current.push(now);
 
     setDraft("");
     setMessages((current) => [
@@ -196,6 +242,28 @@ export function RelayAiPanel({
         return;
       }
 
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error("Supabase is not configured.");
+      const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+      if (!user || !isAdmin) throw new Error("Admin access is required for RELAY AI.");
+      const exactAnswer = await answerRelayConsoleExactLookup(supabase, question);
+      if (exactAnswer) {
+        setSyncedAt(new Date());
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: exactAnswer.text,
+            facts: exactAnswer.facts,
+            sourceNote: exactAnswer.sourceNote,
+            download: exactAnswer.download,
+            copyText: exactAnswer.copyText,
+          },
+        ]);
+        return;
+      }
+
       const snapshot = await getSnapshot();
       const answer = await answerRelayConsoleQuestion(question, snapshot);
       setMessages((current) => [
@@ -245,6 +313,7 @@ export function RelayAiPanel({
       const result = await executeRelayAiAssignment(supabase, assignmentDraft);
       updateAssignmentAction(messageId, (action) => ({ ...action, status: "submitted" }));
       snapshotRef.current = null;
+      snapshotPromiseRef.current = null;
       setSyncedAt(null);
       setMessages((current) => [
         ...current,
@@ -290,6 +359,7 @@ export function RelayAiPanel({
       const result = await createRelayAiTicket(supabase, ticketDraft);
       updateTicketAction(messageId, (action) => ({ ...action, status: "submitted" }));
       snapshotRef.current = null;
+      snapshotPromiseRef.current = null;
       setSyncedAt(null);
       setMessages((current) => [
         ...current,
@@ -374,6 +444,8 @@ export function RelayAiPanel({
           <span>Local semantic engine</span>
           <i />
           <span>{syncedAt ? `Supabase synced ${syncedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Queries live data on first question"}</span>
+          <i />
+          <span>5 min cache · bounded reads</span>
         </div>
 
         <div className="relay-ai-conversation" aria-live="polite">
@@ -562,7 +634,7 @@ export function RelayAiPanel({
               <ConsoleIcon name="chevron" className="h-5 w-5 -rotate-90" />
             </button>
           </div>
-          <p>Analytics are read-only. Ticket actions require an explicit confirmation and use your signed-in permissions.</p>
+          <p>Analytics use bounded, cached reads. Ticket actions require explicit confirmation and your signed-in permissions.</p>
         </footer>
       </section>
     </>

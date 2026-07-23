@@ -108,6 +108,21 @@ export type RelayAnalyticsSnapshot = {
   completionEvents: RelayAnalyticsCompletionEvent[];
   customerFleets: RelayAnalyticsCustomerFleet[];
   loadedAt: Date;
+  coverage: RelayAnalyticsCoverage;
+};
+
+export type RelayAnalyticsDataset =
+  | "tickets"
+  | "purchase orders"
+  | "completion events"
+  | "customer fleets"
+  | "fleet assignments"
+  | "fleet machines";
+
+export type RelayAnalyticsCoverage = {
+  queryCount: number;
+  rowsRead: number;
+  truncated: RelayAnalyticsDataset[];
 };
 
 export type RelayConsoleAiAnswer = {
@@ -168,7 +183,91 @@ const PURCHASE_ORDER_FIELDS = [
 
 const COMPLETION_EVENT_FIELDS = "ticket_id,status,created_at";
 
-const PAGE_SIZE = 1000;
+export const RELAY_AI_GUARDRAILS = {
+  cacheWindowMs: 5 * 60_000,
+  maxQuestionsPerWindow: 20,
+  questionWindowMs: 5 * 60_000,
+  maxQuestionLength: 500,
+  queryTimeoutMs: 12_000,
+  pageSize: 1_000,
+  maxTicketRows: 6_000,
+  maxPurchaseOrderRows: 4_000,
+  maxCompletionEventRows: 6_000,
+  maxCustomerFleets: 50,
+  maxFleetAssignments: 1_000,
+  maxFleetMachines: 1_000,
+  machineIdChunkSize: 100,
+  maxExactLookupRows: 6,
+} as const;
+
+type BoundedLoad<T> = {
+  rows: T[];
+  queryCount: number;
+  truncated: boolean;
+};
+
+async function runBudgetedQuery<T>(
+  label: string,
+  query: (signal: AbortSignal) => PromiseLike<T>,
+) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), RELAY_AI_GUARDRAILS.queryTimeoutMs);
+
+  try {
+    return await Promise.resolve(query(controller.signal));
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`${label} exceeded the ${RELAY_AI_GUARDRAILS.queryTimeoutMs / 1000}-second RELAY AI query limit.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function loadBoundedPages<T>(
+  maxRows: number,
+  loadPage: (
+    start: number,
+    end: number,
+    signal: AbortSignal,
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+  label: string,
+): Promise<BoundedLoad<T>> {
+  const rows: T[] = [];
+  let queryCount = 0;
+
+  while (rows.length < maxRows) {
+    const remaining = maxRows - rows.length;
+    const pageSize = Math.min(RELAY_AI_GUARDRAILS.pageSize, remaining);
+    const response = await runBudgetedQuery(label, (signal) =>
+      loadPage(rows.length, rows.length + pageSize - 1, signal),
+    );
+    queryCount += 1;
+
+    if (response.error) throw new Error(response.error.message);
+    const page = (response.data ?? []) as T[];
+    rows.push(...page);
+
+    if (page.length < pageSize) {
+      return { rows, queryCount, truncated: false };
+    }
+    if (rows.length >= maxRows) {
+      const probe = await runBudgetedQuery(label, (signal) =>
+        loadPage(maxRows, maxRows, signal),
+      );
+      queryCount += 1;
+      if (probe.error) throw new Error(probe.error.message);
+      return {
+        rows,
+        queryCount,
+        truncated: ((probe.data ?? []) as T[]).length > 0,
+      };
+    }
+  }
+
+  return { rows, queryCount, truncated: true };
+}
 
 function toNullableNumber(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -180,91 +279,114 @@ function toNullableNumber(value: unknown) {
 }
 
 async function loadAllTickets(supabase: SupabaseClient) {
-  const rows: RelayAnalyticsTicket[] = [];
-  for (let start = 0; ; start += PAGE_SIZE) {
-    const { data, error } = await supabase
+  const result = await loadBoundedPages<RelayAnalyticsTicket>(
+    RELAY_AI_GUARDRAILS.maxTicketRows,
+    (start, end, signal) => supabase
       .from("tickets")
       .select(TICKET_FIELDS)
       .order("created_at", { ascending: false })
-      .range(start, start + PAGE_SIZE - 1);
-
-    if (error) throw new Error(error.message);
-    const page = (data ?? []) as unknown as RelayAnalyticsTicket[];
-    rows.push(...page.map((row) => ({ ...row, order_amount: toNullableNumber(row.order_amount) })));
-    if (page.length < PAGE_SIZE) break;
-  }
-  return rows;
+      .range(start, end)
+      .abortSignal(signal),
+    "Ticket analytics",
+  );
+  return {
+    ...result,
+    rows: result.rows.map((row) => ({ ...row, order_amount: toNullableNumber(row.order_amount) })),
+  };
 }
 
 async function loadAllPurchaseOrders(supabase: SupabaseClient) {
-  const rows: RelayAnalyticsPurchaseOrder[] = [];
-  for (let start = 0; ; start += PAGE_SIZE) {
-    const { data, error } = await supabase
+  const result = await loadBoundedPages<RelayAnalyticsPurchaseOrder>(
+    RELAY_AI_GUARDRAILS.maxPurchaseOrderRows,
+    (start, end, signal) => supabase
       .from("ticket_purchase_orders")
       .select(PURCHASE_ORDER_FIELDS)
       .order("created_at", { ascending: false })
-      .range(start, start + PAGE_SIZE - 1);
-
-    if (error) throw new Error(error.message);
-    const page = (data ?? []) as unknown as RelayAnalyticsPurchaseOrder[];
-    rows.push(...page.map((row) => ({ ...row, order_amount: toNullableNumber(row.order_amount) })));
-    if (page.length < PAGE_SIZE) break;
-  }
-  return rows;
+      .range(start, end)
+      .abortSignal(signal),
+    "Purchase-order analytics",
+  );
+  return {
+    ...result,
+    rows: result.rows.map((row) => ({ ...row, order_amount: toNullableNumber(row.order_amount) })),
+  };
 }
 
 async function loadAllCompletionEvents(supabase: SupabaseClient) {
-  const rows: RelayAnalyticsCompletionEvent[] = [];
-  for (let start = 0; ; start += PAGE_SIZE) {
-    const { data, error } = await supabase
+  return loadBoundedPages<RelayAnalyticsCompletionEvent>(
+    RELAY_AI_GUARDRAILS.maxCompletionEventRows,
+    (start, end, signal) => supabase
       .from("ticket_updates")
       .select(COMPLETION_EVENT_FIELDS)
       .eq("status", "COMPLETED")
       .order("created_at", { ascending: false })
-      .range(start, start + PAGE_SIZE - 1);
-
-    if (error) throw new Error(error.message);
-    const page = (data ?? []) as unknown as RelayAnalyticsCompletionEvent[];
-    rows.push(...page);
-    if (page.length < PAGE_SIZE) break;
-  }
-  return rows;
+      .range(start, end)
+      .abortSignal(signal),
+    "Completion analytics",
+  );
 }
 
 async function loadCustomerFleets(supabase: SupabaseClient) {
-  const { data: fleetData, error: fleetError } = await supabase
-    .from("customer_fleets")
-    .select("id, name, slug")
-    .order("name", { ascending: true });
+  let queryCount = 0;
+  const fleetResponse = await runBudgetedQuery("Customer fleet lookup", (signal) =>
+    supabase
+      .from("customer_fleets")
+      .select("id, name, slug")
+      .order("name", { ascending: true })
+      .limit(RELAY_AI_GUARDRAILS.maxCustomerFleets + 1)
+      .abortSignal(signal),
+  );
+  queryCount += 1;
+  const { data: fleetData, error: fleetError } = fleetResponse;
 
   if (fleetError) throw new Error(fleetError.message);
 
-  const fleets = (fleetData ?? []) as Array<{ id: string; name: string; slug: string }>;
-  if (fleets.length === 0) return [];
+  const allFleets = (fleetData ?? []) as Array<{ id: string; name: string; slug: string }>;
+  const fleets = allFleets.slice(0, RELAY_AI_GUARDRAILS.maxCustomerFleets);
+  const truncated: RelayAnalyticsDataset[] = allFleets.length > fleets.length ? ["customer fleets"] : [];
+  if (fleets.length === 0) {
+    return { rows: [] as RelayAnalyticsCustomerFleet[], queryCount, rowsRead: 0, truncated };
+  }
 
-  const { data: assignmentData, error: assignmentError } = await supabase
-    .from("customer_fleet_machines")
-    .select("fleet_id, machine_id")
-    .in("fleet_id", fleets.map((fleet) => fleet.id));
+  const assignmentResponse = await runBudgetedQuery("Fleet assignment lookup", (signal) =>
+    supabase
+      .from("customer_fleet_machines")
+      .select("fleet_id, machine_id")
+      .in("fleet_id", fleets.map((fleet) => fleet.id))
+      .limit(RELAY_AI_GUARDRAILS.maxFleetAssignments + 1)
+      .abortSignal(signal),
+  );
+  queryCount += 1;
+  const { data: assignmentData, error: assignmentError } = assignmentResponse;
 
   if (assignmentError) throw new Error(assignmentError.message);
 
-  const assignments = (assignmentData ?? []) as Array<{ fleet_id: string; machine_id: string }>;
-  const machineIds = Array.from(new Set(assignments.map((assignment) => assignment.machine_id)));
-  let machines: RelayAnalyticsCustomerFleetMachine[] = [];
+  const allAssignments = (assignmentData ?? []) as Array<{ fleet_id: string; machine_id: string }>;
+  const assignments = allAssignments.slice(0, RELAY_AI_GUARDRAILS.maxFleetAssignments);
+  if (allAssignments.length > assignments.length) truncated.push("fleet assignments");
+  const allMachineIds = Array.from(new Set(assignments.map((assignment) => assignment.machine_id)));
+  const machineIds = allMachineIds.slice(0, RELAY_AI_GUARDRAILS.maxFleetMachines);
+  if (allMachineIds.length > machineIds.length) truncated.push("fleet machines");
+  const machines: RelayAnalyticsCustomerFleetMachine[] = [];
 
-  if (machineIds.length > 0) {
-    const { data: machineData, error: machineError } = await supabase
-      .from("machines")
-      .select("id, machine_number, machine_number_normalized, fleet_type, item_description, make, model, serial_number")
-      .in("id", machineIds);
+  for (let start = 0; start < machineIds.length; start += RELAY_AI_GUARDRAILS.machineIdChunkSize) {
+    const ids = machineIds.slice(start, start + RELAY_AI_GUARDRAILS.machineIdChunkSize);
+    const machineResponse = await runBudgetedQuery("Fleet machine lookup", (signal) =>
+      supabase
+        .from("machines")
+        .select("id, machine_number, machine_number_normalized, fleet_type, item_description, make, model, serial_number")
+        .in("id", ids)
+        .abortSignal(signal),
+    );
+    queryCount += 1;
+    const { data: machineData, error: machineError } = machineResponse;
 
     if (machineError) throw new Error(machineError.message);
-    machines = (machineData ?? []) as RelayAnalyticsCustomerFleetMachine[];
+    machines.push(...((machineData ?? []) as RelayAnalyticsCustomerFleetMachine[]));
   }
 
   const machinesById = new Map(machines.map((machine) => [machine.id, machine]));
-  return fleets.map((fleet) => ({
+  const rows = fleets.map((fleet) => ({
     ...fleet,
     machines: assignments
       .filter((assignment) => assignment.fleet_id === fleet.id)
@@ -274,22 +396,63 @@ async function loadCustomerFleets(supabase: SupabaseClient) {
         left.machine_number.localeCompare(right.machine_number, undefined, { numeric: true }),
       ),
   })) satisfies RelayAnalyticsCustomerFleet[];
+  return {
+    rows,
+    queryCount,
+    rowsRead: fleets.length + assignments.length + machines.length,
+    truncated,
+  };
 }
 
 export async function loadRelayAnalyticsSnapshot(supabase: SupabaseClient) {
-  const [tickets, purchaseOrders, completionEvents, customerFleets] = await Promise.all([
+  const [ticketResult, purchaseOrderResult, completionResult, fleetResult] = await Promise.all([
     loadAllTickets(supabase),
     loadAllPurchaseOrders(supabase),
     loadAllCompletionEvents(supabase),
     loadCustomerFleets(supabase),
   ]);
-  return { tickets, purchaseOrders, completionEvents, customerFleets, loadedAt: new Date() } satisfies RelayAnalyticsSnapshot;
+  const truncated: RelayAnalyticsDataset[] = [...fleetResult.truncated];
+  if (ticketResult.truncated) truncated.push("tickets");
+  if (purchaseOrderResult.truncated) truncated.push("purchase orders");
+  if (completionResult.truncated) truncated.push("completion events");
+
+  return {
+    tickets: ticketResult.rows,
+    purchaseOrders: purchaseOrderResult.rows,
+    completionEvents: completionResult.rows,
+    customerFleets: fleetResult.rows,
+    loadedAt: new Date(),
+    coverage: {
+      queryCount:
+        ticketResult.queryCount
+        + purchaseOrderResult.queryCount
+        + completionResult.queryCount
+        + fleetResult.queryCount,
+      rowsRead:
+        ticketResult.rows.length
+        + purchaseOrderResult.rows.length
+        + completionResult.rows.length
+        + fleetResult.rowsRead,
+      truncated,
+    },
+  } satisfies RelayAnalyticsSnapshot;
 }
 
 type GroupValue = { key: string; label: string; count: number; total: number };
 
 function normalize(value: string | null | undefined) {
   return value?.trim().toLowerCase().replace(/\s+/g, " ") || "";
+}
+
+function normalizeQuestion(value: string) {
+  return normalize(value)
+    .replace(/\b(?:suplier|suppier|suppler)\b/g, "supplier")
+    .replace(/\b(?:opertor|operater)\b/g, "operator")
+    .replace(/\b(?:requets|reqests|requsts)\b/g, "requests")
+    .replace(/\b(?:machien|macine)\b/g, "machine")
+    .replace(/\b(?:delvery|deliery)\b/g, "delivery")
+    .replace(/\b(?:completd|cmpleted|complted)\b/g, "completed")
+    .replace(/\b(?:assogn|asign)\b/g, "assign");
 }
 
 const PLACEHOLDER_VALUES = new Set([
@@ -425,6 +588,150 @@ function findPurchaseOrderMatches(question: string, snapshot: RelayAnalyticsSnap
   return [...linked, ...legacy];
 }
 
+function extractExactLookup(question: string) {
+  const poNumber = question.match(
+    /\b(?:po|purchase\s+order)\s*(?:number|no\.?)?\s*[:#-]?\s*([a-z0-9][a-z0-9/_-]{1,})\b/i,
+  )?.[1];
+  if (poNumber) return { type: "purchase_order" as const, identifier: poNumber };
+
+  const adjacentJobNumber = question.match(
+    /\b(?:job|ticket|request)\s*(?:number|no\.?)?\s*[:#-]?\s*([a-z0-9][a-z0-9/_-]{1,})\b/i,
+  )?.[1] ?? question.match(
+    /\b([a-z0-9][a-z0-9/_-]{1,})\s*[-:]?\s*(?:job|ticket|request)\b/i,
+  )?.[1];
+  const ignoredReferences = new Set(["a", "the", "this", "that", "my", "our"]);
+  const jobNumber = adjacentJobNumber && !ignoredReferences.has(adjacentJobNumber.toLowerCase())
+    ? adjacentJobNumber
+    : /\b(?:job|ticket|request)\b/i.test(question)
+      ? question.match(/\b\d{3,10}\b/)?.[0]
+      : null;
+
+  return jobNumber ? { type: "job" as const, identifier: jobNumber } : null;
+}
+
+function exactLookupCostNote(queryCount: number, rowsRead: number) {
+  return ` Cost guardrail: targeted lookup read ${formatNumber(rowsRead)} rows across ${formatNumber(queryCount)} bounded ${queryCount === 1 ? "query" : "queries"}; the broad analytics snapshot was not loaded.`;
+}
+
+export async function answerRelayConsoleExactLookup(
+  supabase: SupabaseClient,
+  question: string,
+): Promise<RelayConsoleAiAnswer | null> {
+  const lookup = extractExactLookup(question);
+  if (!lookup) return null;
+
+  if (lookup.type === "job") {
+    const response = await runBudgetedQuery("Exact job lookup", (signal) =>
+      supabase
+        .from("tickets")
+        .select(TICKET_FIELDS)
+        .ilike("job_number", lookup.identifier)
+        .order("created_at", { ascending: false })
+        .limit(RELAY_AI_GUARDRAILS.maxExactLookupRows)
+        .abortSignal(signal),
+    );
+    if (response.error) throw new Error(response.error.message);
+    const matches = ((response.data ?? []) as unknown as RelayAnalyticsTicket[])
+      .map((row) => ({ ...row, order_amount: toNullableNumber(row.order_amount) }));
+    if (matches.length === 0) {
+      return {
+        text: `I could not find an accessible ticket with the exact job number ${lookup.identifier}. Check the number and try again.`,
+        facts: ["0 exact matches", lookup.identifier],
+        sourceNote: `Exact job-number lookup. No broader query was run.${exactLookupCostNote(1, 0)}`,
+      };
+    }
+    const answer = answerJobLookup(matches);
+    return {
+      ...answer,
+      sourceNote: `${answer.sourceNote}${exactLookupCostNote(1, matches.length)}`,
+    };
+  }
+
+  const [orderResponse, legacyTicketResponse] = await Promise.all([
+    runBudgetedQuery("Exact purchase-order lookup", (signal) =>
+      supabase
+        .from("ticket_purchase_orders")
+        .select(PURCHASE_ORDER_FIELDS)
+        .ilike("purchase_order_number", lookup.identifier)
+        .order("created_at", { ascending: false })
+        .limit(RELAY_AI_GUARDRAILS.maxExactLookupRows)
+        .abortSignal(signal),
+    ),
+    runBudgetedQuery("Legacy purchase-order lookup", (signal) =>
+      supabase
+        .from("tickets")
+        .select(TICKET_FIELDS)
+        .ilike("purchase_order_number", lookup.identifier)
+        .order("created_at", { ascending: false })
+        .limit(RELAY_AI_GUARDRAILS.maxExactLookupRows)
+        .abortSignal(signal),
+    ),
+  ]);
+  if (orderResponse.error) throw new Error(orderResponse.error.message);
+  if (legacyTicketResponse.error) throw new Error(legacyTicketResponse.error.message);
+
+  const linkedOrders = ((orderResponse.data ?? []) as unknown as RelayAnalyticsPurchaseOrder[])
+    .map((row) => ({ ...row, order_amount: toNullableNumber(row.order_amount) }));
+  const legacyTickets = ((legacyTicketResponse.data ?? []) as unknown as RelayAnalyticsTicket[])
+    .map((row) => ({ ...row, order_amount: toNullableNumber(row.order_amount) }));
+  const linkedTicketIds = Array.from(new Set(linkedOrders.map((order) => order.ticket_id)));
+  let linkedTickets: RelayAnalyticsTicket[] = [];
+  let queryCount = 2;
+
+  if (linkedTicketIds.length > 0) {
+    const ticketResponse = await runBudgetedQuery("Linked PO ticket lookup", (signal) =>
+      supabase
+        .from("tickets")
+        .select(TICKET_FIELDS)
+        .in("id", linkedTicketIds)
+        .limit(RELAY_AI_GUARDRAILS.maxExactLookupRows)
+        .abortSignal(signal),
+    );
+    queryCount += 1;
+    if (ticketResponse.error) throw new Error(ticketResponse.error.message);
+    linkedTickets = ((ticketResponse.data ?? []) as unknown as RelayAnalyticsTicket[])
+      .map((row) => ({ ...row, order_amount: toNullableNumber(row.order_amount) }));
+  }
+
+  const linkedIds = new Set(linkedOrders.map((order) => order.ticket_id));
+  const legacyOrders = legacyTickets
+    .filter((ticket) => !linkedIds.has(ticket.id))
+    .map((ticket) => ({
+      id: `legacy-${ticket.id}`,
+      ticket_id: ticket.id,
+      supplier_name: ticket.supplier_name?.trim() || "Not recorded",
+      purchase_order_number: ticket.purchase_order_number?.trim() || lookup.identifier,
+      order_amount: ticket.order_amount,
+      po_status: ticket.status === "COMPLETED" ? "COMPLETED" : "OPEN",
+      created_at: ticket.ordered_at ?? ticket.created_at,
+    }));
+  const matches = [...linkedOrders, ...legacyOrders];
+  const tickets = [...linkedTickets, ...legacyTickets];
+  const rowsRead = linkedOrders.length + tickets.length;
+
+  if (matches.length === 0) {
+    return {
+      text: `I could not find an accessible purchase order with the exact number ${lookup.identifier}. Check the number and try again.`,
+      facts: ["0 exact matches", lookup.identifier],
+      sourceNote: `Exact PO-number lookup across linked and legacy records. No broader query was run.${exactLookupCostNote(queryCount, rowsRead)}`,
+    };
+  }
+
+  const snapshot: RelayAnalyticsSnapshot = {
+    tickets,
+    purchaseOrders: linkedOrders,
+    completionEvents: [],
+    customerFleets: [],
+    loadedAt: new Date(),
+    coverage: { queryCount, rowsRead, truncated: [] },
+  };
+  const answer = answerPurchaseOrderLookup(matches, snapshot);
+  return {
+    ...answer,
+    sourceNote: `${answer.sourceNote}${exactLookupCostNote(queryCount, rowsRead)}`,
+  };
+}
+
 function answerPurchaseOrderLookup(
   matches: RelayAnalyticsPurchaseOrder[],
   snapshot: RelayAnalyticsSnapshot,
@@ -495,7 +802,7 @@ function supplierRecords(snapshot: RelayAnalyticsSnapshot) {
 }
 
 function detectIntentFromWords(question: string): AnalyticsIntent {
-  const query = ` ${normalize(question)} `;
+  const query = ` ${normalizeQuestion(question)} `;
   if (/(admin|operator).*(performance|productivity|report|output)|performance report/.test(query)) return "admin_performance";
   if (/customer fleet|shred\s*stations?|shredstation/.test(query)) return "customer_fleet";
   if (/machine|fleet|plant ref/.test(query)) return "machines";
@@ -1067,34 +1374,56 @@ export async function answerRelayConsoleQuestion(
   question: string,
   snapshot: RelayAnalyticsSnapshot,
 ): Promise<RelayConsoleAiAnswer> {
+  let answer: RelayConsoleAiAnswer;
+  let interpretation = "operator completion report";
   const completionKpi = answerOperatorCompletionKpi(question, snapshot);
-  if (completionKpi) return completionKpi;
+  if (completionKpi) {
+    answer = completionKpi;
+  } else {
+    const isExplicitPoLookup = /\bpo\b|purchase order/i.test(question);
+    const poMatches = findPurchaseOrderMatches(question, snapshot);
+    const jobMatches = findJobMatches(question, snapshot.tickets);
 
-  const isExplicitPoLookup = /\bpo\b|purchase order/i.test(question);
-  const poMatches = findPurchaseOrderMatches(question, snapshot);
-  if (isExplicitPoLookup && poMatches.length > 0) return answerPurchaseOrderLookup(poMatches, snapshot);
-
-  const jobMatches = findJobMatches(question, snapshot.tickets);
-  if (jobMatches.length > 0) return answerJobLookup(jobMatches);
-  if (poMatches.length > 0) return answerPurchaseOrderLookup(poMatches, snapshot);
-
-  const intent = await detectIntent(question);
-  switch (intent) {
-    case "customer_fleet": return answerCustomerFleet(question, snapshot);
-    case "machines": return answerMachines(snapshot);
-    case "suppliers": return answerSuppliers(snapshot);
-    case "spend": return answerSuppliers(snapshot, true);
-    case "requesters": return answerRankedTickets(snapshot, "requester_name", "Top requesters", "No requester names are recorded.");
-    case "departments": return answerRankedTickets(snapshot, "department", "Top departments", "No departments are recorded.");
-    case "operators": return answerRankedTickets(snapshot, "assigned_to", "Operator workload", "No operator assignments are recorded.");
-    case "admin_performance": return answerAdminPerformance(snapshot);
-    case "statuses": return answerStatuses(snapshot);
-    case "overdue": return answerAttention(snapshot, "overdue");
-    case "urgent": return answerAttention(snapshot, "urgent");
-    case "unassigned": return answerAttention(snapshot, "unassigned");
-    case "ready": return answerAttention(snapshot, "ready");
-    case "trends": return answerTrends(snapshot);
-    case "requests": return answerRankedTickets(snapshot, "request_summary", "Most common request summaries", "No request summaries are recorded.");
-    case "overview": return answerOverview(snapshot);
+    if (isExplicitPoLookup && poMatches.length > 0) {
+      interpretation = "purchase-order lookup";
+      answer = answerPurchaseOrderLookup(poMatches, snapshot);
+    } else if (jobMatches.length > 0) {
+      interpretation = "job-number lookup";
+      answer = answerJobLookup(jobMatches);
+    } else if (poMatches.length > 0) {
+      interpretation = "purchase-order lookup";
+      answer = answerPurchaseOrderLookup(poMatches, snapshot);
+    } else {
+      const intent = await detectIntent(question);
+      interpretation = intent.replaceAll("_", " ");
+      switch (intent) {
+        case "customer_fleet": answer = answerCustomerFleet(question, snapshot); break;
+        case "machines": answer = answerMachines(snapshot); break;
+        case "suppliers": answer = answerSuppliers(snapshot); break;
+        case "spend": answer = answerSuppliers(snapshot, true); break;
+        case "requesters": answer = answerRankedTickets(snapshot, "requester_name", "Top requesters", "No requester names are recorded."); break;
+        case "departments": answer = answerRankedTickets(snapshot, "department", "Top departments", "No departments are recorded."); break;
+        case "operators": answer = answerRankedTickets(snapshot, "assigned_to", "Operator workload", "No operator assignments are recorded."); break;
+        case "admin_performance": answer = answerAdminPerformance(snapshot); break;
+        case "statuses": answer = answerStatuses(snapshot); break;
+        case "overdue": answer = answerAttention(snapshot, "overdue"); break;
+        case "urgent": answer = answerAttention(snapshot, "urgent"); break;
+        case "unassigned": answer = answerAttention(snapshot, "unassigned"); break;
+        case "ready": answer = answerAttention(snapshot, "ready"); break;
+        case "trends": answer = answerTrends(snapshot); break;
+        case "requests": answer = answerRankedTickets(snapshot, "request_summary", "Most common request summaries", "No request summaries are recorded."); break;
+        case "overview": answer = answerOverview(snapshot); break;
+      }
+    }
   }
+
+  const coverage = snapshot.coverage;
+  const costNote = coverage.truncated.length > 0
+    ? ` Cost guardrail reached for ${coverage.truncated.join(", ")}; all-time totals may be partial and are based on the newest bounded records.`
+    : ` Cost guardrail: ${formatNumber(coverage.rowsRead)} rows across ${formatNumber(coverage.queryCount)} bounded reads, cached for five minutes.`;
+
+  return {
+    ...answer,
+    sourceNote: `Interpreted as ${interpretation}. ${answer.sourceNote}${costNote}`,
+  };
 }
