@@ -4,6 +4,7 @@ import { activeTicketStatuses } from "@/lib/statuses";
 
 type AnalyticsIntent =
   | "overview"
+  | "customer_fleet"
   | "machines"
   | "suppliers"
   | "requesters"
@@ -21,6 +22,7 @@ type AnalyticsIntent =
 
 const ANALYTICS_INTENTS: Array<{ intent: AnalyticsIntent; examples: string }> = [
   { intent: "overview", examples: "Give me an operations overview. What needs attention across RELAY?" },
+  { intent: "customer_fleet", examples: "List Shred Station's customer fleet. Show a customer's machines and their request history." },
   { intent: "machines", examples: "Which machine reference has the most requests? Show busiest machines." },
   { intent: "suppliers", examples: "Who is our main supplier? Which supplier receives the most purchase orders?" },
   { intent: "requesters", examples: "Who raises the most requests? Show the busiest requesters." },
@@ -42,6 +44,8 @@ export type RelayAnalyticsTicket = {
   requester_name: string | null;
   department: string | null;
   machine_reference: string | null;
+  machine_number: string | null;
+  machine_number_normalized: string | null;
   machine_make: string | null;
   machine_model: string | null;
   job_number: string | null;
@@ -80,10 +84,29 @@ export type RelayAnalyticsCompletionEvent = {
   created_at: string | null;
 };
 
+export type RelayAnalyticsCustomerFleetMachine = {
+  id: string;
+  machine_number: string;
+  machine_number_normalized: string;
+  fleet_type: string | null;
+  item_description: string | null;
+  make: string | null;
+  model: string | null;
+  serial_number: string | null;
+};
+
+export type RelayAnalyticsCustomerFleet = {
+  id: string;
+  name: string;
+  slug: string;
+  machines: RelayAnalyticsCustomerFleetMachine[];
+};
+
 export type RelayAnalyticsSnapshot = {
   tickets: RelayAnalyticsTicket[];
   purchaseOrders: RelayAnalyticsPurchaseOrder[];
   completionEvents: RelayAnalyticsCompletionEvent[];
+  customerFleets: RelayAnalyticsCustomerFleet[];
   loadedAt: Date;
 };
 
@@ -109,6 +132,8 @@ const TICKET_FIELDS = [
   "requester_name",
   "department",
   "machine_reference",
+  "machine_number",
+  "machine_number_normalized",
   "machine_make",
   "machine_model",
   "job_number",
@@ -206,13 +231,59 @@ async function loadAllCompletionEvents(supabase: SupabaseClient) {
   return rows;
 }
 
+async function loadCustomerFleets(supabase: SupabaseClient) {
+  const { data: fleetData, error: fleetError } = await supabase
+    .from("customer_fleets")
+    .select("id, name, slug")
+    .order("name", { ascending: true });
+
+  if (fleetError) throw new Error(fleetError.message);
+
+  const fleets = (fleetData ?? []) as Array<{ id: string; name: string; slug: string }>;
+  if (fleets.length === 0) return [];
+
+  const { data: assignmentData, error: assignmentError } = await supabase
+    .from("customer_fleet_machines")
+    .select("fleet_id, machine_id")
+    .in("fleet_id", fleets.map((fleet) => fleet.id));
+
+  if (assignmentError) throw new Error(assignmentError.message);
+
+  const assignments = (assignmentData ?? []) as Array<{ fleet_id: string; machine_id: string }>;
+  const machineIds = Array.from(new Set(assignments.map((assignment) => assignment.machine_id)));
+  let machines: RelayAnalyticsCustomerFleetMachine[] = [];
+
+  if (machineIds.length > 0) {
+    const { data: machineData, error: machineError } = await supabase
+      .from("machines")
+      .select("id, machine_number, machine_number_normalized, fleet_type, item_description, make, model, serial_number")
+      .in("id", machineIds);
+
+    if (machineError) throw new Error(machineError.message);
+    machines = (machineData ?? []) as RelayAnalyticsCustomerFleetMachine[];
+  }
+
+  const machinesById = new Map(machines.map((machine) => [machine.id, machine]));
+  return fleets.map((fleet) => ({
+    ...fleet,
+    machines: assignments
+      .filter((assignment) => assignment.fleet_id === fleet.id)
+      .map((assignment) => machinesById.get(assignment.machine_id))
+      .filter((machine): machine is RelayAnalyticsCustomerFleetMachine => Boolean(machine))
+      .sort((left, right) =>
+        left.machine_number.localeCompare(right.machine_number, undefined, { numeric: true }),
+      ),
+  })) satisfies RelayAnalyticsCustomerFleet[];
+}
+
 export async function loadRelayAnalyticsSnapshot(supabase: SupabaseClient) {
-  const [tickets, purchaseOrders, completionEvents] = await Promise.all([
+  const [tickets, purchaseOrders, completionEvents, customerFleets] = await Promise.all([
     loadAllTickets(supabase),
     loadAllPurchaseOrders(supabase),
     loadAllCompletionEvents(supabase),
+    loadCustomerFleets(supabase),
   ]);
-  return { tickets, purchaseOrders, completionEvents, loadedAt: new Date() } satisfies RelayAnalyticsSnapshot;
+  return { tickets, purchaseOrders, completionEvents, customerFleets, loadedAt: new Date() } satisfies RelayAnalyticsSnapshot;
 }
 
 type GroupValue = { key: string; label: string; count: number; total: number };
@@ -426,6 +497,7 @@ function supplierRecords(snapshot: RelayAnalyticsSnapshot) {
 function detectIntentFromWords(question: string): AnalyticsIntent {
   const query = ` ${normalize(question)} `;
   if (/(admin|operator).*(performance|productivity|report|output)|performance report/.test(query)) return "admin_performance";
+  if (/customer fleet|shred\s*stations?|shredstation/.test(query)) return "customer_fleet";
   if (/machine|fleet|plant ref/.test(query)) return "machines";
   if (/supplier|vendor/.test(query)) return /spend|value|cost/.test(query) ? "spend" : "suppliers";
   if (/spend|order value|cost/.test(query)) return "spend";
@@ -724,14 +796,136 @@ function answerAdminPerformance(snapshot: RelayAnalyticsSnapshot): RelayConsoleA
 }
 
 async function detectIntent(question: string) {
-  if (detectIntentFromWords(question) === "admin_performance") return "admin_performance";
+  const wordIntent = detectIntentFromWords(question);
+  if (wordIntent !== "overview") return wordIntent;
+
   try {
     const match = await rankBrowserSemanticIntent(question, ANALYTICS_INTENTS);
     if (match && match.score >= 0.27) return match.intent;
   } catch (error) {
     console.warn("RELAY AI semantic router unavailable; using local analytics rules", error);
   }
-  return detectIntentFromWords(question);
+  return wordIntent;
+}
+
+function answerCustomerFleet(
+  question: string,
+  snapshot: RelayAnalyticsSnapshot,
+): RelayConsoleAiAnswer {
+  const normalizedQuestion = normalize(question);
+  const compactQuestion = normalizedQuestion.replace(/[^a-z0-9]/g, "");
+  const namedFleet = snapshot.customerFleets.find((fleet) => {
+    const normalizedName = normalize(fleet.name);
+    const compactName = normalizedName.replace(/[^a-z0-9]/g, "");
+    return normalizedQuestion.includes(normalizedName) || compactQuestion.includes(compactName);
+  });
+  const fleet = namedFleet ?? (snapshot.customerFleets.length === 1 ? snapshot.customerFleets[0] : null);
+
+  if (!fleet) {
+    const available = snapshot.customerFleets.map((item) => item.name).join(", ");
+    return {
+      text: available
+        ? `I could not identify which customer fleet you meant. Available customer fleets: ${available}.`
+        : "No customer fleets are configured in RELAY.",
+      facts: [`${formatNumber(snapshot.customerFleets.length)} customer fleets`],
+      sourceNote: "Live customer fleet memberships and verified machine mappings.",
+    };
+  }
+
+  const machineReference = question.match(
+    /\b(?:machine|fleet|ref(?:erence)?)\s*(?:number|no\.?)?\s*[:#-]?\s*(\d{1,8})\b/i,
+  )?.[1];
+  const selectedMachines = machineReference
+    ? fleet.machines.filter((machine) => machine.machine_number_normalized === machineReference)
+    : fleet.machines;
+
+  if (machineReference && selectedMachines.length === 0) {
+    return {
+      text: `Machine ${machineReference} is not assigned to ${fleet.name}'s customer fleet.`,
+      facts: [`${formatNumber(fleet.machines.length)} fleet machines`, fleet.name],
+      sourceNote: "Exact normalized reference check against the live customer fleet mapping.",
+    };
+  }
+
+  const fleetMachineKeys = new Set(
+    selectedMachines.map((machine) => machine.machine_number_normalized),
+  );
+  const now = Date.now();
+  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+  const ticketsByMachine = new Map<string, RelayAnalyticsTicket[]>();
+
+  for (const ticket of snapshot.tickets) {
+    const machineKey = normalizeMachineReference(
+      ticket.machine_number_normalized || ticket.machine_number || ticket.machine_reference,
+    );
+
+    if (!fleetMachineKeys.has(machineKey)) continue;
+    const current = ticketsByMachine.get(machineKey) ?? [];
+    current.push(ticket);
+    ticketsByMachine.set(machineKey, current);
+  }
+
+  if (machineReference) {
+    const machine = selectedMachines[0];
+    const machineTickets = ticketsByMachine.get(machine.machine_number_normalized) ?? [];
+    const recentTickets = machineTickets.filter(
+      (ticket) => dateValue(ticket.created_at) >= thirtyDaysAgo,
+    );
+    const active = machineTickets.filter((ticket) =>
+      activeTicketStatuses.some((status) => status === ticket.status),
+    );
+    const details = [machine.make, machine.model].filter(Boolean).join(" ") || machine.item_description || "Details not recorded";
+    const recentLines = machineTickets
+      .slice(0, 5)
+      .map((ticket) => `${ticketLine(ticket)} · ${ticket.status || "UNKNOWN"}`)
+      .join("\n");
+
+    return {
+      text: `${fleet.name} machine ${machine.machine_number}\n\n${details}\nSerial: ${machine.serial_number || "not recorded"}\nFleet category: ${formatFleetType(machine.fleet_type)}\n\nRequest activity\n• ${formatNumber(recentTickets.length)} requests in the past 30 days\n• ${formatNumber(machineTickets.length)} requests all time\n• ${formatNumber(active.length)} currently active${recentLines ? `\n\nRecent requests\n${recentLines}` : "\n\nNo requests are recorded against this machine."}`,
+      facts: [`${formatNumber(recentTickets.length)} in 30 days`, `${formatNumber(machineTickets.length)} all time`, `${formatNumber(active.length)} active`],
+      sourceNote: `Verified ${fleet.name} fleet mapping joined to all accessible ticket rows by normalized machine reference.`,
+    };
+  }
+
+  const lines = selectedMachines.map((machine) => {
+    const machineTickets = ticketsByMachine.get(machine.machine_number_normalized) ?? [];
+    const recentCount = machineTickets.filter(
+      (ticket) => dateValue(ticket.created_at) >= thirtyDaysAgo,
+    ).length;
+    const label = [machine.make, machine.model].filter(Boolean).join(" ") || machine.item_description || "Details not recorded";
+    return `• ${machine.machine_number} · ${label} · serial ${machine.serial_number || "not recorded"} · ${formatNumber(recentCount)} requests in 30 days · ${formatNumber(machineTickets.length)} all time`;
+  });
+  const totalFleetTickets = lines.length
+    ? snapshot.tickets.filter((ticket) =>
+      fleetMachineKeys.has(normalizeMachineReference(
+        ticket.machine_number_normalized || ticket.machine_number || ticket.machine_reference,
+      )),
+    )
+    : [];
+  const recentFleetTickets = totalFleetTickets.filter(
+    (ticket) => dateValue(ticket.created_at) >= thirtyDaysAgo,
+  );
+
+  return {
+    text: `${fleet.name} has ${formatNumber(fleet.machines.length)} verified fleet machines. I found ${formatNumber(recentFleetTickets.length)} requests across them in the past 30 days and ${formatNumber(totalFleetTickets.length)} all time.\n\n${lines.join("\n")}`,
+    facts: [`${formatNumber(fleet.machines.length)} machines`, `${formatNumber(recentFleetTickets.length)} requests in 30 days`, `${formatNumber(totalFleetTickets.length)} all time`],
+    sourceNote: `Live ${fleet.name} customer fleet mapping joined to accessible tickets by normalized machine reference.`,
+  };
+}
+
+function normalizeMachineReference(value: string | null | undefined) {
+  return value?.trim().replace(/\s+/g, "").toUpperCase() || "";
+}
+
+function formatFleetType(value: string | null) {
+  return value
+    ? value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase())
+    : "Not recorded";
+}
+
+function dateValue(value: string | null | undefined) {
+  const timestamp = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function answerMachines(snapshot: RelayAnalyticsSnapshot): RelayConsoleAiAnswer {
@@ -886,6 +1080,7 @@ export async function answerRelayConsoleQuestion(
 
   const intent = await detectIntent(question);
   switch (intent) {
+    case "customer_fleet": return answerCustomerFleet(question, snapshot);
     case "machines": return answerMachines(snapshot);
     case "suppliers": return answerSuppliers(snapshot);
     case "spend": return answerSuppliers(snapshot, true);

@@ -61,9 +61,9 @@ const STARTER_MESSAGE: RelayAiMessage = {
 
 const SUGGESTED_QUESTIONS = [
   "Show machine reference 19592 make, model and serial",
+  "List Shred Station's fleet and request counts",
   "How many jobs has Tom completed this month?",
   "Who is our main supplier?",
-  "Assign job 25630 to Tom",
 ];
 
 const CACHE_WINDOW_MS = 60_000;
