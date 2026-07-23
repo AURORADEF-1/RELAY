@@ -62,6 +62,8 @@ export const fleetMachineGroups = [
   "Loaders",
   "Rollers",
   "Access Equipment",
+  "Attachments",
+  "Small Tools",
   "HGV Trucks",
   "Other Equipment",
 ] as const;
@@ -127,7 +129,13 @@ export function getFleetMachineGroup(
   if (/\b(dumpers?|dump trucks?|site dump|articulated dump)\b/.test(description)) {
     return "Dumpers";
   }
-  if (/\b(rollers?|compactors?|vibratory)\b/.test(description)) {
+  if (/\b(breakers?|hydraulic hammers?|breaker attachments?)\b/.test(description)) {
+    return "Attachments";
+  }
+  if (/\b(compactors?|plate compactors?|wacker plates?|trench compactors?)\b/.test(description)) {
+    return "Small Tools";
+  }
+  if (/\b(rollers?|vibratory rollers?)\b/.test(description)) {
     return "Rollers";
   }
   if (/\b(wheel loaders?|skid steers?|loaders?)\b/.test(description)) {
