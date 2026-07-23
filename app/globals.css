@@ -3315,6 +3315,30 @@ select:focus-visible {
   color: var(--foreground-strong);
 }
 
+.fleet-heading-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.fleet-heading-controls select {
+  min-height: 2.35rem;
+  max-width: 12rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: var(--background-panel-strong);
+  padding: 0.45rem 1.8rem 0.45rem 0.65rem;
+  color: var(--foreground-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.fleet-heading-controls select:focus-visible {
+  border-color: var(--border-strong);
+  box-shadow: var(--ring);
+  outline: 0;
+}
+
 .fleet-result-columns,
 .fleet-result-row {
   display: grid;
@@ -3350,6 +3374,45 @@ select:focus-visible {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
+}
+
+.fleet-machine-group + .fleet-machine-group {
+  border-top: 1px solid var(--border-strong);
+}
+
+.fleet-machine-group-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  min-height: 2.2rem;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background-muted) 94%, transparent);
+  padding: 0.45rem 0.9rem;
+  color: var(--foreground-muted);
+  backdrop-filter: blur(12px);
+}
+
+.fleet-machine-group-heading span {
+  font-size: 0.69rem;
+  font-weight: 740;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.fleet-machine-group-heading strong {
+  display: inline-flex;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: var(--background-panel-strong);
+  color: var(--foreground-subtle);
+  font-size: 0.64rem;
 }
 
 .fleet-result-row {
@@ -4119,6 +4182,25 @@ select:focus-visible {
 
   .fleet-result-columns {
     display: none;
+  }
+
+  .fleet-panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .fleet-heading-controls {
+    width: 100%;
+  }
+
+  .fleet-heading-controls label {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .fleet-heading-controls select {
+    width: 100%;
+    max-width: none;
   }
 
   .fleet-results-panel {

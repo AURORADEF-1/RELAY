@@ -55,6 +55,19 @@ export type FleetMachineSummary = FleetMachineRecord & {
   latest_ticket: FleetTicketRecord | null;
 };
 
+export const fleetMachineGroups = [
+  "Excavators",
+  "Dumpers",
+  "Telehandlers",
+  "Loaders",
+  "Rollers",
+  "Access Equipment",
+  "Tractors",
+  "Other Equipment",
+] as const;
+
+export type FleetMachineGroup = (typeof fleetMachineGroups)[number];
+
 const activeStatuses = new Set<string>(activeTicketStatuses);
 
 export function normalizeFleetReference(value: string | null | undefined) {
@@ -100,6 +113,48 @@ export function machineMatchesFleetSearch(machine: FleetMachineRecord, query: st
           compactNormalizedNumber.includes(compactQuery)),
     ) || tokens.every((token) => haystack.includes(token))
   );
+}
+
+export function getFleetMachineGroup(
+  machine: Pick<FleetMachineRecord, "fleet_type" | "item_description" | "make" | "model">,
+): FleetMachineGroup {
+  const description = normalizeFleetSearchText(
+    [machine.item_description, machine.make, machine.model, machine.fleet_type]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  if (/\b(dumpers?|dump trucks?|site dump|articulated dump)\b/.test(description)) {
+    return "Dumpers";
+  }
+  if (/\b(rollers?|compactors?|vibratory)\b/.test(description)) {
+    return "Rollers";
+  }
+  if (/\b(wheel loaders?|skid steers?|loaders?)\b/.test(description)) {
+    return "Loaders";
+  }
+  if (/\b(telehandlers?|loadalls?|forklifts?|telescopic handlers?)\b/.test(description)) {
+    return "Telehandlers";
+  }
+  if (/\b(cherry pickers?|boom lifts?|scissor lifts?|access platforms?)\b/.test(description)) {
+    return "Access Equipment";
+  }
+  if (/\b(tractors?|agricultural)\b/.test(description)) {
+    return "Tractors";
+  }
+  if (/\b(excavators?|diggers?|mini diggers?)\b/.test(description)) {
+    return "Excavators";
+  }
+
+  const fleetType = normalizeFleetSearchText(machine.fleet_type);
+  if (fleetType.includes("excavator")) {
+    return "Excavators";
+  }
+  if (fleetType.includes("telehandler")) {
+    return "Telehandlers";
+  }
+
+  return "Other Equipment";
 }
 
 export function ticketMatchesMachine(

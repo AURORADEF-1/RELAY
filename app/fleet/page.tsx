@@ -11,8 +11,11 @@ import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import {
   buildFleetMachineSummaries,
+  fleetMachineGroups,
+  getFleetMachineGroup,
   machineMatchesFleetSearch,
   normalizeFleetReference,
+  type FleetMachineGroup,
   type FleetMachineRecord,
   type FleetMachineSummary,
   type FleetTicketRecord,
@@ -73,6 +76,7 @@ const TICKET_RESULT_LIMIT = 2000;
 
 type FleetTab = "overview" | "requests" | "parts" | "activity" | "incidents" | "files";
 type RequestFilter = "ALL" | "OPEN" | "URGENT" | (typeof ticketStatuses)[number];
+type FleetGroupFilter = "ALL" | FleetMachineGroup;
 
 type TicketUpdateRow = {
   id: string;
@@ -130,6 +134,7 @@ function FleetWorkspace() {
   );
   const [activeTab, setActiveTab] = useState<FleetTab>("overview");
   const [requestFilter, setRequestFilter] = useState<RequestFilter>("ALL");
+  const [groupFilter, setGroupFilter] = useState<FleetGroupFilter>("ALL");
   const [updates, setUpdates] = useState<TicketUpdateRow[]>([]);
   const [parts, setParts] = useState<TicketPartRecord[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<TicketPurchaseOrderRecord[]>([]);
@@ -393,6 +398,53 @@ function FleetWorkspace() {
     () => buildFleetMachineSummaries(machines, tickets),
     [machines, tickets],
   );
+  const groupCounts = useMemo(() => {
+    const counts = new Map<FleetMachineGroup, number>();
+    for (const machine of summaries) {
+      const group = getFleetMachineGroup(machine);
+      counts.set(group, (counts.get(group) ?? 0) + 1);
+    }
+    return counts;
+  }, [summaries]);
+  const visibleSummaries = useMemo(
+    () =>
+      groupFilter === "ALL"
+        ? summaries
+        : summaries.filter((machine) => getFleetMachineGroup(machine) === groupFilter),
+    [groupFilter, summaries],
+  );
+  const groupedSummaries = useMemo(
+    () =>
+      fleetMachineGroups
+        .map((group) => ({
+          group,
+          machines: visibleSummaries.filter(
+            (machine) => getFleetMachineGroup(machine) === group,
+          ),
+        }))
+        .filter((entry) => entry.machines.length > 0),
+    [visibleSummaries],
+  );
+
+  useEffect(() => {
+    if (
+      groupFilter === "ALL" ||
+      visibleSummaries.some(
+        (machine) =>
+          normalizeFleetReference(machine.machine_number_normalized) ===
+          selectedMachineKey,
+      )
+    ) {
+      return;
+    }
+
+    const firstVisibleMachine = visibleSummaries[0];
+    setSelectedMachineKey(
+      firstVisibleMachine && !window.matchMedia("(max-width: 900px)").matches
+        ? normalizeFleetReference(firstVisibleMachine.machine_number_normalized)
+        : null,
+    );
+  }, [groupFilter, selectedMachineKey, visibleSummaries]);
 
   useEffect(() => {
     if (summaries.length === 0) {
@@ -567,21 +619,21 @@ function FleetWorkspace() {
 
   const summaryMetrics = useMemo(
     () => ({
-      visibleMachines: summaries.length,
-      linkedRequests: summaries.reduce(
+      visibleMachines: visibleSummaries.length,
+      linkedRequests: visibleSummaries.reduce(
         (total, machine) => total + machine.total_requests,
         0,
       ),
-      openRequests: summaries.reduce(
+      openRequests: visibleSummaries.reduce(
         (total, machine) => total + machine.open_requests,
         0,
       ),
-      urgentRequests: summaries.reduce(
+      urgentRequests: visibleSummaries.reduce(
         (total, machine) => total + machine.urgent_requests,
         0,
       ),
     }),
-    [summaries],
+    [visibleSummaries],
   );
 
   function selectMachine(machine: FleetMachineSummary) {
@@ -679,14 +731,32 @@ function FleetWorkspace() {
                 <h2>
                   {isLoading
                     ? "Searching machines"
-                    : `${summaries.length} matching machine${summaries.length === 1 ? "" : "s"}`}
+                    : `${visibleSummaries.length} matching machine${visibleSummaries.length === 1 ? "" : "s"}`}
                 </h2>
               </div>
-              {debouncedQuery ? (
-                <button type="button" onClick={() => setSearchQuery("")}>
-                  Clear search
-                </button>
-              ) : null}
+              <div className="fleet-heading-controls">
+                <label>
+                  <span className="sr-only">Machine category</span>
+                  <select
+                    value={groupFilter}
+                    onChange={(event) =>
+                      setGroupFilter(event.target.value as FleetGroupFilter)
+                    }
+                  >
+                    <option value="ALL">All machine groups</option>
+                    {fleetMachineGroups.map((group) => (
+                      <option key={group} value={group} disabled={!groupCounts.get(group)}>
+                        {group} ({groupCounts.get(group) ?? 0})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {debouncedQuery ? (
+                  <button type="button" onClick={() => setSearchQuery("")}>
+                    Clear search
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             <div className="fleet-result-columns" aria-hidden="true">
@@ -699,7 +769,7 @@ function FleetWorkspace() {
             <div className="fleet-result-list" aria-live="polite">
               {isLoading ? (
                 <FleetListSkeleton />
-              ) : summaries.length === 0 ? (
+              ) : visibleSummaries.length === 0 ? (
                 <div className="fleet-empty-state">
                   <ConsoleIcon name="fleet" className="h-7 w-7" />
                   <h3>No matching machines</h3>
@@ -709,16 +779,24 @@ function FleetWorkspace() {
                   </p>
                 </div>
               ) : (
-                summaries.map((machine) => (
-                  <MachineResultRow
-                    key={machine.id}
-                    machine={machine}
-                    selected={
-                      normalizeFleetReference(machine.machine_number_normalized) ===
-                      selectedMachineKey
-                    }
-                    onSelect={() => selectMachine(machine)}
-                  />
+                groupedSummaries.map((entry) => (
+                  <section key={entry.group} className="fleet-machine-group">
+                    <div className="fleet-machine-group-heading">
+                      <span>{entry.group}</span>
+                      <strong>{entry.machines.length}</strong>
+                    </div>
+                    {entry.machines.map((machine) => (
+                      <MachineResultRow
+                        key={machine.id}
+                        machine={machine}
+                        selected={
+                          normalizeFleetReference(machine.machine_number_normalized) ===
+                          selectedMachineKey
+                        }
+                        onSelect={() => selectMachine(machine)}
+                      />
+                    ))}
+                  </section>
                 ))
               )}
             </div>
@@ -1002,6 +1080,7 @@ function MachineOverview({ machine }: { machine: FleetMachineSummary }) {
         </div>
         <dl className="fleet-definition-grid">
           <FleetDefinition label="Plant number" value={machine.machine_number} />
+          <FleetDefinition label="Machine group" value={getFleetMachineGroup(machine)} />
           <FleetDefinition label="Make" value={machine.make} />
           <FleetDefinition label="Model" value={machine.model} />
           <FleetDefinition label="Serial number" value={machine.serial_number} />
