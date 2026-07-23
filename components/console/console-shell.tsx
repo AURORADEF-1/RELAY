@@ -17,6 +17,7 @@ import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
 type ConsoleShellProps = {
   children: React.ReactNode;
   contentClassName?: string;
+  shellClassName?: string;
   eyebrow?: string;
   title: string;
   searchValue?: string;
@@ -53,6 +54,7 @@ const navigation: NavigationItem[] = [
 export function ConsoleShell({
   children,
   contentClassName = "",
+  shellClassName = "",
   eyebrow = "RELAY operations",
   title,
   searchValue,
@@ -219,7 +221,7 @@ export function ConsoleShell({
   const effectiveRelayAiOpen = onOpenRelayAi ? isRelayAiOpen : isInternalRelayAiOpen;
 
   return (
-    <div className={`console-shell ${isCollapsed ? "console-shell-collapsed" : ""}`}>
+    <div className={`console-shell ${isCollapsed ? "console-shell-collapsed" : ""} ${shellClassName}`.trim()}>
       {isMobileOpen ? (
         <button
           type="button"

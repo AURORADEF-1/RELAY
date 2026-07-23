@@ -321,6 +321,8 @@ export default function RequestsPage() {
   return (
     <AuthGuard>
       <ConsoleShell
+        shellClassName="console-shell-requester"
+        contentClassName="requester-requests-content"
         eyebrow={isAdmin ? "RELAY operations" : "RELAY requester"}
         title={isAdmin ? "Request search" : "My requests"}
         searchValue={searchQuery}
@@ -353,13 +355,13 @@ export default function RequestsPage() {
           </>
         }
       >
-        <section className="console-queue-panel !mt-0 p-5 sm:p-6">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl space-y-5">
+        <section className="console-queue-panel requester-requests-panel !mt-0 min-w-0 max-w-full p-3 sm:p-6">
+          <div className="flex min-w-0 flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+            <div className="min-w-0 max-w-3xl space-y-4 sm:space-y-5">
               <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
                 Requester Dashboard
               </div>
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              <h1 className="break-words text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
                 {isAdmin ? "Smart Search" : "My Requests"}
                 <NotificationBadge count={isAdmin ? adminBadgeCount : requesterUnreadCount} />
               </h1>
@@ -369,15 +371,15 @@ export default function RequestsPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
+            <div className="request-status-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-7">
               {activeTicketStatuses.map((status) => (
                 <div
                   key={status}
                   className="request-status-summary"
                   data-status={status}
                 >
-                  <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-500">
-                    {status}
+                  <p className="request-status-summary-label text-[11px] font-semibold tracking-[0.1em] text-slate-500 sm:tracking-[0.14em]">
+                    {status.replaceAll("_", " ")}
                   </p>
                   <p className="mt-1 text-xl font-semibold text-slate-900">
                     {tickets.filter((ticket) => ticket.status === status).length}
@@ -408,16 +410,16 @@ export default function RequestsPage() {
                   <article
                     key={ticket.id}
                     data-status={ticket.status ?? "PENDING"}
-                    className={`request-ticket-card rounded-3xl border bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_-32px_rgba(15,23,42,0.28)] ${getDynamicRequestCardTone(
+                    className={`request-ticket-card min-w-0 max-w-full overflow-hidden rounded-2xl border bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_-32px_rgba(15,23,42,0.28)] sm:rounded-3xl sm:p-5 ${getDynamicRequestCardTone(
                       ticket.status,
                     )} ${isUrgentTicket(ticket) ? "ring-2 ring-red-300" : ""}`}
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="request-card-header flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                       <div className="min-w-0">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                           Job
                         </p>
-                        <p className="mt-2 truncate text-xl font-semibold text-slate-900">
+                        <p className="mt-2 min-w-0 break-words text-xl font-semibold text-slate-900 sm:truncate">
                           <Link
                             href={`/tickets/${ticket.id}`}
                             className="transition hover:text-slate-600"
@@ -425,11 +427,11 @@ export default function RequestsPage() {
                             {ticket.job_number ?? "No job number"}
                           </Link>
                         </p>
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-1 min-w-0 overflow-hidden text-sm text-slate-500">
                           <MachineReferenceIndicator machine={ticket} prefix="Machine " />
                         </p>
                       </div>
-                      <div className="space-y-2 text-right">
+                      <div className="request-card-status min-w-0">
                         <p className="console-section-label">Current status</p>
                         <StatusBadge status={ticket.status ?? "PENDING"} />
                         {isUrgentTicket(ticket) ? (
@@ -440,38 +442,38 @@ export default function RequestsPage() {
                       </div>
                     </div>
 
-                    <p className="mt-5 line-clamp-4 text-sm leading-7 text-slate-700">
+                    <p className="request-card-description mt-5 line-clamp-4 min-w-0 text-sm leading-7 text-slate-700">
                       {ticket.request_summary ?? ticket.request_details ?? "-"}
                     </p>
 
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                    <div className="request-card-metadata mt-5">
+                      <span className="request-card-meta-pill uppercase tracking-[0.1em]">
                         Updated {formatDate(ticket.updated_at)}
                       </span>
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                      <span className="request-card-meta-pill">
                         {ticket.assigned_to ?? "Stores queue"}
                       </span>
                       {ticket.expected_delivery_date ? (
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                        <span className="request-card-meta-pill">
                           Expected {formatOperationalDate(ticket.expected_delivery_date)}
                         </span>
                       ) : null}
                       {ticket.bin_location ? (
-                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                        <span className="request-card-meta-pill border-emerald-200 bg-emerald-50 text-emerald-700">
                           Bin {ticket.bin_location}
                         </span>
                       ) : null}
                     </div>
 
-                    <div className="mt-5 flex items-center justify-between gap-3">
+                    <div className="request-card-footer mt-5 flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <Link
                         href={`/tickets/${ticket.id}`}
-                        className="text-sm font-semibold text-slate-700 transition hover:text-slate-950"
+                        className="inline-flex min-h-11 items-center text-sm font-semibold text-slate-700 transition hover:text-slate-950 focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                       >
                         Open request
                       </Link>
                       {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) && !returnedTicketIds.has(ticket.id) ? (
-                        <div className="flex flex-wrap items-center justify-end gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
                           <button
                             type="button"
                             onClick={() => void handleMarkCollected(ticket)}
@@ -700,7 +702,7 @@ export default function RequestsPage() {
                 </table>
               </div>
 
-              <div className="grid gap-4 bg-slate-50 p-4 lg:hidden">
+              <div className="grid min-w-0 gap-3 bg-slate-50 p-3 sm:gap-4 sm:p-4 lg:hidden">
                 {isLoading ? (
                   <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
                     Loading requests...
@@ -714,16 +716,16 @@ export default function RequestsPage() {
                     <article
                       key={ticket.id}
                       data-status={ticket.status ?? "PENDING"}
-                      className={`request-ticket-card rounded-3xl border bg-white p-5 shadow-sm ${
+                      className={`request-ticket-card min-w-0 max-w-full overflow-hidden rounded-2xl border bg-white p-4 shadow-sm sm:rounded-3xl sm:p-5 ${
                         isUrgentTicket(ticket) ? "border-red-200 ring-2 ring-red-200" : "border-slate-200"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
+                      <div className="request-card-header flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                        <div className="min-w-0">
                           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
                             Job Number
                           </p>
-                          <p className="mt-2 text-lg font-semibold text-slate-900">
+                          <p className="mt-2 min-w-0 break-words text-lg font-semibold text-slate-900">
                             <Link
                               href={`/tickets/${ticket.id}`}
                               className="transition hover:text-slate-600"
@@ -731,27 +733,35 @@ export default function RequestsPage() {
                               {ticket.job_number ?? "No job number"}
                             </Link>
                           </p>
-                          <p className="mt-1 text-sm text-slate-500">
+                          <p className="mt-1 min-w-0 overflow-hidden text-sm text-slate-500">
                             <MachineReferenceIndicator machine={ticket} prefix="Machine " />
                           </p>
                         </div>
-                        <div className="space-y-2 text-right">
+                        <div className="request-card-status min-w-0">
                           <p className="console-section-label">Current status</p>
                           <StatusBadge status={ticket.status ?? "PENDING"} />
                         </div>
                       </div>
-                      <p className="mt-4 text-sm leading-7 text-slate-600">
+                      <p className="request-card-description mt-4 min-w-0 text-sm leading-7 text-slate-600">
                         {ticket.request_summary ?? ticket.request_details ?? "-"}
                       </p>
-                      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                        <span>Updated {formatDate(ticket.updated_at)}</span>
-                        <span>Handled by {ticket.assigned_to ?? "Stores queue"}</span>
+                      <div className="request-card-metadata mt-4">
+                        <span className="request-card-meta-pill uppercase tracking-[0.1em]">Updated {formatDate(ticket.updated_at)}</span>
+                        <span className="request-card-meta-pill">Handled by {ticket.assigned_to ?? "Stores queue"}</span>
                         {ticket.expected_delivery_date ? (
-                          <span>Expected {formatOperationalDate(ticket.expected_delivery_date)}</span>
+                          <span className="request-card-meta-pill">Expected {formatOperationalDate(ticket.expected_delivery_date)}</span>
                         ) : null}
                         {ticket.bin_location ? (
-                          <span className="text-emerald-700">Bin {ticket.bin_location}</span>
+                          <span className="request-card-meta-pill border-emerald-200 bg-emerald-50 text-emerald-700">Bin {ticket.bin_location}</span>
                         ) : null}
+                      </div>
+                      <div className="request-card-footer mt-4">
+                        <Link
+                          href={`/tickets/${ticket.id}`}
+                          className="inline-flex min-h-11 items-center text-sm font-semibold text-slate-700 transition hover:text-slate-950 focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                        >
+                          Open request
+                        </Link>
                       </div>
                       {ticket.status === "READY" && !collectedTicketIds.has(ticket.id) && !returnedTicketIds.has(ticket.id) ? (
                         <div className="mt-4 flex flex-wrap gap-2">
