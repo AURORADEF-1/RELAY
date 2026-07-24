@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CORE_ADMIN_OPERATOR_OPTIONS } from "@/lib/admin-operators";
+import {
+  CORE_ADMIN_OPERATOR_OPTIONS,
+  isReportableAdminOperatorName,
+} from "@/lib/admin-operators";
 import { rankBrowserSemanticIntent } from "@/lib/browser-semantic-model";
 import { activeTicketStatuses } from "@/lib/statuses";
 
@@ -820,7 +823,9 @@ function availableOperatorNames(snapshot: RelayAnalyticsSnapshot) {
   }
   for (const ticket of snapshot.tickets) {
     const name = ticket.assigned_to?.trim();
-    if (isMeaningfulLabel(name)) names.set(normalize(name), name as string);
+    if (isMeaningfulLabel(name) && isReportableAdminOperatorName(name)) {
+      names.set(normalize(name), name as string);
+    }
   }
   return Array.from(names.entries()).map(([key, label]) => ({ key, label }));
 }
@@ -1118,7 +1123,7 @@ function answerAdminPerformance(
 
   for (const ticket of snapshot.tickets) {
     const name = ticket.assigned_to?.trim();
-    if (!isMeaningfulLabel(name)) continue;
+    if (!isMeaningfulLabel(name) || !isReportableAdminOperatorName(name)) continue;
     const key = normalize(name);
     if (requestedOperatorKeys.size > 0 && !requestedOperatorKeys.has(key)) continue;
     const row = grouped.get(key) ?? {

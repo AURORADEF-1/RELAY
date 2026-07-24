@@ -4,6 +4,13 @@ export const CORE_ADMIN_OPERATOR_OPTIONS = ["Scott", "Tom", "George", "Samantha"
 
 export type AdminOperatorName = (typeof CORE_ADMIN_OPERATOR_OPTIONS)[number];
 
+const EXCLUDED_ADMIN_OPERATOR_NAMES = new Set([
+  "admin",
+  "drew",
+  "scot",
+  "scott alcock",
+]);
+
 export type AdminOperatorRecord = {
   name: string;
   sort_order: number;
@@ -12,6 +19,11 @@ export type AdminOperatorRecord = {
 
 export function normalizeAdminOperatorName(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+export function isReportableAdminOperatorName(value: string | null | undefined) {
+  const normalized = normalizeAdminOperatorName(value ?? "").toLowerCase();
+  return Boolean(normalized) && !EXCLUDED_ADMIN_OPERATOR_NAMES.has(normalized);
 }
 
 export function isCoreAdminOperatorName(value: string) {
@@ -35,7 +47,7 @@ function mergeWithCoreAdminOperators(records: AdminOperatorRecord[]) {
 
   for (const record of records) {
     const normalizedName = normalizeAdminOperatorName(record.name);
-    if (!normalizedName) {
+    if (!isReportableAdminOperatorName(normalizedName)) {
       continue;
     }
 
@@ -84,6 +96,10 @@ export async function addAdminOperator(
 
   if (!normalizedName) {
     throw new Error("Admin operator name is required.");
+  }
+
+  if (!isReportableAdminOperatorName(normalizedName)) {
+    throw new Error(`${normalizedName} is not a valid reporting operator.`);
   }
 
   if (isCoreAdminOperatorName(normalizedName)) {

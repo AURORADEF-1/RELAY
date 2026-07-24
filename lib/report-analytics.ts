@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isReportableAdminOperatorName } from "@/lib/admin-operators";
 import { normalizeMachineNumber } from "@/lib/machine-registry";
 import type {
   RelayAnalyticsSnapshot,
@@ -200,14 +201,20 @@ function buildOperatorRows(
   const names = new Map<string, string>();
   const ticketsById = new Map(tickets.map((ticket) => [ticket.id, ticket]));
   for (const name of configuredNames) {
-    if (name.trim()) names.set(normalize(name), name.trim());
+    if (isReportableAdminOperatorName(name)) {
+      names.set(normalize(name), name.trim());
+    }
   }
   for (const ticket of tickets) {
     const name = ticket.assigned_to?.trim();
-    if (name) names.set(normalize(name), name);
+    if (isReportableAdminOperatorName(name)) {
+      names.set(normalize(name), name as string);
+    }
   }
 
-  const totalCompleted = closedJobs.length;
+  const totalCompleted = closedJobs.filter((job) =>
+    isReportableAdminOperatorName(job.operator),
+  ).length;
   return Array.from(names.entries())
     .map(([key, name]) => {
       const newAssigned = periodTickets.filter(

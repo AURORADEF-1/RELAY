@@ -362,7 +362,7 @@ function PerformanceReport({
               color: CHART_COLORS[index % CHART_COLORS.length],
             }))}
             centerLabel="jobs closed"
-            centerValue={closedJobs.length}
+            centerValue={operators.reduce((total, operator) => total + operator.completed, 0)}
           />
         </article>
 
