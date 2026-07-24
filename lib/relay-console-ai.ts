@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { CORE_ADMIN_OPERATOR_OPTIONS } from "@/lib/admin-operators";
 import { rankBrowserSemanticIntent } from "@/lib/browser-semantic-model";
 import { activeTicketStatuses } from "@/lib/statuses";
 
@@ -812,9 +813,49 @@ function supplierRecords(snapshot: RelayAnalyticsSnapshot) {
   ];
 }
 
-function detectIntentFromWords(question: string): AnalyticsIntent {
+function availableOperatorNames(snapshot: RelayAnalyticsSnapshot) {
+  const names = new Map<string, string>();
+  for (const name of CORE_ADMIN_OPERATOR_OPTIONS) {
+    names.set(normalize(name), name);
+  }
+  for (const ticket of snapshot.tickets) {
+    const name = ticket.assigned_to?.trim();
+    if (isMeaningfulLabel(name)) names.set(normalize(name), name as string);
+  }
+  return Array.from(names.entries()).map(([key, label]) => ({ key, label }));
+}
+
+function requestedOperatorNames(question: string, snapshot: RelayAnalyticsSnapshot) {
+  const query = normalize(question);
+  const namePosition = (name: string) => {
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = new RegExp(`(?:^|[^a-z0-9])${escapedName}(?:$|[^a-z0-9])`).exec(query);
+    return match?.index ?? -1;
+  };
+  return availableOperatorNames(snapshot)
+    .map((operator) => {
+      const exactPosition = namePosition(operator.key);
+      const firstName = operator.key.split(" ")[0];
+      const firstNamePosition = firstName ? namePosition(firstName) : -1;
+      const position = exactPosition >= 0 ? exactPosition : firstNamePosition;
+      return { ...operator, position };
+    })
+    .filter(({ position }) => position >= 0)
+    .sort((left, right) => left.position - right.position)
+    .map(({ key, label }) => ({ key, label }));
+}
+
+function detectIntentFromWords(
+  question: string,
+  snapshot: RelayAnalyticsSnapshot,
+): AnalyticsIntent {
   const query = ` ${normalizeQuestion(question)} `;
-  if (/(admin|operator).*(performance|productivity|report|output)|performance report/.test(query)) return "admin_performance";
+  const asksForPerformanceReport = /\b(?:performance|productivity|report|output|kpi|metrics)\b/.test(query);
+  const namesOperators = requestedOperatorNames(question, snapshot).length > 0;
+  if (
+    /(admin|operator).*(performance|productivity|report|output|kpi|metrics)|performance report/.test(query)
+    || (asksForPerformanceReport && namesOperators)
+  ) return "admin_performance";
   if (/customer fleet|shred\s*stations?|shredstation/.test(query)) return "customer_fleet";
   if (/machine|fleet|plant ref/.test(query)) return "machines";
   if (/supplier|vendor/.test(query)) return /spend|value|cost/.test(query) ? "spend" : "suppliers";
@@ -1028,11 +1069,26 @@ function answerOperatorCompletionKpi(
   };
 }
 
-function answerAdminPerformance(snapshot: RelayAnalyticsSnapshot): RelayConsoleAiAnswer {
+function isWithinKpiRange(value: string | null, range: KpiDateRange) {
+  if (!range.start && !range.end) return true;
+  const time = new Date(value ?? "").getTime();
+  return Number.isFinite(time)
+    && (!range.start || time >= range.start.getTime())
+    && (!range.end || time < range.end.getTime());
+}
+
+function answerAdminPerformance(
+  question: string,
+  snapshot: RelayAnalyticsSnapshot,
+): RelayConsoleAiAnswer {
   const now = Date.now();
+  const range = kpiDateRange(question);
+  const requestedOperators = requestedOperatorNames(question, snapshot);
+  const requestedOperatorKeys = new Set(requestedOperators.map(({ key }) => key));
+  const completionDates = completionDateByTicket(snapshot);
   const ordersByTicket = new Map<string, number>();
   for (const order of snapshot.purchaseOrders) {
-    if (order.po_status === "CANCELLED") continue;
+    if (order.po_status === "CANCELLED" || !isWithinKpiRange(order.created_at, range)) continue;
     ordersByTicket.set(order.ticket_id, (ordersByTicket.get(order.ticket_id) ?? 0) + (order.order_amount ?? 0));
   }
 
@@ -1047,10 +1103,24 @@ function answerAdminPerformance(snapshot: RelayAnalyticsSnapshot): RelayConsoleA
     orderValue: number;
   }>();
 
+  for (const operator of requestedOperators) {
+    grouped.set(operator.key, {
+      name: operator.label,
+      assigned: 0,
+      completed: 0,
+      active: 0,
+      overdue: 0,
+      urgent: 0,
+      readyDurations: [],
+      orderValue: 0,
+    });
+  }
+
   for (const ticket of snapshot.tickets) {
     const name = ticket.assigned_to?.trim();
     if (!isMeaningfulLabel(name)) continue;
     const key = normalize(name);
+    if (requestedOperatorKeys.size > 0 && !requestedOperatorKeys.has(key)) continue;
     const row = grouped.get(key) ?? {
       name: name as string,
       assigned: 0,
@@ -1061,50 +1131,72 @@ function answerAdminPerformance(snapshot: RelayAnalyticsSnapshot): RelayConsoleA
       readyDurations: [],
       orderValue: 0,
     };
-    row.assigned += 1;
-    if (ticket.status === "COMPLETED") row.completed += 1;
-    else row.active += 1;
+    const createdInRange = isWithinKpiRange(ticket.created_at, range);
+    const recordedCompletion = completionDates.get(ticket.id) ?? null;
+    const completionDate = recordedCompletion || (ticket.status === "COMPLETED" ? ticket.updated_at : null);
+    if (createdInRange) row.assigned += 1;
+    if (completionDate && isWithinKpiRange(completionDate, range)) row.completed += 1;
+    if (ticket.status !== "COMPLETED") row.active += 1;
     if (ticket.is_urgent && ticket.status !== "COMPLETED") row.urgent += 1;
     const eta = new Date(ticket.expected_delivery_date ?? "").getTime();
     if (ticket.status === "ORDERED" && Number.isFinite(eta) && eta < now) row.overdue += 1;
     const created = new Date(ticket.created_at ?? "").getTime();
     const ready = new Date(ticket.ready_at ?? "").getTime();
-    if (Number.isFinite(created) && Number.isFinite(ready) && ready >= created) {
+    if (
+      Number.isFinite(created)
+      && Number.isFinite(ready)
+      && ready >= created
+      && isWithinKpiRange(ticket.ready_at, range)
+    ) {
       row.readyDurations.push((ready - created) / 86_400_000);
     }
     row.orderValue += ordersByTicket.has(ticket.id)
       ? ordersByTicket.get(ticket.id) ?? 0
-      : ticket.order_amount ?? 0;
+      : createdInRange
+        ? ticket.order_amount ?? 0
+        : 0;
     grouped.set(key, row);
   }
 
   const rows = Array.from(grouped.values()).sort(
     (left, right) => right.completed - left.completed || right.assigned - left.assigned || left.name.localeCompare(right.name),
   );
+  const isPeriodReport = Boolean(range.start || range.end);
   const detail = rows.slice(0, 10).map((row) => {
-    const completionRate = row.assigned > 0 ? (row.completed / row.assigned) * 100 : 0;
     const averageReady = row.readyDurations.length
       ? row.readyDurations.reduce((total, value) => total + value, 0) / row.readyDurations.length
       : null;
+    if (isPeriodReport) {
+      return `• ${row.name} · ${formatNumber(row.completed)} completed · ${formatNumber(row.assigned)} new assigned · ${formatNumber(row.active)} active now · ${formatNumber(row.urgent)} urgent now · ${formatNumber(row.overdue)} overdue now · ${averageReady === null ? "no time-to-ready data in period" : `${averageReady.toFixed(1)} days avg to ready`}`;
+    }
+    const completionRate = row.assigned > 0 ? (row.completed / row.assigned) * 100 : 0;
     return `• ${row.name} · ${formatNumber(row.completed)} completed / ${formatNumber(row.assigned)} assigned (${completionRate.toFixed(1)}%) · ${formatNumber(row.active)} active · ${formatNumber(row.overdue)} overdue · ${averageReady === null ? "no time-to-ready data" : `${averageReady.toFixed(1)} days avg to ready`}`;
   }).join("\n");
-  const csvHeader = ["Operator", "Assigned", "Completed", "Completion rate", "Active", "Urgent active", "Overdue ordered", "Average days to ready", "Recorded PO value"];
+  const csvHeader = isPeriodReport
+    ? ["Operator", "Period", "New assigned", "Completed", "Active now", "Urgent now", "Overdue now", "Average days to ready in period", "Recorded order value for period work"]
+    : ["Operator", "Assigned", "Completed", "Completion rate", "Active", "Urgent active", "Overdue ordered", "Average days to ready", "Recorded order value"];
   const csvRows = rows.map((row) => {
-    const completionRate = row.assigned > 0 ? (row.completed / row.assigned) * 100 : 0;
     const averageReady = row.readyDurations.length
       ? row.readyDurations.reduce((total, value) => total + value, 0) / row.readyDurations.length
       : "";
-    return [row.name, row.assigned, row.completed, completionRate.toFixed(1), row.active, row.urgent, row.overdue, typeof averageReady === "number" ? averageReady.toFixed(1) : "", row.orderValue]
+    const completionRate = row.assigned > 0 ? (row.completed / row.assigned) * 100 : 0;
+    const values = isPeriodReport
+      ? [row.name, range.label, row.assigned, row.completed, row.active, row.urgent, row.overdue, typeof averageReady === "number" ? averageReady.toFixed(1) : "", row.orderValue]
+      : [row.name, row.assigned, row.completed, completionRate.toFixed(1), row.active, row.urgent, row.overdue, typeof averageReady === "number" ? averageReady.toFixed(1) : "", row.orderValue];
+    return values
       .map(csvCell)
       .join(",");
   });
+  const selectedLabel = requestedOperators.length > 0
+    ? requestedOperators.map(({ label }) => label).join(", ")
+    : "all operators";
 
   return {
     text: rows.length
-      ? `Admin performance report\n\n${detail}\n\nThese are workload and workflow indicators, not a quality score. Completion rate is all-time and can be affected by reassignment, ticket age and data completeness.`
+      ? `Admin performance report for ${selectedLabel} · ${range.label}\n\n${detail}\n\nThese are workload and workflow indicators, not a quality score. Current active, urgent and overdue counts are live; period counts use recorded creation, completion and ready dates.`
       : "No assigned operator data is available for a performance report.",
-    facts: [`${formatNumber(rows.length)} operators`, `${formatNumber(snapshot.tickets.length)} tickets`, "CSV available"],
-    sourceNote: "All accessible tickets and linked POs; time-to-ready uses recorded created_at and ready_at timestamps.",
+    facts: [`${formatNumber(rows.length)} operators`, range.label, "CSV available"],
+    sourceNote: "Accessible tickets, completion activity and linked POs. New assigned uses ticket created_at, completed uses completion activity with updated_at fallback for legacy completed tickets, and time-to-ready uses created_at and ready_at.",
     download: {
       filename: `relay-admin-performance-${new Date().toISOString().slice(0, 10)}.csv`,
       content: [csvHeader.map(csvCell).join(","), ...csvRows].join("\n"),
@@ -1113,8 +1205,8 @@ function answerAdminPerformance(snapshot: RelayAnalyticsSnapshot): RelayConsoleA
   };
 }
 
-async function detectIntent(question: string) {
-  const wordIntent = detectIntentFromWords(question);
+async function detectIntent(question: string, snapshot: RelayAnalyticsSnapshot) {
+  const wordIntent = detectIntentFromWords(question, snapshot);
   if (wordIntent !== "overview") return wordIntent;
 
   try {
@@ -1405,7 +1497,7 @@ export async function answerRelayConsoleQuestion(
       interpretation = "purchase-order lookup";
       answer = answerPurchaseOrderLookup(poMatches, snapshot);
     } else {
-      const intent = await detectIntent(question);
+      const intent = await detectIntent(question, snapshot);
       interpretation = intent.replaceAll("_", " ");
       switch (intent) {
         case "customer_fleet": answer = answerCustomerFleet(question, snapshot); break;
@@ -1415,7 +1507,7 @@ export async function answerRelayConsoleQuestion(
         case "requesters": answer = answerRankedTickets(snapshot, "requester_name", "Top requesters", "No requester names are recorded."); break;
         case "departments": answer = answerRankedTickets(snapshot, "department", "Top departments", "No departments are recorded."); break;
         case "operators": answer = answerRankedTickets(snapshot, "assigned_to", "Operator workload", "No operator assignments are recorded."); break;
-        case "admin_performance": answer = answerAdminPerformance(snapshot); break;
+        case "admin_performance": answer = answerAdminPerformance(question, snapshot); break;
         case "statuses": answer = answerStatuses(snapshot); break;
         case "overdue": answer = answerAttention(snapshot, "overdue"); break;
         case "urgent": answer = answerAttention(snapshot, "urgent"); break;
