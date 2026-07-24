@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ConsoleTicket } from "@/lib/console-tickets";
 import {
   fetchAdminAssigneeOptions,
@@ -44,6 +44,73 @@ export function ConsoleTicketActionModal({
   const [selectedAssigneeId, setSelectedAssigneeId] = useState("");
   const [currentActorLabel, setCurrentActorLabel] = useState("");
   const [isLoadingAssignees, setIsLoadingAssignees] = useState(false);
+  const dialogRef = useRef<HTMLElement>(null);
+  const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  const headingId = useId();
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!action) return;
+
+    previouslyFocusedElementRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const dialog = dialogRef.current;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusableSelector = [
+      "button:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "input:not([disabled])",
+      "[href]",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(",");
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+
+      const focusableElements = Array.from(
+        dialog.querySelectorAll<HTMLElement>(focusableSelector),
+      ).filter((element) => !element.hasAttribute("hidden"));
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement).focus();
+      } else if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
+
+    requestAnimationFrame(() => {
+      dialog?.querySelector<HTMLElement>("[data-modal-close]")?.focus();
+    });
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      previouslyFocusedElementRef.current?.focus();
+    };
+  }, [action]);
 
   useEffect(() => {
     if (!action) return;
@@ -255,75 +322,92 @@ export function ConsoleTicketActionModal({
 
   return (
     <div className="console-action-modal-scrim" role="presentation">
-      <section className="console-action-modal" role="dialog" aria-modal="true" aria-label={mode === "note" ? "Add note" : "Change status"}>
+      <section
+        ref={dialogRef}
+        className="console-action-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        tabIndex={-1}
+      >
         <div className="console-action-modal-heading">
           <div>
             <p>Job {ticket.job_number || "—"}</p>
-            <h2>{mode === "note" ? "Add activity note" : "Change job status"}</h2>
+            <h2 id={headingId}>{mode === "note" ? "Add activity note" : "Change job status"}</h2>
           </div>
-          <button type="button" onClick={onClose}>Close</button>
+          <button type="button" onClick={onClose} aria-label="Close" data-modal-close>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
         </div>
 
-        {isReviewing ? (
-          <div className="console-action-confirmation">
-            <strong>Confirm change</strong>
-            <p>{confirmationText}</p>
-            <div>
+        <div className="console-action-modal-body">
+          {isReviewing ? (
+            <div className="console-action-confirmation">
+              <strong>Confirm change</strong>
+              <p>{confirmationText}</p>
+            </div>
+          ) : mode === "note" ? (
+            <>
+              <div className="console-action-assignment-callout">
+                <span>Automatic assignment</span>
+                <strong>{currentActorLabel || "Loading signed-in admin..."}</strong>
+                <p>Adding this note assigns the job to the signed-in admin.</p>
+              </div>
+              <label className="console-action-field">
+                <span>Admin note</span>
+                <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} placeholder="Add a concise operational update" />
+              </label>
+            </>
+          ) : (
+            <div className="console-action-field-grid">
+              <label className="console-action-field">
+                <span>New status</span>
+                <select value={normalizedStatus} onChange={(event) => setNextStatus(event.target.value)}>
+                  {ticketStatuses.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}
+                </select>
+              </label>
+              <label className="console-action-field">
+                <span>Assign to</span>
+                <select
+                  value={selectedAssigneeId}
+                  onChange={(event) => setSelectedAssigneeId(event.target.value)}
+                  disabled={isLoadingAssignees}
+                >
+                  {assignees.map((assignee) => (
+                    <option key={assignee.userId} value={assignee.userId}>
+                      {assignee.isCurrentUser ? `Me · ${assignee.label}` : assignee.label}
+                    </option>
+                  ))}
+                </select>
+                <small>
+                  Currently {ticket.assigned_to?.trim() || "unassigned"}. Status changes default to you.
+                </small>
+              </label>
+            </div>
+          )}
+
+          {errorMessage ? <p className="console-action-error" role="alert">{errorMessage}</p> : null}
+        </div>
+
+        <div className="console-action-modal-footer">
+          {isReviewing ? (
+            <>
               <button type="button" onClick={() => setIsReviewing(false)} disabled={isSaving}>Go back</button>
               <button type="button" onClick={() => void handleConfirm()} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Yes, confirm"}
               </button>
-            </div>
-          </div>
-        ) : mode === "note" ? (
-          <>
-            <div className="console-action-assignment-callout">
-              <span>Automatic assignment</span>
-              <strong>{currentActorLabel || "Loading signed-in admin..."}</strong>
-              <p>Adding this note assigns the job to the signed-in admin.</p>
-            </div>
-            <label className="console-action-field">
-              <span>Admin note</span>
-              <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} placeholder="Add a concise operational update" />
-            </label>
-          </>
-        ) : (
-          <div className="console-action-field-grid">
-            <label className="console-action-field">
-              <span>New status</span>
-              <select value={normalizedStatus} onChange={(event) => setNextStatus(event.target.value)}>
-                {ticketStatuses.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}
-              </select>
-            </label>
-            <label className="console-action-field">
-              <span>Assign to</span>
-              <select
-                value={selectedAssigneeId}
-                onChange={(event) => setSelectedAssigneeId(event.target.value)}
-                disabled={isLoadingAssignees}
-              >
-                {assignees.map((assignee) => (
-                  <option key={assignee.userId} value={assignee.userId}>
-                    {assignee.isCurrentUser ? `Me · ${assignee.label}` : assignee.label}
-                  </option>
-                ))}
-              </select>
-              <small>
-                Currently {ticket.assigned_to?.trim() || "unassigned"}. Status changes default to you.
-              </small>
-            </label>
-          </div>
-        )}
-
-        {errorMessage ? <p className="console-action-error">{errorMessage}</p> : null}
-        {!isReviewing ? (
-          <div className="console-action-modal-footer">
+            </>
+          ) : (
+            <>
             <button type="button" onClick={onClose}>Cancel</button>
             <button type="button" onClick={handleReview} disabled={isLoadingAssignees}>
               {isLoadingAssignees ? "Loading admins..." : "Review change"}
             </button>
-          </div>
-        ) : null}
+            </>
+          )}
+        </div>
       </section>
     </div>
   );
