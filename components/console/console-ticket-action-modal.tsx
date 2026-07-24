@@ -1,8 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ConsoleTicket } from "@/lib/console-tickets";
-import { notifyRequesterStatusChanged } from "@/lib/notifications";
+import {
+  fetchAdminAssigneeOptions,
+  getAdminAssignmentLabel,
+  type AdminAssigneeOption,
+} from "@/lib/admin-assignees";
+import {
+  notifyAdminJobAssigned,
+  notifyRequesterStatusChanged,
+} from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { ticketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -12,6 +20,12 @@ export type ConsoleTicketAction = {
   ticket: ConsoleTicket;
 };
 
+export type ConsoleTicketActionSaved = {
+  assigneeLabel: string;
+  jobNumber: string;
+  mode: ConsoleTicketAction["mode"];
+};
+
 export function ConsoleTicketActionModal({
   action,
   onClose,
@@ -19,13 +33,64 @@ export function ConsoleTicketActionModal({
 }: {
   action: ConsoleTicketAction | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (result: ConsoleTicketActionSaved) => void;
 }) {
   const [note, setNote] = useState("");
   const [nextStatus, setNextStatus] = useState("");
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [assignees, setAssignees] = useState<AdminAssigneeOption[]>([]);
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState("");
+  const [currentActorLabel, setCurrentActorLabel] = useState("");
+  const [isLoadingAssignees, setIsLoadingAssignees] = useState(false);
+
+  useEffect(() => {
+    if (!action) return;
+    let isMounted = true;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setIsLoadingAssignees(true);
+    void getCurrentUserWithRole(supabase, { forceFresh: true })
+      .then(async ({ user, profile, isAdmin }) => {
+        if (!user || !isAdmin) throw new Error("Admin access is required.");
+        const displayName = profile?.display_name?.trim()
+          || user.email?.split("@")[0]
+          || "Administrator";
+        const actorLabel = getAdminAssignmentLabel(displayName);
+        let options: AdminAssigneeOption[];
+        try {
+          options = await fetchAdminAssigneeOptions(supabase, { user, displayName });
+        } catch {
+          options = [{
+            userId: user.id,
+            label: actorLabel,
+            fullName: displayName,
+            isCurrentUser: true,
+          }];
+        }
+        if (!isMounted) return;
+        setAssignees(options);
+        setSelectedAssigneeId(user.id);
+        setCurrentActorLabel(actorLabel);
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setErrorMessage(error instanceof Error ? error.message : "Unable to load admin users.");
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingAssignees(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [action]);
 
   if (!action) {
     return null;
@@ -42,6 +107,10 @@ export function ConsoleTicketActionModal({
     }
 
     if (mode === "status") {
+      if (!selectedAssigneeId || isLoadingAssignees) {
+        setErrorMessage("Wait for the admin assignment list to load.");
+        return;
+      }
       if (normalizedStatus === ticket.status) {
         setErrorMessage("Choose a different status.");
         return;
@@ -79,19 +148,45 @@ export function ConsoleTicketActionModal({
       }
 
       const actorName = profile?.display_name?.trim() || user.email?.split("@")[0] || "Administrator";
+      const latestAssignees = await fetchAdminAssigneeOptions(supabase, {
+        user,
+        displayName: actorName,
+      });
+      const selectedUserId = mode === "note" ? user.id : selectedAssigneeId;
+      const assignee = latestAssignees.find((option) => option.userId === selectedUserId);
+      if (!assignee) {
+        throw new Error("The selected admin is no longer available for assignment.");
+      }
+      const assignmentChanged = ticket.assigned_to?.trim().toLowerCase()
+        !== assignee.label.toLowerCase();
+      const updatedAt = new Date().toISOString();
+
       if (mode === "note") {
+        if (assignmentChanged) {
+          const { error: assignmentError } = await supabase
+            .from("tickets")
+            .update({ assigned_to: assignee.label, updated_at: updatedAt })
+            .eq("id", ticket.id);
+          if (assignmentError) {
+            throw new Error(assignmentError.message);
+          }
+        }
+
         const { error } = await supabase.from("ticket_updates").insert({
           ticket_id: ticket.id,
-          comment: `Admin note by ${actorName}: ${note.trim()}`,
+          comment: `Admin note by ${actorName}: ${note.trim()}${assignmentChanged ? ` Job assigned to ${assignee.label}.` : ""}`,
         });
         if (error) {
           throw new Error(error.message);
         }
       } else {
-        const updatedAt = new Date().toISOString();
         const { error: ticketError } = await supabase
           .from("tickets")
-          .update({ status: normalizedStatus, updated_at: updatedAt })
+          .update({
+            status: normalizedStatus,
+            assigned_to: assignee.label,
+            updated_at: updatedAt,
+          })
           .eq("id", ticket.id);
         if (ticketError) {
           throw new Error(ticketError.message);
@@ -100,7 +195,7 @@ export function ConsoleTicketActionModal({
         const { error: updateError } = await supabase.from("ticket_updates").insert({
           ticket_id: ticket.id,
           status: normalizedStatus,
-          comment: `Status updated from ${ticket.status || "PENDING"} to ${normalizedStatus} by ${actorName}.`,
+          comment: `Status updated from ${ticket.status || "PENDING"} to ${normalizedStatus} by ${actorName}.${assignmentChanged ? ` Job assigned to ${assignee.label}.` : ""}`,
         });
         if (updateError) {
           throw new Error(updateError.message);
@@ -113,7 +208,7 @@ export function ConsoleTicketActionModal({
             jobNumber: ticket.job_number,
             nextStatus: normalizedStatus,
             requestSummary: ticket.request_summary ?? ticket.request_details,
-            assignedTo: ticket.assigned_to,
+            assignedTo: assignee.label,
             binLocation: ticket.bin_location,
           });
         } catch (notificationError) {
@@ -121,7 +216,28 @@ export function ConsoleTicketActionModal({
         }
       }
 
-      onSaved();
+      if (assignmentChanged && assignee.userId !== user.id) {
+        try {
+          await notifyAdminJobAssigned(supabase, {
+            userId: assignee.userId,
+            ticketId: ticket.id,
+            jobNumber: ticket.job_number?.trim() || ticket.id.slice(0, 8),
+            requestSummary:
+              ticket.request_summary?.trim()
+              || ticket.request_details?.trim()
+              || "Request details not recorded",
+            assignedBy: actorName,
+          });
+        } catch (notificationError) {
+          console.error("Failed to notify reassigned admin", notificationError);
+        }
+      }
+
+      onSaved({
+        assigneeLabel: assignee.label,
+        jobNumber: ticket.job_number?.trim() || ticket.id.slice(0, 8),
+        mode,
+      });
       onClose();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to save this change.");
@@ -132,10 +248,10 @@ export function ConsoleTicketActionModal({
   }
 
   const confirmationText = mode === "note"
-    ? "Are you sure you want to add this note to the permanent activity chain?"
+    ? `Add this note to the permanent activity chain and assign the job to ${currentActorLabel || "you"}?`
     : normalizedStatus === "COMPLETED"
-      ? "Are you sure you want to mark this request COMPLETED? It will leave the active operations queue."
-      : `Are you sure you want to change this job from ${ticket.status || "PENDING"} to ${normalizedStatus}?`;
+      ? `Mark this request COMPLETED and assign it to ${assignees.find((option) => option.userId === selectedAssigneeId)?.label || "the selected admin"}? It will leave the active operations queue.`
+      : `Change this job from ${ticket.status || "PENDING"} to ${normalizedStatus} and assign it to ${assignees.find((option) => option.userId === selectedAssigneeId)?.label || "the selected admin"}?`;
 
   return (
     <div className="console-action-modal-scrim" role="presentation">
@@ -160,24 +276,52 @@ export function ConsoleTicketActionModal({
             </div>
           </div>
         ) : mode === "note" ? (
-          <label className="console-action-field">
-            <span>Admin note</span>
-            <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} placeholder="Add a concise operational update" />
-          </label>
+          <>
+            <div className="console-action-assignment-callout">
+              <span>Automatic assignment</span>
+              <strong>{currentActorLabel || "Loading signed-in admin..."}</strong>
+              <p>Adding this note assigns the job to the signed-in admin.</p>
+            </div>
+            <label className="console-action-field">
+              <span>Admin note</span>
+              <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} placeholder="Add a concise operational update" />
+            </label>
+          </>
         ) : (
-          <label className="console-action-field">
-            <span>New status</span>
-            <select value={normalizedStatus} onChange={(event) => setNextStatus(event.target.value)}>
-              {ticketStatuses.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}
-            </select>
-          </label>
+          <div className="console-action-field-grid">
+            <label className="console-action-field">
+              <span>New status</span>
+              <select value={normalizedStatus} onChange={(event) => setNextStatus(event.target.value)}>
+                {ticketStatuses.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}
+              </select>
+            </label>
+            <label className="console-action-field">
+              <span>Assign to</span>
+              <select
+                value={selectedAssigneeId}
+                onChange={(event) => setSelectedAssigneeId(event.target.value)}
+                disabled={isLoadingAssignees}
+              >
+                {assignees.map((assignee) => (
+                  <option key={assignee.userId} value={assignee.userId}>
+                    {assignee.isCurrentUser ? `Me · ${assignee.label}` : assignee.label}
+                  </option>
+                ))}
+              </select>
+              <small>
+                Currently {ticket.assigned_to?.trim() || "unassigned"}. Status changes default to you.
+              </small>
+            </label>
+          </div>
         )}
 
         {errorMessage ? <p className="console-action-error">{errorMessage}</p> : null}
         {!isReviewing ? (
           <div className="console-action-modal-footer">
             <button type="button" onClick={onClose}>Cancel</button>
-            <button type="button" onClick={handleReview}>Review change</button>
+            <button type="button" onClick={handleReview} disabled={isLoadingAssignees}>
+              {isLoadingAssignees ? "Loading admins..." : "Review change"}
+            </button>
           </div>
         ) : null}
       </section>

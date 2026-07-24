@@ -10,6 +10,7 @@ export type ConsoleIconName =
   | "menu"
   | "message"
   | "parts"
+  | "prepick"
   | "refresh"
   | "reports"
   | "search"
@@ -75,6 +76,12 @@ export function ConsoleIcon({
       <>
         <path d="M4 8 12 4l8 4-8 4z" />
         <path d="m4 8 8 4 8-4v8l-8 4-8-4zM12 12v8" />
+      </>
+    ),
+    prepick: (
+      <>
+        <path d="M3 4h18v16H3zM3 10h18M9 4v16M15 4v16" />
+        <path d="M5.5 7h1M11.5 7h1M17.5 7h1M5.5 14h1M11.5 14h1M17.5 14h1" />
       </>
     ),
     refresh: (

@@ -11,6 +11,7 @@ import { RelayAiPanel } from "@/components/console/relay-ai-panel";
 import {
   ConsoleTicketActionModal,
   type ConsoleTicketAction,
+  type ConsoleTicketActionSaved,
 } from "@/components/console/console-ticket-action-modal";
 import {
   type ConsoleTicket,
@@ -74,7 +75,10 @@ export default function ConsolePage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isRelayAiOpen, setIsRelayAiOpen] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [assignmentNotice, setAssignmentNotice] =
+    useState<ConsoleTicketActionSaved | null>(null);
   const closeTicketDrawer = useCallback(() => setSelectedTicketId(null), []);
+  const dismissAssignmentNotice = useCallback(() => setAssignmentNotice(null), []);
 
   const loadTickets = useCallback(async (showFullLoader = false) => {
     const supabase = getSupabaseClient();
@@ -333,11 +337,47 @@ export default function ConsolePage() {
           key={ticketAction ? `${ticketAction.mode}-${ticketAction.ticket.id}` : "closed"}
           action={ticketAction}
           onClose={() => setTicketAction(null)}
-          onSaved={() => void loadTickets(false)}
+          onSaved={(result) => {
+            setAssignmentNotice(result);
+            void loadTickets(false);
+          }}
+        />
+        <AssignmentNotice
+          notice={assignmentNotice}
+          onDismiss={dismissAssignmentNotice}
         />
         <RelayAiPanel isOpen={isRelayAiOpen} onClose={() => setIsRelayAiOpen(false)} />
       </ConsoleShell>
     </AuthGuard>
+  );
+}
+
+function AssignmentNotice({
+  notice,
+  onDismiss,
+}: {
+  notice: ConsoleTicketActionSaved | null;
+  onDismiss: () => void;
+}) {
+  useEffect(() => {
+    if (!notice) return;
+    const timeoutId = window.setTimeout(onDismiss, 8_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [notice, onDismiss]);
+
+  if (!notice) return null;
+
+  return (
+    <aside className="console-assignment-notice" role="status" aria-live="polite">
+      <span className="console-assignment-notice-icon" aria-hidden="true">✓</span>
+      <div>
+        <strong>Job {notice.jobNumber} is now assigned to {notice.assigneeLabel}</strong>
+        <p>{notice.mode === "note" ? "The note was added to the activity chain." : "The status change was saved."}</p>
+      </div>
+      <button type="button" onClick={onDismiss} aria-label="Dismiss assignment confirmation">
+        <ConsoleIcon name="close" className="h-4 w-4" />
+      </button>
+    </aside>
   );
 }
 

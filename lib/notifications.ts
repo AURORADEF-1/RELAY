@@ -269,7 +269,7 @@ export async function notifyAdminJobAssigned(
       user_id: payload.userId,
       ticket_id: payload.ticketId,
       type: "job_assigned",
-      title: `Job ${clampNotificationText(payload.jobNumber, 80)} assigned by RELAY AI`,
+      title: `Job ${clampNotificationText(payload.jobNumber, 80)} assigned to you`,
       body: `${clampNotificationText(payload.requestSummary, 170)} Assigned by ${clampNotificationText(payload.assignedBy, 50)}.`,
     },
   ]);
