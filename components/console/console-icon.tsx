@@ -11,6 +11,7 @@ export type ConsoleIconName =
   | "message"
   | "parts"
   | "refresh"
+  | "reports"
   | "search"
   | "settings"
   | "ticket"
@@ -81,6 +82,12 @@ export function ConsoleIcon({
         <path d="M20 7v5h-5" />
         <path d="M4 17v-5h5" />
         <path d="M6.1 9A7 7 0 0 1 18 6.5L20 12M4 12l1.9 5.5A7 7 0 0 0 18 15" />
+      </>
+    ),
+    reports: (
+      <>
+        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+        <path d="m4 7 6-4 6 7 5-5" />
       </>
     ),
     search: (

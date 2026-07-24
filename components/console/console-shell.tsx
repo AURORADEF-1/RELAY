@@ -40,6 +40,7 @@ type NavigationItem = {
 
 const navigation: NavigationItem[] = [
   { href: "/console", label: "Operations", icon: "console", adminOnly: true },
+  { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
   { href: "/submit", label: "New request", icon: "ticket" },
   { href: "/requests", label: "My requests", icon: "clipboard", badge: "requester" },
   { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
