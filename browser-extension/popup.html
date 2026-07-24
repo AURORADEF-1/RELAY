@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RELAY Parts Lookup</title>
+    <title>RELAY Operations Assistant</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
@@ -12,10 +12,22 @@
         <span class="brand-mark" aria-hidden="true">R</span>
         <div>
           <p>RELAY</p>
-          <h1>Parts Lookup</h1>
+          <h1>Operations Assistant</h1>
         </div>
         <span class="local-badge">Local</span>
       </header>
+
+      <section class="notification-card">
+        <div>
+          <strong>Admin notifications</strong>
+          <span id="notification-state">Checking extension status...</span>
+        </div>
+        <label class="toggle">
+          <input id="notifications-enabled" type="checkbox">
+          <span aria-hidden="true"></span>
+          <span class="sr-only">Enable admin popup notifications</span>
+        </label>
+      </section>
 
       <section id="context-card" class="context-card" aria-live="polite">
         <div class="section-heading">

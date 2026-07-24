@@ -84,10 +84,102 @@ main {
 }
 
 .context-card,
+.notification-card,
 .results-section {
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface);
+}
+
+.notification-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+}
+
+.notification-card > div {
+  min-width: 0;
+}
+
+.notification-card strong,
+.notification-card span {
+  display: block;
+}
+
+.notification-card strong {
+  color: var(--navy);
+  font-size: 13px;
+}
+
+.notification-card > div span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.toggle {
+  position: relative;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.toggle > span[aria-hidden="true"] {
+  position: relative;
+  display: block;
+  width: 42px;
+  height: 24px;
+  border: 1px solid #aeb9c5;
+  border-radius: 999px;
+  background: #dce2e8;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.toggle > span[aria-hidden="true"]::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(16, 36, 63, 0.24);
+  content: "";
+  transition: transform 150ms ease;
+}
+
+.toggle input:checked + span {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.toggle input:checked + span::after {
+  transform: translateX(18px);
+}
+
+.toggle input:focus-visible + span {
+  outline: 3px solid rgba(22, 93, 134, 0.25);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
 }
 
 .context-card {

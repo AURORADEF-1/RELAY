@@ -1,4 +1,5 @@
 const RELAY_RESULT_MESSAGE = "RELAY_PART_LOOKUP_RESULT";
+const NOTIFICATIONS_ENABLED_KEY = "relayAdminNotificationsEnabled";
 const RELAY_TAB_PATTERNS = [
   "https://relay-ryoz.vercel.app/console*",
   "https://relay-auroradef-1s-projects.vercel.app/console*",
@@ -30,6 +31,8 @@ const elements = {
   results: document.querySelector("#results"),
   resultCount: document.querySelector("#result-count")
 };
+elements.notificationsEnabled = document.querySelector("#notifications-enabled");
+elements.notificationState = document.querySelector("#notification-state");
 
 function normalizePartNumber(value) {
   return String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -521,4 +524,20 @@ elements.clear.addEventListener("click", async () => {
 chrome.storage.local.get(["relayLookupContext"]).then(({ relayLookupContext }) => {
   state.context = relayLookupContext || null;
   renderContext();
+});
+
+chrome.storage.local.get([NOTIFICATIONS_ENABLED_KEY]).then((stored) => {
+  const enabled = stored[NOTIFICATIONS_ENABLED_KEY] !== false;
+  elements.notificationsEnabled.checked = enabled;
+  elements.notificationState.textContent = enabled
+    ? "Active while an authenticated RELAY tab is open."
+    : "Popup notifications are paused.";
+});
+
+elements.notificationsEnabled.addEventListener("change", async () => {
+  const enabled = elements.notificationsEnabled.checked;
+  await chrome.storage.local.set({ [NOTIFICATIONS_ENABLED_KEY]: enabled });
+  elements.notificationState.textContent = enabled
+    ? "Active while an authenticated RELAY tab is open."
+    : "Popup notifications are paused.";
 });

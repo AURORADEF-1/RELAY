@@ -1,16 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "RELAY Parts Lookup",
-  "version": "1.2.0",
-  "description": "Search supplier websites using only a RELAY-selected catalogue part number.",
+  "name": "RELAY Operations Assistant",
+  "version": "1.3.0",
+  "description": "Receive RELAY admin alerts and search supplier websites using selected catalogue part numbers.",
   "permissions": [
     "activeTab",
+    "notifications",
     "scripting",
     "storage",
     "tabs"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
-    "default_title": "RELAY Parts Lookup",
+    "default_title": "RELAY Operations Assistant",
     "default_popup": "popup.html"
   },
   "content_scripts": [

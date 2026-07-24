@@ -1,8 +1,35 @@
 const CONTEXT_MESSAGE_TYPE = "RELAY_PART_LOOKUP_CONTEXT";
 const RESULT_MESSAGE_TYPE = "RELAY_PART_LOOKUP_RESULT";
 const RESULT_EVENT_NAME = "relay:external-lookup-result";
+const ADMIN_NOTIFICATION_MESSAGE = "RELAY_ADMIN_NOTIFICATION";
 
 window.addEventListener("message", (event) => {
+  if (
+    event.source === window
+    && event.origin === window.location.origin
+    && event.data?.source === "relay-app"
+    && event.data?.type === ADMIN_NOTIFICATION_MESSAGE
+  ) {
+    const notification = event.data.payload;
+    if (
+      notification
+      && typeof notification.id === "string"
+      && typeof notification.title === "string"
+    ) {
+      void chrome.runtime.sendMessage({
+        type: ADMIN_NOTIFICATION_MESSAGE,
+        notification: {
+          id: notification.id.slice(0, 120),
+          type: String(notification.type || "").slice(0, 80),
+          title: notification.title.slice(0, 120),
+          body: String(notification.body || "").slice(0, 240),
+          href: String(notification.href || "").slice(0, 500)
+        }
+      });
+    }
+    return;
+  }
+
   if (
     event.source !== window
     || event.origin !== window.location.origin

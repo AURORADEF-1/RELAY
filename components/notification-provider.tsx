@@ -94,12 +94,37 @@ const REQUESTER_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-browser-notification-pr
 const TOASTED_NOTIFICATION_IDS_STORAGE_PREFIX = "relay-toasted-notification-ids";
 const MAX_STORED_TOASTED_NOTIFICATION_IDS = 120;
 const JOB_ASSIGNMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const ADMIN_EXTENSION_NOTIFICATION_MESSAGE = "RELAY_ADMIN_NOTIFICATION";
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
   "operator_message",
   "ready_reminder",
   "ready_for_collection",
 ]);
+
+function emitAdminExtensionNotification(notification: {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  ticket_id: string | null;
+}) {
+  window.postMessage({
+    source: "relay-app",
+    type: ADMIN_EXTENSION_NOTIFICATION_MESSAGE,
+    payload: {
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      body: notification.body ?? "New RELAY admin activity.",
+      href: notification.ticket_id
+        ? `/tickets/${notification.ticket_id}`
+        : notification.type === "task_assigned"
+          ? "/tasks"
+          : "/console",
+    },
+  }, window.location.origin);
+}
 
 async function clearArchivedTicketNotifications(
   supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
@@ -595,6 +620,13 @@ export function NotificationProvider({
           unreadNotificationsInitializedRef.current ||
           toastableNotifications.some((notification) => notification.type === "job_assigned")
         );
+        const extensionNotifications = adminUser
+          && options?.showToasts
+          && unreadNotificationsInitializedRef.current
+          ? activeUnreadNotifications.filter(
+              (notification) => !knownUnreadIdsRef.current.has(notification.id),
+            )
+          : [];
 
         if (adminUser) {
           setToasts((current) => current.filter((toast) => toast.persistent));
@@ -653,6 +685,10 @@ export function NotificationProvider({
             userId,
             nextToasts.map((notification) => notification.id),
           );
+        }
+
+        for (const notification of extensionNotifications) {
+          emitAdminExtensionNotification(notification);
         }
 
         knownUnreadIdsRef.current = nextUnreadIds;

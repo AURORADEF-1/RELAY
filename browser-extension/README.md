@@ -1,6 +1,6 @@
-# RELAY Parts Lookup browser extension
+# RELAY Operations Assistant browser extension
 
-The extension transfers an operator-selected RELAY catalogue part number to a user-selected supplier or manufacturer webpage. It searches only by that exact part number, scans rendered visible content and public structured product metadata locally, and returns only records exposing the same normalized number.
+The extension provides operating-system popup alerts for newly arriving RELAY admin notifications and transfers operator-selected catalogue part numbers to supplier or manufacturer webpages.
 
 ## Install in Chrome or Edge
 
@@ -8,10 +8,19 @@ The extension transfers an operator-selected RELAY catalogue part number to a us
 2. Enable **Developer mode**.
 3. Select **Load unpacked**.
 4. Choose the `browser-extension` directory from this repository.
-5. Pin **RELAY Parts Lookup** to the browser toolbar.
+5. Pin **RELAY Operations Assistant** to the browser toolbar.
 6. Refresh any RELAY tab that was already open.
 
-## Use
+## Admin notifications
+
+1. Sign in to RELAY with an admin account and keep at least one RELAY tab open.
+2. Open the extension and leave **Admin notifications** enabled.
+3. New admin notification records will appear as Chrome or Edge operating-system popups.
+4. Select a popup to focus RELAY and open its related ticket or workspace.
+
+The extension does not store Supabase credentials or run independent database polling. RELAY's existing authenticated realtime and bounded fallback polling remain the notification source. Notification IDs are retained locally in a capped deduplication list so multiple RELAY tabs cannot create duplicate popups and old unread records do not become stale alerts.
+
+## Parts lookup
 
 1. Ask RELAY AI for a part using a verified machine reference.
 2. Review RELAY's ranked catalogue candidates and select the closest description.
@@ -32,6 +41,8 @@ The extension transfers an operator-selected RELAY catalogue part number to a us
 ## Security and limitations
 
 - Scanning occurs only after the user selects **Scan current page**.
+- Admin popup payloads contain only the existing notification title, summary and safe RELAY route.
+- Admin alerts require an authenticated RELAY tab to remain open; the extension does not copy or retain the RELAY session token.
 - `activeTab` access is temporary and limited to the selected tab.
 - Website cookies, passwords and form values are not sent to RELAY.
 - The extension reads rendered visible text; it does not bypass logins, CAPTCHAs or access controls.
