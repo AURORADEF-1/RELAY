@@ -191,9 +191,24 @@ export async function getRicoMachines(options: {
   if (!payload) {
     throw new RicoApiError("RICO machine lookup failed.", 502, "UPSTREAM");
   }
+  const machines = payload.machines.map(normalizeRicoMachine);
+  const kitIds = Array.from(new Set(
+    machines.flatMap((machine) => machine.kits.map((kit) => kit.id)),
+  )).slice(0, 24);
+  const details = new Map<number, RicoProduct>();
+  await Promise.all(kitIds.map(async (id) => {
+    try {
+      details.set(id, await getRicoProduct(id, options.signal));
+    } catch {
+      // The reduced machine response remains usable when one detail call fails.
+    }
+  }));
   return {
     totalRecords: payload.total_records,
-    machines: payload.machines.map(normalizeRicoMachine),
+    machines: machines.map((machine) => ({
+      ...machine,
+      kits: machine.kits.map((kit) => details.get(kit.id) ?? kit),
+    })),
     checkedAt: new Date().toISOString(),
   };
 }

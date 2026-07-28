@@ -112,6 +112,20 @@ describe("RICO server client", () => {
             quantity: 4,
           }],
         }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        success: true,
+        product: {
+          id: 22400,
+          reference: "FK-TB290-2",
+          name: "Takeuchi TB 290-2 service kit",
+          description_short: "<p>Oil Filter</p><p>Fuel Filter</p>",
+          price: 95.5,
+          quantity: 4,
+          active: 1,
+          features: [{ name: "Kit Type", value: "Air/Oil/Fuel" }],
+          images: [],
+        },
       }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -121,12 +135,14 @@ describe("RICO server client", () => {
       query: "TB290-2 MIDI EXCAVATOR",
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(new URL(String(fetchMock.mock.calls[1]?.[0])).searchParams.get("q")).toBe("TB 290-2");
     expect(result.machines[0]?.kits[0]).toMatchObject({
       id: 22400,
       reference: "FK-TB290-2",
       active: true,
+      descriptionShort: "Oil Filter Fuel Filter",
+      features: [{ name: "Kit Type", value: "Air/Oil/Fuel" }],
     });
   });
 

@@ -6,6 +6,7 @@ import { ConsoleIcon } from "@/components/console/console-icon";
 import { normalizeMachineNumber, type MachineRegistryRecord } from "@/lib/machine-registry";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
+import { extractRicoMachineModel } from "@/lib/integrations/rico/normalizers";
 import type { RicoProduct } from "@/lib/integrations/rico/types";
 
 type LookupMode = "machine" | "part" | "crossref" | "list";
@@ -97,11 +98,15 @@ export function FilterLookupWorkspace() {
   );
 
   function chooseMachine(machine: MachineRegistryRecord) {
+    const searchableModel = extractRicoMachineModel(
+      machine.model || machine.item_description,
+      machine.make,
+    );
     setSelectedMachine(machine);
     setMachineQuery(machine.machine_number);
     setMachines([]);
     setManufacturer(machine.make?.trim() ?? "");
-    setModel(machine.model?.trim() ?? "");
+    setModel(searchableModel);
     setProducts([]);
     setNotice("");
   }
@@ -265,7 +270,11 @@ export function FilterLookupWorkspace() {
                 {machines.map((machine) => (
                   <button key={machine.id ?? machine.machine_number} type="button" onClick={() => chooseMachine(machine)}>
                     <strong>{machine.machine_number}</strong>
-                    <span>{[machine.make, machine.model, machine.serial_number].filter(Boolean).join(" · ")}</span>
+                    <span>{[
+                      machine.make,
+                      extractRicoMachineModel(machine.model || machine.item_description, machine.make),
+                      machine.serial_number,
+                    ].filter(Boolean).join(" · ")}</span>
                   </button>
                 ))}
               </div>
@@ -286,7 +295,13 @@ export function FilterLookupWorkspace() {
           {selectedMachine ? (
             <div className="rico-selected-machine">
               <strong>{selectedMachine.machine_number} verified in RELAY</strong>
-              <span>{selectedMachine.item_description}</span>
+              <span>{[
+                selectedMachine.make,
+                extractRicoMachineModel(
+                  selectedMachine.model || selectedMachine.item_description,
+                  selectedMachine.make,
+                ),
+              ].filter(Boolean).join(" ")}</span>
               <span>Serial: {selectedMachine.serial_number || "not recorded"}</span>
             </div>
           ) : null}
@@ -374,10 +389,32 @@ export function FilterLookupWorkspace() {
 
 function ProductRow({ product, matchLabel, onAdd, onTicket }: { product: RicoProduct; matchLabel: string; onAdd: () => void; onTicket: () => void }) {
   const image = product.images.find((item) => item.cover) ?? product.images[0];
+  const kitType = product.features.find((feature) =>
+    feature.name.trim().toLowerCase() === "kit type"
+  )?.value;
+  const isServiceKit = Boolean(kitType || /service kit/i.test(product.name));
+  const summary = product.descriptionShort
+    || product.features.slice(0, 3).map((feature) => `${feature.name}: ${feature.value}`).join(" · ")
+    || "No additional description supplied.";
   return (
     <article className="rico-product-row">
       <div className="rico-product-image">{image ? <Image src={image.url} alt="" width={72} height={72} sizes="72px" /> : <ConsoleIcon name="parts" className="h-7 w-7" />}</div>
-      <div className="rico-product-main"><div><span className="rico-source-badge">RICO Live</span><span className="rico-match-badge">{matchLabel}</span></div><h3>{product.reference}</h3><strong>{product.name}</strong><p>{product.descriptionShort || product.features.slice(0, 3).map((feature) => `${feature.name}: ${feature.value}`).join(" · ") || "No additional description supplied."}</p></div>
+      <div className="rico-product-main">
+        <div>
+          <span className="rico-source-badge">RICO Live</span>
+          <span className="rico-match-badge">{matchLabel}</span>
+          {kitType ? <span className="rico-kit-badge">{kitType}</span> : null}
+        </div>
+        <h3>{product.reference}</h3>
+        <strong>{product.name}</strong>
+        <p>{summary}</p>
+        {isServiceKit ? (
+          <div className="rico-kit-facts">
+            <span>Kit coverage: {kitType || "Not specified"}</span>
+            <span>Service interval: Not supplied by RICO</span>
+          </div>
+        ) : null}
+      </div>
       <div className="rico-product-commercial"><strong>{formatMoney(product.price)}</strong><span>Net account price, ex VAT</span><em data-stock={product.quantity > 0 ? "available" : "backorder"}>{stockLabel(product.quantity)}</em><small>Updated {formatDate(product.dateUpdated)}</small></div>
       <div className="rico-product-actions"><button type="button" onClick={onAdd}>Add to list</button><button type="button" className="console-primary-action" onClick={onTicket}>Add to ticket</button></div>
     </article>

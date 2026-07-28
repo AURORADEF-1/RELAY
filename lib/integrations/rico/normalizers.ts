@@ -8,6 +8,9 @@ import type { RicoMachine, RicoProduct } from "@/lib/integrations/rico/types";
 type RawProduct = z.infer<typeof ricoProductSchema>;
 type RawMachine = z.infer<typeof ricoMachineSchema>;
 
+const machineDescriptionSuffix =
+  /\b(?:MIDI|MINI|MICRO|COMPACT|TRACKED|WHEELED|CRAWLER|EXCAVATORS?|DUMPERS?|DUMP\s+TRUCKS?|ROLLERS?|COMPACTORS?|TELEHANDLERS?|LOADALLS?|LOADERS?|FORKLIFTS?|TRACTORS?|TRUCKS?|BREAKERS?|ATTACHMENTS?|CRUSHERS?|SCREENS?|DOZERS?|CRANES?|PLATFORMS?|GENERATORS?)\b.*$/i;
+
 export function normalizeRicoReference(value: string) {
   return value.trim().toUpperCase().replace(/\s+/g, " ");
 }
@@ -23,7 +26,7 @@ export function buildRicoReferenceCandidates(value: string) {
 }
 
 export function buildRicoMachineQueryCandidates(value: string) {
-  const exact = value.trim().replace(/\s+/g, " ");
+  const exact = extractRicoMachineModel(value);
   const tokens = exact.split(" ");
   const leadingModel = /^[A-Za-z]+$/.test(tokens[0] ?? "") && /^\d/.test(tokens[1] ?? "")
     ? `${tokens[0]} ${tokens[1]}`
@@ -38,12 +41,36 @@ export function buildRicoMachineQueryCandidates(value: string) {
   ].filter(Boolean)));
 }
 
+export function extractRicoMachineModel(value: string, manufacturer?: string | null) {
+  let model = value.trim().replace(/\s+/g, " ");
+  const make = manufacturer?.trim();
+  if (make && model.toUpperCase().startsWith(`${make.toUpperCase()} `)) {
+    model = model.slice(make.length).trim();
+  }
+  return model.replace(machineDescriptionSuffix, "").trim() || model;
+}
+
+function plainTextFromHtml(value: string) {
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#(?:39|x27);/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function normalizeRicoProduct(product: RawProduct): RicoProduct {
   return {
     id: product.id,
     reference: product.reference.trim(),
     name: product.name.trim(),
-    descriptionShort: product.description_short?.trim() || null,
+    descriptionShort: product.description_short
+      ? plainTextFromHtml(product.description_short) || null
+      : null,
     price: product.price,
     quantity: Math.trunc(product.quantity),
     manufacturerId: product.id_manufacturer,
