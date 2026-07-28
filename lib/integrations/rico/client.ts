@@ -6,6 +6,7 @@ import {
   RicoConfigurationError,
 } from "@/lib/integrations/rico/errors";
 import {
+  buildRicoMachineQueryCandidates,
   normalizeRicoMachine,
   normalizeRicoProduct,
 } from "@/lib/integrations/rico/normalizers";
@@ -171,12 +172,25 @@ export async function getRicoMachines(options: {
   series?: string;
   signal?: AbortSignal;
 }): Promise<{ totalRecords: number; machines: RicoMachine[]; checkedAt: string }> {
-  const payload = await request("machines", ricoMachinesResponseSchema, {
-    manufacturer: options.manufacturer,
-    model: options.model,
-    q: options.query,
-    series: options.series,
-  }, { signal: options.signal });
+  const searchValue = options.model ?? options.query;
+  const candidates = searchValue
+    ? buildRicoMachineQueryCandidates(searchValue)
+    : [undefined];
+  let payload: z.infer<typeof ricoMachinesResponseSchema> | undefined;
+
+  for (const candidate of candidates) {
+    payload = await request("machines", ricoMachinesResponseSchema, {
+      manufacturer: options.manufacturer,
+      model: options.model ? candidate : undefined,
+      q: options.query ? candidate : undefined,
+      series: options.series,
+    }, { signal: options.signal });
+    if (payload.machines.length > 0) break;
+  }
+
+  if (!payload) {
+    throw new RicoApiError("RICO machine lookup failed.", 502, "UPSTREAM");
+  }
   return {
     totalRecords: payload.total_records,
     machines: payload.machines.map(normalizeRicoMachine),

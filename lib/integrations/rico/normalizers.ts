@@ -22,6 +22,12 @@ export function buildRicoReferenceCandidates(value: string) {
   return Array.from(new Set([exact, compact].filter(Boolean)));
 }
 
+export function buildRicoMachineQueryCandidates(value: string) {
+  const exact = value.trim().replace(/\s+/g, " ");
+  const spaced = exact.replace(/([A-Za-z])(?=\d)/g, "$1 ");
+  return Array.from(new Set([exact, spaced].filter(Boolean)));
+}
+
 export function normalizeRicoProduct(product: RawProduct): RicoProduct {
   return {
     id: product.id,

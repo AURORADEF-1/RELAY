@@ -26,7 +26,8 @@ export const ricoImageSchema = z.object({
 });
 
 export const ricoProductSchema = z.object({
-  id: numericValue,
+  id: numericValue.optional(),
+  id_product: numericValue.optional(),
   reference: optionalText.transform((value) => value ?? ""),
   name: optionalText.transform((value) => value ?? ""),
   description_short: optionalText,
@@ -36,7 +37,7 @@ export const ricoProductSchema = z.object({
   manufacturer_name: optionalText,
   id_category_default: numericValue.nullish().transform((value) => value ?? null),
   ean13: optionalText,
-  active: z.union([z.boolean(), z.number(), z.string()]).transform((value) =>
+  active: z.union([z.boolean(), z.number(), z.string()]).optional().default(true).transform((value) =>
     value === true || value === 1 || value === "1" || value === "true",
   ),
   date_add: optionalText,
@@ -46,7 +47,13 @@ export const ricoProductSchema = z.object({
   features: z.array(ricoFeatureSchema).optional().default([]),
   images: z.array(ricoImageSchema).optional().default([]),
   matched_crossref: optionalText,
-}).passthrough();
+}).passthrough().refine(
+  (product) => product.id !== undefined || product.id_product !== undefined,
+  { message: "RICO product identifier is missing." },
+).transform((product) => ({
+  ...product,
+  id: product.id ?? product.id_product!,
+}));
 
 const successSchema = z.object({
   success: z.boolean(),

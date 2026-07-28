@@ -90,6 +90,46 @@ describe("RICO server client", () => {
     await expect(getRicoProducts()).resolves.toMatchObject({ products: [], totalRecords: 0 });
   });
 
+  it("retries compact machine models and parses reduced kit records", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        success: true,
+        total_records: 0,
+        machines: [],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        success: true,
+        total_records: 1,
+        machines: [{
+          machine_id: 260,
+          manufacturer: "TAKEUCHI",
+          model: "TB 260",
+          kits: [{
+            id_product: 22400,
+            reference: "FK-TB260",
+            name: "Takeuchi TB 260 service kit",
+            price: 95.5,
+            quantity: 4,
+          }],
+        }],
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getRicoMachines } = await import("@/lib/integrations/rico/client");
+    const result = await getRicoMachines({
+      manufacturer: "TAKEUCHI",
+      query: "TB260",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).searchParams.get("q")).toBe("TB 260");
+    expect(result.machines[0]?.kits[0]).toMatchObject({
+      id: 22400,
+      reference: "FK-TB260",
+      active: true,
+    });
+  });
+
   it("maps a timeout without leaking request details", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("timed out", "TimeoutError")));
     const { getRicoProducts } = await import("@/lib/integrations/rico/client");
