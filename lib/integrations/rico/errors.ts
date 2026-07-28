@@ -15,6 +15,7 @@ export class RicoApiError extends Error {
       | "NOT_FOUND"
       | "RATE_LIMITED"
       | "TIMEOUT"
+      | "UPSTREAM_BLOCKED"
       | "UPSTREAM"
       | "INVALID_RESPONSE",
   ) {
@@ -28,6 +29,9 @@ export function getRicoUserMessage(error: unknown) {
   if (!(error instanceof RicoApiError)) return "RICO is temporarily unavailable.";
   if (error.code === "RATE_LIMITED") return "RICO is busy. Wait a moment and retry.";
   if (error.code === "TIMEOUT") return "RICO did not respond in time. Retry the search.";
+  if (error.code === "UPSTREAM_BLOCKED") {
+    return "RICO's API security gateway blocked the server request before it reached the catalogue. Ask RICO Europe to allow server-to-server access to /reseller-api.";
+  }
   if (error.code === "NOT_FOUND") return "The requested RICO record was not found.";
   if (error.code === "FORBIDDEN") {
     return "RICO denied catalogue access. The account may not be approved for this catalogue or product.";

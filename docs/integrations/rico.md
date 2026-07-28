@@ -76,6 +76,7 @@ Adding a proposed part records structured source and confirmation fields on `tic
 - `RICO integration is not configured`: set both server-only variables and redeploy.
 - Authentication error: rotate or verify the account key without printing it.
 - Access denied (`403`): the account may not be approved for the requested catalogue or product. Confirm catalogue access with RICO Europe.
+- API security gateway blocked the request (`502`): RICO's Cloudflare configuration challenged the server before the API processed the key. Ask RICO Europe to exclude `/reseller-api/*` from browser challenges and permit server-to-server API traffic.
 - Empty machine result: verify the RICO manufacturer spelling and model; serial is not an upstream search parameter.
 - Rate limited or timed out: retry after a short pause. The UI does not make automatic unbounded retries.
 - Ticket add fails after lookup works: confirm the additive schema file has been applied and the signed-in profile has the existing admin role.

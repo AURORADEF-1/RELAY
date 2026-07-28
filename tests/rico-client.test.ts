@@ -53,6 +53,24 @@ describe("RICO server client", () => {
     await expect(getRicoProducts()).rejects.toMatchObject({ code });
   });
 
+  it("distinguishes a Cloudflare challenge from a RICO catalogue denial", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      "<!doctype html><title>Just a moment...</title>",
+      {
+        status: 403,
+        headers: {
+          "content-type": "text/html; charset=UTF-8",
+          server: "cloudflare",
+        },
+      },
+    )));
+    const { getRicoProducts } = await import("@/lib/integrations/rico/client");
+    await expect(getRicoProducts()).rejects.toMatchObject({
+      code: "UPSTREAM_BLOCKED",
+      status: 502,
+    });
+  });
+
   it("rejects malformed upstream data", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       success: true,

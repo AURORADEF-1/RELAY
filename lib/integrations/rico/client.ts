@@ -82,6 +82,19 @@ async function request<T>(
         cache: "no-store",
         signal,
       });
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+      const server = response.headers.get("server")?.toLowerCase() ?? "";
+      if (
+        response.status === 403
+        && contentType.includes("text/html")
+        && server.includes("cloudflare")
+      ) {
+        throw new RicoApiError(
+          "RICO's security gateway blocked the upstream request.",
+          502,
+          "UPSTREAM_BLOCKED",
+        );
+      }
       if (!response.ok) throw mapStatus(response.status);
       const parsed = schema.safeParse(await response.json());
       if (!parsed.success) {
