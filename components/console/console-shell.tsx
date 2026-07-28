@@ -45,6 +45,7 @@ const navigation: NavigationItem[] = [
   { href: "/submit", label: "New request", icon: "ticket" },
   { href: "/requests", label: "My requests", icon: "clipboard", badge: "requester" },
   { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
+  { href: "/filters", label: "Filter Lookup", icon: "filter", adminOnly: true },
   { href: "/parts-knowledge", label: "Parts Knowledge", icon: "parts", adminOnly: true },
   { href: "/admin", label: "Parts control", icon: "parts", adminOnly: true, badge: "admin" },
   { href: "/incidents", label: "Workshop", icon: "workshop", adminOnly: true },

@@ -6566,6 +6566,128 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   padding: clamp(1rem, 2vw, 2.5rem);
 }
 
+/* RICO Filter Lookup */
+.console-content-filters {
+  max-width: 118.75rem;
+  padding: clamp(1rem, 1.8vw, 2rem);
+}
+
+.rico-workspace { min-width: 0; color: var(--foreground); }
+.rico-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; }
+.rico-header h1 { margin-top: 0.35rem; color: var(--foreground-strong); font-size: clamp(1.75rem, 2.2vw, 2.25rem); font-weight: 760; letter-spacing: -0.035em; }
+.rico-header > div > p:last-child { max-width: 50rem; margin-top: 0.35rem; color: var(--foreground-muted); font-size: 0.9rem; }
+.rico-kicker { display: flex; align-items: center; gap: 0.45rem; color: var(--foreground-muted); font-size: 0.75rem; font-weight: 700; }
+.rico-kicker span { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 0.25rem var(--success-soft); }
+.rico-live-note { min-width: 17rem; border-left: 3px solid var(--accent); padding: 0.25rem 0 0.25rem 0.8rem; }
+.rico-live-note strong,.rico-live-note span { display: block; }
+.rico-live-note strong { color: var(--foreground-strong); font-size: 0.84rem; }
+.rico-live-note span { margin-top: 0.2rem; color: var(--foreground-muted); font-size: 0.75rem; }
+
+.rico-tabs { display: flex; gap: 0.25rem; margin-top: 1rem; overflow-x: auto; border-bottom: 1px solid var(--border); }
+.rico-tabs button { display: flex; min-height: 2.75rem; flex: 0 0 auto; align-items: center; gap: 0.45rem; border-bottom: 2px solid transparent; padding: 0.65rem 0.9rem; color: var(--foreground-muted); font-size: 0.86rem; font-weight: 680; }
+.rico-tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--foreground-strong); }
+.rico-tabs button span { display: grid; min-width: 1.3rem; height: 1.3rem; place-items: center; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-size: 0.68rem; }
+
+.rico-search-panel,.rico-reference-search { position: relative; display: grid; grid-template-columns: minmax(16rem, 1.3fr) minmax(12rem, .7fr) minmax(12rem, .7fr) auto; align-items: end; gap: 0.8rem; margin-top: 1rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--background-panel-strong); padding: 1rem; }
+.rico-reference-search { grid-template-columns: minmax(18rem, 1fr) auto; }
+.rico-search-panel label,.rico-reference-search label,.rico-dialog label,.rico-list-row label { min-width: 0; }
+.rico-search-panel label > span,.rico-reference-search label > span,.rico-dialog label > span,.rico-list-row label > span { display: block; margin-bottom: 0.35rem; color: var(--foreground-muted); font-size: 0.72rem; font-weight: 700; }
+.rico-search-panel input,.rico-reference-search input,.rico-dialog input,.rico-dialog select,.rico-list-row input { width: 100%; min-width: 0; min-height: 2.75rem; border: 1px solid var(--border-strong); border-radius: 0.55rem; background: var(--background-panel); padding: 0.65rem 0.75rem; color: var(--foreground-strong); font-size: 0.88rem; outline: none; }
+.rico-search-panel input:focus,.rico-reference-search input:focus,.rico-dialog input:focus,.rico-dialog select:focus,.rico-list-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.rico-reference-search > p { grid-column: 1 / -1; color: var(--foreground-subtle); font-size: 0.75rem; }
+.rico-machine-search { position: relative; min-width: 0; }
+.rico-machine-results { position: absolute; z-index: 30; top: calc(100% + 0.35rem); left: 0; right: 0; overflow: auto; max-height: 20rem; border: 1px solid var(--border); border-radius: 0.65rem; background: var(--background-panel-strong); box-shadow: 0 16px 34px rgba(15,23,42,.14); }
+.rico-machine-results button { display: grid; width: 100%; gap: 0.15rem; border-bottom: 1px solid var(--border); padding: 0.65rem 0.75rem; text-align: left; }
+.rico-machine-results button:hover { background: var(--background-muted); }
+.rico-machine-results strong { color: var(--foreground-strong); font-size: 0.84rem; }
+.rico-machine-results span { overflow: hidden; color: var(--foreground-muted); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.rico-selected-machine { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem; color: var(--foreground-muted); font-size: 0.78rem; }
+.rico-selected-machine strong { color: var(--success); }
+
+.rico-alert,.rico-loading { margin-top: 0.8rem; border: 1px solid color-mix(in srgb, var(--success) 32%, var(--border)); border-radius: 0.55rem; background: var(--success-soft); padding: 0.7rem 0.85rem; color: var(--foreground); font-size: 0.82rem; }
+.rico-alert-error { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); background: var(--danger-soft); color: var(--danger); }
+.rico-loading { border-color: var(--border); background: var(--background-panel-strong); color: var(--foreground-muted); }
+
+.rico-results,.rico-list-panel { margin-top: 1rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--background-panel-strong); overflow: hidden; }
+.rico-results-heading { display: flex; min-height: 4rem; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--border); padding: 0.8rem 1rem; }
+.rico-results-heading > div { display: flex; align-items: baseline; gap: 0.6rem; }
+.rico-results-heading h2 { color: var(--foreground-strong); font-size: 1rem; font-weight: 730; }
+.rico-results-heading span,.rico-results-heading p,.rico-results-heading > strong { color: var(--foreground-muted); font-size: 0.75rem; font-weight: 600; }
+.rico-product-row { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr) minmax(10rem, .25fr) auto; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); padding: 0.9rem 1rem; }
+.rico-product-row:last-child { border-bottom: 0; }
+.rico-product-image { display: grid; width: 4.5rem; height: 4.5rem; place-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 0.55rem; background: #fff; color: var(--foreground-subtle); }
+.rico-product-image img { width: 100%; height: 100%; object-fit: contain; }
+.rico-product-main { min-width: 0; }
+.rico-product-main > div { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.rico-source-badge,.rico-match-badge { border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 99px; background: var(--accent-soft); padding: 0.18rem 0.4rem; color: var(--accent); font-size: 0.64rem; font-weight: 720; }
+.rico-match-badge { border-color: var(--border); background: var(--background-muted); color: var(--foreground-muted); }
+.rico-product-main h3 { margin-top: 0.4rem; color: var(--foreground-strong); font-size: 1rem; font-weight: 780; }
+.rico-product-main strong { display: block; margin-top: 0.1rem; color: var(--foreground); font-size: 0.83rem; }
+.rico-product-main p { display: -webkit-box; margin-top: 0.3rem; overflow: hidden; color: var(--foreground-muted); font-size: 0.75rem; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+.rico-product-commercial { display: grid; gap: 0.18rem; }
+.rico-product-commercial > strong { color: var(--foreground-strong); font-size: 1.05rem; }
+.rico-product-commercial span,.rico-product-commercial small { color: var(--foreground-subtle); font-size: 0.68rem; }
+.rico-product-commercial em { width: fit-content; margin-top: 0.25rem; border-radius: 99px; background: var(--success-soft); padding: 0.22rem 0.45rem; color: var(--success); font-size: 0.7rem; font-style: normal; font-weight: 700; }
+.rico-product-commercial em[data-stock="backorder"] { background: var(--warning-soft); color: var(--warning); }
+.rico-product-actions { display: grid; gap: 0.4rem; }
+.rico-product-actions button,.rico-list-row button,.rico-dialog footer button { min-height: 2.5rem; border: 1px solid var(--border-strong); border-radius: 0.5rem; padding: 0.55rem 0.75rem; color: var(--foreground); font-size: 0.76rem; font-weight: 680; }
+.rico-product-actions button:hover,.rico-list-row button:hover,.rico-dialog footer button:hover { background: var(--background-muted); }
+.rico-empty { padding: 3rem 1rem; text-align: center; }
+.rico-empty h3 { color: var(--foreground-strong); font-size: 0.95rem; }
+.rico-empty p { margin-top: 0.25rem; color: var(--foreground-muted); font-size: 0.8rem; }
+
+.rico-list-row { display: grid; grid-template-columns: minmax(0, 1fr) 4.5rem 7rem auto 2.5rem; align-items: center; gap: 0.75rem; border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; }
+.rico-list-row > div { min-width: 0; }
+.rico-list-row > div strong,.rico-list-row > div span { display: block; }
+.rico-list-row > div strong { color: var(--foreground-strong); font-size: 0.85rem; }
+.rico-list-row > div span { overflow: hidden; margin-top: 0.15rem; color: var(--foreground-muted); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.rico-list-row > span { color: var(--foreground-strong); font-size: 0.8rem; font-weight: 700; }
+.rico-disclaimer { padding: 0.75rem 1rem; color: var(--foreground-subtle); font-size: 0.72rem; line-height: 1.5; }
+
+.rico-dialog-backdrop { position: fixed; z-index: 90; inset: 0; display: grid; place-items: center; background: rgba(15,23,42,.62); padding: 0.75rem; backdrop-filter: blur(3px); }
+.rico-dialog { width: min(92vw, 39rem); max-height: 85dvh; overflow: auto; border: 1px solid var(--border-strong); border-radius: 0.75rem; background: var(--background-panel-strong); box-shadow: 0 24px 60px rgba(15,23,42,.25); }
+.rico-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 1rem 1.1rem; }
+.rico-dialog > header span { color: var(--foreground-subtle); font-size: 0.65rem; font-weight: 750; letter-spacing: .08em; }
+.rico-dialog > header h2 { margin-top: 0.2rem; color: var(--foreground-strong); font-size: 1.1rem; }
+.rico-dialog > header button { width: 2.5rem; height: 2.5rem; border-radius: 0.45rem; color: var(--foreground-muted); font-size: 1.4rem; }
+.rico-dialog > label,.rico-dialog-grid,.rico-confirm { margin: 0.9rem 1.1rem 0; }
+.rico-dialog-product { display: grid; gap: 0.2rem; border-bottom: 1px solid var(--border); padding: 0.9rem 1.1rem; }
+.rico-dialog-product strong { color: var(--foreground-strong); }
+.rico-dialog-product span { color: var(--foreground); font-size: 0.8rem; }
+.rico-dialog-product em { color: var(--foreground-muted); font-size: 0.74rem; font-style: normal; }
+.rico-dialog-grid { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: 0.75rem; }
+.rico-confirm { display: flex !important; align-items: flex-start; gap: 0.6rem; border: 1px solid var(--border); border-radius: 0.55rem; background: var(--background-muted); padding: 0.75rem; }
+.rico-confirm input { width: 1rem; min-height: 1rem; margin-top: 0.1rem; }
+.rico-confirm span { margin: 0 !important; color: var(--foreground) !important; font-size: 0.78rem !important; line-height: 1.45; }
+.rico-dialog footer { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; border-top: 1px solid var(--border); padding: 0.9rem 1.1rem; }
+
+@media (max-width: 950px) {
+  .rico-search-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rico-search-panel > button { width: 100%; }
+  .rico-product-row { grid-template-columns: 4.5rem minmax(0, 1fr) minmax(9rem, .3fr); }
+  .rico-product-actions { grid-column: 2 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .console-content-filters { padding: 0.75rem; }
+  .rico-header { display: block; }
+  .rico-live-note { min-width: 0; margin-top: 0.9rem; }
+  .rico-search-panel,.rico-reference-search { grid-template-columns: minmax(0, 1fr); padding: 0.75rem; }
+  .rico-reference-search > p,.rico-selected-machine { grid-column: 1; }
+  .rico-selected-machine { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
+  .rico-product-row { grid-template-columns: 3.75rem minmax(0, 1fr); align-items: start; gap: 0.75rem; padding: 0.75rem; }
+  .rico-product-image { width: 3.75rem; height: 3.75rem; }
+  .rico-product-commercial,.rico-product-actions { grid-column: 1 / -1; }
+  .rico-product-commercial { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; }
+  .rico-product-commercial small { grid-column: 1 / -1; }
+  .rico-list-row { grid-template-columns: minmax(0, 1fr) 4rem 2.5rem; }
+  .rico-list-row > span,.rico-list-row > button:first-of-type { grid-column: 1 / 3; }
+  .rico-list-row > button:first-of-type { width: 100%; }
+  .rico-dialog-grid { grid-template-columns: minmax(0, 1fr); }
+  .rico-dialog footer { flex-direction: column-reverse; }
+  .rico-dialog footer button { width: 100%; min-height: 2.75rem; }
+}
+
 .admin-control-page {
   width: 100%;
 }

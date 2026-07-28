@@ -1,0 +1,60 @@
+import type { z } from "zod";
+import {
+  ricoMachineSchema,
+  ricoProductSchema,
+} from "@/lib/integrations/rico/schemas";
+import type { RicoMachine, RicoProduct } from "@/lib/integrations/rico/types";
+
+type RawProduct = z.infer<typeof ricoProductSchema>;
+type RawMachine = z.infer<typeof ricoMachineSchema>;
+
+export function normalizeRicoReference(value: string) {
+  return value.trim().toUpperCase().replace(/\s+/g, " ");
+}
+
+export function compactRicoReference(value: string) {
+  return normalizeRicoReference(value).replace(/[\s\-_/\\.]+/g, "");
+}
+
+export function buildRicoReferenceCandidates(value: string) {
+  const exact = normalizeRicoReference(value);
+  const compact = compactRicoReference(value);
+  return Array.from(new Set([exact, compact].filter(Boolean)));
+}
+
+export function normalizeRicoProduct(product: RawProduct): RicoProduct {
+  return {
+    id: product.id,
+    reference: product.reference.trim(),
+    name: product.name.trim(),
+    descriptionShort: product.description_short?.trim() || null,
+    price: product.price,
+    quantity: Math.trunc(product.quantity),
+    manufacturerId: product.id_manufacturer,
+    manufacturerName: product.manufacturer_name?.trim() || null,
+    categoryId: product.id_category_default,
+    ean13: product.ean13?.trim() || null,
+    active: product.active,
+    dateAdded: product.date_add?.trim() || null,
+    dateUpdated: product.date_upd?.trim() || null,
+    commodityCode: product.commodity_code?.trim() || null,
+    countryOfOrigin: product.country_of_origin?.trim() || null,
+    features: product.features.map((feature) => ({
+      name: feature.name.trim(),
+      value: feature.value.trim(),
+    })),
+    images: product.images,
+    matchedCrossReference: product.matched_crossref?.trim() || null,
+  };
+}
+
+export function normalizeRicoMachine(machine: RawMachine): RicoMachine {
+  return {
+    machineId: machine.machine_id,
+    manufacturer: machine.manufacturer.trim(),
+    model: machine.model.trim(),
+    series: machine.series?.trim() || null,
+    engine: machine.engine?.trim() || null,
+    kits: machine.kits.map(normalizeRicoProduct),
+  };
+}
