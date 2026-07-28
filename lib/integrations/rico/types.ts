@@ -13,6 +13,7 @@ export type RicoProduct = {
   reference: string;
   name: string;
   descriptionShort: string | null;
+  descriptionItems: string[];
   price: number;
   quantity: number;
   manufacturerId: number | null;

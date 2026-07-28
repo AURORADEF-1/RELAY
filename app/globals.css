@@ -6627,6 +6627,11 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 .rico-product-main p { display: -webkit-box; margin-top: 0.3rem; overflow: hidden; color: var(--foreground-muted); font-size: 0.75rem; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
 .rico-kit-facts { display: flex !important; flex-wrap: wrap; gap: 0.35rem 0.8rem !important; margin-top: 0.45rem; color: var(--foreground-muted); font-size: 0.7rem; font-weight: 650; }
 .rico-kit-facts span:last-child { color: var(--warning); }
+.rico-kit-contents { display: block !important; margin-top: 0.65rem; }
+.rico-kit-contents > span { color: var(--foreground-subtle); font-size: 0.68rem; font-weight: 720; letter-spacing: 0.04em; text-transform: uppercase; }
+.rico-kit-contents ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem 0.8rem; margin: 0.3rem 0 0; padding: 0; list-style: none; }
+.rico-kit-contents li { min-width: 0; color: var(--foreground); font-size: 0.75rem; line-height: 1.4; overflow-wrap: anywhere; }
+.rico-kit-contents li::before { content: "•"; margin-right: 0.35rem; color: var(--accent); }
 .rico-product-commercial { display: grid; gap: 0.18rem; }
 .rico-product-commercial > strong { color: var(--foreground-strong); font-size: 1.05rem; }
 .rico-product-commercial span,.rico-product-commercial small { color: var(--foreground-subtle); font-size: 0.68rem; }
@@ -6683,6 +6688,7 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   .rico-product-commercial,.rico-product-actions { grid-column: 1 / -1; }
   .rico-product-commercial { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; }
   .rico-product-commercial small { grid-column: 1 / -1; }
+  .rico-kit-contents ul { grid-template-columns: minmax(0, 1fr); }
   .rico-list-row { grid-template-columns: minmax(0, 1fr) 4rem 2.5rem; }
   .rico-list-row > span,.rico-list-row > button:first-of-type { grid-column: 1 / 3; }
   .rico-list-row > button:first-of-type { width: 100%; }

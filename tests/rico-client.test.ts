@@ -142,6 +142,7 @@ describe("RICO server client", () => {
       reference: "FK-TB290-2",
       active: true,
       descriptionShort: "Oil Filter Fuel Filter",
+      descriptionItems: ["Oil Filter", "Fuel Filter"],
       features: [{ name: "Kit Type", value: "Air/Oil/Fuel" }],
     });
   });

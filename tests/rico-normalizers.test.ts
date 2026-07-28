@@ -62,6 +62,10 @@ describe("RICO normalisation", () => {
     expect(normalizeRicoProduct(parsed).descriptionShort).toBe(
       "Oil Filter Fuel Filter & element",
     );
+    expect(normalizeRicoProduct(parsed).descriptionItems).toEqual([
+      "Oil Filter",
+      "Fuel Filter & element",
+    ]);
   });
 
   it("maps RICO kit types to RELAY service intervals", () => {

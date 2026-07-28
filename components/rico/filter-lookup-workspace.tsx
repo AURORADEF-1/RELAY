@@ -391,6 +391,7 @@ export function FilterLookupWorkspace() {
 }
 
 function ProductRow({ product, matchLabel, onAdd, onTicket }: { product: RicoProduct; matchLabel: string; onAdd: () => void; onTicket: () => void }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const image = product.images.find((item) => item.cover) ?? product.images[0];
   const kitType = product.features.find((feature) =>
     feature.name.trim().toLowerCase() === "kit type"
@@ -402,7 +403,21 @@ function ProductRow({ product, matchLabel, onAdd, onTicket }: { product: RicoPro
     || "No additional description supplied.";
   return (
     <article className="rico-product-row">
-      <div className="rico-product-image">{image ? <Image src={image.url} alt="" width={72} height={72} sizes="72px" /> : <ConsoleIcon name="parts" className="h-7 w-7" />}</div>
+      <div className="rico-product-image">
+        {image && !imageFailed ? (
+          <Image
+            src={image.url}
+            alt={`${product.name} product`}
+            width={72}
+            height={72}
+            sizes="72px"
+            unoptimized
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <ConsoleIcon name="parts" className="h-7 w-7" />
+        )}
+      </div>
       <div className="rico-product-main">
         <div>
           <span className="rico-source-badge">RICO Live</span>
@@ -418,6 +433,16 @@ function ProductRow({ product, matchLabel, onAdd, onTicket }: { product: RicoPro
             <span>
               Service interval: {serviceIntervalHours ? `${serviceIntervalHours}h` : "Not specified"}
             </span>
+          </div>
+        ) : null}
+        {isServiceKit && product.descriptionItems.length > 1 ? (
+          <div className="rico-kit-contents">
+            <span>Kit contents</span>
+            <ul>
+              {product.descriptionItems.map((item, index) => (
+                <li key={`${product.id}-${index}`}>{item}</li>
+              ))}
+            </ul>
           </div>
         ) : null}
       </div>

@@ -57,17 +57,30 @@ export function getRicoServiceIntervalHours(kitType?: string | null) {
   return null;
 }
 
-function plainTextFromHtml(value: string) {
+function decodeRicoHtml(value: string) {
   return value
-    .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;|&#160;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, "\"")
     .replace(/&#(?:39|x27);/gi, "'")
     .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
+    .replace(/&gt;/gi, ">");
+}
+
+function plainTextFromHtml(value: string) {
+  return decodeRicoHtml(value)
+    .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function descriptionItemsFromHtml(value: string) {
+  return decodeRicoHtml(value)
+    .replace(/<(?:br\s*\/?|\/p|\/li|\/div|\/tr)>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .split(/\n+/)
+    .map((item) => item.replace(/\s+/g, " ").replace(/^[•\-–—]\s*/, "").trim())
+    .filter(Boolean);
 }
 
 export function normalizeRicoProduct(product: RawProduct): RicoProduct {
@@ -78,6 +91,9 @@ export function normalizeRicoProduct(product: RawProduct): RicoProduct {
     descriptionShort: product.description_short
       ? plainTextFromHtml(product.description_short) || null
       : null,
+    descriptionItems: product.description_short
+      ? descriptionItemsFromHtml(product.description_short)
+      : [],
     price: product.price,
     quantity: Math.trunc(product.quantity),
     manufacturerId: product.id_manufacturer,
