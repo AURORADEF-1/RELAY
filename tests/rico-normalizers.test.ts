@@ -4,6 +4,7 @@ import {
   buildRicoReferenceCandidates,
   compactRicoReference,
   extractRicoMachineModel,
+  getRicoServiceIntervalHours,
   normalizeRicoProduct,
 } from "@/lib/integrations/rico/normalizers";
 import { ricoProductSchema } from "@/lib/integrations/rico/schemas";
@@ -61,5 +62,12 @@ describe("RICO normalisation", () => {
     expect(normalizeRicoProduct(parsed).descriptionShort).toBe(
       "Oil Filter Fuel Filter & element",
     );
+  });
+
+  it("maps RICO kit types to RELAY service intervals", () => {
+    expect(getRicoServiceIntervalHours("Air/Oil/Fuel")).toBe(500);
+    expect(getRicoServiceIntervalHours(" full kit ")).toBe(1000);
+    expect(getRicoServiceIntervalHours("Oil only")).toBeNull();
+    expect(getRicoServiceIntervalHours(null)).toBeNull();
   });
 });

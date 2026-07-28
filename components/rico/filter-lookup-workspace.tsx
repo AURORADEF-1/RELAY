@@ -6,7 +6,10 @@ import { ConsoleIcon } from "@/components/console/console-icon";
 import { normalizeMachineNumber, type MachineRegistryRecord } from "@/lib/machine-registry";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
-import { extractRicoMachineModel } from "@/lib/integrations/rico/normalizers";
+import {
+  extractRicoMachineModel,
+  getRicoServiceIntervalHours,
+} from "@/lib/integrations/rico/normalizers";
 import type { RicoProduct } from "@/lib/integrations/rico/types";
 
 type LookupMode = "machine" | "part" | "crossref" | "list";
@@ -392,6 +395,7 @@ function ProductRow({ product, matchLabel, onAdd, onTicket }: { product: RicoPro
   const kitType = product.features.find((feature) =>
     feature.name.trim().toLowerCase() === "kit type"
   )?.value;
+  const serviceIntervalHours = getRicoServiceIntervalHours(kitType);
   const isServiceKit = Boolean(kitType || /service kit/i.test(product.name));
   const summary = product.descriptionShort
     || product.features.slice(0, 3).map((feature) => `${feature.name}: ${feature.value}`).join(" · ")
@@ -411,7 +415,9 @@ function ProductRow({ product, matchLabel, onAdd, onTicket }: { product: RicoPro
         {isServiceKit ? (
           <div className="rico-kit-facts">
             <span>Kit coverage: {kitType || "Not specified"}</span>
-            <span>Service interval: Not supplied by RICO</span>
+            <span>
+              Service interval: {serviceIntervalHours ? `${serviceIntervalHours}h` : "Not specified"}
+            </span>
           </div>
         ) : null}
       </div>

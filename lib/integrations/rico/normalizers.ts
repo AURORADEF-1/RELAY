@@ -50,6 +50,13 @@ export function extractRicoMachineModel(value: string, manufacturer?: string | n
   return model.replace(machineDescriptionSuffix, "").trim() || model;
 }
 
+export function getRicoServiceIntervalHours(kitType?: string | null) {
+  const normalized = kitType?.trim().toLowerCase().replace(/\s+/g, " ");
+  if (normalized === "air/oil/fuel") return 500;
+  if (normalized === "full kit") return 1000;
+  return null;
+}
+
 function plainTextFromHtml(value: string) {
   return value
     .replace(/<[^>]*>/g, " ")
