@@ -101,13 +101,13 @@ describe("RICO server client", () => {
         success: true,
         total_records: 1,
         machines: [{
-          machine_id: 260,
+          machine_id: 290,
           manufacturer: "TAKEUCHI",
-          model: "TB 260",
+          model: "TB 290-2",
           kits: [{
             id_product: 22400,
-            reference: "FK-TB260",
-            name: "Takeuchi TB 260 service kit",
+            reference: "FK-TB290-2",
+            name: "Takeuchi TB 290-2 service kit",
             price: 95.5,
             quantity: 4,
           }],
@@ -118,14 +118,14 @@ describe("RICO server client", () => {
     const { getRicoMachines } = await import("@/lib/integrations/rico/client");
     const result = await getRicoMachines({
       manufacturer: "TAKEUCHI",
-      query: "TB260",
+      query: "TB290-2 MIDI EXCAVATOR",
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).searchParams.get("q")).toBe("TB 260");
+    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).searchParams.get("q")).toBe("TB 290-2");
     expect(result.machines[0]?.kits[0]).toMatchObject({
       id: 22400,
-      reference: "FK-TB260",
+      reference: "FK-TB290-2",
       active: true,
     });
   });

@@ -24,8 +24,18 @@ export function buildRicoReferenceCandidates(value: string) {
 
 export function buildRicoMachineQueryCandidates(value: string) {
   const exact = value.trim().replace(/\s+/g, " ");
+  const tokens = exact.split(" ");
+  const leadingModel = /^[A-Za-z]+$/.test(tokens[0] ?? "") && /^\d/.test(tokens[1] ?? "")
+    ? `${tokens[0]} ${tokens[1]}`
+    : tokens[0] ?? "";
+  const spacedLeadingModel = leadingModel.replace(/([A-Za-z])(?=\d)/g, "$1 ");
   const spaced = exact.replace(/([A-Za-z])(?=\d)/g, "$1 ");
-  return Array.from(new Set([exact, spaced].filter(Boolean)));
+  return Array.from(new Set([
+    exact,
+    spacedLeadingModel,
+    leadingModel,
+    spaced,
+  ].filter(Boolean)));
 }
 
 export function normalizeRicoProduct(product: RawProduct): RicoProduct {
