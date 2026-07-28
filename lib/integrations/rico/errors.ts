@@ -29,7 +29,9 @@ export function getRicoUserMessage(error: unknown) {
   if (error.code === "RATE_LIMITED") return "RICO is busy. Wait a moment and retry.";
   if (error.code === "TIMEOUT") return "RICO did not respond in time. Retry the search.";
   if (error.code === "NOT_FOUND") return "The requested RICO record was not found.";
-  if (error.code === "FORBIDDEN") return "That product is outside the approved RICO catalogue.";
+  if (error.code === "FORBIDDEN") {
+    return "RICO denied catalogue access. The account may not be approved for this catalogue or product.";
+  }
   if (error.code === "AUTHENTICATION") return "RICO authentication failed. Ask an administrator to check the integration.";
   return "RICO returned an unexpected response. Retry the search.";
 }
