@@ -14,6 +14,7 @@ describe("RICO route security", () => {
   it("does not expose the RICO key through a public environment name", async () => {
     const files = await Promise.all([
       readFile("lib/integrations/rico/client.ts", "utf8"),
+      readFile("lib/integrations/rico/fleet-client.ts", "utf8"),
       readFile(".env.example", "utf8"),
     ]);
     expect(files.join("\n")).not.toContain("NEXT_PUBLIC_RICO");

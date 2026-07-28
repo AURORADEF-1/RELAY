@@ -6583,6 +6583,14 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 .rico-live-note strong { color: var(--foreground-strong); font-size: 0.84rem; }
 .rico-live-note span { margin-top: 0.2rem; color: var(--foreground-muted); font-size: 0.75rem; }
 
+.rico-source-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin-top: 1rem; }
+.rico-source-switch button { display: grid; min-width: 0; min-height: 4.5rem; grid-template-columns: auto minmax(0, 1fr); align-content: center; align-items: center; gap: 0.12rem 0.65rem; border: 1px solid var(--border); border-radius: 0.7rem; background: var(--background-panel); padding: 0.75rem 0.9rem; text-align: left; }
+.rico-source-switch button:hover { border-color: var(--border-strong); background: var(--background-muted); }
+.rico-source-switch button[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: color-mix(in srgb, var(--accent-soft) 65%, var(--background-panel)); box-shadow: inset 3px 0 0 var(--accent); }
+.rico-source-switch button > span { grid-row: 1 / 3; align-self: stretch; display: grid; min-width: 4.4rem; place-items: center; border-right: 1px solid var(--border); padding-right: 0.65rem; color: var(--accent); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em; }
+.rico-source-switch button strong { min-width: 0; color: var(--foreground-strong); font-size: 0.88rem; }
+.rico-source-switch button small { min-width: 0; overflow: hidden; color: var(--foreground-muted); font-size: 0.72rem; text-overflow: ellipsis; white-space: nowrap; }
+
 .rico-tabs { display: flex; gap: 0.25rem; margin-top: 1rem; overflow-x: auto; border-bottom: 1px solid var(--border); }
 .rico-tabs button { display: flex; min-height: 2.75rem; flex: 0 0 auto; align-items: center; gap: 0.45rem; border-bottom: 2px solid transparent; padding: 0.65rem 0.9rem; color: var(--foreground-muted); font-size: 0.86rem; font-weight: 680; }
 .rico-tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--foreground-strong); }
@@ -6632,6 +6640,52 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 .rico-kit-contents ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem 0.8rem; margin: 0.3rem 0 0; padding: 0; list-style: none; }
 .rico-kit-contents li { min-width: 0; color: var(--foreground); font-size: 0.75rem; line-height: 1.4; overflow-wrap: anywhere; }
 .rico-kit-contents li::before { content: "•"; margin-right: 0.35rem; color: var(--accent); }
+.rico-fleet-detail { display: grid; gap: 0; }
+.rico-fleet-machine-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(16rem, .45fr); align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); padding: 1rem; }
+.rico-fleet-machine-summary > div { min-width: 0; }
+.rico-fleet-machine-summary > div > span { margin-right: 0.35rem; }
+.rico-fleet-machine-summary h3 { margin-top: 0.45rem; color: var(--foreground-strong); font-size: 1.2rem; font-weight: 800; }
+.rico-fleet-machine-summary strong { display: block; color: var(--foreground); font-size: 0.9rem; }
+.rico-fleet-machine-summary p { margin-top: 0.2rem; color: var(--foreground-muted); font-size: 0.76rem; }
+.rico-fleet-machine-summary dl { display: grid; gap: 0.45rem; margin: 0; }
+.rico-fleet-machine-summary dl div { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 0.5rem; }
+.rico-fleet-machine-summary dt { color: var(--foreground-subtle); font-size: 0.7rem; font-weight: 680; }
+.rico-fleet-machine-summary dd { min-width: 0; margin: 0; color: var(--foreground-strong); font-size: 0.76rem; font-weight: 650; overflow-wrap: anywhere; }
+.rico-fleet-image { display: grid; width: 3.5rem; height: 3.5rem; flex: 0 0 auto; place-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 0.55rem; background: #fff; color: var(--foreground-subtle); }
+.rico-fleet-image img { width: 100%; height: 100%; object-fit: contain; }
+.rico-fleet-section { border-bottom: 1px solid var(--border); }
+.rico-fleet-section:last-child { border-bottom: 0; }
+.rico-fleet-section > header { display: flex; min-height: 3.6rem; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--border); background: var(--background-muted); padding: 0.7rem 1rem; }
+.rico-fleet-section > header > div { min-width: 0; }
+.rico-fleet-section > header h3 { color: var(--foreground-strong); font-size: 0.9rem; font-weight: 760; }
+.rico-fleet-section > header span,.rico-fleet-section > header p { color: var(--foreground-muted); font-size: 0.72rem; }
+.rico-fleet-kits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; padding: 0.85rem 1rem; }
+.rico-fleet-kits article { min-width: 0; border: 1px solid var(--border); border-radius: 0.65rem; background: var(--background-panel); }
+.rico-fleet-kits article > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--border); padding: 0.75rem; }
+.rico-fleet-kits article > header > div:last-child { display: grid; justify-items: end; gap: 0.15rem; text-align: right; }
+.rico-fleet-kits article header span { display: inline-flex; border-radius: 99px; background: var(--accent-soft); padding: 0.18rem 0.42rem; color: var(--accent); font-size: 0.68rem; font-weight: 760; }
+.rico-fleet-kits article h4 { margin-top: 0.3rem; color: var(--foreground-strong); font-size: 1rem; font-weight: 800; }
+.rico-fleet-kits article small { color: var(--foreground-muted); font-size: 0.68rem; }
+.rico-fleet-kits article header strong { color: var(--foreground-strong); font-size: 0.92rem; }
+.rico-fleet-kits article header em { color: var(--success); font-size: 0.68rem; font-style: normal; font-weight: 700; }
+.rico-fleet-kit-components { display: grid; }
+.rico-fleet-kit-components > div { display: grid; grid-template-columns: minmax(7rem, .35fr) minmax(0, 1fr); gap: 0.65rem; border-bottom: 1px solid var(--border); padding: 0.55rem 0.75rem; }
+.rico-fleet-kit-components > div:last-child { border-bottom: 0; }
+.rico-fleet-kit-components strong { color: var(--foreground-strong); font-size: 0.76rem; }
+.rico-fleet-kit-components span,.rico-fleet-kit-components p { color: var(--foreground-muted); font-size: 0.74rem; }
+.rico-fleet-kit-components p { padding: 0.75rem; }
+.rico-fleet-table-wrap { width: 100%; overflow-x: auto; }
+.rico-fleet-table { width: 100%; min-width: 52rem; border-collapse: collapse; }
+.rico-fleet-table th { background: var(--background-panel); color: var(--foreground-subtle); font-size: 0.68rem; font-weight: 720; letter-spacing: 0.03em; text-align: left; }
+.rico-fleet-table th,.rico-fleet-table td { border-bottom: 1px solid var(--border); padding: 0.65rem 0.75rem; }
+.rico-fleet-table tbody tr:last-child td { border-bottom: 0; }
+.rico-fleet-table td { color: var(--foreground); font-size: 0.75rem; vertical-align: middle; }
+.rico-fleet-part-ref { display: flex; min-width: 9rem; align-items: center; gap: 0.55rem; }
+.rico-fleet-part-ref .rico-fleet-image { width: 2.25rem; height: 2.25rem; border-radius: 0.4rem; }
+.rico-fleet-part-ref strong,.rico-fleet-table td > strong { color: var(--foreground-strong); font-size: 0.78rem; }
+.rico-verified-badge,.rico-unverified-badge { display: inline-flex; border-radius: 99px; background: var(--success-soft); padding: 0.2rem 0.45rem; color: var(--success); font-size: 0.68rem; font-weight: 720; }
+.rico-unverified-badge { background: var(--background-muted); color: var(--foreground-muted); }
+.rico-fleet-subempty { padding: 1rem; color: var(--foreground-muted); font-size: 0.76rem; }
 .rico-product-commercial { display: grid; gap: 0.18rem; }
 .rico-product-commercial > strong { color: var(--foreground-strong); font-size: 1.05rem; }
 .rico-product-commercial span,.rico-product-commercial small { color: var(--foreground-subtle); font-size: 0.68rem; }
@@ -6670,6 +6724,10 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 .rico-dialog footer { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; border-top: 1px solid var(--border); padding: 0.9rem 1.1rem; }
 
 @media (max-width: 950px) {
+  .rico-fleet-machine-summary { grid-template-columns: auto minmax(0, 1fr); }
+  .rico-fleet-machine-summary dl { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rico-fleet-machine-summary dl div { display: block; }
+  .rico-fleet-kits { grid-template-columns: minmax(0, 1fr); }
   .rico-search-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rico-search-panel > button { width: 100%; }
   .rico-product-row { grid-template-columns: 4.5rem minmax(0, 1fr) minmax(9rem, .3fr); }
@@ -6680,6 +6738,8 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   .console-content-filters { padding: 0.75rem; }
   .rico-header { display: block; }
   .rico-live-note { min-width: 0; margin-top: 0.9rem; }
+  .rico-source-switch { grid-template-columns: minmax(0, 1fr); }
+  .rico-source-switch button small { white-space: normal; }
   .rico-search-panel,.rico-reference-search { grid-template-columns: minmax(0, 1fr); padding: 0.75rem; }
   .rico-reference-search > p,.rico-selected-machine { grid-column: 1; }
   .rico-selected-machine { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
@@ -6689,6 +6749,11 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   .rico-product-commercial { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; }
   .rico-product-commercial small { grid-column: 1 / -1; }
   .rico-kit-contents ul { grid-template-columns: minmax(0, 1fr); }
+  .rico-fleet-machine-summary { grid-template-columns: auto minmax(0, 1fr); padding: 0.75rem; }
+  .rico-fleet-machine-summary dl { grid-template-columns: minmax(0, 1fr); }
+  .rico-fleet-section > header { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
+  .rico-fleet-kits { padding: 0.75rem; }
+  .rico-fleet-kits article > header { gap: 0.5rem; }
   .rico-list-row { grid-template-columns: minmax(0, 1fr) 4rem 2.5rem; }
   .rico-list-row > span,.rico-list-row > button:first-of-type { grid-column: 1 / 3; }
   .rico-list-row > button:first-of-type { width: 100%; }
