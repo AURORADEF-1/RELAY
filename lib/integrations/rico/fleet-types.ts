@@ -13,7 +13,7 @@ export type RicoFleetMachineSummary = {
   model: string;
   type: string | null;
   engine: string | null;
-  year: number | null;
+  year: string | null;
   serialNumber: string | null;
   fleetNumber: string | null;
   quantity: number;

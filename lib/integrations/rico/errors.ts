@@ -37,5 +37,8 @@ export function getRicoUserMessage(error: unknown) {
     return "RICO denied catalogue access. The account may not be approved for this catalogue or product.";
   }
   if (error.code === "AUTHENTICATION") return "RICO authentication failed. Ask an administrator to check the integration.";
+  if (error.code === "INVALID_RESPONSE") {
+    return "RICO returned data in a format RELAY could not read. Ask an administrator to review the integration.";
+  }
   return "RICO returned an unexpected response. Retry the search.";
 }

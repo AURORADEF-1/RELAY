@@ -28,6 +28,7 @@ describe("RICO Fleet server client", () => {
         label: "TAKEUCHI TB260",
         manufacturer: "TAKEUCHI",
         model: "TB260",
+        year: "2016->",
         quantity: 1,
         filterCount: 3,
         units: [{ position: 1, serialNumber: "DEMO-SERIAL", fleetNumber: "24051" }],
@@ -39,6 +40,7 @@ describe("RICO Fleet server client", () => {
     const result = await getRicoFleetMachines({ fleetNumber: "24051" });
 
     expect(result.machines[0]?.machineRef).toBe("24051");
+    expect(result.machines[0]?.year).toBe("2016->");
     const [requestUrl, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(String(requestUrl)).not.toContain("fictional-fleet-test-key");
     expect(new Headers(requestInit.headers).get("authorization")).toBe(

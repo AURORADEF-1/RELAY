@@ -40,7 +40,8 @@ export const ricoFleetMachineSchema = z.object({
   model: requiredText,
   type: nullableText,
   engine: nullableText,
-  year: nullableNumber,
+  // Fleet Manager uses both plain years and ranges such as "2016->".
+  year: nullableText,
   serialNumber: nullableText,
   fleetNumber: nullableText,
   quantity: numberWithDefault(1),
