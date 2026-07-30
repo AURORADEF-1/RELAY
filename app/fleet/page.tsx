@@ -38,6 +38,17 @@ const MACHINE_FIELDS = [
   "model",
   "serial_number",
   "status",
+  "engine",
+  "engine_serial_number",
+  "build_year",
+  "serial_range",
+  "lifecycle_status",
+  "current_hours",
+  "hours_reading_date",
+  "service_interval_hours",
+  "service_interval_months",
+  "location",
+  "notes",
   "quantity",
   "source_sheet",
   "created_at",
@@ -689,6 +700,14 @@ function FleetWorkspace() {
     setRequestFilter("ALL");
   }
 
+  function updateMachineRecord(updatedMachine: FleetMachineRecord) {
+    setMachines((current) =>
+      current.map((machine) =>
+        machine.id === updatedMachine.id ? updatedMachine : machine,
+      ),
+    );
+  }
+
   return (
     <AuthGuard>
       <ConsoleShell
@@ -880,6 +899,7 @@ function FleetWorkspace() {
                   setActiveTab("requests");
                   setRequestFilter("OPEN");
                 }}
+                onMachineUpdated={updateMachineRecord}
               />
             ) : (
               <div className="fleet-detail-empty">
@@ -964,6 +984,7 @@ function MachineDetailWorkspace({
   onRequestFilterChange,
   onClose,
   onViewOpenRequests,
+  onMachineUpdated,
 }: {
   machine: FleetMachineSummary;
   isAdmin: boolean;
@@ -980,6 +1001,7 @@ function MachineDetailWorkspace({
   onRequestFilterChange: (filter: RequestFilter) => void;
   onClose: () => void;
   onViewOpenRequests: () => void;
+  onMachineUpdated: (machine: FleetMachineRecord) => void;
 }) {
   const tabs: Array<{ id: FleetTab; label: string; count?: number }> = [
     { id: "overview", label: "Overview" },
@@ -1093,7 +1115,11 @@ function MachineDetailWorkspace({
           <div className="fleet-detail-loading">Loading linked records...</div>
         ) : null}
         {!isLoading && activeTab === "overview" ? (
-          <MachineOverview machine={machine} />
+          <MachineOverview
+            machine={machine}
+            isAdmin={isAdmin}
+            onMachineUpdated={onMachineUpdated}
+          />
         ) : null}
         {!isLoading && activeTab === "requests" ? (
           <MachineRequests
@@ -1123,7 +1149,15 @@ function MachineDetailWorkspace({
   );
 }
 
-function MachineOverview({ machine }: { machine: FleetMachineSummary }) {
+function MachineOverview({
+  machine,
+  isAdmin,
+  onMachineUpdated,
+}: {
+  machine: FleetMachineSummary;
+  isAdmin: boolean;
+  onMachineUpdated: (machine: FleetMachineRecord) => void;
+}) {
   return (
     <div className="fleet-overview">
       <section className="fleet-detail-section">
@@ -1137,14 +1171,59 @@ function MachineOverview({ machine }: { machine: FleetMachineSummary }) {
           <FleetDefinition label="Make" value={machine.make} />
           <FleetDefinition label="Model" value={machine.model} />
           <FleetDefinition label="Serial number" value={machine.serial_number} />
+          <FleetDefinition label="Engine" value={machine.engine} />
+          <FleetDefinition label="Engine serial" value={machine.engine_serial_number} />
+          <FleetDefinition label="Build year" value={machine.build_year} />
+          <FleetDefinition label="Serial range" value={machine.serial_range} />
           <FleetDefinition label="Description" value={machine.item_description} wide />
-          <FleetDefinition label="Status" value={machine.status ? formatLabel(machine.status) : null} />
+          <FleetDefinition
+            label="Operational status"
+            value={machine.status ? formatLabel(machine.status) : null}
+          />
+          <FleetDefinition
+            label="Lifecycle"
+            value={formatLabel(machine.lifecycle_status)}
+          />
+          <FleetDefinition
+            label="Current hours"
+            value={
+              machine.current_hours === null
+                ? null
+                : machine.current_hours.toLocaleString("en-GB")
+            }
+          />
+          <FleetDefinition label="Hours recorded" value={formatDate(machine.hours_reading_date)} />
+          <FleetDefinition
+            label="Service interval"
+            value={
+              machine.service_interval_hours
+                ? `${machine.service_interval_hours.toLocaleString("en-GB")} hours`
+                : null
+            }
+          />
+          <FleetDefinition
+            label="Calendar interval"
+            value={
+              machine.service_interval_months
+                ? `${machine.service_interval_months} months`
+                : null
+            }
+          />
+          <FleetDefinition label="Location" value={machine.location} />
+          <FleetDefinition label="Machine notes" value={machine.notes} wide />
           <FleetDefinition label="Quantity" value={machine.quantity ? String(machine.quantity) : null} />
           <FleetDefinition label="Registry source" value={machine.source_sheet} />
           <FleetDefinition label="Created" value={formatDateTime(machine.created_at)} />
           <FleetDefinition label="Updated" value={formatDateTime(machine.updated_at)} />
         </dl>
       </section>
+
+      {isAdmin ? (
+        <MachineMetadataEditor
+          machine={machine}
+          onMachineUpdated={onMachineUpdated}
+        />
+      ) : null}
 
       <section className="fleet-overview-metrics">
         <FleetMiniMetric label="Total requests" value={machine.total_requests} />
@@ -1170,6 +1249,353 @@ function MachineOverview({ machine }: { machine: FleetMachineSummary }) {
       </section>
     </div>
   );
+}
+
+type MachineMetadataDraft = {
+  make: string;
+  model: string;
+  serialNumber: string;
+  engine: string;
+  engineSerialNumber: string;
+  buildYear: string;
+  serialRange: string;
+  lifecycleStatus: FleetMachineRecord["lifecycle_status"];
+  currentHours: string;
+  hoursReadingDate: string;
+  serviceIntervalHours: string;
+  serviceIntervalMonths: string;
+  location: string;
+  notes: string;
+};
+
+function MachineMetadataEditor({
+  machine,
+  onMachineUpdated,
+}: {
+  machine: FleetMachineSummary;
+  onMachineUpdated: (machine: FleetMachineRecord) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [draft, setDraft] = useState<MachineMetadataDraft>(() =>
+    buildMachineMetadataDraft(machine),
+  );
+
+  useEffect(() => {
+    setDraft(buildMachineMetadataDraft(machine));
+    setIsEditing(false);
+    setNotice("");
+    setErrorMessage("");
+  }, [machine]);
+
+  function setField<Key extends keyof MachineMetadataDraft>(
+    field: Key,
+    value: MachineMetadataDraft[Key],
+  ) {
+    setDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  async function saveMachineMetadata(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage("");
+    setNotice("");
+
+    try {
+      const { data, error } = await supabase
+        .from("machines")
+        .update({
+          make: optionalText(draft.make),
+          model: optionalText(draft.model),
+          serial_number: optionalText(draft.serialNumber),
+          engine: optionalText(draft.engine),
+          engine_serial_number: optionalText(draft.engineSerialNumber),
+          build_year: optionalText(draft.buildYear),
+          serial_range: optionalText(draft.serialRange),
+          lifecycle_status: draft.lifecycleStatus,
+          current_hours: optionalNumber(draft.currentHours),
+          hours_reading_date: optionalText(draft.hoursReadingDate),
+          service_interval_hours: optionalInteger(draft.serviceIntervalHours),
+          service_interval_months: optionalInteger(draft.serviceIntervalMonths),
+          location: optionalText(draft.location),
+          notes: optionalText(draft.notes),
+        })
+        .eq("id", machine.id)
+        .select(MACHINE_FIELDS)
+        .single<FleetMachineRecord>();
+
+      if (error) {
+        throw error;
+      }
+
+      onMachineUpdated(data);
+      setDraft(buildMachineMetadataDraft(data));
+      setIsEditing(false);
+      setNotice("Machine metadata saved. The change is available to the RICO feed.");
+    } catch (error) {
+      setErrorMessage(
+        sanitizeUserFacingError(error, "Unable to save this machine record."),
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <section className="fleet-detail-section fleet-metadata-editor">
+      <div className="fleet-section-heading">
+        <div>
+          <h3>RICO fleet metadata</h3>
+          <p>Confirmed values are exposed through the authenticated fleet feed.</p>
+        </div>
+        {!isEditing ? (
+          <button type="button" onClick={() => setIsEditing(true)}>
+            Edit machine data
+          </button>
+        ) : null}
+      </div>
+
+      {notice ? (
+        <div className="fleet-metadata-notice" role="status">
+          {notice}
+        </div>
+      ) : null}
+      {errorMessage ? (
+        <div className="fleet-metadata-error" role="alert">
+          {errorMessage}
+        </div>
+      ) : null}
+
+      {isEditing ? (
+        <form className="fleet-metadata-form" onSubmit={saveMachineMetadata}>
+          <MachineMetadataField label="Make">
+            <input
+              value={draft.make}
+              onChange={(event) => setField("make", event.target.value)}
+              autoComplete="off"
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Model">
+            <input
+              value={draft.model}
+              onChange={(event) => setField("model", event.target.value)}
+              autoComplete="off"
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Serial number">
+            <input
+              value={draft.serialNumber}
+              onChange={(event) => setField("serialNumber", event.target.value)}
+              autoComplete="off"
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Lifecycle status">
+            <select
+              value={draft.lifecycleStatus}
+              onChange={(event) =>
+                setField(
+                  "lifecycleStatus",
+                  event.target.value as MachineMetadataDraft["lifecycleStatus"],
+                )
+              }
+            >
+              <option value="active">Active</option>
+              <option value="disposed">Disposed</option>
+              <option value="sold">Sold</option>
+            </select>
+          </MachineMetadataField>
+          <MachineMetadataField label="Engine">
+            <input
+              value={draft.engine}
+              onChange={(event) => setField("engine", event.target.value)}
+              placeholder="e.g. Yanmar 4TNV86CT"
+              autoComplete="off"
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Engine serial number">
+            <input
+              value={draft.engineSerialNumber}
+              onChange={(event) => setField("engineSerialNumber", event.target.value)}
+              autoComplete="off"
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Build year">
+            <input
+              value={draft.buildYear}
+              onChange={(event) => setField("buildYear", event.target.value)}
+              placeholder="e.g. 2021"
+              autoComplete="off"
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Serial range">
+            <input
+              value={draft.serialRange}
+              onChange={(event) => setField("serialRange", event.target.value)}
+              autoComplete="off"
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Current hours">
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              inputMode="decimal"
+              value={draft.currentHours}
+              onChange={(event) => setField("currentHours", event.target.value)}
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Hours reading date">
+            <input
+              type="date"
+              value={draft.hoursReadingDate}
+              onChange={(event) => setField("hoursReadingDate", event.target.value)}
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Service interval hours">
+            <input
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              value={draft.serviceIntervalHours}
+              onChange={(event) =>
+                setField("serviceIntervalHours", event.target.value)
+              }
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Service interval months">
+            <input
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              value={draft.serviceIntervalMonths}
+              onChange={(event) =>
+                setField("serviceIntervalMonths", event.target.value)
+              }
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Location" wide>
+            <input
+              value={draft.location}
+              onChange={(event) => setField("location", event.target.value)}
+              autoComplete="off"
+            />
+          </MachineMetadataField>
+          <MachineMetadataField label="Machine notes" wide>
+            <textarea
+              rows={3}
+              value={draft.notes}
+              onChange={(event) => setField("notes", event.target.value)}
+              placeholder="Useful confirmation details, replacement engine dates or plate notes"
+            />
+          </MachineMetadataField>
+
+          <div className="fleet-metadata-actions">
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(buildMachineMetadataDraft(machine));
+                setIsEditing(false);
+                setErrorMessage("");
+              }}
+              disabled={isSaving}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="console-primary-action" disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save machine data"}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <p className="fleet-metadata-summary">
+          {machine.engine
+            ? `Engine confirmed as ${machine.engine}.`
+            : "Engine information has not been confirmed."}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function MachineMetadataField({
+  label,
+  wide = false,
+  children,
+}: {
+  label: string;
+  wide?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className={wide ? "fleet-metadata-field-wide" : undefined}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function buildMachineMetadataDraft(
+  machine: FleetMachineRecord,
+): MachineMetadataDraft {
+  return {
+    make: machine.make ?? "",
+    model: machine.model ?? "",
+    serialNumber: machine.serial_number ?? "",
+    engine: machine.engine ?? "",
+    engineSerialNumber: machine.engine_serial_number ?? "",
+    buildYear: machine.build_year ?? "",
+    serialRange: machine.serial_range ?? "",
+    lifecycleStatus: machine.lifecycle_status ?? "active",
+    currentHours:
+      machine.current_hours === null ? "" : String(machine.current_hours),
+    hoursReadingDate: machine.hours_reading_date ?? "",
+    serviceIntervalHours:
+      machine.service_interval_hours === null
+        ? ""
+        : String(machine.service_interval_hours),
+    serviceIntervalMonths:
+      machine.service_interval_months === null
+        ? ""
+        : String(machine.service_interval_months),
+    location: machine.location ?? "",
+    notes: machine.notes ?? "",
+  };
+}
+
+function optionalText(value: string) {
+  return value.trim() || null;
+}
+
+function optionalNumber(value: string) {
+  if (!value.trim()) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error("Hours must be a positive number.");
+  }
+  return parsed;
+}
+
+function optionalInteger(value: string) {
+  if (!value.trim()) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error("Service intervals must be positive whole numbers.");
+  }
+  return parsed;
 }
 
 function MachineRequests({

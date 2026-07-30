@@ -8,6 +8,20 @@ create table if not exists public.machines (
   model text,
   serial_number text,
   status text,
+  engine text,
+  engine_serial_number text,
+  build_year text,
+  serial_range text,
+  lifecycle_status text not null default 'active'
+    check (lifecycle_status in ('active', 'disposed', 'sold')),
+  current_hours numeric check (current_hours is null or current_hours >= 0),
+  hours_reading_date date,
+  service_interval_hours integer
+    check (service_interval_hours is null or service_interval_hours > 0),
+  service_interval_months integer
+    check (service_interval_months is null or service_interval_months > 0),
+  location text,
+  notes text,
   quantity integer,
   buying_price numeric,
   selling_price numeric,
@@ -24,6 +38,25 @@ create index if not exists machines_fleet_type_idx
 on public.machines (fleet_type);
 
 alter table public.machines enable row level security;
+
+create schema if not exists private;
+
+create or replace function private.touch_machine_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists machines_touch_updated_at on public.machines;
+create trigger machines_touch_updated_at
+before update on public.machines
+for each row
+execute function private.touch_machine_updated_at();
 
 drop policy if exists "machines authenticated read" on public.machines;
 create policy "machines authenticated read"

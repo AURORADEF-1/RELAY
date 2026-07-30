@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   try {
     const query = parseRicoFleetFeedQuery(request.nextUrl.searchParams);
     const page = await getRicoFleetFeedPage(query, partnerToken);
-    const { excludedCount, ...responsePage } = page;
+    const { serialUnknownCount, ...responsePage } = page;
 
     return NextResponse.json(
       {
@@ -37,7 +37,10 @@ export async function GET(request: NextRequest) {
         updated_since: query.updatedSince,
         ...responsePage,
         excluded: {
-          missing_or_placeholder_serial: excludedCount,
+          missing_or_placeholder_serial: 0,
+        },
+        serials: {
+          unknown: serialUnknownCount,
         },
       },
       { headers: responseHeaders },

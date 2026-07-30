@@ -51,23 +51,23 @@ begin
       machines.model,
       machines.serial_number,
       machines.status,
+      machines.engine,
+      machines.engine_serial_number,
+      machines.build_year,
+      machines.serial_range,
+      machines.lifecycle_status,
+      machines.current_hours,
+      machines.hours_reading_date,
+      machines.service_interval_hours,
+      machines.service_interval_months,
+      machines.location,
+      machines.notes,
       machines.created_at,
       machines.updated_at
     from public.machines
     where
-      machines.serial_number is not null
-      and upper(btrim(machines.serial_number)) not in (
-        '',
-        '-',
-        '0',
-        'N/A',
-        'NA',
-        'NONE',
-        'NOT KNOWN',
-        'TBC',
-        'UNKNOWN'
-      )
-      and (p_updated_since is null or machines.updated_at >= p_updated_since)
+      p_updated_since is null
+      or machines.updated_at >= p_updated_since
   ),
   page as (
     select eligible.*
@@ -79,7 +79,7 @@ begin
   select jsonb_build_object(
     'total',
     (select count(*) from eligible),
-    'excluded',
+    'serial_unknown',
     (
       select count(*)
       from public.machines

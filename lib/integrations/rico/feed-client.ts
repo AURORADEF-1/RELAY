@@ -1,7 +1,6 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import {
-  isUsableRicoFleetSerial,
   ricoFleetFeedPageSchema,
   toRicoFleetFeedMachine,
   type RicoFleetFeedQuery,
@@ -41,7 +40,7 @@ export async function getRicoFleetFeedPage(query: RicoFleetFeedQuery, partnerTok
     throw new Error("The RELAY fleet registry returned an invalid response.");
   }
 
-  const rows = parsed.data.rows.filter((row) => isUsableRicoFleetSerial(row.serial_number));
+  const rows = parsed.data.rows;
   const total = parsed.data.total;
   const nextOffset = query.offset + rows.length;
 
@@ -50,7 +49,7 @@ export async function getRicoFleetFeedPage(query: RicoFleetFeedQuery, partnerTok
     count: rows.length,
     offset: query.offset,
     nextOffset: nextOffset < total ? nextOffset : null,
-    excludedCount: parsed.data.excluded,
+    serialUnknownCount: parsed.data.serial_unknown,
     machines: rows.map(toRicoFleetFeedMachine),
   };
 }

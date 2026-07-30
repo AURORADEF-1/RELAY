@@ -20,6 +20,17 @@ const machine = {
   model: "TB260 MIDI EXCAVATOR HSR",
   serial_number: "126109095",
   status: "On Hire",
+  engine: "Yanmar 4TNV86CT",
+  engine_serial_number: "ENG-260-01",
+  build_year: "2024",
+  serial_range: "126100001-",
+  lifecycle_status: "active" as const,
+  current_hours: 1240,
+  hours_reading_date: "2026-07-29",
+  service_interval_hours: 500,
+  service_interval_months: 12,
+  location: "Main depot",
+  notes: "Engine confirmed from plate.",
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-07-29T08:00:00.000Z",
 };
@@ -59,20 +70,22 @@ describe("RICO outbound fleet feed", () => {
       manufacturer: "TAKEUCHI",
       model: "TB260",
       serial_number: "126109095",
+      serial_known: true,
       plant_reference: "24079",
       fleet_number: "24079",
       type: "Excavator",
-      engine: null,
-      year: null,
-      serial_range: null,
+      engine: "Yanmar 4TNV86CT",
+      engine_serial_number: "ENG-260-01",
+      year: "2024",
+      serial_range: "126100001-",
       status: "active",
       status_detail: "On Hire",
-      current_hours: null,
-      hours_reading_date: null,
-      service_interval_hours: null,
-      service_interval_months: null,
-      location: null,
-      notes: null,
+      current_hours: 1240,
+      hours_reading_date: "2026-07-29",
+      service_interval_hours: 500,
+      service_interval_months: 12,
+      location: "Main depot",
+      notes: "Engine confirmed from plate.",
       description: "TAKEUCHI TB260 MIDI EXCAVATOR HSR",
       created_at: machine.created_at,
       updated_at: machine.updated_at,
@@ -87,11 +100,15 @@ describe("RICO outbound fleet feed", () => {
     expect(normalizeRicoFleetFeedStatus("In Repair")).toBe("active");
   });
 
-  it("rejects missing and placeholder serials", () => {
+  it("flags missing and placeholder serials without dropping the machine", () => {
     for (const serial of [null, "", " N/A ", "unknown", "-", "0"]) {
       expect(isUsableRicoFleetSerial(serial)).toBe(false);
     }
     expect(isUsableRicoFleetSerial("ABC-123")).toBe(true);
-    expect(() => toRicoFleetFeedMachine({ ...machine, serial_number: "N/A" })).toThrow();
+    expect(toRicoFleetFeedMachine({ ...machine, serial_number: "N/A" })).toMatchObject({
+      serial_number: null,
+      serial_known: false,
+      relay_id: machine.id,
+    });
   });
 });

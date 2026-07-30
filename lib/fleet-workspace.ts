@@ -10,6 +10,17 @@ export type FleetMachineRecord = {
   model: string | null;
   serial_number: string | null;
   status: string | null;
+  engine: string | null;
+  engine_serial_number: string | null;
+  build_year: string | null;
+  serial_range: string | null;
+  lifecycle_status: "active" | "disposed" | "sold";
+  current_hours: number | null;
+  hours_reading_date: string | null;
+  service_interval_hours: number | null;
+  service_interval_months: number | null;
+  location: string | null;
+  notes: string | null;
   quantity: number | null;
   source_sheet: string | null;
   created_at: string | null;

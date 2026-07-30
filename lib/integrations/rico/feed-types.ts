@@ -5,6 +5,8 @@ import { extractRicoMachineModel } from "@/lib/integrations/rico/normalizers";
 export const RICO_FLEET_FEED_DEFAULT_LIMIT = 200;
 export const RICO_FLEET_FEED_MAX_LIMIT = 500;
 
+export type RicoFleetFeedStatus = "active" | "disposed" | "sold";
+
 export type RicoFleetFeedMachineRow = {
   id: string;
   machine_number: string;
@@ -15,22 +17,33 @@ export type RicoFleetFeedMachineRow = {
   model: string | null;
   serial_number: string | null;
   status: string | null;
+  engine: string | null;
+  engine_serial_number: string | null;
+  build_year: string | null;
+  serial_range: string | null;
+  lifecycle_status: RicoFleetFeedStatus;
+  current_hours: number | null;
+  hours_reading_date: string | null;
+  service_interval_hours: number | null;
+  service_interval_months: number | null;
+  location: string | null;
+  notes: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
-
-export type RicoFleetFeedStatus = "active" | "disposed" | "sold";
 
 export type RicoFleetFeedMachine = {
   relay_id: string;
   machine_ref: string | null;
   manufacturer: string;
   model: string;
-  serial_number: string;
+  serial_number: string | null;
+  serial_known: boolean;
   plant_reference: string;
   fleet_number: string;
   type: string;
   engine: string | null;
+  engine_serial_number: string | null;
   year: string | null;
   serial_range: string | null;
   status: RicoFleetFeedStatus;
@@ -62,13 +75,24 @@ export const ricoFleetFeedMachineRowSchema = z.object({
   model: z.string().nullable(),
   serial_number: z.string().nullable(),
   status: z.string().nullable(),
+  engine: z.string().nullable(),
+  engine_serial_number: z.string().nullable(),
+  build_year: z.string().nullable(),
+  serial_range: z.string().nullable(),
+  lifecycle_status: z.enum(["active", "disposed", "sold"]),
+  current_hours: z.coerce.number().nonnegative().nullable(),
+  hours_reading_date: z.string().nullable(),
+  service_interval_hours: z.coerce.number().int().positive().nullable(),
+  service_interval_months: z.coerce.number().int().positive().nullable(),
+  location: z.string().nullable(),
+  notes: z.string().nullable(),
   created_at: z.string().nullable(),
   updated_at: z.string().nullable(),
 });
 
 export const ricoFleetFeedPageSchema = z.object({
   total: z.coerce.number().int().min(0),
-  excluded: z.coerce.number().int().min(0),
+  serial_unknown: z.coerce.number().int().min(0),
   rows: z.array(ricoFleetFeedMachineRowSchema),
 });
 
@@ -146,10 +170,9 @@ export function normalizeRicoFleetFeedStatus(status: string | null | undefined):
 }
 
 export function toRicoFleetFeedMachine(row: RicoFleetFeedMachineRow): RicoFleetFeedMachine {
-  const serialNumber = clean(row.serial_number);
-  if (!serialNumber || !isUsableRicoFleetSerial(serialNumber)) {
-    throw new Error("A serialized physical machine is required for the RICO fleet feed.");
-  }
+  const serialNumber = isUsableRicoFleetSerial(row.serial_number)
+    ? clean(row.serial_number)
+    : null;
 
   const description = clean(row.item_description);
   const manufacturer = clean(row.make) ?? clean(description?.split(" ")[0]) ?? "UNKNOWN";
@@ -159,25 +182,27 @@ export function toRicoFleetFeedMachine(row: RicoFleetFeedMachineRow): RicoFleetF
 
   return {
     relay_id: row.id,
-    // RELAY does not yet persist RICO's machineRef; serial and relay_id are stable matching keys.
+    // RICO anchors records to relay_id, including machines whose serial is not yet known.
     machine_ref: null,
     manufacturer,
     model,
     serial_number: serialNumber,
+    serial_known: Boolean(serialNumber),
     plant_reference: plantReference,
     fleet_number: plantReference,
     type: getFleetMachineGroup(row).replace(/s$/, ""),
-    engine: null,
-    year: null,
-    serial_range: null,
-    status: normalizeRicoFleetFeedStatus(row.status),
+    engine: clean(row.engine),
+    engine_serial_number: clean(row.engine_serial_number),
+    year: clean(row.build_year),
+    serial_range: clean(row.serial_range),
+    status: row.lifecycle_status,
     status_detail: clean(row.status),
-    current_hours: null,
-    hours_reading_date: null,
-    service_interval_hours: null,
-    service_interval_months: null,
-    location: null,
-    notes: null,
+    current_hours: row.current_hours,
+    hours_reading_date: row.hours_reading_date,
+    service_interval_hours: row.service_interval_hours,
+    service_interval_months: row.service_interval_months,
+    location: clean(row.location),
+    notes: clean(row.notes),
     description,
     created_at: row.created_at,
     updated_at: row.updated_at,

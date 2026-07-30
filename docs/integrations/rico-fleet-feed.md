@@ -46,8 +46,8 @@ Use a small overlap when advancing `updated_since`, and de-duplicate by
 
 ## Record grain and mapping
 
-The feed contains one existing RELAY registry row per physical machine with a
-usable serial number. It does not expand the registry's `quantity` field,
+The feed contains one existing RELAY registry row per physical machine,
+including machines whose serial number is not yet known. It does not expand the registry's `quantity` field,
 because that field is also used for stock-style tools and attachments.
 
 | Feed field | RELAY source |
@@ -57,20 +57,30 @@ because that field is also used for stock-style tools and attachments.
 | `manufacturer` | `machines.make` |
 | `model` | Cleaned `machines.model`, with equipment descriptors removed |
 | `serial_number` | `machines.serial_number` |
+| `serial_known` | `true` only when the serial is not blank or a known placeholder |
 | `plant_reference` | `machines.machine_number` |
 | `fleet_number` | `machines.machine_number`; RELAY currently holds one operational plant/fleet reference |
 | `type` | Normalized from fleet type and description |
-| `status` | `active`, `disposed`, or `sold` |
+| `status` | `machines.lifecycle_status`: `active`, `disposed`, or `sold` |
 | `status_detail` | Original RELAY operational status |
+| `engine` | `machines.engine` |
+| `engine_serial_number` | `machines.engine_serial_number` |
+| `year` | `machines.build_year` |
+| `serial_range` | `machines.serial_range` |
+| `current_hours` | `machines.current_hours` |
+| `hours_reading_date` | `machines.hours_reading_date` |
+| `service_interval_hours` | `machines.service_interval_hours` |
+| `service_interval_months` | `machines.service_interval_months` |
+| `location` | `machines.location` |
+| `notes` | `machines.notes` |
 | `description` | Original machine description |
 | `created_at`, `updated_at` | RELAY registry timestamps |
 
-Fields not currently held in the machine registry are returned as `null`.
-These include engine, year, serial range, hours, service intervals, location,
-and notes. They must not be inferred.
-
-Rows with missing or placeholder serial values are excluded. The response
-reports their count in `excluded.missing_or_placeholder_serial`.
+Missing metadata is returned as `null` and must not be inferred. Rows with
+missing or placeholder serial values remain in the feed with
+`serial_number: null` and `serial_known: false`. The response reports their
+count in `serials.unknown`; `excluded.missing_or_placeholder_serial` remains
+present as zero for compatibility with the initial feed contract.
 
 Disposed and sold machines remain in the feed with an explicit lifecycle
 status. RICO must not interpret a record disappearing as a disposal.
@@ -112,10 +122,11 @@ status changes promptly.
 - RELAY does not currently store RICO's `machineRef`, so it is returned as
   `null`. RICO should anchor records using `relay_id` and serial number until a
   durable cross-system mapping is added.
-- Hours, service intervals, engine, year, and location are not available in
-  the current machine registry.
+- Machine metadata remains incomplete until an administrator records it in
+  the Fleet workspace.
 - The feed is read-only. It does not update RICO or accept callbacks.
-- Only serialized physical machines are exported.
+- The feed exposes one registry row per physical machine and relies on the
+  permanent `relay_id` when a serial number is not yet known.
 
 ## Database installation
 

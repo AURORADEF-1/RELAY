@@ -10,6 +10,17 @@ export type MachineRegistryRecord = {
   model: string | null;
   serial_number: string | null;
   status: string | null;
+  engine: string | null;
+  engine_serial_number: string | null;
+  build_year: string | null;
+  serial_range: string | null;
+  lifecycle_status: "active" | "disposed" | "sold";
+  current_hours: number | null;
+  hours_reading_date: string | null;
+  service_interval_hours: number | null;
+  service_interval_months: number | null;
+  location: string | null;
+  notes: string | null;
   quantity: number | null;
   buying_price: number | null;
   selling_price: number | null;
@@ -100,7 +111,7 @@ export async function lookupMachineRegistryRecord(
   const { data, error } = await supabase
     .from("machines")
     .select(
-      "id, machine_number, machine_number_normalized, fleet_type, item_description, make, model, serial_number, status, quantity, buying_price, selling_price, source_sheet, source_row, created_at, updated_at",
+      "id, machine_number, machine_number_normalized, fleet_type, item_description, make, model, serial_number, status, engine, engine_serial_number, build_year, serial_range, lifecycle_status, current_hours, hours_reading_date, service_interval_hours, service_interval_months, location, notes, quantity, buying_price, selling_price, source_sheet, source_row, created_at, updated_at",
     )
     .eq("machine_number_normalized", normalized)
     .maybeSingle<MachineRegistryRecord>();
@@ -111,4 +122,3 @@ export async function lookupMachineRegistryRecord(
 
   return data ?? null;
 }
-
