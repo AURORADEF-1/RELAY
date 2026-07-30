@@ -35,7 +35,11 @@ import {
   relayAiTicketFieldPrompt,
   type RelayAiTicketDraft,
 } from "@/lib/relay-ai-ticket-actions";
-import { getSupabaseClient } from "@/lib/supabase";
+import {
+  parseRelayAiFilterQuestion,
+  type RelayAiFilterAnswer,
+} from "@/lib/relay-ai-filter-fitment";
+import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
 import { normalizeWorkshopPartQuery } from "@/lib/takeuchi-parts-catalog";
 
 type RelayAiMessage = {
@@ -115,6 +119,7 @@ const REQUESTER_STARTER_MESSAGE: RelayAiMessage = {
 
 const SUGGESTED_QUESTIONS = [
   "Show machine reference 19592 make, model and serial",
+  "What is the oil filter for machine 24079?",
   "List Shred Station's fleet and request counts",
   "How many jobs has Tom completed this month?",
   "Who is our main supplier?",
@@ -483,6 +488,41 @@ export function RelayAiPanel({
           return;
         }
         await showTicketConfirmation(ticketDraft.draft, true);
+        return;
+      }
+
+      const filterQuestion = parseRelayAiFilterQuestion(question);
+      if (filterQuestion && accessMode === "full") {
+        const token = await getSupabaseAccessToken();
+        if (!token) throw new Error("Sign in before checking RICO filter fitment.");
+        const params = new URLSearchParams({
+          machine: filterQuestion.machineReference,
+          filter: filterQuestion.filterKind,
+        });
+        const response = await fetch(`/api/integrations/rico/filter-fitment?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const payload = await response.json().catch(() => ({})) as {
+          data?: RelayAiFilterAnswer;
+          error?: string;
+        };
+        if (!response.ok || !payload.data) {
+          throw new Error(payload.error || "RICO filter fitment is temporarily unavailable.");
+        }
+        const answer = payload.data;
+        setSyncedAt(new Date());
+        setMessages((current) => [
+          ...current,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: answer.text,
+            facts: answer.facts,
+            sourceNote: answer.sourceNote,
+            copyText: answer.copyText,
+            copyLabel: "Copy filter details",
+          },
+        ]);
         return;
       }
 
