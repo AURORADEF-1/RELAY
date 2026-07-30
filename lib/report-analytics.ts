@@ -5,6 +5,11 @@ import type {
   RelayAnalyticsSnapshot,
   RelayAnalyticsTicket,
 } from "@/lib/relay-console-ai";
+import {
+  normalizeRequesterProfileName,
+  requesterProfileKey,
+} from "@/lib/requester-profile-route";
+import type { RequesterAccountRecord } from "@/lib/requester-accounts";
 
 export type ReportRange = {
   start: Date;
@@ -56,6 +61,36 @@ export type FleetHealthRow = {
   health: FleetHealthLabel;
 };
 
+export type RequesterProfileTicketRow = {
+  id: string;
+  jobNumber: string;
+  status: string;
+  request: string;
+  machineReference: string;
+  department: string;
+  assignedTo: string;
+  createdAt: string | null;
+  orderValue: number;
+};
+
+export type RequesterProfileReportRow = {
+  key: string;
+  userId: string | null;
+  name: string;
+  primaryDepartment: string;
+  totalRequests: number;
+  periodRequests: number;
+  openRequests: number;
+  completedRequests: number;
+  urgentRequests: number;
+  periodOrderValue: number;
+  lastRequestAt: string | null;
+  statuses: RankedReportRow[];
+  departments: RankedReportRow[];
+  machines: RankedReportRow[];
+  recentTickets: RequesterProfileTicketRow[];
+};
+
 export type ReportAnalytics = {
   closedJobs: ClosedJobReportRow[];
   operators: OperatorReportRow[];
@@ -67,6 +102,7 @@ export type ReportAnalytics = {
   commonParts: RankedReportRow[];
   suppliers: RankedReportRow[];
   requesters: RankedReportRow[];
+  requesterProfiles: RequesterProfileReportRow[];
   totalPeriodTickets: number;
 };
 
@@ -102,6 +138,7 @@ export function buildReportAnalytics(
   range: ReportRange,
   operatorNames: string[],
   ticketParts: ReportTicketPart[] = [],
+  requesterAccounts: RequesterAccountRecord[] = [],
 ): ReportAnalytics {
   const completionDates = completionDateByTicket(snapshot);
   const periodTickets = snapshot.tickets.filter((ticket) => isInRange(ticket.created_at, range));
@@ -130,6 +167,11 @@ export function buildReportAnalytics(
   );
 
   const fleet = buildFleetHealth(snapshot, periodTickets);
+  const requesterProfiles = buildRequesterProfiles(
+    snapshot.tickets,
+    range,
+    requesterAccounts,
+  );
 
   return {
     closedJobs,
@@ -146,9 +188,134 @@ export function buildReportAnalytics(
       ),
     ).slice(0, 8),
     suppliers: rankSuppliers(periodPurchaseOrders).slice(0, 8),
-    requesters: rankRows(periodTickets.map((ticket) => ticket.requester_name)).slice(0, 8),
+    requesters: requesterProfiles
+      .filter((profile) => profile.periodRequests > 0)
+      .map((profile) => ({
+        key: profile.key,
+        label: profile.name,
+        count: profile.periodRequests,
+        value: profile.periodOrderValue,
+      }))
+      .slice(0, 8),
+    requesterProfiles,
     totalPeriodTickets: periodTickets.length,
   };
+}
+
+export function buildRequesterProfiles(
+  tickets: RelayAnalyticsTicket[],
+  range: ReportRange,
+  requesterAccounts: RequesterAccountRecord[] = [],
+) {
+  const accountById = new Map(
+    requesterAccounts.map((account) => [account.user_id, account]),
+  );
+  const ticketsByProfile = new Map<string, RelayAnalyticsTicket[]>();
+  const profileIdentity = new Map<
+    string,
+    { userId: string | null; name: string }
+  >();
+
+  for (const account of requesterAccounts) {
+    const key = requesterProfileKey(account.user_id, account.full_name);
+    if (!key) continue;
+    profileIdentity.set(key, {
+      userId: account.user_id,
+      name: cleanLabel(account.full_name) || "Unnamed requester",
+    });
+    ticketsByProfile.set(key, []);
+  }
+
+  for (const ticket of tickets) {
+    const key = requesterProfileKey(ticket.user_id, ticket.requester_name);
+    if (!key) continue;
+
+    const accountName = ticket.user_id
+      ? accountById.get(ticket.user_id)?.full_name
+      : null;
+    const displayName = cleanLabel(accountName)
+      || cleanLabel(ticket.requester_name)
+      || "Unnamed requester";
+    const rows = ticketsByProfile.get(key) ?? [];
+    rows.push(ticket);
+    ticketsByProfile.set(key, rows);
+    if (!profileIdentity.has(key) || accountName) {
+      profileIdentity.set(key, {
+        userId: ticket.user_id?.trim() || null,
+        name: displayName,
+      });
+    }
+  }
+
+  return Array.from(ticketsByProfile.entries())
+    .map(([key, profileTickets]) => {
+      const identity = profileIdentity.get(key) ?? {
+        userId: null,
+        name: key.replace(/^name:/, ""),
+      };
+      const sortedTickets = [...profileTickets].sort(
+        (left, right) =>
+          dateValue(right.created_at) - dateValue(left.created_at),
+      );
+      const periodTickets = sortedTickets.filter((ticket) =>
+        isInRange(ticket.created_at, range),
+      );
+      const activeTickets = sortedTickets.filter((ticket) =>
+        ACTIVE_STATUSES.has(ticket.status?.toUpperCase() ?? ""),
+      );
+      const departments = rankRows(
+        sortedTickets.map((ticket) => ticket.department),
+      );
+
+      return {
+        key,
+        userId: identity.userId,
+        name: identity.name,
+        primaryDepartment: departments[0]?.label || "Not recorded",
+        totalRequests: sortedTickets.length,
+        periodRequests: periodTickets.length,
+        openRequests: activeTickets.length,
+        completedRequests: sortedTickets.filter(
+          (ticket) => ticket.status?.toUpperCase() === "COMPLETED",
+        ).length,
+        urgentRequests: activeTickets.filter((ticket) => ticket.is_urgent).length,
+        periodOrderValue: periodTickets.reduce(
+          (total, ticket) => total + (ticket.order_amount ?? 0),
+          0,
+        ),
+        lastRequestAt: sortedTickets[0]?.created_at ?? null,
+        statuses: rankRows(
+          periodTickets.map((ticket) => formatStatus(ticket.status)),
+        ),
+        departments,
+        machines: rankRows(
+          sortedTickets.map((ticket) => displayTicketMachineReference(ticket)),
+        ),
+        recentTickets: sortedTickets.slice(0, 12).map((ticket) => ({
+          id: ticket.id,
+          jobNumber: ticket.job_number?.trim() || ticket.id.slice(0, 8),
+          status: formatStatus(ticket.status),
+          request:
+            cleanLabel(ticket.request_summary ?? ticket.request_details)
+            || "No request summary",
+          machineReference: displayTicketMachineReference(ticket),
+          department: cleanLabel(ticket.department) || "Not recorded",
+          assignedTo: cleanLabel(ticket.assigned_to) || "Unassigned",
+          createdAt: ticket.created_at,
+          orderValue: ticket.order_amount ?? 0,
+        })),
+      } satisfies RequesterProfileReportRow;
+    })
+    .filter((profile) =>
+      profile.totalRequests > 0
+      || normalizeRequesterProfileName(profile.name) !== "unnamed requester",
+    )
+    .sort(
+      (left, right) =>
+        right.periodRequests - left.periodRequests
+        || right.totalRequests - left.totalRequests
+        || left.name.localeCompare(right.name),
+    );
 }
 
 export async function loadReportTicketParts(
@@ -453,6 +620,15 @@ function normalize(value: string | null | undefined) {
 
 function cleanLabel(value: string | null | undefined) {
   return value?.trim().replace(/\s+/g, " ") || "";
+}
+
+function formatStatus(value: string | null | undefined) {
+  return cleanLabel(value)?.replaceAll("_", " ") || "Pending";
+}
+
+function dateValue(value: string | null | undefined) {
+  const time = new Date(value ?? "").getTime();
+  return Number.isFinite(time) ? time : 0;
 }
 
 function isPlaceholder(value: string) {

@@ -45,6 +45,7 @@ const ANALYTICS_INTENTS: Array<{ intent: AnalyticsIntent; examples: string }> = 
 
 export type RelayAnalyticsTicket = {
   id: string;
+  user_id: string | null;
   requester_name: string | null;
   department: string | null;
   machine_reference: string | null;
@@ -148,6 +149,7 @@ export type RelayConsoleAiAnswer = {
 
 const TICKET_FIELDS = [
   "id",
+  "user_id",
   "requester_name",
   "department",
   "machine_reference",

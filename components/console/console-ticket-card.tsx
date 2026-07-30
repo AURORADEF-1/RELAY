@@ -1,8 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
+import { RequesterProfileLink } from "@/components/requester-profile-link";
 import type { ConsoleTicket } from "@/lib/console-tickets";
 import { formatConsoleCurrency, formatConsoleDate } from "@/lib/console-tickets";
 
@@ -52,7 +54,13 @@ export function ConsoleTicketCard({
             <dt>Machine</dt>
             <dd><MachineReferenceIndicator machine={ticket} /></dd>
           </div>
-          <TicketDatum label="Requester" value={ticket.requester_name} />
+          <TicketDatum label="Requester">
+            <RequesterProfileLink
+              userId={ticket.user_id}
+              requesterName={ticket.requester_name}
+              stopPropagation
+            />
+          </TicketDatum>
           <TicketDatum label="Assigned" value={ticket.assigned_to} />
           <TicketDatum label="Expected" value={formatConsoleDate(ticket.expected_delivery_date)} />
           <TicketDatum label="Supplier" value={ticket.supplier_name} />
@@ -75,16 +83,20 @@ export function ConsoleTicketCard({
 function TicketDatum({
   label,
   value,
+  children,
   mono = false,
 }: {
   label: string;
-  value: string | null | undefined;
+  value?: string | null;
+  children?: ReactNode;
   mono?: boolean;
 }) {
   return (
     <div>
       <dt>{label}</dt>
-      <dd className={mono ? "font-mono" : undefined}>{value?.trim() || "—"}</dd>
+      <dd className={mono ? "font-mono" : undefined}>
+        {children ?? value?.trim() ?? "—"}
+      </dd>
     </div>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
+import { RequesterProfileLink } from "@/components/requester-profile-link";
 import { StatusBadge } from "@/components/status-badge";
 import type { ConsoleTicket } from "@/lib/console-tickets";
 import { formatConsoleCurrency, formatConsoleDate } from "@/lib/console-tickets";
@@ -64,7 +66,13 @@ export function ConsoleDynamicTicketCard({
         ) : null}
 
         <dl className="console-dynamic-data">
-          <DynamicDatum label="Requester" value={ticket.requester_name} />
+          <DynamicDatum label="Requester">
+            <RequesterProfileLink
+              userId={ticket.user_id}
+              requesterName={ticket.requester_name}
+              stopPropagation
+            />
+          </DynamicDatum>
           <DynamicDatum label="Department" value={ticket.department} />
           <DynamicDatum label="Assigned" value={ticket.assigned_to || "Stores queue"} />
           <DynamicDatum label="Expected" value={formatConsoleDate(ticket.expected_delivery_date)} />
@@ -94,16 +102,20 @@ export function ConsoleDynamicTicketCard({
 function DynamicDatum({
   label,
   value,
+  children,
   mono = false,
 }: {
   label: string;
-  value: string | null | undefined;
+  value?: string | null;
+  children?: ReactNode;
   mono?: boolean;
 }) {
   return (
     <div>
       <dt>{label}</dt>
-      <dd className={mono ? "font-mono" : undefined}>{value?.trim() || "—"}</dd>
+      <dd className={mono ? "font-mono" : undefined}>
+        {children ?? value?.trim() ?? "—"}
+      </dd>
     </div>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import { ConsoleShell } from "@/components/console/console-shell";
+import { StatusBadge } from "@/components/status-badge";
 import {
   ReportBarChart,
   ReportDonutChart,
@@ -19,6 +20,7 @@ import {
   loadReportTicketParts,
   type ClosedJobReportRow,
   type ReportRange,
+  type RequesterProfileReportRow,
   type ReportTicketPart,
   type ReportTicketPartCoverage,
 } from "@/lib/report-analytics";
@@ -28,6 +30,10 @@ import {
 } from "@/lib/relay-console-ai";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseClient } from "@/lib/supabase";
+import {
+  fetchRequesterAccounts,
+  type RequesterAccountRecord,
+} from "@/lib/requester-accounts";
 
 type ReportTab = "performance" | "fleet" | "parts" | "suppliers" | "requesters";
 type DatePreset = "THIS_MONTH" | "LAST_MONTH" | "LAST_30_DAYS" | "LAST_90_DAYS" | "CUSTOM";
@@ -37,7 +43,7 @@ const REPORT_TABS: Array<{ id: ReportTab; label: string }> = [
   { id: "fleet", label: "Fleet Health" },
   { id: "parts", label: "Most common parts" },
   { id: "suppliers", label: "Supplier usage & spend" },
-  { id: "requesters", label: "Top requesters" },
+  { id: "requesters", label: "Requester profiles" },
 ];
 
 const CHART_COLORS = [
@@ -66,7 +72,10 @@ export default function ReportsPage() {
   const [ticketParts, setTicketParts] = useState<ReportTicketPart[]>([]);
   const [ticketPartCoverage, setTicketPartCoverage] =
     useState<ReportTicketPartCoverage | null>(null);
+  const [requesterAccounts, setRequesterAccounts] = useState<RequesterAccountRecord[]>([]);
   const [activeTab, setActiveTab] = useState<ReportTab>("performance");
+  const [selectedRequesterKey, setSelectedRequesterKey] = useState<string | null>(null);
+  const [requesterSearch, setRequesterSearch] = useState("");
   const [datePreset, setDatePreset] = useState<DatePreset>("THIS_MONTH");
   const [customStart, setCustomStart] = useState(() => monthInputValue(new Date()));
   const [customEnd, setCustomEnd] = useState(() => dateInputValue(new Date()));
@@ -76,6 +85,21 @@ export default function ReportsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [accessDenied, setAccessDenied] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
+
+  useEffect(() => {
+    function applyReportLocation() {
+      const parameters = new URLSearchParams(window.location.search);
+      const requestedTab = parameters.get("tab");
+      if (REPORT_TABS.some((tab) => tab.id === requestedTab)) {
+        setActiveTab(requestedTab as ReportTab);
+      }
+      setSelectedRequesterKey(parameters.get("requester"));
+    }
+
+    applyReportLocation();
+    window.addEventListener("popstate", applyReportLocation);
+    return () => window.removeEventListener("popstate", applyReportLocation);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -101,16 +125,23 @@ export default function ReportsPage() {
           return;
         }
 
-        const [snapshotResult, operatorsResult, ticketPartsResult] = await Promise.all([
+        const [
+          snapshotResult,
+          operatorsResult,
+          ticketPartsResult,
+          requesterAccountsResult,
+        ] = await Promise.all([
           loadRelayAnalyticsSnapshot(supabase),
           fetchAdminOperatorRecords(supabase).catch(() => null),
           loadReportTicketParts(supabase),
+          fetchRequesterAccounts(supabase),
         ]);
         if (!isMounted) return;
 
         setSnapshot(snapshotResult);
         setTicketParts(ticketPartsResult.rows);
         setTicketPartCoverage(ticketPartsResult.coverage);
+        setRequesterAccounts(requesterAccountsResult);
         if (operatorsResult) {
           setOperatorNames(operatorsResult.map((operator) => operator.name));
         }
@@ -141,9 +172,15 @@ export default function ReportsPage() {
   );
   const analytics = useMemo(
     () => snapshot
-      ? buildReportAnalytics(snapshot, reportRange, operatorNames, ticketParts)
+      ? buildReportAnalytics(
+          snapshot,
+          reportRange,
+          operatorNames,
+          ticketParts,
+          requesterAccounts,
+        )
       : null,
-    [operatorNames, reportRange, snapshot, ticketParts],
+    [operatorNames, reportRange, requesterAccounts, snapshot, ticketParts],
   );
   const visibleOperators = useMemo(
     () => analytics?.operators.filter(
@@ -161,6 +198,25 @@ export default function ReportsPage() {
   function refreshReports() {
     setIsRefreshing(true);
     setRefreshVersion((version) => version + 1);
+  }
+
+  function selectReportTab(tab: ReportTab) {
+    setActiveTab(tab);
+    const parameters = new URLSearchParams(window.location.search);
+    parameters.set("tab", tab);
+    if (tab !== "requesters") {
+      parameters.delete("requester");
+    }
+    window.history.replaceState(null, "", `/reports?${parameters.toString()}`);
+  }
+
+  function selectRequester(key: string) {
+    setActiveTab("requesters");
+    setSelectedRequesterKey(key);
+    const parameters = new URLSearchParams(window.location.search);
+    parameters.set("tab", "requesters");
+    parameters.set("requester", key);
+    window.history.replaceState(null, "", `/reports?${parameters.toString()}`);
   }
 
   function exportClosedJobs() {
@@ -274,7 +330,7 @@ export default function ReportsPage() {
                       role="tab"
                       aria-selected={activeTab === tab.id}
                       aria-controls={`report-panel-${tab.id}`}
-                      onClick={() => setActiveTab(tab.id)}
+                      onClick={() => selectReportTab(tab.id)}
                     >
                       {tab.label}
                     </button>
@@ -305,11 +361,13 @@ export default function ReportsPage() {
                   ) : null}
                   {activeTab === "suppliers" ? <SupplierReport analytics={analytics} /> : null}
                   {activeTab === "requesters" ? (
-                    <RankedReport
-                      title="Top requesters"
-                      description="Requesters ranked by tickets submitted in the selected period."
-                      rows={analytics.requesters}
-                      valueLabel={(value) => `${value} request${value === 1 ? "" : "s"}`}
+                    <RequesterProfilesReport
+                      profiles={analytics.requesterProfiles}
+                      selectedKey={selectedRequesterKey}
+                      search={requesterSearch}
+                      periodLabel={reportRange.label}
+                      onSearch={setRequesterSearch}
+                      onSelect={selectRequester}
                     />
                   ) : null}
                 </section>
@@ -542,6 +600,172 @@ function RankedReport({
         valueLabel={valueLabel}
       />
     </article>
+  );
+}
+
+function RequesterProfilesReport({
+  profiles,
+  selectedKey,
+  search,
+  periodLabel,
+  onSearch,
+  onSelect,
+}: {
+  profiles: RequesterProfileReportRow[];
+  selectedKey: string | null;
+  search: string;
+  periodLabel: string;
+  onSearch: (value: string) => void;
+  onSelect: (key: string) => void;
+}) {
+  const deferredSearch = useDeferredValue(search);
+  const normalizedSearch = deferredSearch.trim().toLowerCase();
+  const visibleProfiles = profiles.filter((profile) => {
+    if (!normalizedSearch) return true;
+    return [
+      profile.name,
+      profile.primaryDepartment,
+      profile.userId,
+      ...profile.departments.map((row) => row.label),
+      ...profile.machines.map((row) => row.label),
+    ].some((value) => value?.toLowerCase().includes(normalizedSearch));
+  });
+  const selectedProfile = profiles.find((profile) => profile.key === selectedKey)
+    ?? visibleProfiles[0]
+    ?? null;
+
+  return (
+    <div className="requester-profile-workspace">
+      <aside className="requester-profile-directory" aria-label="Requester directory">
+        <header>
+          <div>
+            <span>Requester directory</span>
+            <strong>{visibleProfiles.length} matching profile{visibleProfiles.length === 1 ? "" : "s"}</strong>
+          </div>
+          <label className="requester-profile-search">
+            <span className="sr-only">Search requester profiles</span>
+            <ConsoleIcon name="search" className="h-4 w-4" />
+            <input
+              type="search"
+              value={search}
+              placeholder="Search requester, department or machine"
+              onChange={(event) => onSearch(event.target.value)}
+            />
+          </label>
+        </header>
+        <div className="requester-profile-list">
+          {visibleProfiles.map((profile) => (
+            <button
+              key={profile.key}
+              type="button"
+              className="requester-profile-list-row"
+              aria-pressed={selectedProfile?.key === profile.key}
+              onClick={() => onSelect(profile.key)}
+            >
+              <span>
+                <strong>{profile.name}</strong>
+                <small>{profile.primaryDepartment}</small>
+              </span>
+              <span>
+                <strong>{profile.periodRequests}</strong>
+                <small>{profile.openRequests} open</small>
+              </span>
+            </button>
+          ))}
+          {visibleProfiles.length === 0 ? (
+            <p className="report-inline-empty">No requester profiles match that search.</p>
+          ) : null}
+        </div>
+      </aside>
+
+      <article className="requester-profile-detail">
+        {selectedProfile ? (
+          <>
+            <header className="requester-profile-header">
+              <div>
+                <span>Requester profile</span>
+                <h2>{selectedProfile.name}</h2>
+                <p>
+                  {selectedProfile.primaryDepartment}
+                  {" · "}
+                  Last request {selectedProfile.lastRequestAt ? formatDate(selectedProfile.lastRequestAt) : "not recorded"}
+                </p>
+              </div>
+              <span className="requester-profile-period">{periodLabel}</span>
+            </header>
+
+            <dl className="requester-profile-metrics">
+              <div><dt>Total requests</dt><dd>{selectedProfile.totalRequests}</dd></div>
+              <div><dt>In period</dt><dd>{selectedProfile.periodRequests}</dd></div>
+              <div><dt>Open now</dt><dd>{selectedProfile.openRequests}</dd></div>
+              <div><dt>Completed</dt><dd>{selectedProfile.completedRequests}</dd></div>
+            </dl>
+
+            <div className="requester-profile-summary-grid">
+              <section>
+                <h3>Request breakdown</h3>
+                <dl>
+                  <div><dt>Urgent and open</dt><dd>{selectedProfile.urgentRequests}</dd></div>
+                  <div><dt>Recorded value in period</dt><dd>{formatCurrency(selectedProfile.periodOrderValue)}</dd></div>
+                  <div><dt>Main department</dt><dd>{selectedProfile.primaryDepartment}</dd></div>
+                </dl>
+              </section>
+              <section>
+                <h3>Status mix for {periodLabel.toLowerCase()}</h3>
+                <div className="requester-profile-statuses">
+                  {selectedProfile.statuses.length > 0 ? selectedProfile.statuses.map((status) => (
+                    <div key={status.key}>
+                      <StatusBadge status={status.label.replaceAll(" ", "_")} />
+                      <strong>{status.count}</strong>
+                    </div>
+                  )) : <p>No requests were raised in this period.</p>}
+                </div>
+              </section>
+              <section>
+                <h3>Frequent machines</h3>
+                <div className="requester-profile-ranked">
+                  {selectedProfile.machines.slice(0, 5).map((machine) => (
+                    <div key={machine.key}><span>{machine.label}</span><strong>{machine.count}</strong></div>
+                  ))}
+                  {selectedProfile.machines.length === 0 ? <p>No machine references recorded.</p> : null}
+                </div>
+              </section>
+            </div>
+
+            <section className="requester-profile-history">
+              <header>
+                <div>
+                  <h3>Recent requests</h3>
+                  <p>Newest ticket activity linked to this requester.</p>
+                </div>
+                <span>{selectedProfile.recentTickets.length} shown</span>
+              </header>
+              <div className="requester-profile-ticket-list">
+                {selectedProfile.recentTickets.map((ticket) => (
+                  <Link href={`/tickets/${ticket.id}`} key={ticket.id}>
+                    <span className="requester-profile-ticket-job">JOB {ticket.jobNumber}</span>
+                    <span className="requester-profile-ticket-copy">
+                      <strong>{ticket.request}</strong>
+                      <small>{ticket.machineReference} · {ticket.department} · {ticket.assignedTo}</small>
+                    </span>
+                    <StatusBadge status={ticket.status.replaceAll(" ", "_")} />
+                    <time>{ticket.createdAt ? formatDate(ticket.createdAt) : "No date"}</time>
+                  </Link>
+                ))}
+                {selectedProfile.recentTickets.length === 0 ? (
+                  <p className="report-inline-empty">No requests are linked to this account yet.</p>
+                ) : null}
+              </div>
+            </section>
+          </>
+        ) : (
+          <div className="requester-profile-empty">
+            <h2>Select a requester</h2>
+            <p>Search the directory to review their request history and current workload.</p>
+          </div>
+        )}
+      </article>
+    </div>
   );
 }
 

@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import { StatusBadge } from "@/components/status-badge";
 import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
+import { RequesterProfileLink } from "@/components/requester-profile-link";
 import type { ConsoleTicket } from "@/lib/console-tickets";
 import {
   formatConsoleCurrency,
@@ -85,7 +86,15 @@ export function ConsoleTicketDrawer({
               <dt>Machine reference</dt>
               <dd><MachineReferenceIndicator machine={ticket} /></dd>
             </div>
-            <DrawerDatum label="Requester" value={ticket.requester_name} />
+            <div>
+              <dt>Requester</dt>
+              <dd>
+                <RequesterProfileLink
+                  userId={ticket.user_id}
+                  requesterName={ticket.requester_name}
+                />
+              </dd>
+            </div>
             <DrawerDatum label="Department" value={ticket.department} />
             <DrawerDatum label="Assigned operator" value={ticket.assigned_to} />
             <DrawerDatum label="Expected delivery" value={formatConsoleDate(ticket.expected_delivery_date)} />

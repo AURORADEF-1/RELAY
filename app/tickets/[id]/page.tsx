@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { useNotifications } from "@/components/notification-provider";
 import { ConsoleIcon, type ConsoleIconName } from "@/components/console/console-icon";
@@ -17,6 +23,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
 import { AdminCollectionConfirmation } from "@/components/admin-collection-confirmation";
 import { RequesterCollectionCode } from "@/components/requester-collection-code";
+import { RequesterProfileLink } from "@/components/requester-profile-link";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import {
   fetchAdminOperatorRecords,
@@ -1901,7 +1908,17 @@ export default function TicketDetailPage() {
                   ) : (
                     "No machine reference"
                   )}
-                  {ticket?.requester_name ? ` · Requested by ${ticket.requester_name}` : ""}
+                  {ticket?.requester_name ? (
+                    <>
+                      <span aria-hidden="true"> · </span>
+                      <span>Requested by </span>
+                      <RequesterProfileLink
+                        userId={ticket.user_id}
+                        requesterName={ticket.requester_name}
+                        enabled={isAdmin}
+                      />
+                    </>
+                  ) : null}
                 </p>
               </div>
               <div className="ticket-workspace-actions">
@@ -2398,7 +2415,13 @@ export default function TicketDetailPage() {
                           <dl className="mt-6 grid gap-5 sm:grid-cols-2">
                           {!ticket.is_retail_sale ? (
                             <>
-                              <DetailItem label="Requester" value={ticket.requester_name} />
+                              <DetailItem label="Requester">
+                                <RequesterProfileLink
+                                  userId={ticket.user_id}
+                                  requesterName={ticket.requester_name}
+                                  enabled={isAdmin}
+                                />
+                              </DetailItem>
                               <DetailItem label="Department" value={ticket.department} />
                               <DetailItem label="Machine" value={ticket.machine_reference} />
                               <DetailItem label="Job Number" value={ticket.job_number} />
@@ -3303,16 +3326,20 @@ function AdminEditConflictModal({
 function DetailItem({
   label,
   value,
+  children,
 }: {
   label: string;
-  value: string | null | undefined;
+  value?: string | null;
+  children?: ReactNode;
 }) {
   return (
     <div>
       <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
         {label}
       </dt>
-      <dd className="mt-2 text-sm leading-7 text-slate-700">{value || "-"}</dd>
+      <dd className="mt-2 text-sm leading-7 text-slate-700">
+        {children ?? value ?? "-"}
+      </dd>
     </div>
   );
 }
