@@ -112,6 +112,7 @@ export type RelayAnalyticsSnapshot = {
   purchaseOrders: RelayAnalyticsPurchaseOrder[];
   completionEvents: RelayAnalyticsCompletionEvent[];
   customerFleets: RelayAnalyticsCustomerFleet[];
+  fleetMachines: RelayAnalyticsCustomerFleetMachine[];
   loadedAt: Date;
   coverage: RelayAnalyticsCoverage;
 };
@@ -122,7 +123,8 @@ export type RelayAnalyticsDataset =
   | "completion events"
   | "customer fleets"
   | "fleet assignments"
-  | "fleet machines";
+  | "fleet machines"
+  | "fleet registry";
 
 export type RelayAnalyticsCoverage = {
   queryCount: number;
@@ -201,7 +203,7 @@ export const RELAY_AI_GUARDRAILS = {
   maxCompletionEventRows: 6_000,
   maxCustomerFleets: 50,
   maxFleetAssignments: 1_000,
-  maxFleetMachines: 1_000,
+  maxFleetMachines: 4_000,
   machineIdChunkSize: 100,
   maxExactLookupRows: 6,
 } as const;
@@ -410,35 +412,59 @@ async function loadCustomerFleets(supabase: SupabaseClient) {
   };
 }
 
+async function loadFleetMachineRegistry(supabase: SupabaseClient) {
+  return loadBoundedPages<RelayAnalyticsCustomerFleetMachine>(
+    RELAY_AI_GUARDRAILS.maxFleetMachines,
+    (start, end, signal) => supabase
+      .from("machines")
+      .select("id, machine_number, machine_number_normalized, fleet_type, item_description, make, model, serial_number")
+      .order("id", { ascending: true })
+      .range(start, end)
+      .abortSignal(signal),
+    "Fleet registry analytics",
+  );
+}
+
 export async function loadRelayAnalyticsSnapshot(supabase: SupabaseClient) {
-  const [ticketResult, purchaseOrderResult, completionResult, fleetResult] = await Promise.all([
+  const [
+    ticketResult,
+    purchaseOrderResult,
+    completionResult,
+    fleetResult,
+    fleetMachineResult,
+  ] = await Promise.all([
     loadAllTickets(supabase),
     loadAllPurchaseOrders(supabase),
     loadAllCompletionEvents(supabase),
     loadCustomerFleets(supabase),
+    loadFleetMachineRegistry(supabase),
   ]);
   const truncated: RelayAnalyticsDataset[] = [...fleetResult.truncated];
   if (ticketResult.truncated) truncated.push("tickets");
   if (purchaseOrderResult.truncated) truncated.push("purchase orders");
   if (completionResult.truncated) truncated.push("completion events");
+  if (fleetMachineResult.truncated) truncated.push("fleet registry");
 
   return {
     tickets: ticketResult.rows,
     purchaseOrders: purchaseOrderResult.rows,
     completionEvents: completionResult.rows,
     customerFleets: fleetResult.rows,
+    fleetMachines: fleetMachineResult.rows,
     loadedAt: new Date(),
     coverage: {
       queryCount:
         ticketResult.queryCount
         + purchaseOrderResult.queryCount
         + completionResult.queryCount
-        + fleetResult.queryCount,
+        + fleetResult.queryCount
+        + fleetMachineResult.queryCount,
       rowsRead:
         ticketResult.rows.length
         + purchaseOrderResult.rows.length
         + completionResult.rows.length
-        + fleetResult.rowsRead,
+        + fleetResult.rowsRead
+        + fleetMachineResult.rows.length,
       truncated,
     },
   } satisfies RelayAnalyticsSnapshot;
@@ -739,6 +765,7 @@ export async function answerRelayConsoleExactLookup(
     purchaseOrders: linkedOrders,
     completionEvents: [],
     customerFleets: [],
+    fleetMachines: [],
     loadedAt: new Date(),
     coverage: { queryCount, rowsRead, truncated: [] },
   };

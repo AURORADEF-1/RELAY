@@ -35,10 +35,11 @@ import {
   type RequesterAccountRecord,
 } from "@/lib/requester-accounts";
 
-type ReportTab = "performance" | "fleet" | "parts" | "suppliers" | "requesters";
+type ReportTab = "overview" | "performance" | "fleet" | "parts" | "suppliers" | "requesters";
 type DatePreset = "THIS_MONTH" | "LAST_MONTH" | "LAST_30_DAYS" | "LAST_90_DAYS" | "CUSTOM";
 
 const REPORT_TABS: Array<{ id: ReportTab; label: string }> = [
+  { id: "overview", label: "Operational overview" },
   { id: "performance", label: "Operator efficiency" },
   { id: "fleet", label: "Fleet Health" },
   { id: "parts", label: "Most common parts" },
@@ -73,7 +74,7 @@ export default function ReportsPage() {
   const [ticketPartCoverage, setTicketPartCoverage] =
     useState<ReportTicketPartCoverage | null>(null);
   const [requesterAccounts, setRequesterAccounts] = useState<RequesterAccountRecord[]>([]);
-  const [activeTab, setActiveTab] = useState<ReportTab>("performance");
+  const [activeTab, setActiveTab] = useState<ReportTab>("overview");
   const [selectedRequesterKey, setSelectedRequesterKey] = useState<string | null>(null);
   const [requesterSearch, setRequesterSearch] = useState("");
   const [datePreset, setDatePreset] = useState<DatePreset>("THIS_MONTH");
@@ -232,6 +233,15 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   }
 
+  function exportMasterReport() {
+    if (!analytics) return;
+    const csv = buildMasterReportCsv(analytics, reportRange.label);
+    downloadCsv(
+      csv,
+      `relay-operational-overview-${reportRange.start.toISOString().slice(0, 10)}.csv`,
+    );
+  }
+
   return (
     <AuthGuard>
       <ConsoleShell
@@ -342,11 +352,20 @@ export default function ReportsPage() {
                   role="tabpanel"
                   className="reports-workspace"
                 >
+                  {activeTab === "overview" ? (
+                    <MasterOverviewReport
+                      analytics={analytics}
+                      periodLabel={reportRange.label}
+                      onExport={exportMasterReport}
+                    />
+                  ) : null}
                   {activeTab === "performance" ? (
                     <PerformanceReport
                       operators={visibleOperators}
                       closedJobs={visibleClosedJobs}
                       selectedOperator={selectedOperator}
+                      periodLabel={reportRange.label}
+                      previousPeriodLabel={analytics.previousRangeLabel}
                       onExport={exportClosedJobs}
                     />
                   ) : null}
@@ -393,17 +412,230 @@ export default function ReportsPage() {
   );
 }
 
+function MasterOverviewReport({
+  analytics,
+  periodLabel,
+  onExport,
+}: {
+  analytics: ReturnType<typeof buildReportAnalytics>;
+  periodLabel: string;
+  onExport: () => void;
+}) {
+  const requestChange = percentageChange(
+    analytics.totalPeriodTickets,
+    analytics.previousPeriodTickets,
+  );
+  const completionChange = percentageChange(
+    analytics.closedJobs.length,
+    analytics.previousClosedJobs,
+  );
+  const spendChange = percentageChange(
+    analytics.purchaseOrderValue,
+    analytics.previousPurchaseOrderValue,
+  );
+  const atRiskMachines = analytics.fleetRows.filter(
+    (machine) => machine.health === "Critical" || machine.health === "At Risk",
+  ).length;
+
+  return (
+    <div className="reports-master-workspace">
+      <article className="report-panel reports-master-brief">
+        <div className="report-table-heading">
+          <ReportHeading
+            eyebrow="Management snapshot"
+            title="The operation at a glance"
+            description={`${periodLabel} compared with ${analytics.previousRangeLabel.toLowerCase()}. All observations are deterministic summaries of recorded RELAY data.`}
+          />
+          <button type="button" onClick={onExport}>
+            <ConsoleIcon name="file" className="h-4 w-4" />
+            Export overview
+          </button>
+        </div>
+        <div className="reports-insight-strip">
+          <OperationalInsight
+            label="Request demand"
+            value={`${analytics.totalPeriodTickets.toLocaleString("en-GB")} requests`}
+            detail={comparisonSentence(requestChange, "than the previous period")}
+            tone={requestChange > 5 ? "warning" : "neutral"}
+          />
+          <OperationalInsight
+            label="Completion output"
+            value={`${analytics.closedJobs.length.toLocaleString("en-GB")} closed`}
+            detail={comparisonSentence(completionChange, "than the previous period")}
+            tone={completionChange >= 0 ? "positive" : "warning"}
+          />
+          <OperationalInsight
+            label="Recorded purchasing"
+            value={formatCurrency(analytics.purchaseOrderValue)}
+            detail={comparisonSentence(spendChange, "than the previous period")}
+            tone={spendChange > 10 ? "warning" : "neutral"}
+          />
+          <OperationalInsight
+            label="Fleet pressure"
+            value={`${atRiskMachines} machines at risk`}
+            detail={`${analytics.urgentTickets} urgent requests across ${analytics.activeTickets} active jobs`}
+            tone={atRiskMachines > 0 || analytics.urgentTickets > 0 ? "warning" : "positive"}
+          />
+        </div>
+      </article>
+
+      <div className="reports-primary-grid">
+        <article className="report-panel">
+          <ReportHeading
+            eyebrow="Purchasing concentration"
+            title="Where spend is going"
+            description="Supplier share from the corrected linked and legacy purchasing ledger."
+          />
+          <ReportDonutChart
+            segments={analytics.suppliers.slice(0, 7).map((supplier, index) => ({
+              label: supplier.label,
+              value: supplier.value,
+              color: CHART_COLORS[index % CHART_COLORS.length],
+            }))}
+            centerLabel="recorded spend"
+            centerValue={formatCompactCurrency(analytics.purchaseOrderValue)}
+          />
+        </article>
+        <article className="report-panel">
+          <ReportHeading
+            eyebrow="Machine cost exposure"
+            title="Highest-spend machines"
+            description="Recorded order value associated with machine references in the selected period."
+          />
+          <ReportBarChart
+            rows={analytics.machineSpend.map((machine) => ({
+              key: machine.key,
+              label: machine.label,
+              value: machine.value,
+              detail: `${machine.count} purchasing record${machine.count === 1 ? "" : "s"}`,
+            }))}
+            valueLabel={formatCompactCurrency}
+          />
+        </article>
+      </div>
+
+      <div className="reports-master-grid">
+        <article className="report-panel">
+          <ReportHeading
+            eyebrow="Recurring demand"
+            title="Common request themes"
+            description="Ticket wording grouped by transparent workshop keyword rules, not AI inference."
+          />
+          <ReportBarChart
+            rows={analytics.commonFaults.map((fault) => ({
+              key: fault.key,
+              label: fault.label,
+              value: fault.count,
+            }))}
+            valueLabel={(value) => `${value} request${value === 1 ? "" : "s"}`}
+          />
+        </article>
+        <article className="report-panel">
+          <ReportHeading
+            eyebrow="Parts pressure"
+            title="Most common linked parts"
+            description="Quantity requested from ticket-linked parts recorded during the period."
+          />
+          <ReportBarChart
+            rows={analytics.commonParts.slice(0, 6).map((part) => ({
+              key: part.key,
+              label: part.label,
+              value: part.value,
+            }))}
+            valueLabel={(value) => `${value} item${value === 1 ? "" : "s"}`}
+          />
+        </article>
+        <article className="report-panel">
+          <ReportHeading
+            eyebrow="Requester demand"
+            title="Highest-volume requesters"
+            description="Requester activity during the selected reporting period."
+          />
+          <ReportBarChart
+            rows={analytics.requesters.slice(0, 6).map((requester) => ({
+              key: requester.key,
+              label: requester.label,
+              value: requester.count,
+            }))}
+            valueLabel={(value) => `${value} request${value === 1 ? "" : "s"}`}
+          />
+        </article>
+      </div>
+
+      <div className="reports-primary-grid">
+        <article className="report-panel">
+          <ReportHeading
+            eyebrow="Fleet health"
+            title="Current machine risk"
+            description="Live active, urgent and ordered workload against known machine references."
+          />
+          <ReportDonutChart
+            segments={analytics.fleetHealth.map((entry) => ({
+              label: entry.label,
+              value: entry.count,
+              color: FLEET_COLORS[entry.label],
+            }))}
+            centerLabel="known machines"
+            centerValue={analytics.fleetRows.length}
+          />
+        </article>
+        <article className="report-panel">
+          <ReportHeading
+            eyebrow="Customer fleet demand"
+            title="Requests by fleet"
+            description="Period request volume with currently active jobs shown for context."
+          />
+          <ReportBarChart
+            rows={analytics.fleetDemand.map((fleet) => ({
+              key: fleet.key,
+              label: fleet.label,
+              value: fleet.value,
+              detail: `${fleet.count} active request${fleet.count === 1 ? "" : "s"}`,
+            }))}
+            valueLabel={(value) => `${value} request${value === 1 ? "" : "s"}`}
+          />
+        </article>
+      </div>
+    </div>
+  );
+}
+
+function OperationalInsight({
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone: "positive" | "warning" | "neutral";
+}) {
+  return (
+    <div className="reports-operational-insight" data-tone={tone}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </div>
+  );
+}
+
 function PerformanceReport({
   operators,
   closedJobs,
   selectedOperator,
+  periodLabel,
+  previousPeriodLabel,
   onExport,
 }: {
   operators: ReturnType<typeof buildReportAnalytics>["operators"];
   closedJobs: ClosedJobReportRow[];
   selectedOperator: string;
+  periodLabel: string;
+  previousPeriodLabel: string;
   onExport: () => void;
 }) {
+  const monthlyRows = combineOperatorMonthlyRows(operators);
   return (
     <>
       <div className="reports-primary-grid">
@@ -447,6 +679,46 @@ function PerformanceReport({
               </div>
             )) : <p className="report-inline-empty">No operator activity is available for this period.</p>}
           </div>
+        </article>
+      </div>
+
+      <div className="reports-primary-grid report-comparison-grid">
+        <article className="report-panel">
+          <ReportHeading
+            eyebrow="Period comparison"
+            title={`${periodLabel} vs ${previousPeriodLabel}`}
+            description="Operator completions, assigned demand and average closure time across consecutive periods."
+          />
+          <div className="operator-comparison-list">
+            {operators.length > 0 ? operators.map((operator) => (
+              <div key={operator.name} className="operator-comparison-row">
+                <strong>{operator.name}</strong>
+                <ComparisonDatum label="Closed" current={operator.completed} previous={operator.previousCompleted} />
+                <ComparisonDatum label="Assigned" current={operator.newAssigned} previous={operator.previousNewAssigned} />
+                <div>
+                  <span>Average close</span>
+                  <strong>{operator.averageCloseDays === null ? "—" : `${operator.averageCloseDays.toFixed(1)}d`}</strong>
+                  <small>{operator.previousAverageCloseDays === null ? "No prior sample" : `${operator.previousAverageCloseDays.toFixed(1)}d previously`}</small>
+                </div>
+              </div>
+            )) : <p className="report-inline-empty">No operator comparison is available.</p>}
+          </div>
+        </article>
+        <article className="report-panel">
+          <ReportHeading
+            eyebrow="Six-month trend"
+            title={selectedOperator === "ALL" ? "Team output by month" : `${selectedOperator} by month`}
+            description="Completed jobs with new assigned requests shown beneath each month."
+          />
+          <ReportBarChart
+            rows={monthlyRows.map((month) => ({
+              key: month.key,
+              label: month.label,
+              value: month.completed,
+              detail: `${month.newAssigned} new assigned request${month.newAssigned === 1 ? "" : "s"}`,
+            }))}
+            valueLabel={(value) => `${value} closed`}
+          />
         </article>
       </div>
 
@@ -497,6 +769,27 @@ function PerformanceReport({
   );
 }
 
+function ComparisonDatum({
+  label,
+  current,
+  previous,
+}: {
+  label: string;
+  current: number;
+  previous: number;
+}) {
+  const change = current - previous;
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{current}</strong>
+      <small data-direction={change > 0 ? "up" : change < 0 ? "down" : "flat"}>
+        {change > 0 ? "+" : ""}{change} vs {previous}
+      </small>
+    </div>
+  );
+}
+
 function FleetReport({ analytics }: { analytics: ReturnType<typeof buildReportAnalytics> }) {
   return (
     <div className="reports-primary-grid">
@@ -544,12 +837,19 @@ function FleetReport({ analytics }: { analytics: ReturnType<typeof buildReportAn
 
 function SupplierReport({ analytics }: { analytics: ReturnType<typeof buildReportAnalytics> }) {
   return (
-    <div className="reports-primary-grid">
-      <article className="report-panel">
+    <>
+      <div className="reports-source-summary" aria-label="Supplier spend data coverage">
+        <div><span>Current spend</span><strong>{formatCurrency(analytics.purchaseOrderValue)}</strong></div>
+        <div><span>Previous period</span><strong>{formatCurrency(analytics.previousPurchaseOrderValue)}</strong></div>
+        <div><span>Linked PO records</span><strong>{analytics.purchaseOrderSourceCounts.linked}</strong></div>
+        <div><span>Legacy ticket records</span><strong>{analytics.purchaseOrderSourceCounts.legacy}</strong></div>
+      </div>
+      <div className="reports-primary-grid">
+        <article className="report-panel">
         <ReportHeading
           eyebrow="Spend concentration"
           title="Supplier spend"
-          description="Recorded value from non-cancelled purchase orders raised in the selected period."
+          description="Deduplicated recorded value from linked purchase orders plus historic ticket-level purchasing fields."
         />
         <ReportDonutChart
           segments={analytics.suppliers.slice(0, 7).map((supplier, index) => ({
@@ -560,8 +860,8 @@ function SupplierReport({ analytics }: { analytics: ReturnType<typeof buildRepor
           centerLabel="total spend"
           centerValue={formatCompactCurrency(analytics.purchaseOrderValue)}
         />
-      </article>
-      <article className="report-panel">
+        </article>
+        <article className="report-panel">
         <ReportHeading
           eyebrow="Usage and value"
           title="Top suppliers"
@@ -576,8 +876,9 @@ function SupplierReport({ analytics }: { analytics: ReturnType<typeof buildRepor
           }))}
           valueLabel={formatCompactCurrency}
         />
-      </article>
-    </div>
+        </article>
+      </div>
+    </>
   );
 }
 
@@ -668,7 +969,9 @@ function RequesterProfilesReport({
               </span>
               <span>
                 <strong>{profile.periodRequests}</strong>
-                <small>{profile.openRequests} open</small>
+                <small>
+                  {profile.openRequests} open · {signedDifference(profile.periodRequests, profile.previousPeriodRequests)} vs prior
+                </small>
               </span>
             </button>
           ))}
@@ -706,6 +1009,8 @@ function RequesterProfilesReport({
                 <h3>Request breakdown</h3>
                 <dl>
                   <div><dt>Urgent and open</dt><dd>{selectedProfile.urgentRequests}</dd></div>
+                  <div><dt>Previous-period requests</dt><dd>{selectedProfile.previousPeriodRequests}</dd></div>
+                  <div><dt>Demand movement</dt><dd>{comparisonSentence(percentageChange(selectedProfile.periodRequests, selectedProfile.previousPeriodRequests), "vs prior")}</dd></div>
                   <div><dt>Recorded value in period</dt><dd>{formatCurrency(selectedProfile.periodOrderValue)}</dd></div>
                   <div><dt>Main department</dt><dd>{selectedProfile.primaryDepartment}</dd></div>
                 </dl>
@@ -866,6 +1171,83 @@ function buildClosedJobsCsv(rows: ClosedJobReportRow[]) {
       row.purchaseOrderNumber,
     ].map(csvCell).join(",")),
   ].join("\n");
+}
+
+function buildMasterReportCsv(
+  analytics: ReturnType<typeof buildReportAnalytics>,
+  periodLabel: string,
+) {
+  const rows: string[][] = [
+    ["RELAY operational overview", periodLabel, ""],
+    ["Metric", "Current period", "Previous period"],
+    ["Requests raised", String(analytics.totalPeriodTickets), String(analytics.previousPeriodTickets)],
+    ["Jobs closed", String(analytics.closedJobs.length), String(analytics.previousClosedJobs)],
+    ["PO records", String(analytics.purchaseOrderCount), String(analytics.previousPurchaseOrderCount)],
+    ["Recorded spend", analytics.purchaseOrderValue.toFixed(2), analytics.previousPurchaseOrderValue.toFixed(2)],
+    ["Active tickets", String(analytics.activeTickets), "Live value"],
+    ["Urgent tickets", String(analytics.urgentTickets), "Live value"],
+    [],
+    ["Supplier", "Order count", "Recorded spend"],
+    ...analytics.suppliers.map((row) => [row.label, String(row.count), row.value.toFixed(2)]),
+    [],
+    ["Machine", "Purchasing records", "Recorded spend"],
+    ...analytics.machineSpend.map((row) => [row.label, String(row.count), row.value.toFixed(2)]),
+    [],
+    ["Requester", "Requests", "Recorded value"],
+    ...analytics.requesters.map((row) => [row.label, String(row.count), row.value.toFixed(2)]),
+    [],
+    ["Common request theme", "Requests", ""],
+    ...analytics.commonFaults.map((row) => [row.label, String(row.count), ""]),
+    [],
+    ["Common linked part", "Ticket rows", "Quantity"],
+    ...analytics.commonParts.map((row) => [row.label, String(row.count), String(row.value)]),
+    [],
+    ["Fleet", "Active requests", "Period requests"],
+    ...analytics.fleetDemand.map((row) => [row.label, String(row.count), String(row.value)]),
+  ];
+  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+function downloadCsv(csv: string, fileName: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function combineOperatorMonthlyRows(
+  operators: ReturnType<typeof buildReportAnalytics>["operators"],
+) {
+  const months = new Map<string, { key: string; label: string; completed: number; newAssigned: number }>();
+  for (const operator of operators) {
+    for (const month of operator.monthly) {
+      const row = months.get(month.key) ?? { ...month, completed: 0, newAssigned: 0 };
+      row.completed += month.completed;
+      row.newAssigned += month.newAssigned;
+      months.set(month.key, row);
+    }
+  }
+  return Array.from(months.values()).sort((left, right) => left.key.localeCompare(right.key));
+}
+
+function percentageChange(current: number, previous: number) {
+  if (previous === 0) return current === 0 ? 0 : 100;
+  return ((current - previous) / previous) * 100;
+}
+
+function comparisonSentence(change: number, suffix: string) {
+  if (Math.abs(change) < 0.05) return `Flat ${suffix}`;
+  return `${Math.abs(change).toFixed(1)}% ${change > 0 ? "higher" : "lower"} ${suffix}`;
+}
+
+function signedDifference(current: number, previous: number) {
+  const difference = current - previous;
+  return `${difference > 0 ? "+" : ""}${difference}`;
 }
 
 function csvCell(value: string) {
