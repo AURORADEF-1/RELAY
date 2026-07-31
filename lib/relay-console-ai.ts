@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  adminOperatorReportingKey,
+  canonicalizeAdminOperatorName,
   CORE_ADMIN_OPERATOR_OPTIONS,
   isReportableAdminOperatorName,
 } from "@/lib/admin-operators";
@@ -848,12 +850,12 @@ function supplierRecords(snapshot: RelayAnalyticsSnapshot) {
 function availableOperatorNames(snapshot: RelayAnalyticsSnapshot) {
   const names = new Map<string, string>();
   for (const name of CORE_ADMIN_OPERATOR_OPTIONS) {
-    names.set(normalize(name), name);
+    names.set(adminOperatorReportingKey(name), canonicalizeAdminOperatorName(name));
   }
   for (const ticket of snapshot.tickets) {
     const name = ticket.assigned_to?.trim();
     if (isMeaningfulLabel(name) && isReportableAdminOperatorName(name)) {
-      names.set(normalize(name), name as string);
+      names.set(adminOperatorReportingKey(name), canonicalizeAdminOperatorName(name));
     }
   }
   return Array.from(names.entries()).map(([key, label]) => ({ key, label }));
@@ -1018,7 +1020,9 @@ function answerOperatorCompletionKpi(
     return null;
   }
 
-  const operators = rankGroups(snapshot.tickets.map((ticket) => ({ label: ticket.assigned_to })));
+  const operators = rankGroups(snapshot.tickets.map((ticket) => ({
+    label: canonicalizeAdminOperatorName(ticket.assigned_to),
+  })));
   const operatorMatches = operators.filter((candidate) => {
     if (query.includes(` ${candidate.key} `)) return true;
     const firstName = candidate.key.split(" ")[0];
@@ -1030,7 +1034,7 @@ function answerOperatorCompletionKpi(
   const range = kpiDateRange(question);
   const completionDates = completionDateByTicket(snapshot);
   const rows = snapshot.tickets
-    .filter((ticket) => normalize(ticket.assigned_to) === operator.key)
+    .filter((ticket) => adminOperatorReportingKey(ticket.assigned_to) === operator.key)
     .map((ticket) => {
       const recordedCompletion = completionDates.get(ticket.id) ?? null;
       const completionDate = recordedCompletion || (ticket.status === "COMPLETED" ? ticket.updated_at : null);
@@ -1153,10 +1157,10 @@ function answerAdminPerformance(
   for (const ticket of snapshot.tickets) {
     const name = ticket.assigned_to?.trim();
     if (!isMeaningfulLabel(name) || !isReportableAdminOperatorName(name)) continue;
-    const key = normalize(name);
+    const key = adminOperatorReportingKey(name);
     if (requestedOperatorKeys.size > 0 && !requestedOperatorKeys.has(key)) continue;
     const row = grouped.get(key) ?? {
-      name: name as string,
+      name: canonicalizeAdminOperatorName(name),
       assigned: 0,
       completed: 0,
       active: 0,
@@ -1414,7 +1418,11 @@ function answerRankedTickets(
   heading: string,
   empty: string,
 ) {
-  const groups = rankGroups(snapshot.tickets.map((ticket) => ({ label: ticket[field] })));
+  const groups = rankGroups(snapshot.tickets.map((ticket) => ({
+    label: field === "assigned_to"
+      ? canonicalizeAdminOperatorName(ticket.assigned_to)
+      : ticket[field],
+  })));
   return {
     text: groups[0]
       ? `${groups[0].label} ranks first with ${formatNumber(groups[0].count)} requests.\n\n${heading}\n${topLines(groups, (group) => `${formatNumber(group.count)} requests`)}`

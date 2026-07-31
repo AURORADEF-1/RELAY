@@ -121,6 +121,40 @@ describe("operator period comparison", () => {
     expect(analytics.operators[0].monthly).toHaveLength(6);
     expect(analytics.previousClosedJobs).toBe(1);
   });
+
+  it("combines Samantha's account alias into one reporting operator", () => {
+    const snapshot = buildSnapshot({
+      tickets: [
+        ticket({
+          id: "samantha-display-name",
+          assigned_to: "Samantha",
+          created_at: "2026-07-03T09:00:00.000Z",
+        }),
+        ticket({
+          id: "samantha-account-name",
+          assigned_to: "samanthac.admin",
+          created_at: "2026-07-04T09:00:00.000Z",
+        }),
+      ],
+      completionEvents: [
+        { ticket_id: "samantha-display-name", status: "COMPLETED", created_at: "2026-07-05T09:00:00.000Z" },
+        { ticket_id: "samantha-account-name", status: "COMPLETED", created_at: "2026-07-06T09:00:00.000Z" },
+      ],
+    });
+
+    const analytics = buildReportAnalytics(snapshot, july, ["Samantha", "samanthac.admin"]);
+    const samanthaRows = analytics.operators.filter((operator) => operator.name === "Samantha");
+
+    expect(samanthaRows).toHaveLength(1);
+    expect(samanthaRows[0]).toMatchObject({
+      completed: 2,
+      newAssigned: 2,
+    });
+    expect(analytics.closedJobs.map((job) => job.operator)).toEqual([
+      "Samantha",
+      "Samantha",
+    ]);
+  });
 });
 
 describe("master fleet coverage", () => {

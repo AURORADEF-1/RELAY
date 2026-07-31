@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isReportableAdminOperatorName } from "@/lib/admin-operators";
+import {
+  adminOperatorReportingKey,
+  canonicalizeAdminOperatorName,
+  isReportableAdminOperatorName,
+} from "@/lib/admin-operators";
 import { normalizeMachineNumber } from "@/lib/machine-registry";
 import type {
   RelayAnalyticsSnapshot,
@@ -520,13 +524,13 @@ function buildOperatorRows(
   const ticketsById = new Map(tickets.map((ticket) => [ticket.id, ticket]));
   for (const name of configuredNames) {
     if (isReportableAdminOperatorName(name)) {
-      names.set(normalize(name), name.trim());
+      names.set(adminOperatorReportingKey(name), canonicalizeAdminOperatorName(name));
     }
   }
   for (const ticket of tickets) {
     const name = ticket.assigned_to?.trim();
     if (isReportableAdminOperatorName(name)) {
-      names.set(normalize(name), name as string);
+      names.set(adminOperatorReportingKey(name), canonicalizeAdminOperatorName(name));
     }
   }
 
@@ -536,20 +540,20 @@ function buildOperatorRows(
   return Array.from(names.entries())
     .map(([key, name]) => {
       const newAssigned = periodTickets.filter(
-        (ticket) => normalize(ticket.assigned_to) === key,
+        (ticket) => adminOperatorReportingKey(ticket.assigned_to) === key,
       ).length;
       const previousNewAssigned = previousPeriodTickets.filter(
-        (ticket) => normalize(ticket.assigned_to) === key,
+        (ticket) => adminOperatorReportingKey(ticket.assigned_to) === key,
       ).length;
       const operatorClosedJobs = closedJobs.filter(
-        (job) => normalize(job.operator) === key,
+        (job) => adminOperatorReportingKey(job.operator) === key,
       );
       const previousOperatorClosedJobs = previousClosedJobs.filter(
-        (job) => normalize(job.operator) === key,
+        (job) => adminOperatorReportingKey(job.operator) === key,
       );
       const activeTickets = tickets.filter(
         (ticket) =>
-          normalize(ticket.assigned_to) === key
+          adminOperatorReportingKey(ticket.assigned_to) === key
           && ACTIVE_STATUSES.has(ticket.status?.toUpperCase() ?? ""),
       );
       const overdue = activeTickets.filter((ticket) => {
@@ -627,11 +631,11 @@ function buildOperatorMonthlyRows(
       key: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`,
       label: start.toLocaleDateString("en-GB", { month: "short", year: "2-digit" }),
       completed: closedJobs.filter(
-        (job) => normalize(job.operator) === operatorKey
+        (job) => adminOperatorReportingKey(job.operator) === operatorKey
           && isInRange(job.completedAt, { start, end, label: "" }),
       ).length,
       newAssigned: tickets.filter(
-        (ticket) => normalize(ticket.assigned_to) === operatorKey
+        (ticket) => adminOperatorReportingKey(ticket.assigned_to) === operatorKey
           && isInRange(ticket.created_at, { start, end, label: "" }),
       ).length,
     } satisfies OperatorMonthlyReportRow;
@@ -744,7 +748,7 @@ function toClosedJob(
   return {
     id: ticket.id,
     jobNumber: ticket.job_number?.trim() || ticket.id.slice(0, 8),
-    operator: ticket.assigned_to?.trim() || "Unassigned",
+    operator: canonicalizeAdminOperatorName(ticket.assigned_to) || "Unassigned",
     completedAt,
     machineReference: displayTicketMachineReference(ticket),
     requester: ticket.requester_name?.trim() || "Not recorded",
