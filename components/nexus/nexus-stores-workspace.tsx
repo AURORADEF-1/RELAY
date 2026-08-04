@@ -2,14 +2,23 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import {
+  FormEvent,
+  KeyboardEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import type {
   NexusCataloguePart,
   NexusCatalogueResponse,
 } from "@/lib/integrations/nexus/types";
 import type { MachineRegistryRecord } from "@/lib/machine-registry";
-import { getSupabaseAccessToken } from "@/lib/supabase";
+import { normalizeMachineNumber } from "@/lib/machine-registry";
+import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
 
 type LookupResult = {
   machine: MachineRegistryRecord;
@@ -27,8 +36,28 @@ type ConfirmationResult = {
   idempotent: boolean;
 };
 
+type FleetSuggestion = Pick<
+  MachineRegistryRecord,
+  | "id"
+  | "machine_number"
+  | "machine_number_normalized"
+  | "item_description"
+  | "make"
+  | "model"
+  | "serial_number"
+  | "status"
+>;
+
 export function NexusStoresWorkspace() {
   const [fleetNumber, setFleetNumber] = useState("");
+  const [selectedFleetNumber, setSelectedFleetNumber] = useState("");
+  const [fleetSuggestions, setFleetSuggestions] = useState<FleetSuggestion[]>(
+    [],
+  );
+  const [isSuggestionSearchBusy, setIsSuggestionSearchBusy] = useState(false);
+  const [hasSearchedSuggestions, setHasSearchedSuggestions] = useState(false);
+  const [isSuggestionListOpen, setIsSuggestionListOpen] = useState(false);
+  const [highlightedSuggestion, setHighlightedSuggestion] = useState(-1);
   const [result, setResult] = useState<LookupResult | null>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -38,6 +67,63 @@ export function NexusStoresWorkspace() {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const suggestionListId = useId();
+  const suggestionRequest = useRef(0);
+
+  useEffect(() => {
+    const query = fleetNumber.trim();
+    const requestNumber = ++suggestionRequest.current;
+
+    if (!query || query === selectedFleetNumber) {
+      setFleetSuggestions([]);
+      setHasSearchedSuggestions(false);
+      setIsSuggestionSearchBusy(false);
+      setHighlightedSuggestion(-1);
+      return;
+    }
+
+    setIsSuggestionSearchBusy(true);
+    setHasSearchedSuggestions(false);
+    const timeout = window.setTimeout(async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        if (requestNumber === suggestionRequest.current) {
+          setFleetSuggestions([]);
+          setIsSuggestionSearchBusy(false);
+          setHasSearchedSuggestions(true);
+        }
+        return;
+      }
+
+      const clean = query.replace(/[%(),]/g, " ").trim();
+      const compact = normalizeMachineNumber(query);
+      const filters = [
+        `machine_number.ilike.*${clean}*`,
+        `machine_number_normalized.ilike.*${compact}*`,
+        `make.ilike.*${clean}*`,
+        `model.ilike.*${clean}*`,
+        `serial_number.ilike.*${clean}*`,
+        `item_description.ilike.*${clean}*`,
+      ];
+      const { data } = await supabase
+        .from("machines")
+        .select(
+          "id,machine_number,machine_number_normalized,item_description,make,model,serial_number,status",
+        )
+        .or(filters.join(","))
+        .order("machine_number_normalized", { ascending: true })
+        .limit(8);
+
+      if (requestNumber !== suggestionRequest.current) return;
+      setFleetSuggestions((data ?? []) as FleetSuggestion[]);
+      setIsSuggestionSearchBusy(false);
+      setHasSearchedSuggestions(true);
+      setIsSuggestionListOpen(true);
+      setHighlightedSuggestion(-1);
+    }, 240);
+
+    return () => window.clearTimeout(timeout);
+  }, [fleetNumber, selectedFleetNumber]);
 
   const groups = useMemo(() => {
     const grouped = new Map<string, NexusCataloguePart[]>();
@@ -61,7 +147,17 @@ export function NexusStoresWorkspace() {
 
   async function lookupMachine(event: FormEvent) {
     event.preventDefault();
-    if (!fleetNumber.trim()) return;
+    await lookupFleetNumber(fleetNumber);
+  }
+
+  async function lookupFleetNumber(value: string) {
+    const requestedFleetNumber = value.trim();
+    if (!requestedFleetNumber) return;
+    setFleetNumber(requestedFleetNumber);
+    setSelectedFleetNumber(requestedFleetNumber);
+    setFleetSuggestions([]);
+    setIsSuggestionListOpen(false);
+    setHighlightedSuggestion(-1);
     setBusy(true);
     setError("");
     setResult(null);
@@ -71,13 +167,51 @@ export function NexusStoresWorkspace() {
     setRequestId(null);
     try {
       const data = await relayRequest<LookupResult>(
-        `/api/integrations/nexus/catalogue?fleetNumber=${encodeURIComponent(fleetNumber.trim())}`,
+        `/api/integrations/nexus/catalogue?fleetNumber=${encodeURIComponent(requestedFleetNumber)}`,
       );
       setResult(data);
     } catch (lookupError) {
       setError(messageFor(lookupError));
     } finally {
       setBusy(false);
+    }
+  }
+
+  function chooseFleetSuggestion(machine: FleetSuggestion) {
+    void lookupFleetNumber(machine.machine_number);
+  }
+
+  function handleFleetKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (!isSuggestionListOpen || fleetSuggestions.length === 0) {
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setHighlightedSuggestion((current) =>
+        current >= fleetSuggestions.length - 1 ? 0 : current + 1,
+      );
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setHighlightedSuggestion((current) =>
+        current <= 0 ? fleetSuggestions.length - 1 : current - 1,
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && highlightedSuggestion >= 0) {
+      event.preventDefault();
+      chooseFleetSuggestion(fleetSuggestions[highlightedSuggestion]);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsSuggestionListOpen(false);
+      setHighlightedSuggestion(-1);
     }
   }
 
@@ -134,27 +268,95 @@ export function NexusStoresWorkspace() {
             Admin only
           </span>
         </div>
-        <form onSubmit={lookupMachine} className="mt-5 flex max-w-xl gap-2">
-          <label className="min-w-0 flex-1">
+        <form onSubmit={lookupMachine} className="mt-5 max-w-2xl">
+          <label className="block">
             <span className="sr-only">Fleet number</span>
-            <input
-              value={fleetNumber}
-              onChange={(event) => setFleetNumber(event.target.value)}
-              placeholder="Enter fleet number"
-              className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
-            />
+            <span className="relative block">
+              <ConsoleIcon
+                name={busy || isSuggestionSearchBusy ? "refresh" : "search"}
+                className={`pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400 ${busy || isSuggestionSearchBusy ? "animate-spin" : ""}`}
+              />
+              <input
+                value={fleetNumber}
+                onChange={(event) => {
+                  setFleetNumber(event.target.value);
+                  setSelectedFleetNumber("");
+                  setIsSuggestionListOpen(true);
+                }}
+                onFocus={() => {
+                  if (fleetSuggestions.length || hasSearchedSuggestions) {
+                    setIsSuggestionListOpen(true);
+                  }
+                }}
+                onKeyDown={handleFleetKeyDown}
+                placeholder="Start typing a fleet number, make, model or serial"
+                autoComplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={isSuggestionListOpen}
+                aria-controls={suggestionListId}
+                aria-activedescendant={
+                  highlightedSuggestion >= 0
+                    ? `${suggestionListId}-${highlightedSuggestion}`
+                    : undefined
+                }
+                className="h-11 w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-24 text-sm text-slate-950 outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+                Press Enter
+              </span>
+            </span>
           </label>
-          <button
-            type="submit"
-            disabled={busy}
-            className="console-primary-action min-h-11"
-          >
-            <ConsoleIcon
-              name={busy ? "refresh" : "search"}
-              className="h-4 w-4"
-            />
-            {busy ? "Checking…" : "Check fleet"}
-          </button>
+
+          {isSuggestionListOpen && fleetNumber.trim() ? (
+            <div
+              id={suggestionListId}
+              role="listbox"
+              aria-label="Matching RELAY fleet machines"
+              className="mt-2 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg"
+            >
+              {isSuggestionSearchBusy ? (
+                <p className="px-3 py-3 text-sm text-slate-500">
+                  Searching RELAY fleet…
+                </p>
+              ) : fleetSuggestions.length ? (
+                fleetSuggestions.map((machine, index) => (
+                  <button
+                    key={machine.id ?? machine.machine_number_normalized}
+                    id={`${suggestionListId}-${index}`}
+                    type="button"
+                    role="option"
+                    aria-selected={highlightedSuggestion === index}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => setHighlightedSuggestion(index)}
+                    onClick={() => chooseFleetSuggestion(machine)}
+                    className={`flex w-full items-center justify-between gap-4 rounded-lg px-3 py-2.5 text-left transition ${highlightedSuggestion === index ? "bg-emerald-50" : "hover:bg-slate-50"}`}
+                  >
+                    <span className="min-w-0">
+                      <strong className="block font-mono text-sm text-emerald-800">
+                        {machine.machine_number}
+                      </strong>
+                      <span className="mt-0.5 block truncate text-xs text-slate-500">
+                        {fleetSuggestionDescription(machine)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs font-semibold text-slate-400">
+                      Select
+                    </span>
+                  </button>
+                ))
+              ) : hasSearchedSuggestions ? (
+                <p className="px-3 py-3 text-sm text-slate-500">
+                  No matching RELAY fleet numbers. Finish typing the exact
+                  reference and press Enter to check it.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          <p className="mt-2 text-xs text-slate-500">
+            Choose a predictive result, or type the complete fleet number and
+            press Enter.
+          </p>
         </form>
       </section>
 
@@ -431,6 +633,19 @@ function formatVerification(value: NexusCataloguePart["verificationStatus"]) {
   if (value === "manufacturer_verified") return "Manufacturer verified";
   if (value === "supplier_verified") return "Supplier verified";
   return "Fitment unverified";
+}
+
+function fleetSuggestionDescription(machine: FleetSuggestion) {
+  return (
+    [
+      machine.make,
+      machine.model,
+      machine.serial_number ? `Serial ${machine.serial_number}` : null,
+      machine.item_description,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Registered RELAY machine"
+  );
 }
 
 function messageFor(error: unknown) {
