@@ -5,7 +5,7 @@ import {
   fetchNexusMachineCatalogue,
 } from "@/lib/integrations/nexus/client";
 import { classifyMachineForNexus } from "@/lib/integrations/nexus/machine-classification";
-import { authorizeRicoRoute } from "@/lib/integrations/rico/route-auth";
+import { authorizeRelayRequesterRoute } from "@/lib/integrations/rico/route-auth";
 import { lookupMachineRegistryRecord } from "@/lib/machine-registry";
 
 const bodySchema = z.object({
@@ -24,7 +24,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const auth = await authorizeRicoRoute(request);
+  const auth = await authorizeRelayRequesterRoute(request);
   if (!auth.ok)
     return NextResponse.json(
       { ok: false, error: auth.error },

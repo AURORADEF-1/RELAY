@@ -6,7 +6,7 @@ import { NexusStoresWorkspace } from "@/components/nexus/nexus-stores-workspace"
 
 export default function StoresSelfServicePage() {
   return (
-    <AuthGuard requiredRole="admin">
+    <AuthGuard>
       <ConsoleShell
         eyebrow="RELAY × NEXUS"
         title="Stores Self-Service"

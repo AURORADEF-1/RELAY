@@ -1,77 +1,21 @@
--- RELAY side of the NEXUS Stores Self-Service bridge.
--- Additive only: existing RICO provenance remains valid.
+drop policy if exists "nexus self service admin read"
+on public.nexus_self_service_requests;
 
-alter table public.ticket_parts
-  add column if not exists source_bin_location text,
-  add column if not exists source_subgroup text,
-  add column if not exists source_requested_quantity integer,
-  add column if not exists source_issued_quantity integer,
-  add column if not exists source_shortfall_quantity integer,
-  add column if not exists source_stock_after integer,
-  add column if not exists source_allocation_id uuid,
-  add column if not exists source_allocation_status text;
+drop policy if exists "nexus self service requester read"
+on public.nexus_self_service_requests;
 
-alter table public.ticket_parts
-  drop constraint if exists ticket_parts_source_system_check,
-  add constraint ticket_parts_source_system_check
-    check (source_system is null or source_system in ('RICO', 'NEXUS')),
-  drop constraint if exists ticket_parts_source_allocation_status_check,
-  add constraint ticket_parts_source_allocation_status_check
-    check (
-      source_allocation_status is null
-      or source_allocation_status in ('PENDING', 'ALLOCATED', 'PARTIAL', 'FAILED')
-    ),
-  drop constraint if exists ticket_parts_source_quantities_check,
-  add constraint ticket_parts_source_quantities_check
-    check (
-      source_requested_quantity is null
-      or (
-        source_requested_quantity > 0
-        and coalesce(source_issued_quantity, 0) >= 0
-        and coalesce(source_shortfall_quantity, 0) >= 0
-        and coalesce(source_issued_quantity, 0) + coalesce(source_shortfall_quantity, 0)
-          = source_requested_quantity
-      )
-    );
-
-create index if not exists ticket_parts_nexus_allocation_idx
-on public.ticket_parts (source_allocation_id)
-where source_system = 'NEXUS';
-
-create table if not exists public.nexus_self_service_requests (
-  request_id uuid primary key,
-  ticket_id uuid not null unique references public.tickets(id) on delete cascade,
-  created_by uuid not null references auth.users(id) on delete restrict,
-  fleet_number text not null,
-  status text not null default 'PENDING'
-    check (status in ('PENDING', 'ALLOCATED', 'PARTIAL', 'FAILED')),
-  nexus_allocation_id uuid,
-  error_message text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  check (length(btrim(fleet_number)) > 0)
-);
-
-create index if not exists nexus_self_service_requests_created_idx
-on public.nexus_self_service_requests (created_at desc);
-
-alter table public.nexus_self_service_requests enable row level security;
-
-drop policy if exists "nexus self service admin read" on public.nexus_self_service_requests;
-drop policy if exists "nexus self service requester read" on public.nexus_self_service_requests;
 create policy "nexus self service requester read"
 on public.nexus_self_service_requests
 for select to authenticated
 using (
   created_by = (select auth.uid())
   or exists (
-    select 1 from public.profiles p
-    where p.id = (select auth.uid()) and p.role = 'admin'
+    select 1
+    from public.profiles p
+    where p.id = (select auth.uid())
+      and p.role = 'admin'
   )
 );
-
-revoke all on table public.nexus_self_service_requests from public, anon, authenticated;
-grant select on table public.nexus_self_service_requests to authenticated;
 
 create or replace function public.create_nexus_self_service_ticket(
   p_request_id uuid,
@@ -401,6 +345,9 @@ to authenticated;
 grant execute on function public.finalize_nexus_self_service_ticket(uuid, uuid, jsonb)
 to authenticated;
 
-comment on table public.nexus_self_service_requests is 'Idempotent RELAY outbox for confirmed requester NEXUS stores issues.';
-comment on function public.create_nexus_self_service_ticket(uuid, uuid, jsonb) is 'Authenticated requester creation of a RELAY ticket and pending NEXUS part rows.';
-comment on function public.finalize_nexus_self_service_ticket(uuid, uuid, jsonb) is 'Requester-owned reconciliation of the idempotent NEXUS allocation result into RELAY.';
+comment on table public.nexus_self_service_requests is
+  'Idempotent RELAY outbox for confirmed requester NEXUS stores issues.';
+comment on function public.create_nexus_self_service_ticket(uuid, uuid, jsonb) is
+  'Authenticated requester creation of a RELAY ticket and pending NEXUS part rows.';
+comment on function public.finalize_nexus_self_service_ticket(uuid, uuid, jsonb) is
+  'Requester-owned reconciliation of the idempotent NEXUS allocation result into RELAY.';

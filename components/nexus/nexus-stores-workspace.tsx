@@ -265,7 +265,7 @@ export function NexusStoresWorkspace() {
             </p>
           </div>
           <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-            Admin only
+            Requester access
           </span>
         </div>
         <form onSubmit={lookupMachine} className="mt-5 max-w-2xl">
