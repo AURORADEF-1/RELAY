@@ -4,6 +4,7 @@ import {
   allocateNexusTicketStock,
   fetchNexusMachineCatalogue,
 } from "@/lib/integrations/nexus/client";
+import { classifyMachineForNexus } from "@/lib/integrations/nexus/machine-classification";
 import { authorizeRicoRoute } from "@/lib/integrations/rico/route-auth";
 import { lookupMachineRegistryRecord } from "@/lib/machine-registry";
 
@@ -41,17 +42,31 @@ export async function POST(request: NextRequest) {
       auth.supabase,
       parsed.data.fleetNumber,
     );
-    if (!machine?.id || !machine.make?.trim() || !machine.model?.trim())
+    if (!machine?.id)
       return NextResponse.json(
-        { ok: false, error: "The verified RELAY machine is no longer available." },
+        {
+          ok: false,
+          error: "The verified RELAY machine is no longer available.",
+        },
         { status: 409 },
       );
 
+    const classification = classifyMachineForNexus(machine);
+    if (!classification.manufacturer || !classification.model)
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "This RELAY machine needs a catalogue make and model.",
+        },
+        { status: 409 },
+      );
     const catalogue = await fetchNexusMachineCatalogue(
-      machine.make,
-      machine.model,
+      classification.manufacturer,
+      classification.model,
     );
-    const catalogueById = new Map(catalogue.parts.map((part) => [part.id, part]));
+    const catalogueById = new Map(
+      catalogue.parts.map((part) => [part.id, part]),
+    );
     const lines = parsed.data.lines.map((requested) => {
       const part = catalogueById.get(requested.partId);
       if (!part)
@@ -81,7 +96,9 @@ export async function POST(request: NextRequest) {
       },
     );
     if (ticketError || !ticketResult)
-      throw new Error(ticketError?.message || "RELAY could not create the ticket.");
+      throw new Error(
+        ticketError?.message || "RELAY could not create the ticket.",
+      );
     const ticket = ticketResult as { ticketId: string };
 
     let allocation;

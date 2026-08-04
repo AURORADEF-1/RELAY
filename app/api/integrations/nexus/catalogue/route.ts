@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { fetchNexusMachineCatalogue } from "@/lib/integrations/nexus/client";
+import { classifyMachineForNexus } from "@/lib/integrations/nexus/machine-classification";
 import { authorizeRicoRoute } from "@/lib/integrations/rico/route-auth";
 import { lookupMachineRegistryRecord } from "@/lib/machine-registry";
 
@@ -31,20 +32,31 @@ export async function GET(request: NextRequest) {
     );
     if (!machine)
       return NextResponse.json(
-        { ok: false, error: "No verified RELAY machine matched that fleet number." },
+        {
+          ok: false,
+          error: "No verified RELAY machine matched that fleet number.",
+        },
         { status: 404 },
       );
-    if (!machine.make?.trim() || !machine.model?.trim())
+    const classification = classifyMachineForNexus(machine);
+    if (!classification.manufacturer || !classification.model)
       return NextResponse.json(
-        { ok: false, error: "This RELAY machine needs both a make and model before NEXUS can match parts." },
+        {
+          ok: false,
+          error:
+            "This RELAY machine needs both a make and model before NEXUS can match parts.",
+        },
         { status: 409 },
       );
 
     const catalogue = await fetchNexusMachineCatalogue(
-      machine.make,
-      machine.model,
+      classification.manufacturer,
+      classification.model,
     );
-    return NextResponse.json({ ok: true, data: { machine, catalogue } });
+    return NextResponse.json({
+      ok: true,
+      data: { machine, classification, catalogue },
+    });
   } catch (error) {
     return NextResponse.json(
       {

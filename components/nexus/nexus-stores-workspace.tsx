@@ -13,6 +13,7 @@ import { getSupabaseAccessToken } from "@/lib/supabase";
 
 type LookupResult = {
   machine: MachineRegistryRecord;
+  classification: { manufacturer: string; model: string };
   catalogue: NexusCatalogueResponse;
 };
 
@@ -45,9 +46,7 @@ export function NexusStoresWorkspace() {
     }
     return Array.from(grouped, ([subgroup, parts]) => ({
       subgroup,
-      parts: parts.toSorted((a, b) =>
-        a.partNumber.localeCompare(b.partNumber),
-      ),
+      parts: parts.toSorted((a, b) => a.partNumber.localeCompare(b.partNumber)),
     })).toSorted((a, b) => a.subgroup.localeCompare(b.subgroup));
   }, [result]);
 
@@ -127,8 +126,8 @@ export function NexusStoresWorkspace() {
               Find machine-specific parts
             </h2>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Enter a RELAY fleet number. NEXUS will return only parts associated
-              with the verified make and model.
+              Enter a RELAY fleet number. NEXUS will return only parts
+              associated with the verified make and model.
             </p>
           </div>
           <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
@@ -150,14 +149,20 @@ export function NexusStoresWorkspace() {
             disabled={busy}
             className="console-primary-action min-h-11"
           >
-            <ConsoleIcon name={busy ? "refresh" : "search"} className="h-4 w-4" />
+            <ConsoleIcon
+              name={busy ? "refresh" : "search"}
+              className="h-4 w-4"
+            />
             {busy ? "Checking…" : "Check fleet"}
           </button>
         </form>
       </section>
 
       {error ? (
-        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <div
+          role="alert"
+          className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+        >
           {error}
         </div>
       ) : null}
@@ -171,11 +176,14 @@ export function NexusStoresWorkspace() {
                   RELAY fleet verified
                 </p>
                 <p className="mt-1 text-lg font-semibold text-emerald-950">
-                  {result.machine.make} · {result.machine.model}
+                  {result.classification.manufacturer} ·{" "}
+                  {result.classification.model}
                 </p>
               </div>
               <div className="text-right text-sm text-emerald-900">
-                <p className="font-semibold">Fleet {result.machine.machine_number}</p>
+                <p className="font-semibold">
+                  Fleet {result.machine.machine_number}
+                </p>
                 <p>{result.catalogue.parts.length} matching NEXUS parts</p>
               </div>
             </div>
@@ -183,10 +191,13 @@ export function NexusStoresWorkspace() {
 
           {groups.length === 0 ? (
             <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
-              <h3 className="font-semibold text-slate-950">No associated parts found</h3>
+              <h3 className="font-semibold text-slate-950">
+                No associated parts found
+              </h3>
               <p className="mt-1 text-sm text-slate-600">
-                Add {result.machine.make} · {result.machine.model} as an
-                application against the appropriate parts in NEXUS.
+                Add {result.classification.manufacturer} ·{" "}
+                {result.classification.model} as an application against the
+                appropriate parts in NEXUS.
               </p>
             </section>
           ) : (
@@ -198,9 +209,12 @@ export function NexusStoresWorkspace() {
                     className="overflow-hidden rounded-xl border border-slate-200 bg-white"
                   >
                     <header className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-                      <h3 className="font-semibold text-slate-950">{group.subgroup}</h3>
+                      <h3 className="font-semibold text-slate-950">
+                        {group.subgroup}
+                      </h3>
                       <span className="text-xs text-slate-500">
-                        {group.parts.length} part{group.parts.length === 1 ? "" : "s"}
+                        {group.parts.length} part
+                        {group.parts.length === 1 ? "" : "s"}
                       </span>
                     </header>
                     <div className="divide-y divide-slate-200">
@@ -227,7 +241,8 @@ export function NexusStoresWorkspace() {
                   Ticket basket
                 </p>
                 <h3 className="mt-1 font-semibold text-slate-950">
-                  {selectedLines.length} selected part{selectedLines.length === 1 ? "" : "s"}
+                  {selectedLines.length} selected part
+                  {selectedLines.length === 1 ? "" : "s"}
                 </h3>
                 <div className="mt-3 space-y-2">
                   {selectedLines.length === 0 ? (
@@ -236,8 +251,13 @@ export function NexusStoresWorkspace() {
                     </p>
                   ) : (
                     selectedLines.map(({ part, quantity }) => (
-                      <div key={part.id} className="flex justify-between gap-3 text-sm">
-                        <span className="min-w-0 truncate">{part.partNumber}</span>
+                      <div
+                        key={part.id}
+                        className="flex justify-between gap-3 text-sm"
+                      >
+                        <span className="min-w-0 truncate">
+                          {part.partNumber}
+                        </span>
                         <strong>{quantity} requested</strong>
                       </div>
                     ))
@@ -278,8 +298,8 @@ export function NexusStoresWorkspace() {
             RELAY ticket created and NEXUS stock updated
           </h2>
           <p className="mt-2 text-sm text-emerald-900">
-            {confirmation.issuedQuantity} issued · {confirmation.shortfallQuantity}{" "}
-            to order
+            {confirmation.issuedQuantity} issued ·{" "}
+            {confirmation.shortfallQuantity} to order
           </p>
           {confirmation.shortageNote ? (
             <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-amber-200 bg-amber-50 p-3 font-sans text-sm text-amber-950">
@@ -328,12 +348,18 @@ function PartRow({
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <strong className="font-mono text-sm text-emerald-800">{part.partNumber}</strong>
-          <span className={`rounded px-2 py-0.5 text-xs font-semibold ${part.stockAvailable > 0 ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-700"}`}>
+          <strong className="font-mono text-sm text-emerald-800">
+            {part.partNumber}
+          </strong>
+          <span
+            className={`rounded px-2 py-0.5 text-xs font-semibold ${part.stockAvailable > 0 ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-700"}`}
+          >
             {part.stockAvailable} available
           </span>
         </div>
-        <p className="mt-1 text-sm font-medium text-slate-950">{part.description}</p>
+        <p className="mt-1 text-sm font-medium text-slate-950">
+          {part.description}
+        </p>
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
           <span>Bin {part.binLocation}</span>
           <span>{formatMoney(part.sellPrice)}</span>
@@ -341,7 +367,8 @@ function PartRow({
         </div>
         {shortfall > 0 ? (
           <p className="mt-2 text-xs font-semibold text-amber-700">
-            {part.stockAvailable} will issue; order {shortfall} from the {part.manufacturer} manufacturer group.
+            {part.stockAvailable} will issue; order {shortfall} from the{" "}
+            {part.manufacturer} manufacturer group.
           </p>
         ) : null}
       </div>
@@ -353,7 +380,9 @@ function PartRow({
           max={999}
           value={quantity}
           onChange={(event) =>
-            onQuantity(Math.min(999, Math.max(0, Number(event.target.value) || 0)))
+            onQuantity(
+              Math.min(999, Math.max(0, Number(event.target.value) || 0)),
+            )
           }
           className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm text-slate-950 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
         />
@@ -405,5 +434,7 @@ function formatVerification(value: NexusCataloguePart["verificationStatus"]) {
 }
 
 function messageFor(error: unknown) {
-  return error instanceof Error ? error.message : "Unable to complete the request.";
+  return error instanceof Error
+    ? error.message
+    : "Unable to complete the request.";
 }
