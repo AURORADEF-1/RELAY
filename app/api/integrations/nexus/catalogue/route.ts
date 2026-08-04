@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     const catalogue = await fetchNexusMachineCatalogue(
       classification.manufacturer,
       classification.model,
+      machine.serial_number,
     );
     return NextResponse.json({
       ok: true,

@@ -37,8 +37,10 @@ async function nexusRequest<T>(path: string, init?: RequestInit): Promise<T> {
 export function fetchNexusMachineCatalogue(
   manufacturer: string,
   model: string,
+  serialNumber?: string | null,
 ) {
   const query = new URLSearchParams({ manufacturer, model });
+  if (serialNumber?.trim()) query.set("serial", serialNumber.trim());
   return nexusRequest<NexusCatalogueResponse>(
     `/api/relay/catalogue?${query.toString()}`,
   );
