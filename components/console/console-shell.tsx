@@ -43,6 +43,7 @@ const navigation: NavigationItem[] = [
   { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", adminOnly: true },
   { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
   { href: "/submit", label: "New request", icon: "ticket" },
+  { href: "/stores", label: "Stores Self-Service", icon: "parts", adminOnly: true },
   { href: "/requests", label: "My requests", icon: "clipboard", badge: "requester" },
   { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
   { href: "/filters", label: "Filter Lookup", icon: "filter", adminOnly: true },

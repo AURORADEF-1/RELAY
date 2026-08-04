@@ -2727,6 +2727,21 @@ export default function TicketDetailPage() {
                                         Part <span className="font-medium text-slate-900">{part.part_number}</span>
                                         {" "}· Qty {part.quantity}
                                       </p>
+                                      {part.source_system === "NEXUS" ? (
+                                        <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+                                          <span className="rounded-md bg-emerald-100 px-2 py-1 text-emerald-800">
+                                            NEXUS {part.source_allocation_status?.toLowerCase() ?? "pending"}
+                                          </span>
+                                          <span className="rounded-md bg-white px-2 py-1 text-slate-700">
+                                            {part.source_issued_quantity ?? 0} issued
+                                          </span>
+                                          {(part.source_shortfall_quantity ?? 0) > 0 ? (
+                                            <span className="rounded-md bg-amber-100 px-2 py-1 text-amber-800">
+                                              {part.source_shortfall_quantity} to order
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                      ) : null}
                                     </div>
                                     <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
                                       {formatTicketPartStatus(part.part_status)}
@@ -2748,6 +2763,13 @@ export default function TicketDetailPage() {
                                     {part.supplier_name ? (
                                       <p className="sm:col-span-2">
                                         Supplier: <span className="font-medium text-slate-900">{part.supplier_name}</span>
+                                      </p>
+                                    ) : null}
+                                    {part.source_system === "NEXUS" ? (
+                                      <p className="sm:col-span-2">
+                                        NEXUS bin: <span className="font-medium text-slate-900">{part.source_bin_location ?? "-"}</span>
+                                        {" · "}Stock remaining: <span className="font-medium text-slate-900">{part.source_stock_after ?? "-"}</span>
+                                        {part.source_subgroup ? ` · ${part.source_subgroup}` : ""}
                                       </p>
                                     ) : null}
                                     {part.notes ? (
