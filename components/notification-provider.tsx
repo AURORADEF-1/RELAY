@@ -195,17 +195,12 @@ async function clearArchivedTicketNotifications(
   return new Set(completedNotificationIds);
 }
 
-function shouldTrackUserPresence(pathname: string, adminUser: boolean) {
-  if (!adminUser) {
-    return false;
-  }
-
-  return (
-    pathname === "/admin" ||
-    pathname === "/completed" ||
-    pathname === "/control" ||
+function shouldTrackUserPresence(pathname: string) {
+  return !(
+    pathname === "/login" ||
+    pathname === "/legal" ||
     pathname === "/wallboard" ||
-    pathname.startsWith("/incidents")
+    pathname.startsWith("/oversight")
   );
 }
 
@@ -988,13 +983,13 @@ export function NotificationProvider({
 
           if (
             !isInteractiveRef.current ||
-            !shouldTrackUserPresence(pathnameRef.current, adminUser) ||
+            !shouldTrackUserPresence(pathnameRef.current) ||
             !acquirePresenceLease(activePresenceTabId)
           ) {
             return false;
           }
 
-          await upsertUserPresence(supabase, user.id);
+          await upsertUserPresence(supabase, user.id, pathnameRef.current);
           return true;
         };
 
@@ -1384,6 +1379,9 @@ export function NotificationProvider({
       }
 
       await markPathNotificationsRead(supabase, userId, adminUser, pathname);
+      if (shouldTrackUserPresence(pathname)) {
+        await upsertUserPresence(supabase, userId, pathname);
+      }
       await syncUnreadNotifications(supabase, userId, adminUser);
     };
 

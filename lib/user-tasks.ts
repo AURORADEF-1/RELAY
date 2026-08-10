@@ -32,16 +32,58 @@ export type UserTaskRecord = {
   assignee_name?: string | null;
 };
 
-const PRESENCE_HEARTBEAT_MS = 5 * 60_000;
+const PRESENCE_HEARTBEAT_MS = 20_000;
+const OVERSIGHT_SESSION_KEY = "relay-oversight-session";
+
+function getOversightSession() {
+  if (typeof window === "undefined") {
+    return { id: null, startedAt: null };
+  }
+
+  const existing = window.sessionStorage.getItem(OVERSIGHT_SESSION_KEY);
+  if (existing) {
+    try {
+      const parsed = JSON.parse(existing) as { id?: string; startedAt?: string };
+      if (parsed.id && parsed.startedAt) {
+        return { id: parsed.id, startedAt: parsed.startedAt };
+      }
+    } catch {
+      // Replace malformed session state below.
+    }
+  }
+
+  const session = { id: crypto.randomUUID(), startedAt: new Date().toISOString() };
+  window.sessionStorage.setItem(OVERSIGHT_SESSION_KEY, JSON.stringify(session));
+  return session;
+}
+
+let lastPresencePath = "";
+let lastPresencePageOpenedAt = "";
 
 export async function upsertUserPresence(
   supabase: SupabaseClient,
   userId: string,
+  routePath = "/",
 ) {
+  const now = new Date().toISOString();
+  const session = getOversightSession();
+  const normalizedPath = routePath.split("?")[0] || "/";
+  const ticketMatch = normalizedPath.match(/^\/tickets\/([0-9a-f-]{36})$/i);
+
+  if (lastPresencePath !== normalizedPath || !lastPresencePageOpenedAt) {
+    lastPresencePath = normalizedPath;
+    lastPresencePageOpenedAt = now;
+  }
+
   const { error } = await supabase.from("user_presence").upsert(
     {
       user_id: userId,
-      last_seen_at: new Date().toISOString(),
+      last_seen_at: now,
+      session_id: session.id,
+      session_started_at: session.startedAt,
+      route_path: normalizedPath,
+      current_ticket_id: ticketMatch?.[1] ?? null,
+      page_opened_at: lastPresencePageOpenedAt,
     },
     { onConflict: "user_id" },
   );

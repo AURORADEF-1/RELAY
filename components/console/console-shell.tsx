@@ -36,6 +36,7 @@ type NavigationItem = {
   label: string;
   icon: ConsoleIconName;
   adminOnly?: boolean;
+  oversightOnly?: boolean;
   fleetMemberOnly?: boolean;
   badge?: "admin" | "requester" | "tasks";
   external?: boolean;
@@ -45,6 +46,7 @@ const navigation: NavigationItem[] = [
   { href: "/console", label: "Operations", icon: "console", adminOnly: true },
   { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", adminOnly: true },
   { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
+  { href: "/oversight", label: "Oversight", icon: "activity", oversightOnly: true },
   { href: "/submit", label: "New request", icon: "ticket" },
   { href: "/stores", label: "Stores Self-Service", icon: "parts" },
   {
@@ -106,6 +108,7 @@ export function ConsoleShell({
   const [isInternalRelayAiOpen, setIsInternalRelayAiOpen] = useState(false);
   const [signedInUserName, setSignedInUserName] = useState("Signed in");
   const [hasCustomerFleet, setHasCustomerFleet] = useState(false);
+  const [hasOversightAccess, setHasOversightAccess] = useState(false);
   const [commandMachineResults, setCommandMachineResults] = useState<
     SmartSearchResult[]
   >([]);
@@ -131,17 +134,18 @@ export function ConsoleShell({
 
         if (!user) {
           setHasCustomerFleet(false);
+          setHasOversightAccess(false);
           return;
         }
 
-        const { data } = await supabase
-          .from("customer_fleet_members")
-          .select("fleet_id")
-          .eq("user_id", user.id)
-          .limit(1);
+        const [{ data }, { data: oversightAccess }] = await Promise.all([
+          supabase.from("customer_fleet_members").select("fleet_id").eq("user_id", user.id).limit(1),
+          supabase.from("oversight_access").select("enabled").eq("user_id", user.id).eq("enabled", true).maybeSingle(),
+        ]);
 
         if (isMounted) {
           setHasCustomerFleet(Boolean(data?.length));
+          setHasOversightAccess(Boolean(oversightAccess));
         }
       })
       .catch(() => {
@@ -267,6 +271,7 @@ export function ConsoleShell({
   const visibleNavigation = navigation.filter(
     (item) =>
       (!item.adminOnly || isAdmin) &&
+      (!item.oversightOnly || hasOversightAccess) &&
       (!item.fleetMemberOnly || isAdmin || hasCustomerFleet),
   );
   const effectiveRelayAiOpen = onOpenRelayAi
