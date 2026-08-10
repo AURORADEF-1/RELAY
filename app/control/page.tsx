@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
 import { AdminHealthPanel } from "@/components/admin-health-panel";
 import { AdminOperatorManagementPanel } from "@/components/admin-operator-management-panel";
+import { AdminOversightAccessPanel } from "@/components/admin-oversight-access-panel";
 import { AdminOperationsOverview } from "@/components/admin-operations-overview";
 import { AdminSessionControlPanel } from "@/components/admin-session-control-panel";
 import { ConsoleIcon } from "@/components/console/console-icon";
@@ -15,6 +16,7 @@ const controlSections = [
   { href: "#operators", label: "Operator names" },
   { href: "#health", label: "System health" },
   { href: "#sessions", label: "Session tools" },
+  { href: "#oversight-access", label: "Oversight access" },
 ];
 
 export default function ControlPage() {
@@ -73,6 +75,10 @@ export default function ControlPage() {
 
             <div id="sessions" className="admin-control-section-anchor">
               <AdminSessionControlPanel />
+            </div>
+
+            <div id="oversight-access" className="admin-control-section-anchor">
+              <AdminOversightAccessPanel />
             </div>
           </div>
         </div>
