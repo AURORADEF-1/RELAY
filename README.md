@@ -1,5 +1,23 @@
 Proprietary and confidential. Unauthorized copying, distribution, or use is prohibited.
 
+## NEXUS Stores Self-Service
+
+Administrators can use `/stores` to enter a verified RELAY fleet number, browse
+NEXUS parts associated with that machine's exact make and model, and create one
+RELAY ticket from a multi-part basket. Confirmation attaches the parts to the
+ticket and asks NEXUS to allocate stock. Requested, issued and shortfall
+quantities are stored separately; any shortage is added to the ticket as a
+manufacturer-group ordering instruction.
+
+The integration uses the server-only environment variables:
+
+```text
+NEXUS_API_URL=https://mlp-parts.vercel.app
+NEXUS_RELAY_API_KEY=<shared sensitive bridge key>
+```
+
+The API key must never be exposed through a `NEXT_PUBLIC_` variable.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

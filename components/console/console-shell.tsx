@@ -8,7 +8,10 @@ import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { RelayLogo } from "@/components/relay-logo";
 import { ThemeToggleButton } from "@/components/theme-toggle-button";
-import { ConsoleIcon, type ConsoleIconName } from "@/components/console/console-icon";
+import {
+  ConsoleIcon,
+  type ConsoleIconName,
+} from "@/components/console/console-icon";
 import { RelayAiPanel } from "@/components/console/relay-ai-panel";
 import type { SmartSearchResult } from "@/lib/admin-smart-search";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
@@ -43,15 +46,43 @@ const navigation: NavigationItem[] = [
   { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", adminOnly: true },
   { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
   { href: "/submit", label: "New request", icon: "ticket" },
-  { href: "/requests", label: "My requests", icon: "clipboard", badge: "requester" },
+  { href: "/stores", label: "Stores Self-Service", icon: "parts" },
+  {
+    href: "/requests",
+    label: "My requests",
+    icon: "clipboard",
+    badge: "requester",
+  },
   { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
   { href: "/filters", label: "Filter Lookup", icon: "filter", adminOnly: true },
-  { href: "/parts-knowledge", label: "Parts Knowledge", icon: "parts", adminOnly: true },
-  { href: "/admin", label: "Parts control", icon: "parts", adminOnly: true, badge: "admin" },
+  {
+    href: "/parts-knowledge",
+    label: "Parts Knowledge",
+    icon: "parts",
+    adminOnly: true,
+  },
+  {
+    href: "/admin",
+    label: "Parts control",
+    icon: "parts",
+    adminOnly: true,
+    badge: "admin",
+  },
   { href: "/incidents", label: "Workshop", icon: "workshop", adminOnly: true },
   { href: "/tasks", label: "Tasks", icon: "activity", badge: "tasks" },
-  { href: "/control", label: "Administration", icon: "settings", adminOnly: true },
-  { href: "/wallboard", label: "Wallboard", icon: "wallboard", adminOnly: true, external: true },
+  {
+    href: "/control",
+    label: "Administration",
+    icon: "settings",
+    adminOnly: true,
+  },
+  {
+    href: "/wallboard",
+    label: "Wallboard",
+    icon: "wallboard",
+    adminOnly: true,
+    external: true,
+  },
 ];
 
 export function ConsoleShell({
@@ -68,13 +99,16 @@ export function ConsoleShell({
   isRelayAiOpen = false,
 }: ConsoleShellProps) {
   const pathname = usePathname();
-  const { adminBadgeCount, isAdmin, requesterUnreadCount, taskUnreadCount } = useNotifications();
+  const { adminBadgeCount, isAdmin, requesterUnreadCount, taskUnreadCount } =
+    useNotifications();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isInternalRelayAiOpen, setIsInternalRelayAiOpen] = useState(false);
   const [signedInUserName, setSignedInUserName] = useState("Signed in");
   const [hasCustomerFleet, setHasCustomerFleet] = useState(false);
-  const [commandMachineResults, setCommandMachineResults] = useState<SmartSearchResult[]>([]);
+  const [commandMachineResults, setCommandMachineResults] = useState<
+    SmartSearchResult[]
+  >([]);
   const [isCommandSearchFocused, setIsCommandSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -130,9 +164,16 @@ export function ConsoleShell({
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
-      if (event.key === "/" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (
+        event.key === "/" &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
         const target = event.target as HTMLElement | null;
-        const isTyping = target?.matches("input, textarea, select, [contenteditable='true']");
+        const isTyping = target?.matches(
+          "input, textarea, select, [contenteditable='true']",
+        );
 
         if (!isTyping && onSearchChange) {
           event.preventDefault();
@@ -177,9 +218,13 @@ export function ConsoleShell({
           return;
         }
 
-        const payload = (await response.json()) as { results?: SmartSearchResult[] };
+        const payload = (await response.json()) as {
+          results?: SmartSearchResult[];
+        };
         setCommandMachineResults(
-          (payload.results ?? []).filter((result) => result.entity === "machine").slice(0, 5),
+          (payload.results ?? [])
+            .filter((result) => result.entity === "machine")
+            .slice(0, 5),
         );
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
@@ -197,7 +242,10 @@ export function ConsoleShell({
   function toggleCollapsed() {
     const next = !isCollapsed;
     setIsCollapsed(next);
-    window.localStorage.setItem("relay-console-sidebar", next ? "collapsed" : "expanded");
+    window.localStorage.setItem(
+      "relay-console-sidebar",
+      next ? "collapsed" : "expanded",
+    );
   }
 
   function getBadgeCount(item: NavigationItem) {
@@ -221,10 +269,14 @@ export function ConsoleShell({
       (!item.adminOnly || isAdmin) &&
       (!item.fleetMemberOnly || isAdmin || hasCustomerFleet),
   );
-  const effectiveRelayAiOpen = onOpenRelayAi ? isRelayAiOpen : isInternalRelayAiOpen;
+  const effectiveRelayAiOpen = onOpenRelayAi
+    ? isRelayAiOpen
+    : isInternalRelayAiOpen;
 
   return (
-    <div className={`console-shell ${isCollapsed ? "console-shell-collapsed" : ""} ${shellClassName}`.trim()}>
+    <div
+      className={`console-shell ${isCollapsed ? "console-shell-collapsed" : ""} ${shellClassName}`.trim()}
+    >
       {isMobileOpen ? (
         <button
           type="button"
@@ -234,7 +286,9 @@ export function ConsoleShell({
         />
       ) : null}
 
-      <aside className={`console-sidebar ${isMobileOpen ? "console-sidebar-mobile-open" : ""}`}>
+      <aside
+        className={`console-sidebar ${isMobileOpen ? "console-sidebar-mobile-open" : ""}`}
+      >
         <div className="console-sidebar-brand">
           <Link href={isAdmin ? "/console" : "/"} aria-label="RELAY home">
             <RelayLogo compact={isCollapsed} />
@@ -291,7 +345,9 @@ export function ConsoleShell({
               >
                 <ConsoleIcon name={item.icon} className="console-nav-icon" />
                 <span className="console-nav-label">{item.label}</span>
-                {badgeCount > 0 ? <NotificationBadge count={badgeCount} /> : null}
+                {badgeCount > 0 ? (
+                  <NotificationBadge count={badgeCount} />
+                ) : null}
               </Link>
             );
           })}
@@ -342,14 +398,20 @@ export function ConsoleShell({
                   onChange={(event) => onSearchChange(event.target.value)}
                   onFocus={() => setIsCommandSearchFocused(true)}
                   onBlur={() => {
-                    window.setTimeout(() => setIsCommandSearchFocused(false), 120);
+                    window.setTimeout(
+                      () => setIsCommandSearchFocused(false),
+                      120,
+                    );
                   }}
                   placeholder={searchPlaceholder}
                 />
                 <kbd>/</kbd>
               </label>
               {isCommandSearchFocused && commandMachineResults.length > 0 ? (
-                <div className="console-command-results" aria-label="Matching machines">
+                <div
+                  className="console-command-results"
+                  aria-label="Matching machines"
+                >
                   <p>Machines</p>
                   {commandMachineResults.map((result) => (
                     <Link key={result.id} href={result.href}>
@@ -373,7 +435,9 @@ export function ConsoleShell({
           </div>
         </header>
 
-        <main className={`console-content ${contentClassName}`.trim()}>{children}</main>
+        <main className={`console-content ${contentClassName}`.trim()}>
+          {children}
+        </main>
       </div>
       {!onOpenRelayAi ? (
         <RelayAiPanel

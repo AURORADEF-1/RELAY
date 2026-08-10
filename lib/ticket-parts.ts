@@ -28,6 +28,14 @@ export type TicketPartRecord = {
   part_status: TicketPartStatus;
   supplier_name: string | null;
   notes: string | null;
+  source_system: string | null;
+  source_bin_location: string | null;
+  source_subgroup: string | null;
+  source_requested_quantity: number | null;
+  source_issued_quantity: number | null;
+  source_shortfall_quantity: number | null;
+  source_stock_after: number | null;
+  source_allocation_status: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -49,6 +57,14 @@ type TicketPartRow = {
   part_status: string | null;
   supplier_name: string | null;
   notes: string | null;
+  source_system?: string | null;
+  source_bin_location?: string | null;
+  source_subgroup?: string | null;
+  source_requested_quantity?: number | null;
+  source_issued_quantity?: number | null;
+  source_shortfall_quantity?: number | null;
+  source_stock_after?: number | null;
+  source_allocation_status?: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -184,6 +200,14 @@ function normalizeTicketPartRow(row: TicketPartRow): TicketPartRecord {
     part_status: normalizeTicketPartStatus(row.part_status),
     supplier_name: row.supplier_name?.trim() || null,
     notes: row.notes?.trim() || null,
+    source_system: row.source_system?.trim() || null,
+    source_bin_location: row.source_bin_location?.trim() || null,
+    source_subgroup: row.source_subgroup?.trim() || null,
+    source_requested_quantity: row.source_requested_quantity ?? null,
+    source_issued_quantity: row.source_issued_quantity ?? null,
+    source_shortfall_quantity: row.source_shortfall_quantity ?? null,
+    source_stock_after: row.source_stock_after ?? null,
+    source_allocation_status: row.source_allocation_status?.trim() || null,
     created_at: row.created_at ?? new Date().toISOString(),
     updated_at: row.updated_at ?? new Date().toISOString(),
   };
