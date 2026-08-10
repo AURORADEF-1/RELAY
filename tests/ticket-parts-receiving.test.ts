@@ -9,8 +9,10 @@ import {
 function buildPart(
   overrides: Partial<TicketPartRecord> & Pick<TicketPartRecord, "id" | "part_number">,
 ): TicketPartRecord {
+  const { id, part_number: partNumber, ...remainingOverrides } = overrides;
+
   return {
-    id: overrides.id,
+    id,
     ticket_id: "ticket-1",
     ticket_purchase_order_id: "po-1",
     created_by: null,
@@ -21,7 +23,7 @@ function buildPart(
     machine_make: "Takeuchi",
     machine_model: "TB216",
     part_description: "Test part",
-    part_number: overrides.part_number,
+    part_number: partNumber,
     quantity: 1,
     received_quantity: 0,
     received_at: null,
@@ -44,7 +46,7 @@ function buildPart(
     source_allocation_status: null,
     created_at: "2026-08-10T08:00:00.000Z",
     updated_at: "2026-08-10T08:00:00.000Z",
-    ...overrides,
+    ...remainingOverrides,
   };
 }
 
