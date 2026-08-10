@@ -6,6 +6,7 @@ import { normalizeSupplierName } from "@/lib/suppliers";
 export const ticketPurchaseOrderStatuses = [
   "DRAFT",
   "SENT",
+  "PART_RECEIVED",
   "RECEIVED",
   "CANCELLED",
 ] as const;
@@ -83,6 +84,8 @@ export function formatTicketPurchaseOrderStatus(status: TicketPurchaseOrderStatu
       return "Sent";
     case "RECEIVED":
       return "Received";
+    case "PART_RECEIVED":
+      return "Part received";
     case "CANCELLED":
       return "Cancelled";
     default:

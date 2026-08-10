@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -69,12 +70,17 @@ import {
   buildEmptyTicketPartDraft,
   createTicketPart,
   fetchTicketParts,
+  formatOutstandingTicketParts,
   formatTicketPartStatus,
+  getOutstandingTicketParts,
+  getTicketPartOutstandingQuantity,
+  receiveTicketPart,
   ticketPartStatuses,
   type TicketPartDraft,
   type TicketPartRecord,
   type TicketPartStatus,
 } from "@/lib/ticket-parts";
+import type { NexusCataloguePart } from "@/lib/integrations/nexus/types";
 import {
   buildEmptyTicketPurchaseOrderDraft,
   createTicketPurchaseOrder,
@@ -117,7 +123,7 @@ import { fetchRequesterAccounts } from "@/lib/requester-accounts";
 import type { SupplierOrderDispatchPreference } from "@/lib/order-communications";
 import { ticketStatuses } from "@/lib/statuses";
 import { sanitizeUserFacingError } from "@/lib/security";
-import { getSupabaseClient } from "@/lib/supabase";
+import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
 
 const OPERATOR_NUMBERS = [
   { label: "Call Operator 1", number: "07955273861" },
@@ -251,6 +257,11 @@ type RequesterAccountOption = {
 
 type WorkspaceTab = "overview" | "parts" | "activity" | "conversation" | "files";
 
+type NexusStockCheck =
+  | { status: "idle" | "checking"; message: string; part: null }
+  | { status: "found"; message: string; part: NexusCataloguePart; checkedAt: string }
+  | { status: "not_found" | "error"; message: string; part: null };
+
 const workspaceTabs: Array<{
   id: WorkspaceTab;
   label: string;
@@ -290,6 +301,14 @@ export default function TicketDetailPage() {
   const [adminNoteNotice, setAdminNoteNotice] = useState("");
   const [isSavingPart, setIsSavingPart] = useState(false);
   const [isSavingPurchaseOrder, setIsSavingPurchaseOrder] = useState(false);
+  const [receivingPartId, setReceivingPartId] = useState<string | null>(null);
+  const [receiveQuantities, setReceiveQuantities] = useState<Record<string, string>>({});
+  const [nexusStockCheck, setNexusStockCheck] = useState<NexusStockCheck>({
+    status: "idle",
+    message: "",
+    part: null,
+  });
+  const nexusStockRequestRef = useRef(0);
   const partFormRef = useRef<HTMLDivElement | null>(null);
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [requesterAvatarUrl, setRequesterAvatarUrl] = useState<string | null>(null);
@@ -315,6 +334,14 @@ export default function TicketDetailPage() {
   } | null>(null);
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
   const [editConflictDialog, setEditConflictDialog] = useState<EditConflictDialogState | null>(null);
+  const outstandingTicketParts = useMemo(
+    () => getOutstandingTicketParts(ticketParts),
+    [ticketParts],
+  );
+  const outstandingPartsSummary = useMemo(
+    () => formatOutstandingTicketParts(ticketParts),
+    [ticketParts],
+  );
 
   const loadTicket = useCallback(async () => {
     setIsLoading(true);
@@ -506,6 +533,78 @@ export default function TicketDetailPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadTicket]);
+
+  useEffect(() => {
+    const partNumber = partDraft.part_number.trim();
+    const requestNumber = ++nexusStockRequestRef.current;
+
+    if (!isAdmin || !ticket?.id || partNumber.length < 2) {
+      setNexusStockCheck({ status: "idle", message: "", part: null });
+      return;
+    }
+
+    setNexusStockCheck({
+      status: "checking",
+      message: "Checking NEXUS stock...",
+      part: null,
+    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const token = await getSupabaseAccessToken();
+        if (!token) throw new Error("Sign in again to check NEXUS stock.");
+        const query = new URLSearchParams({ ticketId: ticket.id, partNumber });
+        const response = await fetch(`/api/integrations/nexus/stock?${query.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          data?: {
+            found: boolean;
+            part?: NexusCataloguePart;
+            reason?: string;
+            checkedAt?: string;
+          };
+          error?: string;
+        };
+        if (requestNumber !== nexusStockRequestRef.current) return;
+        if (!response.ok || payload.error) {
+          throw new Error(payload.error || "NEXUS stock could not be checked.");
+        }
+        if (payload.data?.found && payload.data.part) {
+          setNexusStockCheck({
+            status: "found",
+            message: `${payload.data.part.stockAvailable} available in NEXUS · bin ${payload.data.part.binLocation || "not recorded"}`,
+            part: payload.data.part,
+            checkedAt: payload.data.checkedAt || new Date().toISOString(),
+          });
+          return;
+        }
+        setNexusStockCheck({
+          status: "not_found",
+          message:
+            payload.data?.reason ||
+            "Not found in NEXUS for this machine. You can still add the part manually.",
+          part: null,
+        });
+      } catch (error) {
+        if (controller.signal.aborted || requestNumber !== nexusStockRequestRef.current) return;
+        setNexusStockCheck({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "NEXUS stock could not be checked. You can still add the part manually.",
+          part: null,
+        });
+      }
+    }, 450);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [isAdmin, partDraft.part_number, ticket?.id]);
 
   async function reloadTicketConversation(supabase: NonNullable<ReturnType<typeof getSupabaseClient>>, activeTicketId: string) {
     const [attachmentData, messageData] = await Promise.all([
@@ -978,6 +1077,19 @@ export default function TicketDetailPage() {
       setStatusWorkflowDialog((current) =>
         current
           ? { ...current, errorMessage: "Bin location required before marking this ticket READY." }
+          : current,
+      );
+      setIsSavingEdit(false);
+      return;
+    }
+
+    if (workflowRequirement === "ready" && outstandingTicketParts.length > 0) {
+      setStatusWorkflowDialog((current) =>
+        current
+          ? {
+              ...current,
+              errorMessage: `Receive all linked parts before marking READY. Outstanding: ${outstandingPartsSummary}`,
+            }
           : current,
       );
       setIsSavingEdit(false);
@@ -1571,6 +1683,12 @@ export default function TicketDetailPage() {
     setPartNotice(null);
 
     try {
+      const nexusPart =
+        nexusStockCheck.status === "found" &&
+        normalizePartNumberForComparison(nexusStockCheck.part.partNumber) ===
+          normalizePartNumberForComparison(partNumber)
+          ? nexusStockCheck.part
+          : null;
       const createdPart = await createTicketPart(supabase, {
         ticketId: ticket.id,
         createdBy: currentUserId,
@@ -1586,13 +1704,27 @@ export default function TicketDetailPage() {
         partStatus: partDraft.part_status,
         supplierName: supplierName || null,
         notes: notes || null,
+        sourceSystem: nexusPart ? "NEXUS" : null,
+        sourceProductId: nexusPart?.id ?? null,
+        sourcePriceSnapshot: nexusPart?.sellPrice ?? null,
+        sourceCurrency: nexusPart?.currency ?? null,
+        sourceStockSnapshot: nexusPart?.stockAvailable ?? null,
+        sourceCheckedAt:
+          nexusPart && nexusStockCheck.status === "found"
+            ? nexusStockCheck.checkedAt
+            : null,
+        sourceBinLocation: nexusPart?.binLocation ?? null,
+        sourceSubgroup: nexusPart?.subgroup ?? null,
       });
 
       setTicketParts((current) => [createdPart, ...current]);
       setPartDraft(buildEmptyTicketPartDraft());
+      setNexusStockCheck({ status: "idle", message: "", part: null });
       setPartNotice({
         type: "success",
-        message: "Linked part added to this ticket.",
+        message: nexusPart
+          ? `Linked part added with NEXUS stock evidence (${nexusPart.stockAvailable} available).`
+          : "Linked part added manually to this ticket.",
       });
     } catch (partError) {
       setPartNotice({
@@ -1601,6 +1733,78 @@ export default function TicketDetailPage() {
       });
     } finally {
       setIsSavingPart(false);
+    }
+  }
+
+  async function handleReceiveTicketPart(part: TicketPartRecord) {
+    if (!ticket || !isAdmin) return;
+    const outstandingQuantity = getTicketPartOutstandingQuantity(part);
+    const requestedQuantity = Number.parseInt(
+      receiveQuantities[part.id] ?? String(outstandingQuantity),
+      10,
+    );
+    if (
+      !Number.isFinite(requestedQuantity) ||
+      requestedQuantity < 1 ||
+      requestedQuantity > outstandingQuantity
+    ) {
+      setPartNotice({
+        type: "error",
+        message: `Receive between 1 and ${outstandingQuantity} unit${outstandingQuantity === 1 ? "" : "s"} for ${part.part_number}.`,
+      });
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setPartNotice({
+        type: "error",
+        message: "Supabase environment variables are not configured.",
+      });
+      return;
+    }
+
+    setReceivingPartId(part.id);
+    setPartNotice(null);
+    try {
+      const updatedPart = await receiveTicketPart(supabase, part.id, requestedQuantity);
+      const remaining = getTicketPartOutstandingQuantity(updatedPart);
+      const refreshedPurchaseOrders = await fetchTicketPurchaseOrders(supabase, ticket.id);
+      setTicketParts((current) =>
+        current.map((candidate) => (candidate.id === updatedPart.id ? updatedPart : candidate)),
+      );
+      setPurchaseOrders(refreshedPurchaseOrders);
+      setReceiveQuantities((current) => {
+        const next = { ...current };
+        delete next[part.id];
+        return next;
+      });
+      await supabase.from("ticket_updates").insert({
+        ticket_id: ticket.id,
+        status: ticket.status,
+        comment:
+          remaining > 0
+            ? `Received ${requestedQuantity} x ${part.part_number}. ${remaining} still outstanding.`
+            : `Received ${requestedQuantity} x ${part.part_number}. This linked part is now complete.`,
+      });
+      setPartNotice({
+        type: "success",
+        message:
+          remaining > 0
+            ? `${part.part_number}: ${remaining} still outstanding. Ticket remains ORDERED.`
+            : `${part.part_number} is fully received.`,
+      });
+      triggerActionFeedback();
+    } catch (receiveError) {
+      setPartNotice({
+        type: "error",
+        message: sanitizeUserFacingError(
+          receiveError,
+          "Unable to receive this linked part right now.",
+        ),
+      });
+    } finally {
+      setReceivingPartId(null);
     }
   }
 
@@ -2456,6 +2660,20 @@ export default function TicketDetailPage() {
                           />
                           </dl>
 
+                        {ticket.status === "ORDERED" && outstandingTicketParts.length > 0 ? (
+                          <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                              ORDERED · Parts outstanding
+                            </p>
+                            <p className="mt-2 text-base font-semibold leading-7 text-amber-950">
+                              {outstandingPartsSummary}
+                            </p>
+                            <p className="mt-1 text-sm text-amber-800">
+                              Receive each delivery line in Parts &amp; Purchase Orders. READY remains locked until all linked parts arrive.
+                            </p>
+                          </div>
+                        ) : null}
+
                         {!ticket.is_retail_sale ? (
                           <div className="mt-6">
                             <MachineDetailsCard ticket={ticket} />
@@ -2520,7 +2738,12 @@ export default function TicketDetailPage() {
                             </div>
                           ) : (
                             <div className="mt-4 grid gap-3">
-                              {purchaseOrders.map((po) => (
+                              {purchaseOrders.map((po) => {
+                                const linkedParts = ticketParts.filter(
+                                  (part) => part.ticket_purchase_order_id === po.id,
+                                );
+                                const outstanding = formatOutstandingTicketParts(linkedParts);
+                                return (
                                 <article key={po.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                                   <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div>
@@ -2542,15 +2765,25 @@ export default function TicketDetailPage() {
                                     </p>
                                     <p>
                                       Parts linked: <span className="font-medium text-slate-900">
-                                        {ticketParts.filter((part) => part.ticket_purchase_order_id === po.id).length}
+                                        {linkedParts.length}
                                       </span>
                                     </p>
+                                    {outstanding ? (
+                                      <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-semibold text-amber-800">
+                                        Parts outstanding: {outstanding}
+                                      </p>
+                                    ) : linkedParts.length > 0 && po.po_status !== "CANCELLED" ? (
+                                      <p className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 font-semibold text-emerald-800">
+                                        All linked parts received
+                                      </p>
+                                    ) : null}
                                     {po.notes ? (
                                       <p className="sm:col-span-2 leading-6">{po.notes}</p>
                                     ) : null}
                                   </div>
                                 </article>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
 
@@ -2693,13 +2926,13 @@ export default function TicketDetailPage() {
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                Linked Parts
+                                Linked Parts &amp; Receiving
                               </p>
                               <h3 className="mt-1 text-lg font-semibold text-slate-950">
-                                Parts catalogue seed for this job
+                                Receive each order line as it arrives
                               </h3>
                               <p className="mt-1 text-sm leading-6 text-slate-600">
-                                Each part record stays tied to the ticket, job number, machine reference, and optionally a specific PO.
+                                Partial deliveries stay visible against their PO. The ticket remains ORDERED until every active linked part is fully received.
                               </p>
                             </div>
                             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
@@ -2713,7 +2946,12 @@ export default function TicketDetailPage() {
                             </div>
                           ) : (
                             <div className="mt-4 grid gap-3">
-                              {ticketParts.map((part) => (
+                              {ticketParts.map((part) => {
+                                const outstandingQuantity = getTicketPartOutstandingQuantity(part);
+                                const receivedPercent = Math.round(
+                                  (part.received_quantity / part.quantity) * 100,
+                                );
+                                return (
                                 <article
                                   key={part.id}
                                   className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
@@ -2730,11 +2968,17 @@ export default function TicketDetailPage() {
                                       {part.source_system === "NEXUS" ? (
                                         <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
                                           <span className="rounded-md bg-emerald-100 px-2 py-1 text-emerald-800">
-                                            NEXUS {part.source_allocation_status?.toLowerCase() ?? "pending"}
+                                            NEXUS {part.source_allocation_status?.toLowerCase() ?? "stock checked"}
                                           </span>
-                                          <span className="rounded-md bg-white px-2 py-1 text-slate-700">
-                                            {part.source_issued_quantity ?? 0} issued
-                                          </span>
+                                          {part.source_issued_quantity != null ? (
+                                            <span className="rounded-md bg-white px-2 py-1 text-slate-700">
+                                              {part.source_issued_quantity} issued
+                                            </span>
+                                          ) : part.source_stock_snapshot != null ? (
+                                            <span className="rounded-md bg-white px-2 py-1 text-slate-700">
+                                              {part.source_stock_snapshot} in stock when checked
+                                            </span>
+                                          ) : null}
                                           {(part.source_shortfall_quantity ?? 0) > 0 ? (
                                             <span className="rounded-md bg-amber-100 px-2 py-1 text-amber-800">
                                               {part.source_shortfall_quantity} to order
@@ -2768,7 +3012,7 @@ export default function TicketDetailPage() {
                                     {part.source_system === "NEXUS" ? (
                                       <p className="sm:col-span-2">
                                         NEXUS bin: <span className="font-medium text-slate-900">{part.source_bin_location ?? "-"}</span>
-                                        {" · "}Stock remaining: <span className="font-medium text-slate-900">{part.source_stock_after ?? "-"}</span>
+                                        {" · "}NEXUS stock: <span className="font-medium text-slate-900">{part.source_stock_after ?? part.source_stock_snapshot ?? "-"}</span>
                                         {part.source_subgroup ? ` · ${part.source_subgroup}` : ""}
                                       </p>
                                     ) : null}
@@ -2778,8 +3022,58 @@ export default function TicketDetailPage() {
                                       </p>
                                     ) : null}
                                   </div>
+                                  {part.part_status !== "CANCELLED" ? (
+                                    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                                      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                        <span className="font-semibold text-slate-900">
+                                          Received {part.received_quantity} of {part.quantity}
+                                        </span>
+                                        <span className={outstandingQuantity > 0 ? "font-semibold text-amber-700" : "font-semibold text-emerald-700"}>
+                                          {outstandingQuantity > 0
+                                            ? `${outstandingQuantity} outstanding`
+                                            : "Complete"}
+                                        </span>
+                                      </div>
+                                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                                        <div
+                                          className={`h-full rounded-full ${outstandingQuantity > 0 ? "bg-amber-500" : "bg-emerald-600"}`}
+                                          style={{ width: `${Math.min(100, Math.max(0, receivedPercent))}%` }}
+                                        />
+                                      </div>
+                                      {isAdmin && outstandingQuantity > 0 ? (
+                                        <div className="mt-3 flex flex-wrap items-end gap-2">
+                                          <label className="min-w-32 flex-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                            Quantity arriving now
+                                            <input
+                                              type="number"
+                                              min="1"
+                                              max={outstandingQuantity}
+                                              step="1"
+                                              value={receiveQuantities[part.id] ?? String(outstandingQuantity)}
+                                              onChange={(event) =>
+                                                setReceiveQuantities((current) => ({
+                                                  ...current,
+                                                  [part.id]: event.target.value,
+                                                }))
+                                              }
+                                              className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500"
+                                            />
+                                          </label>
+                                          <button
+                                            type="button"
+                                            onClick={() => void handleReceiveTicketPart(part)}
+                                            disabled={receivingPartId === part.id}
+                                            className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                                          >
+                                            {receivingPartId === part.id ? "Receiving..." : "Receive part"}
+                                          </button>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                 </article>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
 
@@ -2808,7 +3102,7 @@ export default function TicketDetailPage() {
                                     Add linked part
                                   </p>
                                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                                    Capture the requested part number now so the same machine, job, and PO can grow into a better catalogue over time.
+                                    Enter a part number to check live NEXUS stock. If it is not found or NEXUS is unavailable, complete the fields and add it manually.
                                   </p>
                                 </div>
                               </div>
@@ -2830,11 +3124,12 @@ export default function TicketDetailPage() {
                                     className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                                   />
                                 </label>
-                                <label className="block">
-                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                <div className="block">
+                                  <label htmlFor="linked-part-number" className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                                     Part Number
-                                  </span>
+                                  </label>
                                   <input
+                                    id="linked-part-number"
                                     value={partDraft.part_number}
                                     onChange={(event) =>
                                       setPartDraft((current) => ({
@@ -2845,7 +3140,46 @@ export default function TicketDetailPage() {
                                     placeholder="PN-1111"
                                     className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                                   />
-                                </label>
+                                  {nexusStockCheck.status !== "idle" ? (
+                                    <div
+                                      className={`mt-2 rounded-xl border px-3 py-2 text-xs leading-5 ${
+                                        nexusStockCheck.status === "found"
+                                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                          : nexusStockCheck.status === "checking"
+                                            ? "border-sky-200 bg-sky-50 text-sky-800"
+                                            : "border-amber-200 bg-amber-50 text-amber-800"
+                                      }`}
+                                      role="status"
+                                    >
+                                      <p className="font-semibold">
+                                        {nexusStockCheck.status === "checking"
+                                          ? "NEXUS stock check"
+                                          : nexusStockCheck.status === "found"
+                                            ? "Found in NEXUS"
+                                            : "Manual entry available"}
+                                      </p>
+                                      <p>{nexusStockCheck.message}</p>
+                                      {nexusStockCheck.status === "found" ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setPartDraft((current) => ({
+                                              ...current,
+                                              part_number: nexusStockCheck.part.partNumber,
+                                              part_description:
+                                                nexusStockCheck.part.description || current.part_description,
+                                              supplier_name:
+                                                nexusStockCheck.part.manufacturer || current.supplier_name,
+                                            }))
+                                          }
+                                          className="mt-2 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                                        >
+                                          Use NEXUS details
+                                        </button>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </div>
                                 <label className="block">
                                   <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                                     Quantity
@@ -3573,6 +3907,10 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function normalizePartNumberForComparison(value: string) {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
 function formatDateTime(value: string | null | undefined) {
