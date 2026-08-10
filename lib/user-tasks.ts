@@ -59,6 +59,8 @@ function getOversightSession() {
 
 let lastPresencePath = "";
 let lastPresencePageOpenedAt = "";
+let lastPresenceActivityId = "";
+let lastPresenceUserId = "";
 
 export async function upsertUserPresence(
   supabase: SupabaseClient,
@@ -70,24 +72,46 @@ export async function upsertUserPresence(
   const normalizedPath = routePath.split("?")[0] || "/";
   const ticketMatch = normalizedPath.match(/^\/tickets\/([0-9a-f-]{36})$/i);
 
-  if (lastPresencePath !== normalizedPath || !lastPresencePageOpenedAt) {
+  if (
+    lastPresenceUserId !== userId ||
+    lastPresencePath !== normalizedPath ||
+    !lastPresencePageOpenedAt ||
+    !lastPresenceActivityId
+  ) {
+    lastPresenceUserId = userId;
     lastPresencePath = normalizedPath;
     lastPresencePageOpenedAt = now;
+    lastPresenceActivityId = crypto.randomUUID();
   }
 
-  const { error } = await supabase.from("user_presence").upsert(
-    {
-      user_id: userId,
-      last_seen_at: now,
-      session_id: session.id,
-      session_started_at: session.startedAt,
-      route_path: normalizedPath,
-      current_ticket_id: ticketMatch?.[1] ?? null,
-      page_opened_at: lastPresencePageOpenedAt,
-    },
-    { onConflict: "user_id" },
-  );
+  const [presenceResult, activityResult] = await Promise.all([
+    supabase.from("user_presence").upsert(
+      {
+        user_id: userId,
+        last_seen_at: now,
+        session_id: session.id,
+        session_started_at: session.startedAt,
+        route_path: normalizedPath,
+        current_ticket_id: ticketMatch?.[1] ?? null,
+        page_opened_at: lastPresencePageOpenedAt,
+      },
+      { onConflict: "user_id" },
+    ),
+    supabase.from("oversight_page_activity").upsert(
+      {
+        id: lastPresenceActivityId,
+        user_id: userId,
+        session_id: session.id,
+        route_path: normalizedPath,
+        ticket_id: ticketMatch?.[1] ?? null,
+        started_at: lastPresencePageOpenedAt,
+        last_seen_at: now,
+      },
+      { onConflict: "id" },
+    ),
+  ]);
 
+  const error = presenceResult.error ?? activityResult.error;
   if (error) {
     throw new Error(error.message);
   }

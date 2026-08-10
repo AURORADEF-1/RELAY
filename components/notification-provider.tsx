@@ -91,8 +91,6 @@ const SOUND_COOLDOWN_MS = 1800;
 const TOAST_DURATION_MS = 10000;
 const NOTIFICATION_POLL_INTERVAL_MS = 30000;
 const SESSION_CONTROL_POLL_INTERVAL_MS = 45000;
-const PRESENCE_LEADER_STORAGE_KEY = "relay-presence-leader";
-const PRESENCE_LEASE_TTL_MS = 90_000;
 const TOASTED_NOTIFICATION_IDS_STORAGE_PREFIX = "relay-toasted-notification-ids";
 const MAX_STORED_TOASTED_NOTIFICATION_IDS = 120;
 const JOB_ASSIGNMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -249,59 +247,6 @@ function rememberToastedNotificationIds(userId: string, notificationIds: string[
   );
 }
 
-function acquirePresenceLease(tabId: string) {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  const now = Date.now();
-  const rawValue = window.localStorage.getItem(PRESENCE_LEADER_STORAGE_KEY);
-
-  if (rawValue) {
-    try {
-      const currentLease = JSON.parse(rawValue) as { tabId: string; expiresAt: number };
-
-      if (currentLease.tabId !== tabId && currentLease.expiresAt > now) {
-        return false;
-      }
-    } catch {
-      window.localStorage.removeItem(PRESENCE_LEADER_STORAGE_KEY);
-    }
-  }
-
-  window.localStorage.setItem(
-    PRESENCE_LEADER_STORAGE_KEY,
-    JSON.stringify({
-      tabId,
-      expiresAt: now + PRESENCE_LEASE_TTL_MS,
-    }),
-  );
-
-  return true;
-}
-
-function releasePresenceLease(tabId: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const rawValue = window.localStorage.getItem(PRESENCE_LEADER_STORAGE_KEY);
-
-  if (!rawValue) {
-    return;
-  }
-
-  try {
-    const currentLease = JSON.parse(rawValue) as { tabId: string; expiresAt: number };
-
-    if (currentLease.tabId === tabId) {
-      window.localStorage.removeItem(PRESENCE_LEADER_STORAGE_KEY);
-    }
-  } catch {
-    window.localStorage.removeItem(PRESENCE_LEADER_STORAGE_KEY);
-  }
-}
-
 export function NotificationProvider({
   children,
 }: {
@@ -333,11 +278,6 @@ export function NotificationProvider({
   const notificationLifecycleVersionRef = useRef(0);
   const notificationSetupInFlightRef = useRef<Promise<void> | null>(null);
   const currentUserDisplayNameRef = useRef<string | null>(null);
-  const [presenceTabId] = useState(() =>
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `presence-${Date.now().toString(36)}-${performance.now().toFixed(0)}`,
-  );
   const [requesterUnreadCount, setRequesterUnreadCount] = useState(0);
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [pendingTicketCount, setPendingTicketCount] = useState(0);
@@ -859,7 +799,6 @@ export function NotificationProvider({
 
   useEffect(() => {
     const supabase = getSupabaseClient();
-    const activePresenceTabId = presenceTabId;
 
     if (!supabase) {
       return;
@@ -914,7 +853,6 @@ export function NotificationProvider({
         visibilityListener = null;
       }
 
-      releasePresenceLease(activePresenceTabId);
     };
 
     const clearNotificationState = async () => {
@@ -983,8 +921,7 @@ export function NotificationProvider({
 
           if (
             !isInteractiveRef.current ||
-            !shouldTrackUserPresence(pathnameRef.current) ||
-            !acquirePresenceLease(activePresenceTabId)
+            !shouldTrackUserPresence(pathnameRef.current)
           ) {
             return false;
           }
@@ -1034,7 +971,6 @@ export function NotificationProvider({
             }
 
             if (document.hidden) {
-              releasePresenceLease(activePresenceTabId);
               return;
             }
 
@@ -1351,7 +1287,6 @@ export function NotificationProvider({
     };
   }, [
     markPathNotificationsRead,
-    presenceTabId,
     refreshPendingTicketCount,
     refreshUrgentTicketReminders,
     syncUnreadNotifications,
