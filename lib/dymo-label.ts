@@ -67,12 +67,12 @@ export function buildDymoJobLabelXml(jobNumber: string) {
   <DYMOLabel Version="3">
     <Description>RELAY ready job barcode</Description>
     <Orientation>Landscape</Orientation>
-    <LabelName>Address30252</LabelName>
+    <LabelName>LargeAddress36x89</LabelName>
     <InitialLength>0</InitialLength>
     <BorderStyle>SolidLine</BorderStyle>
     <DYMORect>
       <DYMOPoint><X>0.23</X><Y>0.06</Y></DYMOPoint>
-      <Size><Width>3.21</Width><Height>0.9966666</Height></Size>
+      <Size><Width>3.21</Width><Height>1.286</Height></Size>
     </DYMORect>
     <BorderColor><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></BorderColor>
     <BorderThickness>1</BorderThickness>
@@ -101,7 +101,7 @@ export function buildDymoJobLabelXml(jobNumber: string) {
           <TextPosition>Bottom</TextPosition>
           <FontInfo>
             <FontName>Arial</FontName>
-            <FontSize>16</FontSize>
+            <FontSize>18</FontSize>
             <IsBold>True</IsBold>
             <IsItalic>False</IsItalic>
             <IsUnderline>False</IsUnderline>
@@ -109,7 +109,7 @@ export function buildDymoJobLabelXml(jobNumber: string) {
           </FontInfo>
           <ObjectLayout>
             <DYMOPoint><X>0.25</X><Y>0.1</Y></DYMOPoint>
-            <Size><Width>3</Width><Height>0.9</Height></Size>
+            <Size><Width>3</Width><Height>1.18</Height></Size>
           </ObjectLayout>
         </BarcodeObject>
       </LabelObjects>

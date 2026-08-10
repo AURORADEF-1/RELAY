@@ -12,6 +12,8 @@ describe("DYMO job labels", () => {
     expect(xml).toContain("<BarcodeFormat>Code128Auto</BarcodeFormat>");
     expect(xml).toContain("<DataString>53066 &amp; urgent</DataString>");
     expect(xml).toContain("<TextPosition>Bottom</TextPosition>");
+    expect(xml).toContain("<LabelName>LargeAddress36x89</LabelName>");
+    expect(xml).toContain("<Size><Width>3.21</Width><Height>1.286</Height></Size>");
   });
 
   it("prefers a configured connected printer, then a connected LabelWriter 550", () => {
