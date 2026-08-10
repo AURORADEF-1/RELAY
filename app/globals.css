@@ -298,9 +298,14 @@ select:focus-visible {
   box-shadow: 0 0 48px rgba(239, 68, 68, 0.55);
 }
 
+.wallboard-oldest-pending {
+  animation: wallboard-takeover-pulse 1.3s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wallboard-pending-takeover,
-  .wallboard-pending-beacon {
+  .wallboard-pending-beacon,
+  .wallboard-oldest-pending {
     animation: none;
   }
 }

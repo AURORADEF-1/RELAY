@@ -706,6 +706,10 @@ function PendingJobTakeover({
     return null;
   }
 
+  if (tickets.length >= 5) {
+    return <PendingBacklogTakeover tickets={tickets} now={now} lastUpdatedAt={lastUpdatedAt} />;
+  }
+
   return (
     <main className="aurora-shell min-h-screen overflow-hidden px-7 py-7 text-white 2xl:px-10 2xl:py-9">
       <div className="wallboard-pending-takeover aurora-shell-inner flex min-h-[calc(100vh-3.5rem)] max-w-[120rem] flex-col rounded-[2.25rem] border border-red-400/70 bg-black/55 p-6 backdrop-blur-md 2xl:min-h-[calc(100vh-4.5rem)] 2xl:p-9">
@@ -828,6 +832,109 @@ function PendingJobTakeover({
 
         <footer className="mt-4 rounded-[1.3rem] border border-red-300/35 bg-red-950/45 px-5 py-3 text-center text-sm font-black uppercase tracking-[0.19em] text-red-200 2xl:mt-5 2xl:text-base">
           Wallboard paused — assign all pending jobs to resume live operations
+          <span className="ml-6 text-white/38">
+            {lastUpdatedAt ? `Live sync ${formatClock(lastUpdatedAt)}` : "Connecting"}
+          </span>
+        </footer>
+      </div>
+    </main>
+  );
+}
+
+function PendingBacklogTakeover({
+  tickets,
+  now,
+  lastUpdatedAt,
+}: {
+  tickets: WallboardTicket[];
+  now: number;
+  lastUpdatedAt: string | null;
+}) {
+  const visibleTickets = tickets.slice(0, 8);
+  const hiddenTicketCount = Math.max(0, tickets.length - visibleTickets.length);
+  const denseLayout = visibleTickets.length >= 7;
+
+  return (
+    <main className="aurora-shell min-h-screen overflow-hidden px-7 py-7 text-white 2xl:px-10 2xl:py-9">
+      <div className="wallboard-pending-takeover aurora-shell-inner flex min-h-[calc(100vh-3.5rem)] max-w-[120rem] flex-col rounded-[2.25rem] border border-red-400/70 bg-black/55 p-6 backdrop-blur-md 2xl:min-h-[calc(100vh-4.5rem)] 2xl:p-9">
+        <header className="flex items-center justify-between gap-8 border-b border-red-300/25 pb-4 2xl:pb-6">
+          <div className="flex min-w-0 items-center gap-5 2xl:gap-7">
+            <div className="wallboard-pending-beacon relative h-14 w-14 shrink-0 rounded-full border border-red-300/70 bg-red-500/25 2xl:h-18 2xl:w-18">
+              <span className="absolute inset-[28%] rounded-full bg-red-300 shadow-[0_0_28px_rgba(248,113,113,1)]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.42em] text-red-100/65 2xl:text-sm">
+                Relay Wallboard
+              </p>
+              <h1 className="mt-1.5 truncate text-4xl font-black uppercase tracking-[0.045em] text-white xl:text-5xl 2xl:text-6xl">
+                Pending backlog — action required
+              </h1>
+            </div>
+          </div>
+
+          <div className="shrink-0 text-right">
+            <p className="text-5xl font-black text-red-300 2xl:text-7xl">{tickets.length}</p>
+            <p className="text-sm font-bold uppercase tracking-[0.24em] text-red-200 2xl:text-base">
+              Unassigned
+            </p>
+          </div>
+        </header>
+
+        <section className="grid min-h-0 flex-1 grid-cols-2 gap-3 pt-4 2xl:gap-4 2xl:pt-6">
+          {visibleTickets.map((ticket, index) => {
+            const isOldest = index === 0;
+
+            return (
+              <article
+                key={ticket.id}
+                className={`flex min-h-0 flex-col rounded-[1.45rem] border bg-[linear-gradient(145deg,rgba(79,13,21,0.72),rgba(22,4,8,0.9))] px-5 py-3.5 2xl:px-6 2xl:py-4 ${
+                  isOldest
+                    ? "wallboard-oldest-pending border-red-300/80"
+                    : "border-red-400/38 shadow-[0_0_24px_rgba(239,68,68,0.11)]"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-4 border-b border-red-300/25 pb-2.5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.3em] text-red-200/65">
+                      Job
+                    </p>
+                    <p className="truncate text-2xl font-black tracking-[0.05em] text-white 2xl:text-3xl">
+                      {ticket.job_number ?? "TBC"}
+                    </p>
+                    {isOldest ? (
+                      <span className="rounded-md border border-red-300/55 bg-red-500/14 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-200 2xl:text-xs">
+                        Oldest
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="shrink-0 text-base font-black uppercase tracking-[0.06em] text-red-200 2xl:text-lg">
+                    {formatPendingDuration(ticket.created_at, now)}
+                  </p>
+                </div>
+
+                <p
+                  className={`mt-2.5 line-clamp-2 font-bold leading-[1.08] text-white ${
+                    denseLayout ? "text-2xl 2xl:text-3xl" : "text-3xl 2xl:text-4xl"
+                  }`}
+                >
+                  {ticket.request_summary ?? ticket.request_details ?? "No summary provided"}
+                </p>
+
+                <div className="mt-auto flex items-center justify-between gap-4 pt-2 text-xs font-bold uppercase tracking-[0.15em] text-red-100/58 2xl:text-sm">
+                  <p className="truncate">Machine {ticket.machine_reference ?? "not set"}</p>
+                  <p className="truncate text-right">
+                    Requested by {ticket.requester_name ?? "unknown"}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+
+        <footer className="mt-4 rounded-[1.3rem] border border-red-300/35 bg-red-950/45 px-5 py-3 text-center text-sm font-black uppercase tracking-[0.18em] text-red-200 2xl:mt-5 2xl:text-base">
+          {hiddenTicketCount > 0
+            ? `Showing oldest ${visibleTickets.length} of ${tickets.length} pending jobs`
+            : `Showing all ${tickets.length} pending jobs`} — KPI and supplier screens paused
           <span className="ml-6 text-white/38">
             {lastUpdatedAt ? `Live sync ${formatClock(lastUpdatedAt)}` : "Connecting"}
           </span>
