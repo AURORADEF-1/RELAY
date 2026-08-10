@@ -6,14 +6,51 @@ import { useNotifications } from "@/components/notification-provider";
 
 export function NotificationToasts() {
   const pathname = usePathname();
-  const { toasts, dismissToast } = useNotifications();
+  const {
+    desktopNotificationPermission,
+    dismissToast,
+    isAdmin,
+    isAuthenticated,
+    requestDesktopNotifications,
+    toasts,
+  } = useNotifications();
+  const showDesktopAlertControl =
+    isAdmin &&
+    isAuthenticated &&
+    desktopNotificationPermission !== "granted" &&
+    desktopNotificationPermission !== "unsupported";
 
-  if (pathname === "/wallboard" || toasts.length === 0) {
+  if (pathname === "/wallboard" || (toasts.length === 0 && !showDesktopAlertControl)) {
     return null;
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-4 z-[90] flex flex-col items-end gap-3 px-4">
+    <div
+      className="pointer-events-none fixed inset-x-0 top-4 z-[90] flex flex-col items-end gap-3 px-4"
+      aria-live="polite"
+    >
+      {showDesktopAlertControl ? (
+        <div className="pointer-events-auto w-[min(34rem,calc(100vw-2rem))] rounded-[1.5rem] border border-amber-400/30 bg-[color:var(--background-elevated)] px-5 py-4 shadow-[var(--shadow-panel)] backdrop-blur">
+          <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
+            Enable RELAY desktop alerts
+          </p>
+          <p className="mt-1 text-sm leading-6 text-[color:var(--foreground-muted)]">
+            {desktopNotificationPermission === "denied"
+              ? "Desktop alerts are blocked. Allow notifications for this site in your browser settings, then reload RELAY."
+              : "Get an operating-system alert when a requester submits a new pending job, even while this tab is in the background."}
+          </p>
+          {desktopNotificationPermission === "default" ? (
+            <button
+              type="button"
+              onClick={() => void requestDesktopNotifications()}
+              className="mt-3 rounded-full bg-[color:var(--accent)] px-4 py-2 text-sm font-semibold text-[color:var(--accent-foreground)] transition hover:opacity-90"
+            >
+              Enable desktop alerts
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       {toasts.map((toast) => {
         const isPanel = toast.variant === "panel";
         const content = (
