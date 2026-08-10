@@ -701,6 +701,10 @@ function PendingJobTakeover({
   const primaryTicket = tickets[0];
   const remainingTickets = tickets.slice(1, 4);
   const hiddenTicketCount = Math.max(0, tickets.length - 4);
+  const primaryRequest =
+    primaryTicket?.request_summary ??
+    primaryTicket?.request_details ??
+    "No summary provided";
 
   if (!primaryTicket) {
     return null;
@@ -711,70 +715,68 @@ function PendingJobTakeover({
   }
 
   return (
-    <main className="aurora-shell min-h-screen overflow-hidden px-7 py-7 text-white 2xl:px-10 2xl:py-9">
-      <div className="wallboard-pending-takeover aurora-shell-inner flex min-h-[calc(100vh-3.5rem)] max-w-[120rem] flex-col rounded-[2.25rem] border border-red-400/70 bg-black/55 p-6 backdrop-blur-md 2xl:min-h-[calc(100vh-4.5rem)] 2xl:p-9">
-        <header className="flex items-center justify-between gap-8 border-b border-red-300/25 pb-5 2xl:pb-7">
-          <div className="flex min-w-0 items-center gap-5 2xl:gap-7">
-            <div className="wallboard-pending-beacon relative h-16 w-16 shrink-0 rounded-full border border-red-300/70 bg-red-500/25 2xl:h-20 2xl:w-20">
-              <span className="absolute inset-[28%] rounded-full bg-red-300 shadow-[0_0_28px_rgba(248,113,113,1)]" />
+    <main className="aurora-shell min-h-screen overflow-hidden px-5 py-5 text-white 2xl:px-8 2xl:py-7">
+      <div className="wallboard-pending-takeover aurora-shell-inner flex min-h-[calc(100vh-2.5rem)] max-w-[120rem] flex-col rounded-[2rem] border border-red-400/60 bg-black/60 p-5 shadow-[0_28px_100px_-40px_rgba(0,0,0,0.9)] backdrop-blur-md 2xl:min-h-[calc(100vh-3.5rem)] 2xl:p-7">
+        <header className="flex items-center justify-between gap-8 border-b border-red-300/20 pb-4 2xl:pb-5">
+          <div className="flex min-w-0 items-center gap-4 2xl:gap-5">
+            <div className="wallboard-pending-beacon relative h-12 w-12 shrink-0 rounded-full border border-red-300/65 bg-red-500/20 2xl:h-14 2xl:w-14">
+              <span className="absolute inset-[30%] rounded-full bg-red-300 shadow-[0_0_24px_rgba(248,113,113,0.9)]" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.42em] text-red-100/65 2xl:text-sm">
-                Relay Wallboard
+              <p className="text-[11px] font-bold uppercase tracking-[0.38em] text-red-100/60 2xl:text-xs">
+                Relay operations alert
               </p>
-              <h1 className="mt-2 truncate text-4xl font-black uppercase tracking-[0.045em] text-white xl:text-5xl 2xl:text-6xl">
-                Unassigned jobs — action required
+              <h1 className="mt-1.5 truncate text-[clamp(2rem,3.2vw,4rem)] font-black uppercase leading-none tracking-[0.035em] text-white">
+                Unassigned jobs
               </h1>
             </div>
           </div>
 
-          <div className="shrink-0 text-right">
-            <p className="text-5xl font-black text-red-300 2xl:text-7xl">{tickets.length}</p>
-            <p className="text-sm font-bold uppercase tracking-[0.3em] text-red-200 2xl:text-base">
-              Pending
+          <div className="flex shrink-0 items-center gap-4 rounded-[1.25rem] border border-red-300/30 bg-red-950/45 px-5 py-3 2xl:px-6">
+            <p className="text-4xl font-black leading-none text-red-200 2xl:text-5xl">{tickets.length}</p>
+            <p className="max-w-[9rem] text-xs font-bold uppercase leading-5 tracking-[0.24em] text-red-100/75 2xl:text-sm">
+              Awaiting assignment
             </p>
           </div>
         </header>
 
         <div
-          className={`grid min-h-0 flex-1 gap-5 pt-5 2xl:gap-7 2xl:pt-7 ${
-            remainingTickets.length > 0 ? "xl:grid-cols-[minmax(0,1.55fr)_minmax(22rem,0.9fr)]" : ""
+          className={`grid min-h-0 flex-1 gap-4 pt-4 2xl:gap-5 2xl:pt-5 ${
+            remainingTickets.length > 0 ? "xl:grid-cols-[minmax(0,1.5fr)_minmax(22rem,0.82fr)]" : ""
           }`}
         >
-          <article className="flex min-h-0 flex-col rounded-[2rem] border border-red-400/65 bg-[linear-gradient(145deg,rgba(127,29,29,0.58),rgba(35,5,10,0.82))] p-6 shadow-[inset_0_0_80px_rgba(239,68,68,0.08),0_0_52px_rgba(239,68,68,0.24)] 2xl:p-9">
-            <div className="flex items-start justify-between gap-8">
+          <article className="flex min-h-0 flex-col rounded-[1.75rem] border border-red-400/55 bg-[linear-gradient(145deg,rgba(105,20,27,0.62),rgba(31,6,11,0.9))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_20px_70px_-32px_rgba(239,68,68,0.45)] 2xl:p-7">
+            <div className="flex items-center justify-between gap-8 border-b border-red-300/20 pb-4 2xl:pb-5">
               <div>
-                <p className="text-sm font-bold uppercase tracking-[0.42em] text-red-200/75">
-                  Job
+                <p className="text-xs font-bold uppercase tracking-[0.36em] text-red-200/65">
+                  Priority job
                 </p>
-                <p className="mt-2 text-6xl font-black tracking-[0.055em] text-white 2xl:text-8xl">
+                <p className="mt-1.5 text-5xl font-black leading-none tracking-[0.045em] text-white 2xl:text-6xl">
                   {primaryTicket.job_number ?? "TBC"}
                 </p>
               </div>
 
-              <div className="rounded-full border border-red-300/60 bg-red-950/65 px-6 py-4 text-right shadow-[0_0_30px_rgba(239,68,68,0.22)] 2xl:px-8">
-                <p className="text-xs font-bold uppercase tracking-[0.32em] text-red-200/65">
-                  Pending for
+              <div className="rounded-[1.15rem] border border-red-300/35 bg-black/25 px-5 py-3 text-right 2xl:px-6">
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-100/55 2xl:text-xs">
+                  Unassigned for
                 </p>
-                <p className="mt-1 text-2xl font-black uppercase tracking-[0.08em] text-red-100 2xl:text-3xl">
+                <p className="mt-1 text-xl font-black uppercase tracking-[0.06em] text-red-100 2xl:text-2xl">
                   {formatPendingDuration(primaryTicket.created_at, now)}
                 </p>
               </div>
             </div>
 
-            <div className="my-5 h-px bg-red-300/25 2xl:my-7" />
+            <div className="flex min-h-0 flex-1 flex-col pt-4 2xl:pt-5">
+              <div className="rounded-[1.35rem] border border-white/[0.08] bg-black/20 p-4 2xl:p-5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-red-100/55 2xl:text-xs">
+                  Request summary
+                </p>
+                <p className={`mt-2.5 max-h-[15rem] overflow-hidden font-bold text-white 2xl:max-h-[17rem] ${getPendingRequestTextClass(primaryRequest)}`}>
+                  {primaryRequest}
+                </p>
+              </div>
 
-            <div className="flex min-h-0 flex-1 flex-col">
-              <p className="text-sm font-bold uppercase tracking-[0.42em] text-red-200/75">
-                Request
-              </p>
-              <p className="mt-3 max-h-[17rem] overflow-hidden text-4xl font-bold leading-[1.08] text-white xl:text-5xl 2xl:max-h-[21rem] 2xl:text-6xl">
-                {primaryTicket.request_summary ??
-                  primaryTicket.request_details ??
-                  "No summary provided"}
-              </p>
-
-              <div className="mt-auto grid grid-cols-2 gap-6 pt-6">
+              <div className="mt-4 grid grid-cols-2 gap-3 2xl:mt-5 2xl:gap-4">
                 <PendingTakeoverField
                   label="Machine"
                   value={primaryTicket.machine_reference ?? "Not set"}
@@ -785,54 +787,67 @@ function PendingJobTakeover({
                 />
               </div>
 
-              <div className="mt-5 rounded-[1.5rem] border border-red-300/45 bg-red-950/55 px-5 py-4 text-center 2xl:px-7 2xl:py-5">
-                <p className="text-2xl font-black uppercase tracking-[0.08em] text-red-200 2xl:text-3xl">
-                  Awaiting assignment
+              <div className="mt-auto flex items-center justify-center gap-3 pt-4 text-center 2xl:pt-5">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-300 shadow-[0_0_16px_rgba(248,113,113,0.9)]" />
+                <p className="text-base font-black uppercase tracking-[0.2em] text-red-100/80 2xl:text-lg">
+                  Action required — assign in RELAY
                 </p>
               </div>
             </div>
           </article>
 
           {remainingTickets.length > 0 ? (
-            <aside className="flex min-h-0 flex-col gap-3">
+            <aside className="flex min-h-0 flex-col rounded-[1.75rem] border border-red-300/20 bg-black/20 p-3 2xl:p-4">
+              <div className="flex items-center justify-between px-2 pb-3">
+                <p className="text-xs font-bold uppercase tracking-[0.32em] text-red-100/55">
+                  Next in queue
+                </p>
+                <p className="text-xs font-semibold text-white/40">
+                  Oldest first
+                </p>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col gap-3">
               {remainingTickets.map((ticket) => (
                 <article
                   key={ticket.id}
-                  className="flex min-h-0 flex-1 flex-col rounded-[1.75rem] border border-red-400/45 bg-[linear-gradient(145deg,rgba(90,18,25,0.66),rgba(25,5,9,0.86))] px-5 py-4 shadow-[0_0_30px_rgba(239,68,68,0.14)] 2xl:px-6 2xl:py-5"
+                  className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-red-400/30 bg-[linear-gradient(145deg,rgba(78,16,23,0.7),rgba(22,5,9,0.9))] px-4 py-3.5 shadow-[0_12px_36px_-24px_rgba(239,68,68,0.55)] 2xl:px-5 2xl:py-4"
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <span className="absolute inset-y-0 left-0 w-1 bg-red-400/55" />
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.32em] text-red-200/65">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-200/55 2xl:text-xs">
                         Job
                       </p>
-                      <p className="mt-1 text-3xl font-black tracking-[0.05em] text-white 2xl:text-4xl">
+                      <p className="mt-0.5 text-2xl font-black tracking-[0.045em] text-white 2xl:text-3xl">
                         {ticket.job_number ?? "TBC"}
                       </p>
                     </div>
-                    <p className="rounded-full border border-red-300/40 bg-red-950/60 px-3 py-2 text-xs font-black uppercase tracking-[0.07em] text-red-100 2xl:text-sm">
+                    <p className="rounded-full border border-red-300/25 bg-black/20 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.05em] text-red-100/85">
                       {formatPendingDuration(ticket.created_at, now)}
                     </p>
                   </div>
-                  <p className="mt-4 line-clamp-3 text-2xl font-bold leading-tight text-white 2xl:text-3xl">
+                  <p className="mt-2.5 line-clamp-3 text-xl font-bold leading-[1.18] text-white/95 2xl:text-2xl">
                     {ticket.request_summary ?? ticket.request_details ?? "No summary provided"}
                   </p>
-                  <p className="mt-auto pt-4 text-sm font-bold uppercase tracking-[0.18em] text-red-100/65">
-                    Machine {ticket.machine_reference ?? "not set"}
-                  </p>
+                  <div className="mt-auto flex items-center justify-between gap-3 pt-3 text-xs font-bold uppercase tracking-[0.13em] text-red-100/50">
+                    <p className="truncate">Machine {ticket.machine_reference ?? "not set"}</p>
+                    <p className="truncate text-right">{ticket.requester_name ?? "Unknown requester"}</p>
+                  </div>
                 </article>
               ))}
               {hiddenTicketCount > 0 ? (
-                <div className="rounded-[1.25rem] border border-red-300/35 bg-red-950/50 px-4 py-3 text-center text-base font-black uppercase tracking-[0.2em] text-red-200">
+                <div className="rounded-[1rem] border border-red-300/25 bg-red-950/35 px-4 py-2.5 text-center text-sm font-black uppercase tracking-[0.18em] text-red-100/75">
                   + {hiddenTicketCount} more pending
                 </div>
               ) : null}
+              </div>
             </aside>
           ) : null}
         </div>
 
-        <footer className="mt-4 rounded-[1.3rem] border border-red-300/35 bg-red-950/45 px-5 py-3 text-center text-sm font-black uppercase tracking-[0.19em] text-red-200 2xl:mt-5 2xl:text-base">
-          Wallboard paused — assign all pending jobs to resume live operations
-          <span className="ml-6 text-white/38">
+        <footer className="mt-4 flex items-center justify-between rounded-[1.15rem] border border-red-300/20 bg-red-950/30 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-red-100/65 2xl:mt-5 2xl:text-sm">
+          <span>Wallboard paused until pending jobs are assigned</span>
+          <span className="text-white/35">
             {lastUpdatedAt ? `Live sync ${formatClock(lastUpdatedAt)}` : "Connecting"}
           </span>
         </footer>
@@ -946,13 +961,25 @@ function PendingBacklogTakeover({
 
 function PendingTakeoverField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border-t border-red-300/20 pt-4">
-      <p className="text-xs font-bold uppercase tracking-[0.36em] text-red-200/65 2xl:text-sm">
+    <div className="min-w-0 rounded-[1.1rem] border border-white/[0.07] bg-black/18 px-4 py-3 2xl:px-5 2xl:py-4">
+      <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-red-100/50 2xl:text-xs">
         {label}
       </p>
-      <p className="mt-2 truncate text-2xl font-semibold text-white 2xl:text-3xl">{value}</p>
+      <p className="mt-1.5 truncate text-xl font-semibold text-white/95 2xl:text-2xl">{value}</p>
     </div>
   );
+}
+
+function getPendingRequestTextClass(value: string) {
+  if (value.length > 170) {
+    return "text-2xl leading-[1.2] 2xl:text-3xl";
+  }
+
+  if (value.length > 105) {
+    return "text-3xl leading-[1.14] 2xl:text-4xl";
+  }
+
+  return "text-4xl leading-[1.1] 2xl:text-5xl";
 }
 
 function WallboardMetric({
