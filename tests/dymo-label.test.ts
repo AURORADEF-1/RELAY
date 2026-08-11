@@ -11,7 +11,13 @@ describe("DYMO job labels", () => {
 
     expect(xml).toContain("<BarcodeFormat>Code128Auto</BarcodeFormat>");
     expect(xml).toContain("<DataString>53066 &amp; urgent</DataString>");
-    expect(xml).toContain("<TextPosition>Bottom</TextPosition>");
+    expect(xml).toContain("<TextPosition>None</TextPosition>");
+    expect(xml).toContain("<Name>JOB_NUMBER_TEXT</Name>");
+    expect(xml).toContain("<Text>53066 &amp; urgent</Text>");
+    expect(xml).toContain("<DYMOPoint><X>0.52</X><Y>0.1</Y></DYMOPoint>");
+    expect(xml).toContain("<Size><Width>2.46</Width><Height>0.72</Height></Size>");
+    expect(xml).toContain("<DYMOPoint><X>0.35</X><Y>0.88</Y></DYMOPoint>");
+    expect(xml).toContain("<Size><Width>2.8</Width><Height>0.28</Height></Size>");
     expect(xml).toContain("<FontSize>12</FontSize>");
     expect(xml).toContain("<IsBold>True</IsBold>");
     expect(xml).toContain("<LabelName>Large Address Labels</LabelName>");

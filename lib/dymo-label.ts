@@ -102,7 +102,7 @@ export function buildDymoJobLabelXml(
           <HorizontalAlignment>Center</HorizontalAlignment>
           <VerticalAlignment>Middle</VerticalAlignment>
           <Size>Small</Size>
-          <TextPosition>Bottom</TextPosition>
+          <TextPosition>None</TextPosition>
           <FontInfo>
             <FontName>Arial</FontName>
             <FontSize>12</FontSize>
@@ -112,10 +112,52 @@ export function buildDymoJobLabelXml(
             <FontBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></FontBrush>
           </FontInfo>
           <ObjectLayout>
-            <DYMOPoint><X>0.2350952</X><Y>0.1620453</Y></DYMOPoint>
-            <Size><Width>3.029809</Width><Height>0.96</Height></Size>
+            <DYMOPoint><X>0.52</X><Y>0.1</Y></DYMOPoint>
+            <Size><Width>2.46</Width><Height>0.72</Height></Size>
           </ObjectLayout>
         </BarcodeObject>
+        <AddressObject>
+          <Name>JOB_NUMBER_TEXT</Name>
+          <Brushes>
+            <BackgroundBrush><SolidColorBrush><Color A="0" R="1" G="1" B="1" /></SolidColorBrush></BackgroundBrush>
+            <BorderBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></BorderBrush>
+            <StrokeBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></StrokeBrush>
+            <FillBrush><SolidColorBrush><Color A="0" R="0" G="0" B="0" /></SolidColorBrush></FillBrush>
+          </Brushes>
+          <Rotation>Rotation0</Rotation>
+          <OutlineThickness>1</OutlineThickness>
+          <IsOutlined>False</IsOutlined>
+          <BorderStyle>SolidLine</BorderStyle>
+          <Margin><DYMOThickness Left="0" Top="0" Right="0" Bottom="0" /></Margin>
+          <HorizontalAlignment>Center</HorizontalAlignment>
+          <VerticalAlignment>Middle</VerticalAlignment>
+          <FitMode>AlwaysFit</FitMode>
+          <IsVertical>False</IsVertical>
+          <FormattedText>
+            <FitMode>AlwaysFit</FitMode>
+            <HorizontalAlignment>Center</HorizontalAlignment>
+            <VerticalAlignment>Middle</VerticalAlignment>
+            <IsVertical>False</IsVertical>
+            <LineTextSpan>
+              <TextSpan>
+                <Text>${safeJobNumber}</Text>
+                <FontInfo>
+                  <FontName>Arial</FontName>
+                  <FontSize>12</FontSize>
+                  <IsBold>True</IsBold>
+                  <IsItalic>False</IsItalic>
+                  <IsUnderline>False</IsUnderline>
+                  <FontBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></FontBrush>
+                </FontInfo>
+              </TextSpan>
+            </LineTextSpan>
+          </FormattedText>
+          <BarcodePosition>None</BarcodePosition>
+          <ObjectLayout>
+            <DYMOPoint><X>0.35</X><Y>0.88</Y></DYMOPoint>
+            <Size><Width>2.8</Width><Height>0.28</Height></Size>
+          </ObjectLayout>
+        </AddressObject>
       </LabelObjects>
     </DynamicLayoutManager>
   </DYMOLabel>
