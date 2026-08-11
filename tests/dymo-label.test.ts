@@ -14,14 +14,31 @@ describe("DYMO job labels", () => {
     expect(xml).toContain("<TextPosition>None</TextPosition>");
     expect(xml).toContain("<Name>JOB_NUMBER_TEXT</Name>");
     expect(xml).toContain("<Text>53066 &amp; urgent</Text>");
-    expect(xml).toContain("<DYMOPoint><X>0.52</X><Y>0.1</Y></DYMOPoint>");
-    expect(xml).toContain("<Size><Width>2.46</Width><Height>0.72</Height></Size>");
-    expect(xml).toContain("<DYMOPoint><X>0.35</X><Y>0.88</Y></DYMOPoint>");
-    expect(xml).toContain("<Size><Width>2.8</Width><Height>0.28</Height></Size>");
+    expect(xml).toContain("<DYMOPoint><X>0.52</X><Y>0.06</Y></DYMOPoint>");
+    expect(xml).toContain("<Size><Width>2.46</Width><Height>0.58</Height></Size>");
+    expect(xml).toContain("<DYMOPoint><X>0.35</X><Y>0.66</Y></DYMOPoint>");
+    expect(xml).toContain("<Size><Width>2.8</Width><Height>0.25</Height></Size>");
     expect(xml).toContain("<FontSize>12</FontSize>");
     expect(xml).toContain("<IsBold>True</IsBold>");
     expect(xml).toContain("<LabelName>Large Address Labels</LabelName>");
     expect(xml).toContain("<Size><Width>3.21</Width><Height>1.286</Height></Size>");
+  });
+
+  it("prints a unique validation token with job, part, unit and bin details", () => {
+    const xml = buildDymoJobLabelXml({
+      barcodeValue: "RLY-ABCDEF1234567890",
+      jobNumber: "TEST-20260811",
+      partNumber: "P-100 & seal",
+      partDescription: "Hydraulic seal",
+      unitIndex: 2,
+      unitTotal: 3,
+      binLocation: "5B",
+    });
+
+    expect(xml).toContain("<DataString>RLY-ABCDEF1234567890</DataString>");
+    expect(xml).toContain("<Text>TEST-20260811</Text>");
+    expect(xml).toContain("<Name>PART_DETAIL_TEXT</Name>");
+    expect(xml).toContain("<Text>P-100 &amp; seal · 2 of 3 · BIN 5B</Text>");
   });
 
   it("uses and escapes the exact consumable name reported by a LabelWriter 550", () => {

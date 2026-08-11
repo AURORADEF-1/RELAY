@@ -23,6 +23,7 @@ import {
 import { StatusBadge } from "@/components/status-badge";
 import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
 import { AdminCollectionConfirmation } from "@/components/admin-collection-confirmation";
+import { PartLabelValidationPanel } from "@/components/part-label-validation-panel";
 import { RequesterCollectionCode } from "@/components/requester-collection-code";
 import { RequesterProfileLink } from "@/components/requester-profile-link";
 import { triggerActionFeedback } from "@/lib/action-feedback";
@@ -2695,6 +2696,13 @@ export default function TicketDetailPage() {
                               onConfirmed={() => void loadTicket()}
                             />
                           </div>
+                        ) : null}
+
+                        {isAdmin && (ticket.status === "READY" || ticket.status === "COMPLETED") ? (
+                          <PartLabelValidationPanel
+                            ticketId={ticket.id}
+                            ticketStatus={ticket.status}
+                          />
                         ) : null}
 
                         {isOnsiteTicket(ticket) ? (
