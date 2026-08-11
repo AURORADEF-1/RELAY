@@ -102,11 +102,11 @@ export function buildDymoJobLabelXml(
           <HorizontalAlignment>Center</HorizontalAlignment>
           <VerticalAlignment>Middle</VerticalAlignment>
           <Size>Small</Size>
-          <TextPosition>None</TextPosition>
+          <TextPosition>Bottom</TextPosition>
           <FontInfo>
             <FontName>Arial</FontName>
-            <FontSize>7.3</FontSize>
-            <IsBold>False</IsBold>
+            <FontSize>12</FontSize>
+            <IsBold>True</IsBold>
             <IsItalic>False</IsItalic>
             <IsUnderline>False</IsUnderline>
             <FontBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></FontBrush>
