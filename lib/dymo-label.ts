@@ -59,11 +59,34 @@ export function selectDymoLabelWriter(
     ?? null;
 }
 
+export type DymoJobLabelContent = {
+  barcodeValue: string;
+  jobNumber: string;
+  partNumber?: string | null;
+  partDescription?: string | null;
+  unitIndex?: number;
+  unitTotal?: number;
+  binLocation?: string | null;
+};
+
 export function buildDymoJobLabelXml(
-  jobNumber: string,
+  content: string | DymoJobLabelContent,
   consumableName = "Large Address Labels",
 ) {
-  const safeJobNumber = escapeXml(jobNumber.trim() || "TBC");
+  const normalizedContent: DymoJobLabelContent = typeof content === "string"
+    ? { barcodeValue: content, jobNumber: content }
+    : content;
+  const safeBarcodeValue = escapeXml(normalizedContent.barcodeValue.trim() || "TBC");
+  const safeJobNumber = escapeXml(normalizedContent.jobNumber.trim() || "TBC");
+  const unitText = normalizedContent.unitTotal && normalizedContent.unitTotal > 1
+    ? `${normalizedContent.unitIndex ?? 1} of ${normalizedContent.unitTotal}`
+    : "";
+  const detailText = [
+    normalizedContent.partNumber?.trim() || "General job label",
+    unitText,
+    normalizedContent.binLocation?.trim() ? `BIN ${normalizedContent.binLocation.trim()}` : "",
+  ].filter(Boolean).join(" · ");
+  const safeDetailText = escapeXml(detailText);
   const safeConsumableName = escapeXml(consumableName.trim() || "Large Address Labels");
 
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -98,7 +121,7 @@ export function buildDymoJobLabelXml(
           <BorderStyle>SolidLine</BorderStyle>
           <Margin><DYMOThickness Left="0" Top="0" Right="0" Bottom="0" /></Margin>
           <BarcodeFormat>Code128Auto</BarcodeFormat>
-          <Data><MultiDataString><DataString>${safeJobNumber}</DataString></MultiDataString></Data>
+          <Data><MultiDataString><DataString>${safeBarcodeValue}</DataString></MultiDataString></Data>
           <HorizontalAlignment>Center</HorizontalAlignment>
           <VerticalAlignment>Middle</VerticalAlignment>
           <Size>Small</Size>
@@ -112,8 +135,8 @@ export function buildDymoJobLabelXml(
             <FontBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></FontBrush>
           </FontInfo>
           <ObjectLayout>
-            <DYMOPoint><X>0.52</X><Y>0.1</Y></DYMOPoint>
-            <Size><Width>2.46</Width><Height>0.72</Height></Size>
+            <DYMOPoint><X>0.52</X><Y>0.06</Y></DYMOPoint>
+            <Size><Width>2.46</Width><Height>0.58</Height></Size>
           </ObjectLayout>
         </BarcodeObject>
         <AddressObject>
@@ -154,8 +177,50 @@ export function buildDymoJobLabelXml(
           </FormattedText>
           <BarcodePosition>None</BarcodePosition>
           <ObjectLayout>
-            <DYMOPoint><X>0.35</X><Y>0.88</Y></DYMOPoint>
-            <Size><Width>2.8</Width><Height>0.28</Height></Size>
+            <DYMOPoint><X>0.35</X><Y>0.66</Y></DYMOPoint>
+            <Size><Width>2.8</Width><Height>0.25</Height></Size>
+          </ObjectLayout>
+        </AddressObject>
+        <AddressObject>
+          <Name>PART_DETAIL_TEXT</Name>
+          <Brushes>
+            <BackgroundBrush><SolidColorBrush><Color A="0" R="1" G="1" B="1" /></SolidColorBrush></BackgroundBrush>
+            <BorderBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></BorderBrush>
+            <StrokeBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></StrokeBrush>
+            <FillBrush><SolidColorBrush><Color A="0" R="0" G="0" B="0" /></SolidColorBrush></FillBrush>
+          </Brushes>
+          <Rotation>Rotation0</Rotation>
+          <OutlineThickness>1</OutlineThickness>
+          <IsOutlined>False</IsOutlined>
+          <BorderStyle>SolidLine</BorderStyle>
+          <Margin><DYMOThickness Left="0" Top="0" Right="0" Bottom="0" /></Margin>
+          <HorizontalAlignment>Center</HorizontalAlignment>
+          <VerticalAlignment>Middle</VerticalAlignment>
+          <FitMode>AlwaysFit</FitMode>
+          <IsVertical>False</IsVertical>
+          <FormattedText>
+            <FitMode>AlwaysFit</FitMode>
+            <HorizontalAlignment>Center</HorizontalAlignment>
+            <VerticalAlignment>Middle</VerticalAlignment>
+            <IsVertical>False</IsVertical>
+            <LineTextSpan>
+              <TextSpan>
+                <Text>${safeDetailText}</Text>
+                <FontInfo>
+                  <FontName>Arial</FontName>
+                  <FontSize>9</FontSize>
+                  <IsBold>True</IsBold>
+                  <IsItalic>False</IsItalic>
+                  <IsUnderline>False</IsUnderline>
+                  <FontBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></FontBrush>
+                </FontInfo>
+              </TextSpan>
+            </LineTextSpan>
+          </FormattedText>
+          <BarcodePosition>None</BarcodePosition>
+          <ObjectLayout>
+            <DYMOPoint><X>0.35</X><Y>0.94</Y></DYMOPoint>
+            <Size><Width>2.8</Width><Height>0.22</Height></Size>
           </ObjectLayout>
         </AddressObject>
       </LabelObjects>

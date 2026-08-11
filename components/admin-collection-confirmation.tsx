@@ -6,6 +6,7 @@ import {
   confirmTicketCollection,
   parseCollectionQrPayload,
 } from "@/lib/ticket-collection";
+import { markTicketLabelsIssued } from "@/lib/part-label-validation";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export function AdminCollectionConfirmation({
@@ -114,7 +115,13 @@ export function AdminCollectionConfirmation({
     setNotice("");
     try {
       await confirmTicketCollection(supabase, ticketId, normalizedCode, method);
-      setNotice("Collection confirmed and recorded.");
+      const issuedCount = await markTicketLabelsIssued(supabase, ticketId);
+      setNotice(
+        issuedCount > 0
+          ? `Collection confirmed. ${issuedCount} verified label${issuedCount === 1 ? "" : "s"} marked issued.`
+          : "Collection confirmed. No scanned labels were found; pilot validation remains advisory.",
+      );
+      window.dispatchEvent(new CustomEvent("relay-label-validation-updated", { detail: { ticketId } }));
       onConfirmed();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to confirm collection.");
@@ -148,6 +155,10 @@ export function AdminCollectionConfirmation({
           maxLength={6}
           placeholder="ABC234"
           aria-label="Collection code"
+          autoFocus
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void handleConfirm();
+          }}
         />
         <button type="button" onClick={() => isScanning ? stopScanner() : void startScanner()}>
           {isScanning ? "Stop camera" : "Scan QR"}

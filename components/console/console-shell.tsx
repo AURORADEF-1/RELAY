@@ -46,6 +46,7 @@ const navigation: NavigationItem[] = [
   { href: "/console", label: "Operations", icon: "console", adminOnly: true },
   { href: "/my-jobs", label: "My Jobs", icon: "clipboard", adminOnly: true },
   { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", adminOnly: true },
+  { href: "/scan", label: "Scan & Issue", icon: "parts", adminOnly: true },
   { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
   { href: "/oversight", label: "Oversight", icon: "activity", oversightOnly: true },
   { href: "/submit", label: "New request", icon: "ticket" },

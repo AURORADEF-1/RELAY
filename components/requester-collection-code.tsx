@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import QRCode from "qrcode";
+import { CollectionCodeBarcode } from "@/components/collection-code-barcode";
 import {
   buildCollectionQrPayload,
   generateCollectionCode,
@@ -81,6 +82,7 @@ export function RequesterCollectionCode({
           Generate a new code
         </button>
       </div>
+      <CollectionCodeBarcode value={code} />
       {errorMessage ? <strong className="requester-collection-error">{errorMessage}</strong> : null}
     </div>
   );
