@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import { ConsoleShell } from "@/components/console/console-shell";
 import { MyJobStatusModal, type MyJobMove } from "@/components/my-jobs/my-job-status-modal";
+import { MyJobCardActionModal } from "@/components/my-jobs/my-job-card-action-modal";
 import { getAdminAssignmentLabel } from "@/lib/admin-assignees";
 import { isReportableAdminOperatorName } from "@/lib/admin-operators";
 import { formatConsoleCurrency } from "@/lib/console-tickets";
 import {
   formatTimeInStatus,
+  getMyJobsEdgeScrollDelta,
   getDefaultTargetStatus,
   getMyJobsColumnTickets,
   isMyJob,
@@ -19,7 +21,6 @@ import {
   type MyJobsColumn,
 } from "@/lib/my-jobs";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
-import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const MY_JOBS_FIELDS = [
@@ -45,6 +46,8 @@ export default function MyJobsPage() {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const [compactCards, setCompactCards] = useState(false);
+  const [actionTicket, setActionTicket] = useState<MyJobTicket | null>(null);
+  const boardRef = useRef<HTMLElement>(null);
 
   const loadTickets = useCallback(async (fullLoader = false) => {
     const supabase = getSupabaseClient();
@@ -65,7 +68,9 @@ export default function MyJobsPage() {
       if (!isReportableAdminOperatorName(currentOperatorLabel)) {
         throw new Error("Your RELAY admin profile needs a named operator before My Jobs can be used.");
       }
-      const statuses = showCompleted ? ["COMPLETED"] : [...activeTicketStatuses];
+      const statuses = showCompleted
+        ? ["COMPLETED"]
+        : MY_JOBS_COLUMNS.flatMap((column) => [...column.statuses]);
       const { data, error } = await supabase
         .from("tickets")
         .select(MY_JOBS_FIELDS)
@@ -143,6 +148,15 @@ export default function MyJobsPage() {
     if (ticket) requestMove(ticket, column);
   }
 
+  function handleBoardDragOver(event: DragEvent<HTMLElement>) {
+    if (!draggedTicketId) return;
+    const board = boardRef.current;
+    if (!board) return;
+    const bounds = board.getBoundingClientRect();
+    const delta = getMyJobsEdgeScrollDelta(event.clientX, bounds.left, bounds.right);
+    if (delta) board.scrollLeft += delta;
+  }
+
   return (
     <AuthGuard requiredRole="admin">
       <ConsoleShell
@@ -170,7 +184,7 @@ export default function MyJobsPage() {
 
         <section className="my-jobs-help">
           <span aria-hidden="true">i</span>
-          <p>Drop a card into a status. RELAY will ask for any details needed to qualify the change.</p>
+          <p>Drag a card into a status and hold it at either edge to scroll. Double-click a card to complete or reassign it.</p>
           <button type="button" onClick={() => setShowCompleted((current) => !current)}>{showCompleted ? "Back to active jobs" : "View completed"}</button>
         </section>
 
@@ -184,7 +198,7 @@ export default function MyJobsPage() {
             </div>
           </section>
         ) : (
-          <section className={`my-jobs-board ${compactCards ? "my-jobs-board-compact" : ""}`} aria-label="Assigned jobs by status">
+          <section ref={boardRef} className={`my-jobs-board ${compactCards ? "my-jobs-board-compact" : ""}`} aria-label="Assigned jobs by status" onDragOver={handleBoardDragOver}>
             {MY_JOBS_COLUMNS.map((column) => {
               const columnTickets = getMyJobsColumnTickets(visibleTickets, column);
               const isDropTarget = dropColumnId === column.id;
@@ -214,6 +228,7 @@ export default function MyJobsPage() {
                           const target = MY_JOBS_COLUMNS.find((candidate) => candidate.id === columnId);
                           if (target) requestMove(ticket, target);
                         }}
+                        onOpenActions={() => setActionTicket(ticket)}
                       />
                     ))}
                   </div>
@@ -232,6 +247,15 @@ export default function MyJobsPage() {
             setTickets((current) => current.map((ticket) => ticket.id === savedTicket.id ? savedTicket : ticket));
           }}
         />
+        <MyJobCardActionModal
+          ticket={actionTicket}
+          operatorLabel={operatorLabel}
+          onClose={() => setActionTicket(null)}
+          onSaved={(savedTicket) => {
+            setTickets((current) => current.filter((ticket) => ticket.id !== savedTicket.id));
+            setActionTicket(null);
+          }}
+        />
       </ConsoleShell>
     </AuthGuard>
   );
@@ -245,6 +269,7 @@ function MyJobCard({
   onDragStart,
   onDragEnd,
   onMove,
+  onOpenActions,
 }: {
   ticket: MyJobTicket;
   compact: boolean;
@@ -253,12 +278,19 @@ function MyJobCard({
   onDragStart?: () => void;
   onDragEnd?: () => void;
   onMove?: (columnId: string) => void;
+  onOpenActions?: () => void;
 }) {
   return (
-    <article className={`my-job-card ${dragging ? "my-job-card-dragging" : ""}`} draggable={draggable} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <article className={`my-job-card ${dragging ? "my-job-card-dragging" : ""}`} draggable={draggable} onDragStart={onDragStart} onDragEnd={onDragEnd} onDoubleClick={(event) => {
+      if ((event.target as HTMLElement).closest("a, select, button")) return;
+      onOpenActions?.();
+    }}>
       <div className="my-job-card-heading">
         <Link href={`/tickets/${ticket.id}`}>JOB {ticket.job_number || ticket.id.slice(0, 8)}</Link>
-        {ticket.is_urgent ? <span>Urgent</span> : ticket.order_amount ? <small>{formatConsoleCurrency(ticket.order_amount)}</small> : null}
+        <div className="my-job-card-heading-actions">
+          {ticket.is_urgent ? <span>Urgent</span> : ticket.order_amount ? <small>{formatConsoleCurrency(ticket.order_amount)}</small> : null}
+          {onOpenActions ? <button type="button" onClick={onOpenActions} aria-label={`Actions for job ${ticket.job_number || ticket.id.slice(0, 8)}`}>•••</button> : null}
+        </div>
       </div>
       <h3>{ticket.request_summary?.trim() || ticket.request_details?.trim() || "Request details not recorded"}</h3>
       <dl>

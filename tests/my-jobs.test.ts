@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatTimeInStatus,
   getDefaultTargetStatus,
+  getMyJobsEdgeScrollDelta,
   getMyJobsColumnForStatus,
   getMyJobsColumnTickets,
   isMyJob,
@@ -73,10 +74,9 @@ describe("My Jobs board", () => {
     ], column).map((ticket) => ticket.id) : []).toEqual(["estimate", "quote"]);
   });
 
-  it("contains each active workflow stage exactly once", () => {
+  it("shows the working stages without a pending column", () => {
     const statuses = MY_JOBS_COLUMNS.flatMap((column) => [...column.statuses]);
     expect(statuses).toEqual([
-      "PENDING",
       "ESTIMATE",
       "QUOTE",
       "QUERY",
@@ -84,6 +84,12 @@ describe("My Jobs board", () => {
       "ORDERED",
       "READY",
     ]);
+  });
+
+  it("scrolls the board when a dragged card reaches either edge", () => {
+    expect(getMyJobsEdgeScrollDelta(55, 50, 950)).toBe(-28);
+    expect(getMyJobsEdgeScrollDelta(500, 50, 950)).toBe(0);
+    expect(getMyJobsEdgeScrollDelta(945, 50, 950)).toBe(28);
   });
 
   it("reports time from the status-specific timestamp", () => {

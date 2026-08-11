@@ -27,7 +27,6 @@ export type MyJobsColumn = {
 };
 
 export const MY_JOBS_COLUMNS: readonly MyJobsColumn[] = [
-  { id: "pending", label: "Pending", statuses: ["PENDING"], tone: "pending" },
   {
     id: "estimate-quote",
     label: "Estimate / Quote",
@@ -44,6 +43,17 @@ export const MY_JOBS_COLUMNS: readonly MyJobsColumn[] = [
   { id: "ordered", label: "Ordered", statuses: ["ORDERED"], tone: "ordered" },
   { id: "ready", label: "Ready", statuses: ["READY"], tone: "ready" },
 ] as const;
+
+export function getMyJobsEdgeScrollDelta(
+  pointerX: number,
+  leftEdge: number,
+  rightEdge: number,
+  edgeSize = 96,
+) {
+  if (pointerX <= leftEdge + edgeSize) return -28;
+  if (pointerX >= rightEdge - edgeSize) return 28;
+  return 0;
+}
 
 export function isMyJob(ticket: Pick<MyJobTicket, "assigned_to">, operatorLabel: string) {
   return Boolean(operatorLabel) &&
