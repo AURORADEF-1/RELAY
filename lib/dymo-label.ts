@@ -59,15 +59,19 @@ export function selectDymoLabelWriter(
     ?? null;
 }
 
-export function buildDymoJobLabelXml(jobNumber: string) {
+export function buildDymoJobLabelXml(
+  jobNumber: string,
+  consumableName = "Large Address Labels",
+) {
   const safeJobNumber = escapeXml(jobNumber.trim() || "TBC");
+  const safeConsumableName = escapeXml(consumableName.trim() || "Large Address Labels");
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <DesktopLabel Version="1">
   <DYMOLabel Version="3">
     <Description>RELAY ready job barcode</Description>
     <Orientation>Landscape</Orientation>
-    <LabelName>LargeAddress36x89</LabelName>
+    <LabelName>${safeConsumableName}</LabelName>
     <InitialLength>0</InitialLength>
     <BorderStyle>SolidLine</BorderStyle>
     <DYMORect>
@@ -97,19 +101,19 @@ export function buildDymoJobLabelXml(jobNumber: string) {
           <Data><MultiDataString><DataString>${safeJobNumber}</DataString></MultiDataString></Data>
           <HorizontalAlignment>Center</HorizontalAlignment>
           <VerticalAlignment>Middle</VerticalAlignment>
-          <Size>Medium</Size>
-          <TextPosition>Bottom</TextPosition>
+          <Size>Small</Size>
+          <TextPosition>None</TextPosition>
           <FontInfo>
             <FontName>Arial</FontName>
-            <FontSize>18</FontSize>
-            <IsBold>True</IsBold>
+            <FontSize>7.3</FontSize>
+            <IsBold>False</IsBold>
             <IsItalic>False</IsItalic>
             <IsUnderline>False</IsUnderline>
             <FontBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></FontBrush>
           </FontInfo>
           <ObjectLayout>
-            <DYMOPoint><X>0.25</X><Y>0.1</Y></DYMOPoint>
-            <Size><Width>3</Width><Height>1.18</Height></Size>
+            <DYMOPoint><X>0.2350952</X><Y>0.1620453</Y></DYMOPoint>
+            <Size><Width>3.029809</Width><Height>0.96</Height></Size>
           </ObjectLayout>
         </BarcodeObject>
       </LabelObjects>

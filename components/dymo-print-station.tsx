@@ -13,6 +13,19 @@ import { getSupabaseClient } from "@/lib/supabase";
 type DymoFramework = {
   init: (callback?: () => void) => void;
   getPrintersAsync: () => Promise<unknown>;
+  openLabelXml: (labelXml: string) => {
+    isValidLabel: () => boolean;
+    getLabelXml?: () => string;
+  };
+  is550PrinterAsync?: (printerName: string) => Promise<boolean>;
+  getConsumableInfoIn550PrinterAsync?: (printerName: string) => Promise<{
+    name?: string;
+  }>;
+  createLabelWriterPrintParamsXml?: (params: {
+    copies: number;
+    jobTitle: string;
+    printQuality: string;
+  }) => string;
   printLabelAsync: (
     printerName: string,
     printParamsXml: string,
@@ -146,16 +159,16 @@ export function DymoPrintStation() {
 
     const updateStationHealth = async (values: {
       printer_name?: string;
-      last_error: string | null;
+      last_error?: string | null;
       checkedPrinter?: boolean;
     }) => {
       if (!station || disposed) return;
 
       const patch: Record<string, string | null> = {
         last_seen_at: new Date().toISOString(),
-        last_error: values.last_error,
         updated_at: new Date().toISOString(),
       };
+      if ("last_error" in values) patch.last_error = values.last_error ?? null;
       if (values.printer_name) patch.printer_name = values.printer_name;
       if (values.checkedPrinter) patch.last_printer_check_at = new Date().toISOString();
 
@@ -193,12 +206,38 @@ export function DymoPrintStation() {
           try {
             const framework = await loadDymoFramework();
             const printer = await getAvailablePrinter(framework, station.printer_name);
-            const labelXml = buildDymoJobLabelXml(job.job_number);
+            station = { ...station, printer_name: printer.name };
+            await updateStationHealth({
+              printer_name: printer.name,
+              checkedPrinter: true,
+            });
+
+            let consumableName = "Large Address Labels";
+            if (
+              framework.is550PrinterAsync
+              && framework.getConsumableInfoIn550PrinterAsync
+              && await framework.is550PrinterAsync(printer.name)
+            ) {
+              const consumable = await framework.getConsumableInfoIn550PrinterAsync(printer.name);
+              if (consumable.name?.trim()) consumableName = consumable.name.trim();
+            }
+
+            const labelXml = buildDymoJobLabelXml(job.job_number, consumableName);
+            const label = framework.openLabelXml(labelXml);
+            if (!label.isValidLabel()) {
+              throw new Error("RELAY generated an invalid DYMO label and stopped before printing.");
+            }
+            const validatedLabelXml = label.getLabelXml?.() ?? labelXml;
+            const printParamsXml = framework.createLabelWriterPrintParamsXml?.({
+              copies: 1,
+              jobTitle: "RELAY job label",
+              printQuality: "BarcodeAndGraphics",
+            }) ?? "<LabelWriterPrintParams><Copies>1</Copies><JobTitle>RELAY job label</JobTitle><PrintQuality>BarcodeAndGraphics</PrintQuality></LabelWriterPrintParams>";
 
             await framework.printLabelAsync(
               printer.name,
-              "<LabelWriterPrintParams><Copies>1</Copies><JobTitle>RELAY job label</JobTitle><PrintQuality>BarcodeAndGraphics</PrintQuality></LabelWriterPrintParams>",
-              labelXml,
+              printParamsXml,
+              validatedLabelXml,
               "",
             );
 
@@ -209,7 +248,6 @@ export function DymoPrintStation() {
             });
             if (completionError) throw completionError;
 
-            station = { ...station, printer_name: printer.name };
             await updateStationHealth({
               printer_name: printer.name,
               last_error: null,
@@ -271,7 +309,7 @@ export function DymoPrintStation() {
           void processQueue();
         }, QUEUE_RECONCILE_INTERVAL_MS);
 
-        await updateStationHealth({ last_error: null });
+        await updateStationHealth({});
         void processQueue();
       } catch (error) {
         console.error("Unable to start the RELAY DYMO print station", error);
