@@ -44,6 +44,7 @@ type NavigationItem = {
 
 const navigation: NavigationItem[] = [
   { href: "/console", label: "Operations", icon: "console", adminOnly: true },
+  { href: "/my-jobs", label: "My Jobs", icon: "clipboard", adminOnly: true },
   { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", adminOnly: true },
   { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
   { href: "/oversight", label: "Oversight", icon: "activity", oversightOnly: true },
