@@ -53,6 +53,8 @@ type LabelPrintJob = {
   id: string;
   job_number: string;
   label_token: string;
+  requested_by: string | null;
+  ready_at: string;
   part_number: string | null;
   part_description: string | null;
   unit_index: number;
@@ -229,8 +231,10 @@ export function DymoPrintStation() {
             }
 
             const labelXml = buildDymoJobLabelXml({
-              barcodeValue: job.label_token,
+              barcodeValue: `${job.job_number}|${job.label_token}`,
               jobNumber: job.job_number,
+              requestedBy: job.requested_by,
+              readyAt: job.ready_at,
               partNumber: job.part_number,
               partDescription: job.part_description,
               unitIndex: job.unit_index,
