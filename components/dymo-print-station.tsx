@@ -52,6 +52,14 @@ type PrintStation = {
 type LabelPrintJob = {
   id: string;
   job_number: string;
+  label_token: string;
+  requested_by: string | null;
+  ready_at: string;
+  part_number: string | null;
+  part_description: string | null;
+  unit_index: number;
+  unit_total: number;
+  bin_location: string;
 };
 
 const DYMO_SCRIPT_ID = "relay-dymo-connect-framework";
@@ -222,7 +230,17 @@ export function DymoPrintStation() {
               if (consumable.name?.trim()) consumableName = consumable.name.trim();
             }
 
-            const labelXml = buildDymoJobLabelXml(job.job_number, consumableName);
+            const labelXml = buildDymoJobLabelXml({
+              barcodeValue: `${job.job_number}|${job.label_token}`,
+              jobNumber: job.job_number,
+              requestedBy: job.requested_by,
+              readyAt: job.ready_at,
+              partNumber: job.part_number,
+              partDescription: job.part_description,
+              unitIndex: job.unit_index,
+              unitTotal: job.unit_total,
+              binLocation: job.bin_location,
+            }, consumableName);
             const label = framework.openLabelXml(labelXml);
             if (!label.isValidLabel()) {
               throw new Error("RELAY generated an invalid DYMO label and stopped before printing.");

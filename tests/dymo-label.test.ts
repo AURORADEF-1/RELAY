@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDymoJobLabelXml,
+  formatDymoReadyAt,
   normalizeDymoPrinters,
   selectDymoLabelWriter,
 } from "@/lib/dymo-label";
@@ -12,8 +13,38 @@ describe("DYMO job labels", () => {
     expect(xml).toContain("<BarcodeFormat>Code128Auto</BarcodeFormat>");
     expect(xml).toContain("<DataString>53066 &amp; urgent</DataString>");
     expect(xml).toContain("<TextPosition>None</TextPosition>");
+    expect(xml).toContain("<Name>JOB_NUMBER_BARCODE</Name>");
+    expect(xml).toContain("<Name>JOB_NUMBER_TEXT</Name>");
+    expect(xml).toContain("<Text>53066 &amp; urgent</Text>");
+    expect(xml).toContain("<DYMOPoint><X>0.3</X><Y>0.84</Y></DYMOPoint>");
+    expect(xml).toContain("<Size><Width>2.28</Width><Height>0.31</Height></Size>");
+    expect(xml).toContain("<FontSize>12</FontSize>");
+    expect(xml).toContain("<IsBold>True</IsBold>");
     expect(xml).toContain("<LabelName>Large Address Labels</LabelName>");
     expect(xml).toContain("<Size><Width>3.21</Width><Height>1.286</Height></Size>");
+  });
+
+  it("prints the approved job, requester and ready-time hierarchy", () => {
+    const xml = buildDymoJobLabelXml({
+      barcodeValue: "TEST-20260811|RLY-ABCDEF1234567890",
+      jobNumber: "TEST-20260811",
+      requestedBy: "George & Samantha",
+      readyAt: "2026-08-12T09:42:00.000Z",
+    });
+
+    expect(xml).toContain("<DataString>TEST-20260811|RLY-ABCDEF1234567890</DataString>");
+    expect(xml).toContain("<Name>RELAY_HEADER</Name>");
+    expect(xml).toContain("<Text>PARTS READY</Text>");
+    expect(xml).toContain("<Text>TEST-20260811</Text>");
+    expect(xml).toContain("<Name>REQUESTED_BY_TEXT</Name>");
+    expect(xml).toContain("<Text>George &amp; Samantha</Text>");
+    expect(xml).toContain("<Name>READY_AT_TEXT</Name>");
+    expect(xml).toContain("<Text>12 Aug 2026 · 10:42</Text>");
+  });
+
+  it("formats READY timestamps in the RELAY Europe/London timezone", () => {
+    expect(formatDymoReadyAt("2026-12-12T10:42:00.000Z")).toBe("12 Dec 2026 · 10:42");
+    expect(formatDymoReadyAt(null)).toBe("Not recorded");
   });
 
   it("uses and escapes the exact consumable name reported by a LabelWriter 550", () => {
