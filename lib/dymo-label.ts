@@ -153,11 +153,11 @@ export function buildDymoJobLabelXml(
             <FontBrush><SolidColorBrush><Color A="1" R="0" G="0" B="0" /></SolidColorBrush></FontBrush>
           </FontInfo>
           <ObjectLayout>
-            <DYMOPoint><X>0.3</X><Y>0.84</Y></DYMOPoint>
-            <Size><Width>2.28</Width><Height>0.31</Height></Size>
+            <DYMOPoint><X>0.3</X><Y>0.8</Y></DYMOPoint>
+            <Size><Width>2.85</Width><Height>0.29</Height></Size>
           </ObjectLayout>
         </BarcodeObject>
-        ${buildAddressObject("BARCODE_JOB_TEXT", safeJobNumber, 2.66, 0.84, 0.49, 0.31, 12, true, "Center")}
+        ${buildAddressObject("BARCODE_JOB_TEXT", safeJobNumber, 0.3, 1.1, 2.85, 0.13, 8, true, "Center")}
       </LabelObjects>
     </DynamicLayoutManager>
   </DYMOLabel>
