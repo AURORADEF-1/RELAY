@@ -37,6 +37,7 @@ export function ConsoleTicketActionModal({
 }) {
   const [note, setNote] = useState("");
   const [nextStatus, setNextStatus] = useState("");
+  const [binLocation, setBinLocation] = useState("");
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -49,6 +50,14 @@ export function ConsoleTicketActionModal({
   const onCloseRef = useRef(onClose);
   const headingId = useId();
   onCloseRef.current = onClose;
+
+  useEffect(() => {
+    setNote("");
+    setNextStatus("");
+    setBinLocation(action?.ticket.bin_location ?? "");
+    setIsReviewing(false);
+    setErrorMessage("");
+  }, [action?.mode, action?.ticket.id, action?.ticket.bin_location]);
 
   useEffect(() => {
     if (!action) return;
@@ -165,6 +174,7 @@ export function ConsoleTicketActionModal({
 
   const { ticket, mode } = action;
   const normalizedStatus = nextStatus || ticket.status || "PENDING";
+  const normalizedBinLocation = binLocation.trim();
 
   function handleReview() {
     setErrorMessage("");
@@ -182,8 +192,8 @@ export function ConsoleTicketActionModal({
         setErrorMessage("Choose a different status.");
         return;
       }
-      if (normalizedStatus === "READY" && !ticket.bin_location?.trim()) {
-        setErrorMessage("Add a bin location in the ticket editor before marking this job READY.");
+      if (normalizedStatus === "READY" && !normalizedBinLocation) {
+        setErrorMessage("Enter a bin location before marking this job READY.");
         return;
       }
       if (
@@ -252,6 +262,7 @@ export function ConsoleTicketActionModal({
           .update({
             status: normalizedStatus,
             assigned_to: assignee.label,
+            ...(normalizedStatus === "READY" ? { bin_location: normalizedBinLocation } : {}),
             updated_at: updatedAt,
           })
           .eq("id", ticket.id);
@@ -262,7 +273,7 @@ export function ConsoleTicketActionModal({
         const { error: updateError } = await supabase.from("ticket_updates").insert({
           ticket_id: ticket.id,
           status: normalizedStatus,
-          comment: `Status updated from ${ticket.status || "PENDING"} to ${normalizedStatus} by ${actorName}.${assignmentChanged ? ` Job assigned to ${assignee.label}.` : ""}`,
+          comment: `Status updated from ${ticket.status || "PENDING"} to ${normalizedStatus} by ${actorName}.${normalizedStatus === "READY" ? ` Collection bin ${normalizedBinLocation}.` : ""}${assignmentChanged ? ` Job assigned to ${assignee.label}.` : ""}`,
         });
         if (updateError) {
           throw new Error(updateError.message);
@@ -276,7 +287,7 @@ export function ConsoleTicketActionModal({
             nextStatus: normalizedStatus,
             requestSummary: ticket.request_summary ?? ticket.request_details,
             assignedTo: assignee.label,
-            binLocation: ticket.bin_location,
+            binLocation: normalizedStatus === "READY" ? normalizedBinLocation : ticket.bin_location,
           });
         } catch (notificationError) {
           console.error("Failed to notify requester about quick status change", notificationError);
@@ -318,7 +329,7 @@ export function ConsoleTicketActionModal({
     ? `Add this note to the permanent activity chain and assign the job to ${currentActorLabel || "you"}?`
     : normalizedStatus === "COMPLETED"
       ? `Mark this request COMPLETED and assign it to ${assignees.find((option) => option.userId === selectedAssigneeId)?.label || "the selected admin"}? It will leave the active operations queue.`
-      : `Change this job from ${ticket.status || "PENDING"} to ${normalizedStatus} and assign it to ${assignees.find((option) => option.userId === selectedAssigneeId)?.label || "the selected admin"}?`;
+      : `Change this job from ${ticket.status || "PENDING"} to ${normalizedStatus} and assign it to ${assignees.find((option) => option.userId === selectedAssigneeId)?.label || "the selected admin"}?${normalizedStatus === "READY" ? ` Collection bin: ${normalizedBinLocation}.` : ""}`;
 
   return (
     <div className="console-action-modal-scrim" role="presentation">
@@ -385,6 +396,22 @@ export function ConsoleTicketActionModal({
                   Currently {ticket.assigned_to?.trim() || "unassigned"}. Status changes default to you.
                 </small>
               </label>
+              {normalizedStatus === "READY" ? (
+                <label className="console-action-field console-action-field-wide">
+                  <span>Bin location</span>
+                  <input
+                    type="text"
+                    value={binLocation}
+                    onChange={(event) => {
+                      setBinLocation(event.target.value);
+                      setErrorMessage("");
+                    }}
+                    placeholder="Enter Stores bin location"
+                    autoComplete="off"
+                  />
+                  <small>This location is saved to the ticket and shown in the READY collection notification.</small>
+                </label>
+              ) : null}
             </div>
           )}
 

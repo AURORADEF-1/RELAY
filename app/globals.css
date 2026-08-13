@@ -2077,6 +2077,10 @@ select:focus-visible {
   gap: 1rem;
 }
 
+.console-action-field-wide {
+  grid-column: 1 / -1;
+}
+
 .console-action-field > span {
   color: var(--foreground-muted);
   font-size: 0.72rem;
@@ -2127,6 +2131,7 @@ select:focus-visible {
 }
 
 .console-action-field textarea,
+.console-action-field input,
 .console-action-field select {
   width: 100%;
   min-width: 0;
@@ -2145,6 +2150,10 @@ select:focus-visible {
   line-height: 1.5;
 }
 
+.console-action-field input {
+  padding: 0.65rem 0.85rem;
+}
+
 .console-action-field select {
   appearance: none;
   padding: 0.65rem 2.5rem 0.65rem 0.85rem;
@@ -2159,11 +2168,13 @@ select:focus-visible {
 }
 
 .console-action-field textarea:hover,
+.console-action-field input:hover,
 .console-action-field select:hover {
   border-color: var(--border-strong);
 }
 
 .console-action-field textarea:focus-visible,
+.console-action-field input:focus-visible,
 .console-action-field select:focus-visible {
   border-color: var(--foreground-subtle);
   box-shadow: var(--ring);
