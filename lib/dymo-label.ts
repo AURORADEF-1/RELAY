@@ -138,7 +138,7 @@ export function buildDymoJobLabelXml(
           <IsOutlined>False</IsOutlined>
           <BorderStyle>SolidLine</BorderStyle>
           <Margin><DYMOThickness Left="0" Top="0" Right="0" Bottom="0" /></Margin>
-          <BarcodeFormat>Code128Auto</BarcodeFormat>
+          <BarcodeFormat>Code39</BarcodeFormat>
           <Data><MultiDataString><DataString>${safeBarcodeValue}</DataString></MultiDataString></Data>
           <HorizontalAlignment>Center</HorizontalAlignment>
           <VerticalAlignment>Middle</VerticalAlignment>
