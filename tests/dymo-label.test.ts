@@ -7,10 +7,10 @@ import {
 } from "@/lib/dymo-label";
 
 describe("DYMO job labels", () => {
-  it("encodes the Relay job number as a Code 128 barcode and escapes XML", () => {
+  it("encodes the Relay value as a Code 39 barcode and escapes XML", () => {
     const xml = buildDymoJobLabelXml("53066 & urgent");
 
-    expect(xml).toContain("<BarcodeFormat>Code128Auto</BarcodeFormat>");
+    expect(xml).toContain("<BarcodeFormat>Code39</BarcodeFormat>");
     expect(xml).toContain("<DataString>53066 &amp; urgent</DataString>");
     expect(xml).toContain("<TextPosition>None</TextPosition>");
     expect(xml).toContain("<Name>JOB_NUMBER_BARCODE</Name>");
@@ -26,13 +26,13 @@ describe("DYMO job labels", () => {
 
   it("prints the approved job, requester and ready-time hierarchy", () => {
     const xml = buildDymoJobLabelXml({
-      barcodeValue: "TEST-20260811|RLY-ABCDEF1234567890",
+      barcodeValue: "RLY-ABCDEF1234567890",
       jobNumber: "TEST-20260811",
       requestedBy: "George & Samantha",
       readyAt: "2026-08-12T09:42:00.000Z",
     });
 
-    expect(xml).toContain("<DataString>TEST-20260811|RLY-ABCDEF1234567890</DataString>");
+    expect(xml).toContain("<DataString>RLY-ABCDEF1234567890</DataString>");
     expect(xml).toContain("<Name>RELAY_HEADER</Name>");
     expect(xml).toContain("<Text>PARTS READY</Text>");
     expect(xml).toContain("<Text>TEST-20260811</Text>");
