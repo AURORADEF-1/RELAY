@@ -231,7 +231,7 @@ export function DymoPrintStation() {
             }
 
             const labelXml = buildDymoJobLabelXml({
-              barcodeValue: `${job.job_number}|${job.label_token}`,
+              barcodeValue: job.label_token,
               jobNumber: job.job_number,
               requestedBy: job.requested_by,
               readyAt: job.ready_at,
