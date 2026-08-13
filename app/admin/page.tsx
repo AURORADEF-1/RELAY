@@ -219,6 +219,14 @@ type StatusWorkflowDialogState = {
   errorMessage: string;
 };
 
+type AdminTicketDraft = {
+  assigned_to: string;
+  notes: string;
+  is_urgent: boolean;
+  visible_to_user_id: string;
+  bin_location: string;
+};
+
 type RequesterAccountOption = {
   user_id: string;
   full_name: string | null;
@@ -408,9 +416,7 @@ export default function AdminPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [collectedTicketIds, setCollectedTicketIds] = useState<Set<string>>(new Set());
   const [returnedTicketReasonById, setReturnedTicketReasonById] = useState<Record<string, string>>({});
-  const [drafts, setDrafts] = useState<
-    Record<string, { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>
-  >({});
+  const [drafts, setDrafts] = useState<Record<string, AdminTicketDraft>>({});
   const [selectedChatTicketId, setSelectedChatTicketId] = useState<string | null>(null);
   const [chatAttachments, setChatAttachments] = useState<TicketAttachmentRecord[]>([]);
   const [chatMessages, setChatMessages] = useState<TicketMessageRecord[]>([]);
@@ -532,7 +538,7 @@ export default function AdminPage() {
     [requesterMessagesByTicket],
   );
 
-  const updateTicketDraft = useCallback((ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>) => {
+  const updateTicketDraft = useCallback((ticketId: string, patch: Partial<AdminTicketDraft>) => {
     setDrafts((current) => ({
       ...current,
       [ticketId]: {
@@ -540,6 +546,7 @@ export default function AdminPage() {
         notes: patch.notes ?? current[ticketId]?.notes ?? "",
         is_urgent: patch.is_urgent ?? current[ticketId]?.is_urgent ?? false,
         visible_to_user_id: patch.visible_to_user_id ?? current[ticketId]?.visible_to_user_id ?? "",
+        bin_location: patch.bin_location ?? current[ticketId]?.bin_location ?? "",
       },
     }));
   }, []);
@@ -593,6 +600,7 @@ export default function AdminPage() {
         notes: nextTicket.notes ?? "",
         is_urgent: Boolean(nextTicket.is_urgent),
         visible_to_user_id: nextTicket.visible_to_user_id ?? "",
+        bin_location: nextTicket.bin_location ?? "",
       },
     }));
   }, []);
@@ -1057,6 +1065,7 @@ export default function AdminPage() {
             notes: ticket.notes ?? "",
             is_urgent: Boolean(ticket.is_urgent),
             visible_to_user_id: ticket.visible_to_user_id ?? "",
+            bin_location: ticket.bin_location ?? "",
           },
         ]),
       ),
@@ -1152,6 +1161,7 @@ export default function AdminPage() {
           notes: typeof nextTicket.notes === "string" ? nextTicket.notes : "",
           is_urgent: Boolean(nextTicket.is_urgent),
           visible_to_user_id: nextTicket.visible_to_user_id ?? "",
+          bin_location: nextTicket.bin_location ?? "",
         },
       }));
     };
@@ -1721,7 +1731,7 @@ export default function AdminPage() {
         typeof ticket.order_amount === "number" && !Number.isNaN(ticket.order_amount)
           ? String(ticket.order_amount)
           : "",
-      binLocation: ticket.bin_location ?? "",
+      binLocation: drafts[ticket.id]?.bin_location ?? ticket.bin_location ?? "",
       dispatchPreference: "none",
       retailSalesReference: ticket.retail_sales_reference ?? "",
       customerName: ticket.customer_name ?? "",
@@ -1734,7 +1744,7 @@ export default function AdminPage() {
     });
 
     return true;
-  }, []);
+  }, [drafts]);
 
   const dismissOverdueReminder = useCallback(async (ticketId: string) => {
     const currentTicket = tickets.find((ticket) => ticket.id === ticketId);
@@ -1851,7 +1861,8 @@ export default function AdminPage() {
       : "";
     const normalizedOrderAmountInput = workflow?.orderAmount?.trim() || "";
     const parsedOrderAmount = parseOrderAmountInput(normalizedOrderAmountInput);
-    const normalizedBinLocation = workflow?.binLocation?.trim() || "";
+    const normalizedBinLocation =
+      workflow?.binLocation?.trim() || draft?.bin_location.trim() || currentTicket.bin_location?.trim() || "";
     const normalizedRetailSalesReference =
       workflow?.retailSalesReference?.trim() || currentTicket.retail_sales_reference?.trim() || "";
     const normalizedCustomerName = workflow?.customerName?.trim() || currentTicket.customer_name?.trim() || "";
@@ -2331,16 +2342,19 @@ export default function AdminPage() {
     const nextNotes = draft.notes.trim();
     const nextIsUrgent = Boolean(draft.is_urgent);
     const nextVisibleToUserId = draft.visible_to_user_id.trim() || null;
+    const nextBinLocation = draft.bin_location.trim() || null;
     const currentAssignedTo = currentTicket.assigned_to?.trim() ?? "";
     const currentNotes = currentTicket.notes?.trim() ?? "";
     const currentIsUrgent = Boolean(currentTicket.is_urgent);
     const currentVisibleToUserId = currentTicket.visible_to_user_id?.trim() ?? "";
+    const currentBinLocation = currentTicket.bin_location?.trim() ?? "";
     const assignmentChanged = nextAssignedTo !== currentAssignedTo;
     const notesChanged = nextNotes !== currentNotes;
     const urgentChanged = nextIsUrgent !== currentIsUrgent;
     const visibilityChanged = nextVisibleToUserId !== currentVisibleToUserId;
+    const binLocationChanged = (nextBinLocation ?? "") !== currentBinLocation;
 
-    if (!assignmentChanged && !notesChanged && !urgentChanged && !visibilityChanged) {
+    if (!assignmentChanged && !notesChanged && !urgentChanged && !visibilityChanged && !binLocationChanged) {
       setUpdatingTicketId(null);
       return;
     }
@@ -2374,6 +2388,7 @@ export default function AdminPage() {
       assigned_to: nextAssignedTo || null,
       notes: nextNotes || null,
       visible_to_user_id: nextVisibleToUserId,
+      bin_location: nextBinLocation,
       is_urgent: nextIsUrgent,
       urgent_flagged_at: nextUrgentTimestamp,
       urgent_flagged_by:
@@ -2395,6 +2410,8 @@ export default function AdminPage() {
     const updatePayloadWithoutUrgency = {
       assigned_to: updatePayload.assigned_to,
       notes: updatePayload.notes,
+      visible_to_user_id: updatePayload.visible_to_user_id,
+      bin_location: updatePayload.bin_location,
       updated_at: updatePayload.updated_at,
     };
     let updateQuery = supabase
@@ -2466,6 +2483,8 @@ export default function AdminPage() {
                 ...ticket,
                 assigned_to: nextAssignedTo || null,
                 notes: nextNotes || null,
+                visible_to_user_id: nextVisibleToUserId,
+                bin_location: nextBinLocation,
                 is_urgent: nextIsUrgent,
                 urgent_flagged_at: nextUrgentTimestamp,
                 urgent_flagged_by:
@@ -4129,6 +4148,22 @@ export default function AdminPage() {
                             onChange={handleStatusChange}
                             disabled={updatingTicketId === ticket.id}
                           />
+                          <label className="block space-y-1">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                              Bin location
+                            </span>
+                            <input
+                              type="text"
+                              value={drafts[ticket.id]?.bin_location ?? ""}
+                              onChange={(event) =>
+                                updateTicketDraft(ticket.id, {
+                                  bin_location: event.target.value,
+                                })
+                              }
+                              placeholder="Required before READY"
+                              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                            />
+                          </label>
                           <select
                             value={drafts[ticket.id]?.visible_to_user_id ?? ""}
                             onChange={(event) =>
@@ -4366,13 +4401,13 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
   onSave,
 }: {
   ticket: Ticket;
-  draft?: { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string };
+  draft?: AdminTicketDraft;
   isCollected: boolean;
   returnedReason?: string;
   isUpdating: boolean;
   adminOperatorNames: string[];
   requesterAccounts: RequesterAccountOption[];
-  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>) => void;
+  onDraftChange: (ticketId: string, patch: Partial<AdminTicketDraft>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
 }) {
@@ -4469,6 +4504,22 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
               </option>
             ))}
           </select>
+          <label className="block space-y-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Bin location
+            </span>
+            <input
+              type="text"
+              value={draft?.bin_location ?? ""}
+              onChange={(event) =>
+                onDraftChange(ticket.id, {
+                  bin_location: event.target.value,
+                })
+              }
+              placeholder="Required before READY"
+              className="w-40 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+            />
+          </label>
           <label className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-red-700">
             <input
               type="checkbox"
@@ -4551,13 +4602,13 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
   supplierExportIncludeAllFields,
 }: {
   ticket: Ticket;
-  draft?: { assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string };
+  draft?: AdminTicketDraft;
   isCollected: boolean;
   returnedReason?: string;
   isUpdating: boolean;
   adminOperatorNames: string[];
   requesterAccounts: RequesterAccountOption[];
-  onDraftChange: (ticketId: string, patch: Partial<{ assigned_to: string; notes: string; is_urgent: boolean; visible_to_user_id: string }>) => void;
+  onDraftChange: (ticketId: string, patch: Partial<AdminTicketDraft>) => void;
   onStatusChange: (ticketId: string, nextStatus: TicketStatus) => void;
   onSave: (ticketId: string) => void;
   onExportClick: (ticket: Ticket) => void;
@@ -4815,6 +4866,22 @@ const AdminCompactTicketCard = memo(function AdminCompactTicketCard({
           }
           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
         />
+        <label className="block space-y-1">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Bin location
+          </span>
+          <input
+            type="text"
+            value={draft?.bin_location ?? ""}
+            onChange={(event) =>
+              onDraftChange(ticket.id, {
+                bin_location: event.target.value,
+              })
+            }
+            placeholder="Required before READY"
+            className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+          />
+        </label>
         <label className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm font-semibold text-red-800">
           <span>Urgent flag</span>
           <input
