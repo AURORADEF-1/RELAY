@@ -21,6 +21,10 @@ export type TicketOperationalFields = {
   retail_delivery_method?: "collect" | "delivery" | null;
   retail_delivery_address?: string | null;
   retail_apc_tracking_number?: string | null;
+  nexus_order_id?: string | null;
+  nexus_external_order_id?: string | null;
+  nexus_status_synced_at?: string | null;
+  nexus_status_sync_error?: string | null;
 };
 
 export type TicketOperationalRecord = TicketOperationalFields & {
