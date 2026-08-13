@@ -100,6 +100,7 @@ import type { SupplierOrderDispatchPreference } from "@/lib/order-communications
 import { ticketStatuses } from "@/lib/statuses";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
+import { syncNexusEcommerceOrderStatus } from "@/lib/nexus-ecommerce";
 
 const OPERATOR_NUMBERS = [
   { label: "Call Operator 1", number: "07955273861" },
@@ -120,6 +121,10 @@ type TicketRecord = {
   retail_delivery_method?: RetailDeliveryMethod | null;
   retail_delivery_address?: string | null;
   retail_apc_tracking_number?: string | null;
+  nexus_order_id?: string | null;
+  nexus_external_order_id?: string | null;
+  nexus_status_synced_at?: string | null;
+  nexus_status_sync_error?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
   location_summary?: string | null;
@@ -1062,6 +1067,12 @@ export default function TicketDetailPage() {
         setIsSavingEdit(false);
         return;
       }
+
+      if (ticket.nexus_order_id) {
+        void syncNexusEcommerceOrderStatus(ticket.id).catch((syncError) => {
+          console.error("Failed to mirror RELAY order status to NEXUS", syncError);
+        });
+      }
     }
 
     if ((ticket.notes ?? "").trim() !== (ticketPatch.notes ?? "").trim() && ticketPatch.notes) {
@@ -1122,7 +1133,10 @@ export default function TicketDetailPage() {
       status: ticketPatch.status,
     } as TicketRecord;
     const retailDispatchPlan =
-      ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "READY"
+      ticket.is_retail_sale &&
+      !ticket.nexus_order_id &&
+      ticket.status !== ticketPatch.status &&
+      ticketPatch.status === "READY"
           ? buildRetailCustomerDispatchPlan(nextUpdatedTicket, "ready")
           : null;
     const supplierDispatchContact =
@@ -1153,7 +1167,12 @@ export default function TicketDetailPage() {
         console.error("Failed to notify requester about status change", notificationError);
       });
     }
-    if (ticket.is_retail_sale && ticket.status !== ticketPatch.status && ticketPatch.status === "READY") {
+    if (
+      ticket.is_retail_sale &&
+      !ticket.nexus_order_id &&
+      ticket.status !== ticketPatch.status &&
+      ticketPatch.status === "READY"
+    ) {
       window.setTimeout(async () => {
         const dispatchPlan = retailDispatchPlan;
 

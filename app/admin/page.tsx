@@ -107,6 +107,7 @@ import {
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getSupabaseAccessToken } from "@/lib/supabase";
+import { syncNexusEcommerceOrderStatus } from "@/lib/nexus-ecommerce";
 
 const ADMIN_CHAT_READ_STORAGE_KEY = "relay-admin-chat-last-opened";
 const ADMIN_DASHBOARD_VIEW_STORAGE_KEY = "relay-admin-dashboard-view-mode";
@@ -139,6 +140,10 @@ type Ticket = {
   retail_delivery_method?: RetailDeliveryMethod | null;
   retail_delivery_address?: string | null;
   retail_apc_tracking_number?: string | null;
+  nexus_order_id?: string | null;
+  nexus_external_order_id?: string | null;
+  nexus_status_synced_at?: string | null;
+  nexus_status_sync_error?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
   location_summary?: string | null;
@@ -2064,7 +2069,9 @@ export default function AdminPage() {
 
     const updatedNextTicket = updatedTicket as Ticket;
     const retailDispatchPlan =
-      currentTicket.is_retail_sale && nextStatus === "READY"
+      currentTicket.is_retail_sale &&
+      !currentTicket.nexus_order_id &&
+      nextStatus === "READY"
         ? buildRetailCustomerDispatchPlan(
             {
               ...updatedNextTicket,
@@ -2176,6 +2183,12 @@ export default function AdminPage() {
       return null;
     }
 
+    if (currentTicket.nexus_order_id) {
+      void syncNexusEcommerceOrderStatus(ticketId).catch((syncError) => {
+        console.error("Failed to mirror RELAY order status to NEXUS", syncError);
+      });
+    }
+
     if (nextStatus === "COMPLETED") {
       setTickets((current) => current.filter((ticket) => ticket.id !== ticketId));
     } else {
@@ -2226,7 +2239,11 @@ export default function AdminPage() {
       });
     }
 
-    if (currentTicket.is_retail_sale && nextStatus === "READY") {
+    if (
+      currentTicket.is_retail_sale &&
+      !currentTicket.nexus_order_id &&
+      nextStatus === "READY"
+    ) {
       window.setTimeout(async () => {
         const dispatchPlan = retailDispatchPlan;
 

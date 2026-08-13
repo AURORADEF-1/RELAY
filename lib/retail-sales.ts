@@ -70,8 +70,7 @@ export function buildRetailCustomerComment(ticket: RetailTicketRecord, stage: "o
   }
 
   if (stage === "ready" && method === "delivery") {
-    const tracking = ticket.retail_apc_tracking_number?.trim() || "tracking pending";
-    return `${customerName} out-for-delivery update prepared for ${partsRequired}. APC tracking ${tracking}.`;
+    return `${customerName} order packed and ready for courier collection for ${partsRequired}.`;
   }
 
   if (stage === "ready" && method !== "delivery") {
@@ -89,7 +88,7 @@ export function buildRetailCustomerSummary(
   const customerName = ticket.customer_name?.trim() || "customer";
 
   if (stage === "ready" && deliveryMethod === "delivery") {
-    return `Out-for-delivery draft prepared for ${customerName}. APC tracking will be included.`;
+    return `Ready-for-dispatch draft prepared for ${customerName}.`;
   }
 
   if (stage === "ready" && deliveryMethod !== "delivery") {
@@ -140,11 +139,11 @@ export function buildRetailCustomerSubject(
   const salesReference = ticket.retail_sales_reference?.trim() || ticket.id.slice(0, 8).toUpperCase();
 
   if (stage === "ready" && ticket.retail_delivery_method === "delivery") {
-    return `Order ${salesReference} - Out for delivery`;
+    return `Order ${salesReference} - Ready for dispatch`;
   }
 
   if (ticket.retail_delivery_method === "delivery") {
-    return `Order ${salesReference} - Out for delivery`;
+    return `Order ${salesReference} - Processing`;
   }
 
   return `Order ${salesReference} - Ready to collect`;
@@ -163,7 +162,7 @@ export function buildRetailCustomerBodyLines(
     return [
       `Hello ${customerName},`,
       "",
-      `Your order of ${partsRequired} is out for delivery.`,
+      `Your order of ${partsRequired} is packed and ready for courier collection.`,
       `Order Reference: ${salesReference}`,
       `Delivery Address: ${deliveryAddress}`,
       `APC Tracking Number: ${tracking}`,
@@ -176,7 +175,7 @@ export function buildRetailCustomerBodyLines(
     return [
       `Hello ${customerName},`,
       "",
-      `Your order of ${partsRequired} is out for delivery.`,
+      `Your order of ${partsRequired} is being processed.`,
       `Order Reference: ${salesReference}`,
       `Delivery Address: ${deliveryAddress}`,
       `APC Tracking Number: ${tracking}`,

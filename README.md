@@ -1,5 +1,21 @@
 Proprietary and confidential. Unauthorized copying, distribution, or use is prohibited.
 
+## NEXUS ecommerce order bridge
+
+Shopify orders are accepted and stock-protected by NEXUS, then passed to RELAY as
+idempotent retail tickets. RELAY mirrors `processing`, `ready`, and `completed`
+back to NEXUS. `COMPLETED` means the parcel has been posted or collected by the
+courier; Shopify remains responsible for courier fulfilment and customer-facing
+tracking.
+
+Server-only configuration:
+
+```text
+NEXUS_RELAY_ORDER_KEY=
+NEXUS_ORDER_STATUS_URL=https://<nexus-host>/api/relay/orders/status
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
