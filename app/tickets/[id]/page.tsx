@@ -27,6 +27,7 @@ import { PartLabelValidationPanel } from "@/components/part-label-validation-pan
 import { RequesterCollectionCode } from "@/components/requester-collection-code";
 import { RequesterProfileLink } from "@/components/requester-profile-link";
 import { triggerActionFeedback } from "@/lib/action-feedback";
+import { getTicketChatSenderRole } from "@/lib/ticket-chat";
 import {
   fetchAdminOperatorRecords,
   getDefaultAdminOperatorOptions,
@@ -612,7 +613,7 @@ export default function TicketDetailPage() {
     };
   }, [isAdmin, partDraft.part_number, ticket?.id]);
 
-  async function reloadTicketConversation(supabase: NonNullable<ReturnType<typeof getSupabaseClient>>, activeTicketId: string) {
+  const reloadTicketConversation = useCallback(async (supabase: NonNullable<ReturnType<typeof getSupabaseClient>>, activeTicketId: string) => {
     const [attachmentData, messageData] = await Promise.all([
       fetchTicketAttachments(supabase, activeTicketId),
       fetchTicketMessages(supabase, activeTicketId),
@@ -627,7 +628,60 @@ export default function TicketDetailPage() {
     setAttachments(attachmentData);
     setMessages(messageData);
     setMessageSenderNameByUserId(senderNames);
-  }
+  }, []);
+
+  useEffect(() => {
+    const activeTicketId = ticket?.id;
+    const supabase = getSupabaseClient();
+
+    if (!activeTicketId || !supabase) {
+      return;
+    }
+
+    let refreshTimer: number | null = null;
+    const scheduleConversationRefresh = () => {
+      if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+      }
+
+      refreshTimer = window.setTimeout(() => {
+        void reloadTicketConversation(supabase, activeTicketId).catch((conversationReloadError) => {
+          console.error("Failed to refresh live ticket conversation", conversationReloadError);
+        });
+      }, 180);
+    };
+
+    const channel = supabase
+      .channel(`relay-ticket-chat-${activeTicketId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ticket_messages",
+          filter: `ticket_id=eq.${activeTicketId}`,
+        },
+        scheduleConversationRefresh,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ticket_attachments",
+          filter: `ticket_id=eq.${activeTicketId}`,
+        },
+        scheduleConversationRefresh,
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+      }
+      void supabase.removeChannel(channel);
+    };
+  }, [reloadTicketConversation, ticket?.id]);
 
   async function handleSendMessage(payload: { messageText: string; files: File[] }) {
     if (!ticket) {
@@ -665,7 +719,7 @@ export default function TicketDetailPage() {
         supabase,
         ticketId: ticket.id,
         senderUserId: currentUserId,
-        senderRole: "requester",
+        senderRole: getTicketChatSenderRole(isAdmin),
         messageText: payload.messageText,
         attachments: uploadedAttachments,
       });
@@ -677,14 +731,16 @@ export default function TicketDetailPage() {
         message: "Message sent successfully.",
       });
       triggerActionFeedback();
-      void notifyAdminsOfRequesterMessage(supabase, {
-        ticketId: ticket.id,
-        requesterName: ticket.requester_name,
-        jobNumber: ticket.job_number,
-        requestSummary: ticket.request_summary ?? ticket.request_details,
-      }).catch((notificationError) => {
-        console.error("Failed to notify admins about requester message", notificationError);
-      });
+      if (!isAdmin) {
+        void notifyAdminsOfRequesterMessage(supabase, {
+          ticketId: ticket.id,
+          requesterName: ticket.requester_name,
+          jobNumber: ticket.job_number,
+          requestSummary: ticket.request_summary ?? ticket.request_details,
+        }).catch((notificationError) => {
+          console.error("Failed to notify admins about requester message", notificationError);
+        });
+      }
       void reloadTicketConversation(supabase, ticket.id).catch((conversationReloadError) => {
         console.error("Failed to reload ticket conversation", conversationReloadError);
       });
@@ -3467,9 +3523,20 @@ export default function TicketDetailPage() {
                 </div>
 
                 <div className={activeWorkspaceTab === "conversation" ? "ticket-tab-surface" : "hidden"}>
-                  <TicketChatPanel
+                  <div className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-center shadow-sm">
+                    <p className="text-sm font-semibold text-slate-800">
+                      Live chat is open in the lower-left corner.
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      This conversation belongs only to Job {ticket.job_number?.trim() || ticket.id}.
+                    </p>
+                  </div>
+                </div>
+
+                <TicketChatPanel
+                  key={ticket.id}
                   ticketId={ticket.id}
-                  ticketLabel={ticket.is_retail_sale ? ticket.customer_name ?? "Retail order" : ticket.job_number}
+                  ticketLabel={ticket.job_number?.trim() || ticket.id}
                   ticketStatus={ticket.status ?? "PENDING"}
                   latestUpdate={
                     updates[0]?.comment ??
@@ -3484,6 +3551,7 @@ export default function TicketDetailPage() {
                     currentUserDisplayName,
                     messageSenderNameByUserId,
                   )}
+                  mode={isAdmin ? "operator" : "requester"}
                   isSending={isSending}
                   isAiLoading={isAiLoading}
                   notice={chatNotice}
@@ -3492,8 +3560,7 @@ export default function TicketDetailPage() {
                   operatorChatHref={buildOperatorChatHref(ticket)}
                   operatorSmsHref={buildOperatorSmsHref(ticket)}
                   operatorCallHrefs={buildOperatorCallHrefs()}
-                  />
-                </div>
+                />
               </div>
             ) : (
               <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
