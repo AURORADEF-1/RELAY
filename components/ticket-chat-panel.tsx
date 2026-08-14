@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileUploadPanel } from "@/components/file-upload-panel";
 import { StatusBadge } from "@/components/status-badge";
 import { buildTicketChatSubject } from "@/lib/ticket-chat";
 
@@ -37,6 +36,8 @@ type TicketChatPanelProps = {
   operatorChatHref?: string | null;
   operatorSmsHref?: string | null;
   operatorCallHrefs?: { label: string; href: string }[];
+  unreadCount?: number;
+  onOpen?: () => void;
 };
 
 const senderTone: Record<ChatRole, string> = {
@@ -63,17 +64,18 @@ export function TicketChatPanel({
   operatorChatHref = null,
   operatorSmsHref = null,
   operatorCallHrefs = [],
+  unreadCount: unreadCountOverride,
+  onOpen,
 }: TicketChatPanelProps) {
   const [draftMessage, setDraftMessage] = useState("");
   const [queuedImages, setQueuedImages] = useState<File[]>([]);
-  const [uploadResetKey, setUploadResetKey] = useState(0);
-  const [showAttachmentPanel, setShowAttachmentPanel] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const [lastReadMessageCount, setLastReadMessageCount] = useState(
     messages.length,
   );
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   const sortedMessages = useMemo(
     () =>
@@ -87,9 +89,13 @@ export function TicketChatPanel({
 
   const conversationLabel = ticketLabel?.trim() || ticketId;
   const conversationSubject = buildTicketChatSubject(ticketLabel, ticketId);
+  const queuedImagePreviews = useMemo(
+    () => queuedImages.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [queuedImages],
+  );
   const unreadCount = isOpen
     ? 0
-    : Math.max(0, messages.length - lastReadMessageCount);
+    : unreadCountOverride ?? Math.max(0, messages.length - lastReadMessageCount);
   const showQuickActions =
     Boolean(operatorChatHref) ||
     Boolean(operatorSmsHref) ||
@@ -110,6 +116,13 @@ export function TicketChatPanel({
     return () => window.cancelAnimationFrame(frame);
   }, [isOpen, sortedMessages.length]);
 
+  useEffect(
+    () => () => {
+      queuedImagePreviews.forEach(({ url }) => URL.revokeObjectURL(url));
+    },
+    [queuedImagePreviews],
+  );
+
   async function handleSend() {
     if (!onSendMessage || isSending) {
       return;
@@ -127,8 +140,9 @@ export function TicketChatPanel({
     if (wasSuccessful) {
       setDraftMessage("");
       setQueuedImages([]);
-      setShowAttachmentPanel(false);
-      setUploadResetKey((current) => current + 1);
+      if (imageInputRef.current) {
+        imageInputRef.current.value = "";
+      }
     }
   }
 
@@ -150,8 +164,9 @@ export function TicketChatPanel({
         onClick={() => {
           setLastReadMessageCount(messages.length);
           setIsOpen(true);
+          onOpen?.();
         }}
-        className="fixed bottom-5 left-5 z-[80] flex min-h-14 items-center gap-3 rounded-full border border-white/10 bg-[#101827] px-4 py-3 text-left text-white shadow-[0_18px_50px_rgba(15,23,42,0.28)] transition hover:-translate-y-0.5 hover:bg-[#172235] focus:outline-none focus:ring-4 focus:ring-emerald-500/25"
+        className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-3 z-[80] flex min-h-14 w-[min(22rem,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3 text-left text-white shadow-[0_18px_50px_rgba(15,23,42,0.28)] transition hover:-translate-y-0.5 hover:bg-[#172235] focus:outline-none focus:ring-4 focus:ring-emerald-500/25 sm:bottom-5 sm:right-5"
         aria-label={`Open ticket chat for job ${conversationLabel}`}
       >
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 text-lg font-black text-white">
@@ -161,13 +176,13 @@ export function TicketChatPanel({
           <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
             Live ticket chat
           </span>
-          <span className="block max-w-48 truncate text-sm font-semibold">
+          <span className="block max-w-52 truncate text-sm font-semibold">
             {conversationSubject}
           </span>
         </span>
         {unreadCount > 0 ? (
           <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-rose-500 px-1.5 text-xs font-bold text-white">
-            {unreadCount > 9 ? "9+" : unreadCount}
+            1
           </span>
         ) : (
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]" />
@@ -178,10 +193,10 @@ export function TicketChatPanel({
 
   return (
     <aside
-      className="fixed bottom-4 left-4 z-[90] flex h-[min(42rem,calc(100vh-2rem))] w-[min(27rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.3)]"
+      className="fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] right-2 z-[90] flex h-[min(42rem,calc(100dvh-1rem))] w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.3)] sm:bottom-4 sm:right-4 sm:h-[min(42rem,calc(100dvh-2rem))] sm:w-[min(27rem,calc(100vw-2rem))] sm:rounded-[1.5rem]"
       aria-label={`Ticket live chat for job ${conversationLabel}`}
     >
-      <header className="bg-[#101827] px-5 pb-4 pt-4 text-white">
+      <header className="shrink-0 bg-[#101827] px-4 pb-3 pt-3 text-white sm:px-5 sm:pb-4 sm:pt-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-lg font-black">
@@ -313,19 +328,42 @@ export function TicketChatPanel({
           </div>
         ) : null}
 
-        {showAttachmentPanel ? (
-          <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <FileUploadPanel
-              key={uploadResetKey}
-              label="Attach image"
-              helperText="Optional photo or reference image for this job."
-              inputId={`chat-upload-${ticketId}-${mode}`}
-              buttonLabel="Choose image"
-              emptyText="No image selected."
-              onFilesChange={setQueuedImages}
-            />
+        {queuedImagePreviews.length > 0 ? (
+          <div className="mb-2 flex max-h-24 gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+            {queuedImagePreviews.map(({ file, url }, index) => (
+              <div key={`${file.name}-${file.lastModified}-${index}`} className="relative shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`Photo ready to send: ${file.name}`}
+                  className="h-16 w-16 rounded-lg border border-slate-200 bg-white object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQueuedImages((current) =>
+                      current.filter((_, candidateIndex) => candidateIndex !== index),
+                    )
+                  }
+                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white shadow"
+                  aria-label={`Remove ${file.name}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
           </div>
         ) : null}
+
+        <input
+          ref={imageInputRef}
+          id={`chat-upload-${ticketId}-${mode}`}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+          multiple
+          className="sr-only"
+          onChange={(event) => setQueuedImages(Array.from(event.target.files ?? []))}
+        />
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10">
           <textarea
@@ -350,9 +388,8 @@ export function TicketChatPanel({
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setShowAttachmentPanel((current) => !current)}
+                onClick={() => imageInputRef.current?.click()}
                 className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white"
-                aria-expanded={showAttachmentPanel}
               >
                 + Photo
                 {queuedImages.length > 0 ? ` (${queuedImages.length})` : ""}

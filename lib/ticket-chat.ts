@@ -12,3 +12,12 @@ export function buildTicketChatSubject(
 ) {
   return `Job ${jobNumber?.trim() || ticketId}`;
 }
+
+export function shouldShowGlobalTicketChat(pathname: string) {
+  return !(
+    pathname === "/login" ||
+    pathname === "/legal" ||
+    pathname === "/wallboard" ||
+    pathname.startsWith("/tickets/")
+  );
+}

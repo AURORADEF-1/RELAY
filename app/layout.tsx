@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { LegalTermsGate } from "@/components/legal-terms-gate";
 import { DymoPrintStation } from "@/components/dymo-print-station";
+import { GlobalTicketChat } from "@/components/global-ticket-chat";
 import { NotificationProvider } from "@/components/notification-provider";
 import { NotificationToasts } from "@/components/notification-toasts";
 import { StartupSplash } from "@/components/startup-splash";
@@ -41,6 +42,7 @@ export default function RootLayout({
               <LegalTermsGate />
               <NotificationToasts />
               <DymoPrintStation />
+              <GlobalTicketChat />
               {children}
             </NotificationProvider>
           </StartupSplash>

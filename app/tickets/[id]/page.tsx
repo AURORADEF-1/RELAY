@@ -54,6 +54,7 @@ import {
   notifyAdminsOfPartCollected,
   notifyAdminsOfPartReturned,
   notifyAdminsOfRequesterMessage,
+  notifyRequesterOfOperatorMessage,
   notifyRequesterStatusChanged,
 } from "@/lib/notifications";
 import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
@@ -739,6 +740,16 @@ export default function TicketDetailPage() {
           requestSummary: ticket.request_summary ?? ticket.request_details,
         }).catch((notificationError) => {
           console.error("Failed to notify admins about requester message", notificationError);
+        });
+      } else {
+        void notifyRequesterOfOperatorMessage(supabase, {
+          userId: ticket.user_id,
+          ticketId: ticket.id,
+          jobNumber: ticket.job_number,
+          assignedTo: currentUserDisplayName || ticket.assigned_to,
+          messageText: payload.messageText,
+        }).catch((notificationError) => {
+          console.error("Failed to notify requester about admin message", notificationError);
         });
       }
       void reloadTicketConversation(supabase, ticket.id).catch((conversationReloadError) => {
@@ -3525,7 +3536,7 @@ export default function TicketDetailPage() {
                 <div className={activeWorkspaceTab === "conversation" ? "ticket-tab-surface" : "hidden"}>
                   <div className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-center shadow-sm">
                     <p className="text-sm font-semibold text-slate-800">
-                      Live chat is open in the lower-left corner.
+                      Ticket chat is available from the message bar in the lower-right corner.
                     </p>
                     <p className="mt-2 text-sm text-slate-500">
                       This conversation belongs only to Job {ticket.job_number?.trim() || ticket.id}.
