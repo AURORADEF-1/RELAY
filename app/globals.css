@@ -8374,6 +8374,22 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   backdrop-filter: blur(18px);
 }
 
+/* Keep ticket chat clear of the modal edit workflow. On wide screens it sits
+   beside the drawer; narrower screens reserve the full viewport for editing. */
+@media (min-width: 1180px) {
+  .ticket-chat-launcher--drawer-safe,
+  .ticket-chat-panel--drawer-safe {
+    right: calc(min(44rem, 96vw) + 1rem);
+  }
+}
+
+@media (max-width: 1179px) {
+  .ticket-chat-launcher--drawer-safe,
+  .ticket-chat-panel--drawer-safe {
+    display: none;
+  }
+}
+
 @media (max-width: 720px) {
   .ticket-workspace-header {
     align-items: stretch;

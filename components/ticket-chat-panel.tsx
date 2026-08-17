@@ -38,6 +38,7 @@ type TicketChatPanelProps = {
   operatorCallHrefs?: { label: string; href: string }[];
   unreadCount?: number;
   onOpen?: () => void;
+  avoidRightDrawer?: boolean;
 };
 
 const senderTone: Record<ChatRole, string> = {
@@ -66,6 +67,7 @@ export function TicketChatPanel({
   operatorCallHrefs = [],
   unreadCount: unreadCountOverride,
   onOpen,
+  avoidRightDrawer = false,
 }: TicketChatPanelProps) {
   const [draftMessage, setDraftMessage] = useState("");
   const [queuedImages, setQueuedImages] = useState<File[]>([]);
@@ -166,7 +168,9 @@ export function TicketChatPanel({
           setIsOpen(true);
           onOpen?.();
         }}
-        className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-3 z-[80] flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-[#101827] text-white shadow-[0_14px_36px_rgba(15,23,42,0.3)] transition hover:-translate-y-0.5 hover:bg-[#172235] focus:outline-none focus:ring-4 focus:ring-emerald-500/25 sm:bottom-4 sm:right-4 sm:h-14 sm:w-14"
+        className={`fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-3 z-[80] flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-[#101827] text-white shadow-[0_14px_36px_rgba(15,23,42,0.3)] transition hover:-translate-y-0.5 hover:bg-[#172235] focus:outline-none focus:ring-4 focus:ring-emerald-500/25 sm:bottom-4 sm:right-4 sm:h-14 sm:w-14 ${
+          avoidRightDrawer ? "ticket-chat-launcher--drawer-safe" : ""
+        }`}
         aria-label={`Open ticket chat for job ${conversationLabel}`}
         title={`Open ${conversationSubject} chat`}
       >
@@ -187,7 +191,9 @@ export function TicketChatPanel({
 
   return (
     <aside
-      className="fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] right-2 z-[90] flex h-[min(42rem,calc(100dvh-1rem))] w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.3)] sm:bottom-4 sm:right-4 sm:h-[min(42rem,calc(100dvh-2rem))] sm:w-[min(27rem,calc(100vw-2rem))] sm:rounded-[1.5rem]"
+      className={`fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] right-2 z-[90] flex h-[min(42rem,calc(100dvh-1rem))] w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.3)] sm:bottom-4 sm:right-4 sm:h-[min(42rem,calc(100dvh-2rem))] sm:w-[min(27rem,calc(100vw-2rem))] sm:rounded-[1.5rem] ${
+        avoidRightDrawer ? "ticket-chat-panel--drawer-safe" : ""
+      }`}
       aria-label={`Ticket live chat for job ${conversationLabel}`}
     >
       <header className="shrink-0 bg-[#101827] px-4 pb-3 pt-3 text-white sm:px-5 sm:pb-4 sm:pt-4">
