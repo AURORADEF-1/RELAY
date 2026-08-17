@@ -3571,6 +3571,7 @@ export default function TicketDetailPage() {
                   operatorChatHref={buildOperatorChatHref(ticket)}
                   operatorSmsHref={buildOperatorSmsHref(ticket)}
                   operatorCallHrefs={buildOperatorCallHrefs()}
+                  avoidRightDrawer={isEditing}
                 />
               </div>
             ) : (
