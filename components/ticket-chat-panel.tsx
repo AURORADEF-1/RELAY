@@ -166,26 +166,20 @@ export function TicketChatPanel({
           setIsOpen(true);
           onOpen?.();
         }}
-        className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-3 z-[80] flex min-h-14 w-[min(22rem,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3 text-left text-white shadow-[0_18px_50px_rgba(15,23,42,0.28)] transition hover:-translate-y-0.5 hover:bg-[#172235] focus:outline-none focus:ring-4 focus:ring-emerald-500/25 sm:bottom-5 sm:right-5"
+        className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-3 z-[80] flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-[#101827] text-white shadow-[0_14px_36px_rgba(15,23,42,0.3)] transition hover:-translate-y-0.5 hover:bg-[#172235] focus:outline-none focus:ring-4 focus:ring-emerald-500/25 sm:bottom-4 sm:right-4 sm:h-14 sm:w-14"
         aria-label={`Open ticket chat for job ${conversationLabel}`}
+        title={`Open ${conversationSubject} chat`}
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 text-lg font-black text-white">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-sm font-black text-white sm:h-9 sm:w-9 sm:text-base">
           R
         </span>
-        <span className="min-w-0">
-          <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-            Live ticket chat
-          </span>
-          <span className="block max-w-52 truncate text-sm font-semibold">
-            {conversationSubject}
-          </span>
-        </span>
+        <span className="sr-only">{conversationSubject}</span>
         {unreadCount > 0 ? (
-          <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-rose-500 px-1.5 text-xs font-bold text-white">
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-rose-500 px-1 text-[10px] font-black text-white shadow-sm">
             1
           </span>
         ) : (
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]" />
+          <span className="absolute right-0 top-0 h-3 w-3 rounded-full border-2 border-[#101827] bg-emerald-400" />
         )}
       </button>
     );
