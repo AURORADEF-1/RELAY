@@ -45,6 +45,7 @@ describe("front counter live operations", () => {
     expect(kiosk).toContain('launch_relay_window "$RELAY_BASE_URL/terminal"');
     expect(kiosk).toContain('--app="$url"');
     expect(kiosk).toContain("--ozone-platform=wayland");
+    expect(kiosk).toContain("--start-maximized");
     expect(kiosk).not.toContain("--start-fullscreen");
 
     const windowRules = readFileSync(
@@ -52,9 +53,13 @@ describe("front counter live operations", () => {
       "utf8",
     );
 
-    expect(windowRules).toContain('title="RELAY Wallboard*"');
+    expect(windowRules).toContain(
+      'identifier="chrome-relay-ryoz.vercel.app__wallboard-Default"',
+    );
     expect(windowRules).toContain('name="MoveToOutput" direction="right" wrap="no"');
-    expect(windowRules).toContain('title="RELAY Front Counter Terminal*"');
+    expect(windowRules).toContain(
+      'identifier="chrome-relay-ryoz.vercel.app__terminal-Default"',
+    );
     expect(windowRules).toContain('name="MoveToOutput" direction="left" wrap="no"');
     expect(windowRules).not.toContain('output="HDMI-A-2"');
   });

@@ -4,12 +4,12 @@
     <gap>0</gap>
   </core>
   <windowRules>
-    <windowRule title="RELAY Wallboard*">
+    <windowRule identifier="chrome-relay-ryoz.vercel.app__wallboard-Default">
       <!-- The display launcher places the portrait DSI screen to the left of HDMI. -->
       <action name="MoveToOutput" direction="right" wrap="no" />
       <action name="ToggleFullscreen" />
     </windowRule>
-    <windowRule title="RELAY Front Counter Terminal*">
+    <windowRule identifier="chrome-relay-ryoz.vercel.app__terminal-Default">
       <action name="MoveToOutput" direction="left" wrap="no" />
       <action name="ToggleFullscreen" />
     </windowRule>

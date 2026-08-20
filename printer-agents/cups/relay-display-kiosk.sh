@@ -28,6 +28,7 @@ launch_relay_window() {
     --profile-directory="$CHROMIUM_PROFILE" \
     --ozone-platform=wayland \
     --app="$url" \
+    --start-maximized \
     --no-first-run \
     --no-default-browser-check \
     --noerrdialogs \
