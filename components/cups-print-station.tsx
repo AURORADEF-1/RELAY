@@ -105,7 +105,10 @@ export function CupsPrintStation() {
         }
       } catch (error) {
         if (station) {
-          await updateHealth(station, { last_error: error instanceof Error ? error.message : String(error) });
+          await updateHealth(station, {
+            last_printer_check_at: new Date().toISOString(),
+            last_error: error instanceof Error ? error.message : String(error),
+          });
         }
         console.error("RELAY Front Counter CUPS station", error);
       } finally {
