@@ -353,8 +353,8 @@ begin
     raise exception 'Front counter or admin access is required.';
   end if;
 
-  select request, ticket
-  into matched_request, matched_ticket
+  select request.*
+  into matched_request
   from public.front_counter_collection_requests request
   join public.tickets ticket on ticket.id = request.ticket_id
   where request.state = 'WAITING'
@@ -372,10 +372,21 @@ begin
     )
   order by request.requested_at
   limit 1
-  for update of request, ticket;
+  for update of request;
 
   if not found then
     raise exception 'No waiting READY collection matches that job ticket.';
+  end if;
+
+  select ticket.*
+  into matched_ticket
+  from public.tickets ticket
+  where ticket.id = matched_request.ticket_id
+    and ticket.status = 'READY'
+  for update;
+
+  if not found then
+    raise exception 'The waiting collection is no longer READY.';
   end if;
 
   if normalized_identifier like 'RLY-%' then
