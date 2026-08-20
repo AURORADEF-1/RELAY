@@ -10,11 +10,15 @@ describe("front counter identifiers", () => {
   });
 
   it("extracts a RELAY label token from keyboard-scanner wrappers", () => {
-    expect(normalizeFrontCounterIdentifier("scan:RLY-ABC12345:end")).toBe("RLY-ABC12345");
+    expect(normalizeFrontCounterIdentifier("scan:RLY-ABC12345:end")).toBe(
+      "RLY-ABC12345",
+    );
   });
 
   it("does not silently reinterpret unknown content", () => {
-    expect(normalizeFrontCounterIdentifier("not a relay code")).toBe("NOT A RELAY CODE");
+    expect(normalizeFrontCounterIdentifier("not a relay code")).toBe(
+      "NOT A RELAY CODE",
+    );
   });
 });
 
@@ -53,9 +57,48 @@ describe("front counter live operations", () => {
     );
 
     expect(windowRules).toContain('title="RELAY Wallboard*"');
-    expect(windowRules).toContain('name="MoveToOutput" direction="right" wrap="no"');
+    expect(windowRules).toContain(
+      'name="MoveToOutput" direction="right" wrap="no"',
+    );
     expect(windowRules).toContain('title="RELAY Front Counter Terminal*"');
-    expect(windowRules).toContain('name="MoveToOutput" direction="left" wrap="no"');
+    expect(windowRules).toContain(
+      'name="MoveToOutput" direction="left" wrap="no"',
+    );
     expect(windowRules).not.toContain('output="HDMI-A-2"');
+  });
+
+  it("keeps the admin wallboard rotation on Front Counter and only overrides it for collections", () => {
+    const wallboard = readFileSync(
+      resolve(process.cwd(), "app/wallboard/page.tsx"),
+      "utf8",
+    );
+    const migration = readFileSync(
+      resolve(
+        process.cwd(),
+        "supabase/migrations/20260820160058_front_counter_admin_wallboard.sql",
+      ),
+      "utf8",
+    );
+
+    expect(wallboard).toContain(
+      'supabase.rpc("list_front_counter_wallboard_supplier_spend")',
+    );
+    expect(wallboard).toContain(
+      "const hasPendingTakeover = unassignedPendingTickets.length > 0",
+    );
+    expect(wallboard).not.toContain(
+      "!isFrontCounterMode && unassignedPendingTickets.length > 0",
+    );
+    expect(
+      wallboard.indexOf("isFrontCounterMode && collectionQueue.length > 0"),
+    ).toBeLessThan(wallboard.indexOf("if (hasPendingTakeover)"));
+    expect(migration).toContain("ticket.supplier_name");
+    expect(migration).toContain("ticket.order_amount");
+    expect(migration).toContain(
+      "if not public.is_front_counter_user(auth.uid()) then",
+    );
+    expect(migration).toContain(
+      "revoke all on function public.list_front_counter_wallboard_supplier_spend() from public, anon",
+    );
   });
 });
