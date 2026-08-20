@@ -89,21 +89,21 @@ export default function TerminalPage() {
 
   return (
     <AuthGuard requiredRole="front-counter">
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top,#173d39_0%,#071311_44%,#020706_100%)] px-4 py-4 text-white sm:px-7 sm:py-6">
-        <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-7xl flex-col sm:min-h-[calc(100vh-3rem)]">
-          <header className="flex items-center justify-between gap-5 rounded-3xl border border-white/10 bg-black/25 px-5 py-4 backdrop-blur-xl sm:px-7">
+      <main className="min-h-dvh bg-[radial-gradient(circle_at_top,#173d39_0%,#071311_44%,#020706_100%)] px-3 py-3 text-white sm:px-5 sm:py-4 md:px-7 md:py-6">
+        <div className="mx-auto flex min-h-[calc(100dvh-1.5rem)] max-w-7xl flex-col sm:min-h-[calc(100dvh-2rem)] md:min-h-[calc(100dvh-3rem)]">
+          <header className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-black/25 px-4 py-3 backdrop-blur-xl sm:px-5 sm:py-4 md:px-7">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.32em] text-emerald-300/75">RELAY Front Counter</p>
-              <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Parts Terminal</h1>
+              <h1 className="mt-1 text-xl font-black tracking-tight sm:text-2xl md:text-3xl">Parts Terminal</h1>
             </div>
             <div className="flex items-center gap-2">
-              <Link href="/wallboard" className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-bold">Wallboard</Link>
+              <Link href="/wallboard" className="rounded-2xl border border-white/15 bg-white/8 px-3 py-2.5 text-sm font-bold sm:px-4 sm:py-3">Wallboard</Link>
               <LogoutButton />
             </div>
           </header>
 
           {mode === "home" ? (
-            <section className="grid flex-1 content-center gap-5 py-6 md:grid-cols-3">
+            <section className="grid flex-1 content-center gap-3 py-4 sm:gap-4 md:grid-cols-3 md:gap-5 md:py-6">
               <TerminalAction href="/submit" title="Submit a ticket" detail="Request a part for a machine or job." accent="blue" />
               <TerminalButton title="Collect parts" detail="Scan your RELAY label, collection code or enter the job number." accent="green" onClick={() => { setMode("collect"); setNotice(null); }} />
               <TerminalButton title="Parts team handover" detail="Scan the job ticket after the parts have been handed over." accent="amber" onClick={() => { setMode("handover"); setNotice(null); }} />
@@ -124,7 +124,7 @@ export default function TerminalPage() {
             </section>
           )}
 
-          <footer className="rounded-2xl border border-white/10 bg-black/25 px-5 py-3 text-sm text-white/55">
+          <footer className="rounded-2xl border border-white/10 bg-black/25 px-4 py-2.5 text-xs text-white/55 sm:px-5 sm:py-3 sm:text-sm">
             <span className="font-bold text-white/80">{queue.length} waiting</span> at the Front Counter · Scanner input is accepted as keyboard input
           </footer>
         </div>
@@ -134,14 +134,14 @@ export default function TerminalPage() {
 }
 
 function TerminalAction({ href, title, detail, accent }: { href: string; title: string; detail: string; accent: "blue" | "green" | "amber" }) {
-  return <Link href={href} className={terminalCardClass(accent)}><span className="text-sm font-bold uppercase tracking-[0.22em] text-white/55">Touch to begin</span><strong className="mt-5 text-3xl font-black sm:text-4xl">{title}</strong><span className="mt-3 text-base leading-7 text-white/70">{detail}</span></Link>;
+  return <Link href={href} className={terminalCardClass(accent)}><span className="text-xs font-bold uppercase tracking-[0.22em] text-white/55 sm:text-sm">Touch to begin</span><strong className="mt-3 text-2xl font-black sm:text-3xl md:mt-5 md:text-4xl">{title}</strong><span className="mt-2 text-sm leading-6 text-white/70 sm:text-base md:mt-3 md:leading-7">{detail}</span></Link>;
 }
 
 function TerminalButton({ title, detail, accent, onClick }: { title: string; detail: string; accent: "blue" | "green" | "amber"; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={terminalCardClass(accent)}><span className="text-sm font-bold uppercase tracking-[0.22em] text-white/55">Touch to begin</span><strong className="mt-5 text-left text-3xl font-black sm:text-4xl">{title}</strong><span className="mt-3 text-left text-base leading-7 text-white/70">{detail}</span></button>;
+  return <button type="button" onClick={onClick} className={terminalCardClass(accent)}><span className="text-xs font-bold uppercase tracking-[0.22em] text-white/55 sm:text-sm">Touch to begin</span><strong className="mt-3 text-left text-2xl font-black sm:text-3xl md:mt-5 md:text-4xl">{title}</strong><span className="mt-2 text-left text-sm leading-6 text-white/70 sm:text-base md:mt-3 md:leading-7">{detail}</span></button>;
 }
 
 function terminalCardClass(accent: "blue" | "green" | "amber") {
   const tone = accent === "blue" ? "border-blue-300/35 bg-blue-400/12 hover:bg-blue-400/20" : accent === "amber" ? "border-amber-300/35 bg-amber-400/12 hover:bg-amber-400/20" : "border-emerald-300/35 bg-emerald-400/12 hover:bg-emerald-400/20";
-  return `flex min-h-64 flex-col justify-center rounded-[2rem] border p-7 shadow-xl transition active:scale-[0.99] ${tone}`;
+  return `flex min-h-44 flex-col justify-center rounded-[1.6rem] border p-5 shadow-xl transition active:scale-[0.99] sm:min-h-48 sm:rounded-[2rem] sm:p-6 md:min-h-64 md:p-7 ${tone}`;
 }

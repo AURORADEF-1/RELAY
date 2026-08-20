@@ -10,3 +10,13 @@ The bridge runs only on `127.0.0.1`; CUPS remains private to the Raspberry Pi. T
 6. Print one isolated test job and scan it successfully. Confirm Front Counter is marked as the default station and Samantha is marked as the backup.
 
 Do not expose TCP 631 or 8765 to the LAN. The Front Counter is the default station after commissioning. Samantha's DYMO station automatically adopts queued labels when CUPS reports a printer fault, empty label roll or stale terminal heartbeat.
+
+## Dual-display kiosk
+
+The Front Counter Pi can run both RELAY screens from the same signed-in Chromium profile:
+
+- HDMI TV: `/wallboard`, full screen with no browser controls.
+- 5-inch Raspberry Pi Touch Display 2: `/terminal`, portrait at 720 × 1280.
+- Until the DSI display is connected, only the HDMI wallboard starts. The touch terminal starts automatically after the DSI display is detected at the next login or reboot.
+
+Install `relay-display-kiosk.sh` as `~/.local/bin/relay-display-kiosk.sh`, `relay-labwc-rc.xml` as `~/.config/labwc/rc.xml`, and `relay-labwc-autostart` as `~/.config/labwc/autostart`. Keep the existing Chromium profile signed in as the Front Counter account so both app windows share the same RELAY session.

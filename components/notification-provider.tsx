@@ -44,8 +44,10 @@ type NotificationContextValue = {
   taskUnreadCount: number;
   isAdmin: boolean;
   isAuthenticated: boolean;
+  desktopNotificationPermission: NotificationPermission | "unsupported";
   toasts: NotificationToast[];
   dismissToast: (id: string) => Promise<void>;
+  requestDesktopNotifications: () => Promise<NotificationPermission | "unsupported">;
 };
 
 type NotificationToast = {
@@ -55,6 +57,7 @@ type NotificationToast = {
   href?: string;
   tone?: "default" | "success";
   variant?: "default" | "panel";
+  eyebrow?: string;
   notificationId?: string;
   persistent?: boolean;
 };
@@ -79,26 +82,50 @@ const NotificationContext = createContext<NotificationContextValue>({
   taskUnreadCount: 0,
   isAdmin: false,
   isAuthenticated: false,
+  desktopNotificationPermission: "unsupported",
   toasts: [],
   dismissToast: async () => {},
+  requestDesktopNotifications: async () => "unsupported",
 });
 
 const SOUND_COOLDOWN_MS = 1800;
 const TOAST_DURATION_MS = 10000;
 const NOTIFICATION_POLL_INTERVAL_MS = 30000;
 const SESSION_CONTROL_POLL_INTERVAL_MS = 45000;
-const PRESENCE_LEADER_STORAGE_KEY = "relay-presence-leader";
-const PRESENCE_LEASE_TTL_MS = 90_000;
-const ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-browser-notification-prompted-admin";
-const REQUESTER_BROWSER_NOTIFICATION_PROMPT_KEY = "relay-browser-notification-prompted-requester";
 const TOASTED_NOTIFICATION_IDS_STORAGE_PREFIX = "relay-toasted-notification-ids";
 const MAX_STORED_TOASTED_NOTIFICATION_IDS = 120;
+const JOB_ASSIGNMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const ADMIN_EXTENSION_NOTIFICATION_MESSAGE = "RELAY_ADMIN_NOTIFICATION";
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
   "operator_message",
   "ready_reminder",
   "ready_for_collection",
 ]);
+
+function emitAdminExtensionNotification(notification: {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  ticket_id: string | null;
+}) {
+  window.postMessage({
+    source: "relay-app",
+    type: ADMIN_EXTENSION_NOTIFICATION_MESSAGE,
+    payload: {
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      body: notification.body ?? "New RELAY admin activity.",
+      href: notification.ticket_id
+        ? `/tickets/${notification.ticket_id}`
+        : notification.type === "task_assigned"
+          ? "/tasks"
+          : "/console",
+    },
+  }, window.location.origin);
+}
 
 async function clearArchivedTicketNotifications(
   supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
@@ -167,26 +194,13 @@ async function clearArchivedTicketNotifications(
   return new Set(completedNotificationIds);
 }
 
-function shouldTrackUserPresence(pathname: string, adminUser: boolean) {
-  if (!adminUser) {
-    return false;
-  }
-
-  return (
-    pathname === "/admin" ||
-    pathname === "/completed" ||
-    pathname === "/control" ||
+function shouldTrackUserPresence(pathname: string) {
+  return !(
+    pathname === "/login" ||
+    pathname === "/legal" ||
     pathname === "/wallboard" ||
-    pathname.startsWith("/incidents")
+    pathname.startsWith("/oversight")
   );
-}
-
-function shouldPromptBrowserNotifications(pathname: string, adminUser: boolean) {
-  if (adminUser) {
-    return pathname === "/admin";
-  }
-
-  return pathname === "/requests" || pathname.startsWith("/tickets/");
 }
 
 function getToastedNotificationStorageKey(userId: string) {
@@ -234,59 +248,6 @@ function rememberToastedNotificationIds(userId: string, notificationIds: string[
   );
 }
 
-function acquirePresenceLease(tabId: string) {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  const now = Date.now();
-  const rawValue = window.localStorage.getItem(PRESENCE_LEADER_STORAGE_KEY);
-
-  if (rawValue) {
-    try {
-      const currentLease = JSON.parse(rawValue) as { tabId: string; expiresAt: number };
-
-      if (currentLease.tabId !== tabId && currentLease.expiresAt > now) {
-        return false;
-      }
-    } catch {
-      window.localStorage.removeItem(PRESENCE_LEADER_STORAGE_KEY);
-    }
-  }
-
-  window.localStorage.setItem(
-    PRESENCE_LEADER_STORAGE_KEY,
-    JSON.stringify({
-      tabId,
-      expiresAt: now + PRESENCE_LEASE_TTL_MS,
-    }),
-  );
-
-  return true;
-}
-
-function releasePresenceLease(tabId: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const rawValue = window.localStorage.getItem(PRESENCE_LEADER_STORAGE_KEY);
-
-  if (!rawValue) {
-    return;
-  }
-
-  try {
-    const currentLease = JSON.parse(rawValue) as { tabId: string; expiresAt: number };
-
-    if (currentLease.tabId === tabId) {
-      window.localStorage.removeItem(PRESENCE_LEADER_STORAGE_KEY);
-    }
-  } catch {
-    window.localStorage.removeItem(PRESENCE_LEADER_STORAGE_KEY);
-  }
-}
-
 export function NotificationProvider({
   children,
 }: {
@@ -306,6 +267,7 @@ export function NotificationProvider({
   const unreadSyncInFlightRef = useRef<Promise<void> | null>(null);
   const pendingCountInFlightRef = useRef<Promise<void> | null>(null);
   const latestPendingTicketIdRef = useRef<string | null>(null);
+  const alertedPendingTicketIdsRef = useRef<Set<string>>(new Set());
   const pendingTicketsInitializedRef = useRef(false);
   const latestUrgentTicketSignatureRef = useRef("");
   const urgentRemindersInitializedRef = useRef(false);
@@ -317,18 +279,36 @@ export function NotificationProvider({
   const notificationLifecycleVersionRef = useRef(0);
   const notificationSetupInFlightRef = useRef<Promise<void> | null>(null);
   const currentUserDisplayNameRef = useRef<string | null>(null);
-  const [presenceTabId] = useState(() =>
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `presence-${Date.now().toString(36)}-${performance.now().toFixed(0)}`,
-  );
   const [requesterUnreadCount, setRequesterUnreadCount] = useState(0);
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const [pendingTicketCount, setPendingTicketCount] = useState(0);
   const [taskUnreadCount, setTaskUnreadCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [desktopNotificationPermission, setDesktopNotificationPermission] = useState<
+    NotificationPermission | "unsupported"
+  >(() => (typeof Notification === "undefined" ? "unsupported" : Notification.permission));
   const [toasts, setToasts] = useState<NotificationToast[]>([]);
+
+  const requestDesktopNotifications = useCallback(async () => {
+    if (typeof Notification === "undefined") {
+      setDesktopNotificationPermission("unsupported");
+      return "unsupported" as const;
+    }
+
+    const permission = await Notification.requestPermission();
+    setDesktopNotificationPermission(permission);
+
+    if (permission === "granted") {
+      const confirmation = new Notification("RELAY desktop alerts enabled", {
+        body: "New pending jobs will now appear as desktop alerts while RELAY is open.",
+        tag: "relay-desktop-alerts-enabled",
+      });
+      window.setTimeout(() => confirmation.close(), 6000);
+    }
+
+    return permission;
+  }, []);
 
   const dismissToast = useCallback(async (id: string) => {
     const toast = toasts.find((candidate) => candidate.id === id);
@@ -442,15 +422,37 @@ export function NotificationProvider({
           return;
         }
 
-        if (latestPendingTicket?.id && latestPendingTicket.id !== previousPendingTicketId) {
+        if (
+          latestPendingTicket?.id &&
+          latestPendingTicket.id !== previousPendingTicketId &&
+          !alertedPendingTicketIdsRef.current.has(latestPendingTicket.id)
+        ) {
+          const title = latestPendingTicket.job_number?.trim()
+            ? `New pending job: ${latestPendingTicket.job_number.trim()}`
+            : "New pending job received";
+          const description =
+            latestPendingTicket.request_summary?.trim() ||
+            latestPendingTicket.requester_name?.trim() ||
+            "A new Stores request is waiting in the pending queue.";
+
+          alertedPendingTicketIdsRef.current.add(latestPendingTicket.id);
+          if (alertedPendingTicketIdsRef.current.size > MAX_STORED_TOASTED_NOTIFICATION_IDS) {
+            const oldestRememberedId = alertedPendingTicketIdsRef.current.values().next().value;
+            if (oldestRememberedId) {
+              alertedPendingTicketIdsRef.current.delete(oldestRememberedId);
+            }
+          }
+
+          pushToast({
+            title,
+            description,
+            href: `/tickets/${latestPendingTicket.id}`,
+            variant: "panel",
+            persistent: true,
+          });
           pushBrowserNotification({
-            title: latestPendingTicket.job_number?.trim()
-              ? `New pending job: ${latestPendingTicket.job_number.trim()}`
-              : "New pending job received",
-            body:
-              latestPendingTicket.request_summary?.trim() ||
-              latestPendingTicket.requester_name?.trim() ||
-              "A new Stores request is waiting in the pending queue.",
+            title,
+            body: description,
             href: `/tickets/${latestPendingTicket.id}`,
           });
           playNotificationSound();
@@ -463,7 +465,7 @@ export function NotificationProvider({
 
     pendingCountInFlightRef.current = request;
     return request;
-  }, [playNotificationSound, pushBrowserNotification]);
+  }, [playNotificationSound, pushBrowserNotification, pushToast]);
 
   const refreshUrgentTicketReminders = useCallback(async () => {
     const supabase = getSupabaseClient();
@@ -563,8 +565,21 @@ export function NotificationProvider({
         const completedNotificationIds = adminUser
           ? new Set<string>()
           : await clearArchivedTicketNotifications(supabase, userId, unreadNotifications);
+        const staleAssignmentNotificationIds = unreadNotifications
+          .filter((notification) =>
+            notification.type === "job_assigned" &&
+            Date.now() - new Date(notification.created_at).getTime() > JOB_ASSIGNMENT_MAX_AGE_MS,
+          )
+          .map((notification) => notification.id);
+        if (staleAssignmentNotificationIds.length > 0) {
+          await markNotificationsRead(supabase, staleAssignmentNotificationIds);
+        }
+        const inactiveNotificationIds = new Set([
+          ...completedNotificationIds,
+          ...staleAssignmentNotificationIds,
+        ]);
         const activeUnreadNotifications = unreadNotifications.filter(
-          (notification) => !completedNotificationIds.has(notification.id),
+          (notification) => !inactiveNotificationIds.has(notification.id),
         );
         const unreadTaskNotifications = activeUnreadNotifications.filter(
           (notification) => notification.type === "task_assigned",
@@ -574,10 +589,29 @@ export function NotificationProvider({
         );
         const nextUnreadIds = new Set(activeUnreadNotifications.map((notification) => notification.id));
 
-        const shouldShowToasts =
-          options?.showToasts &&
-          !adminUser &&
-          unreadNotificationsInitializedRef.current;
+        const toastableNotifications = adminUser
+          ? activeUnreadNotifications.filter(
+              (notification) =>
+                notification.type === "job_assigned" ||
+                notification.type === "new_ticket" ||
+                notification.type === "front_counter_collection",
+            )
+          : activeUnreadNotifications;
+        const shouldShowToasts = options?.showToasts && (
+          unreadNotificationsInitializedRef.current ||
+          toastableNotifications.some(
+            (notification) =>
+              notification.type === "job_assigned" ||
+              notification.type === "front_counter_collection",
+          )
+        );
+        const extensionNotifications = adminUser
+          && options?.showToasts
+          && unreadNotificationsInitializedRef.current
+          ? activeUnreadNotifications.filter(
+              (notification) => !knownUnreadIdsRef.current.has(notification.id),
+            )
+          : [];
 
         if (adminUser) {
           setToasts((current) => current.filter((toast) => toast.persistent));
@@ -585,11 +619,17 @@ export function NotificationProvider({
 
         if (shouldShowToasts) {
           const toastedNotificationIds = readToastedNotificationIds(userId);
-          const nextToasts = activeUnreadNotifications
+          const nextToasts = toastableNotifications
             .filter(
               (notification) =>
                 !knownUnreadIdsRef.current.has(notification.id) &&
-                !toastedNotificationIds.has(notification.id),
+                !toastedNotificationIds.has(notification.id) &&
+                !(
+                  notification.type === "new_ticket" &&
+                  notification.ticket_id &&
+                  alertedPendingTicketIdsRef.current.has(notification.ticket_id)
+                ) &&
+                (unreadNotificationsInitializedRef.current || notification.type === "job_assigned"),
             )
             .sort(
               (left, right) =>
@@ -597,26 +637,47 @@ export function NotificationProvider({
             );
 
           for (const notification of nextToasts) {
+            if (notification.type === "new_ticket" && notification.ticket_id) {
+              alertedPendingTicketIdsRef.current.add(notification.ticket_id);
+            }
+
             pushToast({
               title: notification.title,
               description: notification.body ?? "New RELAY activity.",
               href:
-                notification.type === "task_assigned"
+                notification.type === "job_assigned" && notification.ticket_id
+                  ? `/tickets/${notification.ticket_id}`
+                  : notification.type === "task_assigned"
                   ? "/tasks"
                   : notification.ticket_id
                     ? `/tickets/${notification.ticket_id}`
                     : undefined,
               tone: "success",
+              eyebrow:
+                notification.type === "front_counter_collection"
+                  ? "Front Counter Collection"
+                  : undefined,
+              variant:
+                notification.type === "new_ticket" ||
+                notification.type === "front_counter_collection"
+                  ? "panel"
+                  : undefined,
               notificationId: notification.id,
               persistent:
+                notification.type === "new_ticket" ||
                 notification.type === "operator_message" ||
                 notification.type === "ready_reminder" ||
-                notification.type === "ready_for_collection",
+                notification.type === "ready_for_collection" ||
+                notification.type === "front_counter_collection" ||
+                notification.type === "job_assigned",
             });
             if (
+              notification.type === "new_ticket" ||
               notification.type === "operator_message" ||
               notification.type === "ready_reminder" ||
-              notification.type === "ready_for_collection"
+              notification.type === "ready_for_collection" ||
+              notification.type === "front_counter_collection" ||
+              notification.type === "job_assigned"
             ) {
               pushBrowserNotification({
                 title: notification.title,
@@ -631,6 +692,10 @@ export function NotificationProvider({
             userId,
             nextToasts.map((notification) => notification.id),
           );
+        }
+
+        for (const notification of extensionNotifications) {
+          emitAdminExtensionNotification(notification);
         }
 
         knownUnreadIdsRef.current = nextUnreadIds;
@@ -691,7 +756,7 @@ export function NotificationProvider({
         }
 
         const notificationsToMarkRead = adminUser
-          ? unreadNotifications
+          ? unreadNotifications.filter((notification) => notification.type !== "job_assigned")
           : currentPath === "/tasks"
             ? unreadNotifications.filter((notification) => notification.type === "task_assigned")
             : currentPath.startsWith("/tickets/")
@@ -751,7 +816,6 @@ export function NotificationProvider({
 
   useEffect(() => {
     const supabase = getSupabaseClient();
-    const activePresenceTabId = presenceTabId;
 
     if (!supabase) {
       return;
@@ -806,7 +870,6 @@ export function NotificationProvider({
         visibilityListener = null;
       }
 
-      releasePresenceLease(activePresenceTabId);
     };
 
     const clearNotificationState = async () => {
@@ -815,6 +878,7 @@ export function NotificationProvider({
       currentUserDisplayNameRef.current = null;
       currentIsAdminRef.current = false;
       latestPendingTicketIdRef.current = null;
+      alertedPendingTicketIdsRef.current = new Set();
       pendingTicketsInitializedRef.current = false;
       latestUrgentTicketSignatureRef.current = "";
       urgentRemindersInitializedRef.current = false;
@@ -867,21 +931,6 @@ export function NotificationProvider({
         presenceFailureCountRef.current = 0;
         sessionControlFailureCountRef.current = 0;
 
-        const browserNotificationPromptKey = adminUser
-          ? ADMIN_BROWSER_NOTIFICATION_PROMPT_KEY
-          : REQUESTER_BROWSER_NOTIFICATION_PROMPT_KEY;
-
-        if (
-          shouldPromptBrowserNotifications(pathnameRef.current, adminUser) &&
-          typeof window !== "undefined" &&
-          typeof Notification !== "undefined" &&
-          Notification.permission === "default" &&
-          !window.localStorage.getItem(browserNotificationPromptKey)
-        ) {
-          window.localStorage.setItem(browserNotificationPromptKey, "1");
-          void Notification.requestPermission().catch(() => {});
-        }
-
         const syncPresence = async () => {
           if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
             return false;
@@ -889,13 +938,12 @@ export function NotificationProvider({
 
           if (
             !isInteractiveRef.current ||
-            !shouldTrackUserPresence(pathnameRef.current, adminUser) ||
-            !acquirePresenceLease(activePresenceTabId)
+            !shouldTrackUserPresence(pathnameRef.current)
           ) {
             return false;
           }
 
-          await upsertUserPresence(supabase, user.id);
+          await upsertUserPresence(supabase, user.id, pathnameRef.current);
           return true;
         };
 
@@ -940,7 +988,6 @@ export function NotificationProvider({
             }
 
             if (document.hidden) {
-              releasePresenceLease(activePresenceTabId);
               return;
             }
 
@@ -997,7 +1044,45 @@ export function NotificationProvider({
           },
         );
 
-        channel.subscribe();
+        channel.on(
+          "broadcast",
+          { event: "refresh" },
+          async () => {
+            if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+              return;
+            }
+
+            await syncUnreadNotifications(supabase, user.id, adminUser, {
+              showToasts: true,
+            });
+          },
+        );
+
+        channel.subscribe((status, error) => {
+          if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+            return;
+          }
+
+          if (status === "SUBSCRIBED") {
+            void syncUnreadNotifications(supabase, user.id, adminUser, {
+              showToasts: true,
+            });
+            return;
+          }
+
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.error("RELAY notification Realtime channel degraded", error ?? status);
+            recordAdminHealthEvent(
+              "notifications",
+              `Realtime notification channel ${status.toLowerCase()}.`,
+            );
+            void syncUnreadNotifications(supabase, user.id, adminUser, {
+              showToasts: true,
+            }).catch((syncError) => {
+              console.error("Failed to reconcile notifications after Realtime error", syncError);
+            });
+          }
+        });
 
         if (adminUser) {
           const pendingTicketChannel = supabase.channel(`relay-pending-tickets-${user.id}`);
@@ -1020,7 +1105,27 @@ export function NotificationProvider({
             },
           );
 
-          pendingTicketChannel.subscribe();
+          pendingTicketChannel.subscribe((status, error) => {
+            if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+              return;
+            }
+
+            if (status === "SUBSCRIBED") {
+              void refreshPendingTicketCount(adminUser);
+              return;
+            }
+
+            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+              console.error("RELAY pending-ticket Realtime channel degraded", error ?? status);
+              recordAdminHealthEvent(
+                "notifications",
+                `Pending-ticket Realtime channel ${status.toLowerCase()}.`,
+              );
+              void refreshPendingTicketCount(adminUser).catch((syncError) => {
+                console.error("Failed to reconcile pending jobs after Realtime error", syncError);
+              });
+            }
+          });
         }
 
         const urgentTicketChannel = supabase.channel(`relay-urgent-tickets-${user.id}`);
@@ -1042,7 +1147,27 @@ export function NotificationProvider({
           },
         );
 
-        urgentTicketChannel.subscribe();
+        urgentTicketChannel.subscribe((status, error) => {
+          if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+            return;
+          }
+
+          if (status === "SUBSCRIBED") {
+            void refreshUrgentTicketReminders();
+            return;
+          }
+
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.error("RELAY urgent-ticket Realtime channel degraded", error ?? status);
+            recordAdminHealthEvent(
+              "notifications",
+              `Urgent-ticket Realtime channel ${status.toLowerCase()}.`,
+            );
+            void refreshUrgentTicketReminders().catch((syncError) => {
+              console.error("Failed to reconcile urgent jobs after Realtime error", syncError);
+            });
+          }
+        });
 
         const scheduleNotificationSync = () => {
           if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
@@ -1179,7 +1304,6 @@ export function NotificationProvider({
     };
   }, [
     markPathNotificationsRead,
-    presenceTabId,
     refreshPendingTicketCount,
     refreshUrgentTicketReminders,
     syncUnreadNotifications,
@@ -1207,6 +1331,9 @@ export function NotificationProvider({
       }
 
       await markPathNotificationsRead(supabase, userId, adminUser, pathname);
+      if (shouldTrackUserPresence(pathname)) {
+        await upsertUserPresence(supabase, userId, pathname);
+      }
       await syncUnreadNotifications(supabase, userId, adminUser);
     };
 
@@ -1231,16 +1358,20 @@ export function NotificationProvider({
       taskUnreadCount,
       isAdmin,
       isAuthenticated,
+      desktopNotificationPermission,
       toasts,
       dismissToast,
+      requestDesktopNotifications,
     }),
     [
       adminUnreadCount,
       dismissToast,
+      desktopNotificationPermission,
       isAdmin,
       isAuthenticated,
       pendingTicketCount,
       requesterUnreadCount,
+      requestDesktopNotifications,
       taskUnreadCount,
       toasts,
     ],
