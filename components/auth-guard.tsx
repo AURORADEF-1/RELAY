@@ -14,7 +14,7 @@ export function AuthGuard({
   requiredRole,
 }: {
   children: React.ReactNode;
-  requiredRole?: "admin";
+  requiredRole?: "admin" | "front-counter" | "admin-or-front-counter";
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -39,7 +39,7 @@ export function AuthGuard({
       }
 
       try {
-        const { user, isAdmin } = await getCurrentUserWithRole(supabase, {
+        const { user, isAdmin, isFrontCounter } = await getCurrentUserWithRole(supabase, {
           forceFresh: true,
         });
 
@@ -55,6 +55,16 @@ export function AuthGuard({
 
         if (requiredRole === "admin" && !isAdmin) {
           router.replace("/");
+          return;
+        }
+
+        if (requiredRole === "front-counter" && !isFrontCounter) {
+          router.replace(isAdmin ? "/console" : "/requests");
+          return;
+        }
+
+        if (requiredRole === "admin-or-front-counter" && !isAdmin && !isFrontCounter) {
+          router.replace("/requests");
           return;
         }
 

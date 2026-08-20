@@ -47,6 +47,7 @@ type PrintStation = {
   printer_name: string | null;
   enabled: boolean;
   auto_print: boolean;
+  transport?: "dymo_connect" | "cups";
 };
 
 type LabelPrintJob = {
@@ -294,11 +295,11 @@ export function DymoPrintStation() {
 
         const { data, error } = await supabase
           .from("label_print_stations")
-          .select("user_id, printer_name, enabled, auto_print")
+          .select("user_id, printer_name, enabled, auto_print, transport")
           .eq("user_id", user.id)
           .maybeSingle();
         if (error) throw error;
-        if (!data?.enabled || !data.auto_print || disposed) return;
+        if (!data?.enabled || !data.auto_print || data.transport === "cups" || disposed) return;
 
         station = data as PrintStation;
         channel = supabase

@@ -15,6 +15,8 @@ import {
   shouldRetryWithoutUrgentFields,
 } from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
+import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { fetchFrontCounterCollectionQueue, type FrontCounterCollectionRequest } from "@/lib/front-counter";
 
 type WallboardTicket = {
   id: string;
@@ -64,6 +66,8 @@ export default function WallboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isFrontCounterMode, setIsFrontCounterMode] = useState(false);
+  const [collectionQueue, setCollectionQueue] = useState<FrontCounterCollectionRequest[]>([]);
   const [currentMode, setCurrentMode] = useState<WallboardMode>("inbound");
   const [modeStartedAt, setModeStartedAt] = useState(() => Date.now());
   const [currentPage, setCurrentPage] = useState(0);
@@ -78,6 +82,7 @@ export default function WallboardPage() {
   const modeStartedAtRef = useRef(modeStartedAt);
   const pageStartedAtRef = useRef(pageStartedAt);
   const currentModeRef = useRef(currentMode);
+  const frontCounterModeRef = useRef(false);
 
   useEffect(() => {
     modeStartedAtRef.current = modeStartedAt;
@@ -122,6 +127,29 @@ export default function WallboardPage() {
       const supabase = getSupabaseClient();
 
       if (!supabase || !isActive) {
+        return;
+      }
+
+      const access = await getCurrentUserWithRole(supabase);
+      if (access.isFrontCounter) {
+        frontCounterModeRef.current = true;
+        setIsFrontCounterMode(true);
+        const [ticketResult, nextCollectionQueue] = await Promise.all([
+          supabase.rpc("list_front_counter_wallboard_tickets"),
+          fetchFrontCounterCollectionQueue(supabase),
+        ]);
+        if (ticketResult.error) {
+          setLoadError(ticketResult.error.message);
+          setIsLoading(false);
+          return;
+        }
+        const nextTickets = (ticketResult.data ?? []) as WallboardTicket[];
+        setTickets(nextTickets);
+        setCollectionQueue(nextCollectionQueue);
+        setCurrentMode("ready");
+        setLoadError(null);
+        setLastUpdatedAt(new Date().toISOString());
+        setIsLoading(false);
         return;
       }
 
@@ -346,6 +374,17 @@ export default function WallboardPage() {
         }, REALTIME_REFRESH_DEBOUNCE_MS);
       },
     );
+    realtimeChannel?.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "front_counter_collection_requests" },
+      () => {
+        if (refreshTimeout) window.clearTimeout(refreshTimeout);
+        refreshTimeout = window.setTimeout(() => {
+          refreshTimeout = null;
+          void loadTickets();
+        }, REALTIME_REFRESH_DEBOUNCE_MS);
+      },
+    );
     realtimeChannel?.subscribe();
 
     const countdownInterval = window.setInterval(() => {
@@ -353,6 +392,14 @@ export default function WallboardPage() {
       setCountdownNow(now);
 
       if (pendingTakeoverActiveRef.current) {
+        return;
+      }
+
+      if (frontCounterModeRef.current) {
+        if (now - pageStartedAtRef.current >= PAGE_DURATION_MS) {
+          setCurrentPage((previousPage) => previousPage + 1);
+          setPageStartedAt(now);
+        }
         return;
       }
 
@@ -398,7 +445,7 @@ export default function WallboardPage() {
       .sort((left, right) => compareIsoDates(left.created_at, right.created_at));
   }, [tickets]);
 
-  const hasPendingTakeover = unassignedPendingTickets.length > 0;
+  const hasPendingTakeover = !isFrontCounterMode && unassignedPendingTickets.length > 0;
 
   const inboundTickets = useMemo(() => {
     return [...tickets]
@@ -529,9 +576,17 @@ export default function WallboardPage() {
   );
   const nextModeLabel = getWallboardModeLabel(getNextWallboardMode(currentMode));
 
+  if (isFrontCounterMode && collectionQueue.length > 0) {
+    return (
+      <AuthGuard requiredRole="admin-or-front-counter">
+        <FrontCounterCollectionTakeover requests={collectionQueue} />
+      </AuthGuard>
+    );
+  }
+
   if (hasPendingTakeover) {
     return (
-      <AuthGuard requiredRole="admin">
+      <AuthGuard requiredRole="admin-or-front-counter">
         <PendingJobTakeover
           tickets={unassignedPendingTickets}
           now={countdownNow}
@@ -542,7 +597,7 @@ export default function WallboardPage() {
   }
 
   return (
-    <AuthGuard requiredRole="admin">
+    <AuthGuard requiredRole="admin-or-front-counter">
       <main className="aurora-shell min-h-screen px-8 py-8 text-white">
         <div className="aurora-shell-inner max-w-[120rem] space-y-6 pb-8">
           <header className="rounded-[2rem] border border-white/12 bg-black/24 px-7 py-5 backdrop-blur-md">
@@ -686,6 +741,56 @@ export default function WallboardPage() {
         </div>
       </main>
     </AuthGuard>
+  );
+}
+
+function FrontCounterCollectionTakeover({
+  requests,
+}: {
+  requests: FrontCounterCollectionRequest[];
+}) {
+  const primary = requests[0];
+  return (
+    <main className="aurora-shell min-h-screen px-6 py-6 text-white">
+      <div className="aurora-shell-inner mx-auto flex min-h-[calc(100vh-3rem)] max-w-[120rem] flex-col rounded-[2rem] border border-emerald-300/40 bg-black/55 p-7 shadow-2xl backdrop-blur-xl">
+        <header className="flex items-center justify-between gap-8 border-b border-emerald-200/20 pb-6">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.36em] text-emerald-300/70">Front counter collection</p>
+            <h1 className="mt-2 text-5xl font-black uppercase tracking-tight">Fitter waiting</h1>
+          </div>
+          <div className="rounded-2xl border border-emerald-300/30 bg-emerald-400/12 px-7 py-4 text-center">
+            <p className="text-5xl font-black text-emerald-200">{requests.length}</p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-[0.22em] text-emerald-100/60">in queue</p>
+          </div>
+        </header>
+        <section className="grid flex-1 content-center gap-5 py-7 xl:grid-cols-[1.45fr_0.8fr]">
+          <article className="rounded-[2rem] border border-emerald-300/45 bg-emerald-950/55 p-8">
+            <p className="text-sm font-bold uppercase tracking-[0.3em] text-emerald-200/60">Pick now · Job</p>
+            <p className="mt-3 text-7xl font-black tracking-[0.05em]">{primary.job_number}</p>
+            <p className="mt-6 text-3xl font-bold leading-tight text-white/95">{primary.request_summary || "Parts ready for collection"}</p>
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              <WallboardMeta label="Machine" value={primary.machine_reference || "Not set"} />
+              <WallboardMeta label="Requester" value={primary.requester_name || "Fitter"} />
+              <WallboardMeta label="Pick from bin" value={primary.bin_location || "Check ticket"} />
+            </div>
+            <p className="mt-8 text-lg font-bold uppercase tracking-[0.18em] text-emerald-200/75">Waiting {formatRelativeAge(primary.requested_at)}</p>
+          </article>
+          <aside className="space-y-3 rounded-[2rem] border border-white/10 bg-black/25 p-5">
+            <p className="px-2 text-xs font-bold uppercase tracking-[0.3em] text-white/45">Next waiting</p>
+            {requests.slice(1, 6).map((request) => (
+              <article key={request.request_id} className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-3xl font-black">{request.job_number}</p>
+                  <p className="text-sm font-bold text-emerald-200">#{request.queue_position}</p>
+                </div>
+                <p className="mt-2 line-clamp-2 text-lg font-semibold text-white/75">{request.request_summary || "Parts collection"}</p>
+              </article>
+            ))}
+          </aside>
+        </section>
+        <footer className="rounded-2xl border border-emerald-300/20 bg-emerald-950/35 px-6 py-4 text-center text-lg font-black uppercase tracking-[0.18em] text-emerald-100/80">Pick the parts, hand them over, then scan the job ticket at the terminal</footer>
+      </div>
+    </main>
   );
 }
 

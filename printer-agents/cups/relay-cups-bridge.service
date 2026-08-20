@@ -1,0 +1,20 @@
+[Unit]
+Description=RELAY Front Counter CUPS Bridge
+After=network-online.target cups.service
+Wants=network-online.target cups.service
+
+[Service]
+Type=simple
+User=relay-print
+Group=lpadmin
+EnvironmentFile=-/etc/relay-cups-bridge.env
+ExecStart=/usr/bin/python3 /opt/relay-cups-bridge/relay_cups_bridge.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
