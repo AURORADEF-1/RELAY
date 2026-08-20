@@ -47,10 +47,9 @@ hdmi_output="$(find_output 'HDMI-A-')"
 touch_output="$(find_output 'DSI-')"
 
 if [[ -n "$touch_output" ]]; then
-  wlr-randr --output "$touch_output" --preferred --pos 0,0 --transform normal || true
-  wlr-randr --output "$hdmi_output" --preferred --pos 720,0 --transform normal || true
-else
-  wlr-randr --output "$hdmi_output" --preferred --pos 0,0 --transform normal || true
+  wlr-randr \
+    --output "$touch_output" --preferred --pos 0,0 --transform normal \
+    --output "$hdmi_output" --preferred --pos 720,0 --transform normal || true
 fi
 
 pkill -TERM chromium 2>/dev/null || true
