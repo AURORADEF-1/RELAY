@@ -750,45 +750,68 @@ function FrontCounterCollectionTakeover({
   requests: FrontCounterCollectionRequest[];
 }) {
   const primary = requests[0];
+  const waitingBehind = requests.slice(1, 5);
   return (
-    <main className="aurora-shell min-h-screen px-6 py-6 text-white">
-      <div className="aurora-shell-inner mx-auto flex min-h-[calc(100vh-3rem)] max-w-[120rem] flex-col rounded-[2rem] border border-emerald-300/40 bg-black/55 p-7 shadow-2xl backdrop-blur-xl">
-        <header className="flex items-center justify-between gap-8 border-b border-emerald-200/20 pb-6">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.36em] text-emerald-300/70">Front counter collection</p>
-            <h1 className="mt-2 text-5xl font-black uppercase tracking-tight">Fitter waiting</h1>
+    <main className="aurora-shell min-h-screen overflow-hidden p-5 text-white 2xl:p-7">
+      <div className="aurora-shell-inner mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-[120rem] flex-col rounded-[2rem] border border-emerald-300/45 bg-black/68 p-6 shadow-[0_30px_110px_-34px_rgba(16,185,129,0.5)] backdrop-blur-xl 2xl:min-h-[calc(100vh-3.5rem)] 2xl:p-8">
+        <header className="flex items-center justify-between gap-8 border-b border-emerald-200/20 pb-5">
+          <div className="flex min-w-0 items-center gap-5">
+            <div className="relative h-14 w-14 shrink-0 rounded-full border border-emerald-200/55 bg-emerald-400/20">
+              <span className="absolute inset-[31%] rounded-full bg-emerald-200 shadow-[0_0_28px_rgba(110,231,183,0.95)]" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.38em] text-emerald-200/70">Front counter collection</p>
+              <h1 className="mt-1 text-[clamp(2.2rem,4vw,4.8rem)] font-black uppercase leading-none tracking-tight">Fitter waiting</h1>
+            </div>
           </div>
-          <div className="rounded-2xl border border-emerald-300/30 bg-emerald-400/12 px-7 py-4 text-center">
-            <p className="text-5xl font-black text-emerald-200">{requests.length}</p>
-            <p className="mt-1 text-xs font-bold uppercase tracking-[0.22em] text-emerald-100/60">in queue</p>
+          <div className="flex shrink-0 items-center gap-4 rounded-[1.35rem] border border-emerald-300/35 bg-emerald-400/15 px-6 py-3">
+            <p className="text-5xl font-black leading-none text-emerald-100">{requests.length}</p>
+            <p className="max-w-24 text-xs font-bold uppercase leading-5 tracking-[0.22em] text-emerald-100/75">waiting now</p>
           </div>
         </header>
-        <section className="grid flex-1 content-center gap-5 py-7 xl:grid-cols-[1.45fr_0.8fr]">
-          <article className="rounded-[2rem] border border-emerald-300/45 bg-emerald-950/55 p-8">
-            <p className="text-sm font-bold uppercase tracking-[0.3em] text-emerald-200/60">Pick now · Job</p>
-            <p className="mt-3 text-7xl font-black tracking-[0.05em]">{primary.job_number}</p>
-            <p className="mt-6 text-3xl font-bold leading-tight text-white/95">{primary.request_summary || "Parts ready for collection"}</p>
-            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+
+        <section className="flex min-h-0 flex-1 flex-col justify-center py-5 2xl:py-7">
+          <article className="rounded-[2rem] border border-emerald-200/55 bg-[linear-gradient(125deg,rgba(6,78,59,0.92),rgba(2,44,34,0.78))] p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] 2xl:p-9">
+            <div className="flex items-start justify-between gap-8">
+              <div className="min-w-0">
+                <p className="text-sm font-black uppercase tracking-[0.32em] text-emerald-100/75">Pick now · Job number</p>
+                <p className="mt-3 text-[clamp(4.2rem,8.5vw,9rem)] font-black leading-[0.86] tracking-[0.02em] text-white">{primary.job_number}</p>
+              </div>
+              <div className="shrink-0 rounded-2xl border border-white/15 bg-black/20 px-5 py-4 text-right">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-white/55">Waiting</p>
+                <p className="mt-1 text-2xl font-black text-emerald-100">{formatRelativeAge(primary.requested_at)}</p>
+              </div>
+            </div>
+
+            <p className="mt-7 border-t border-emerald-100/15 pt-6 text-[clamp(1.8rem,3.1vw,4rem)] font-black leading-[1.08] text-white">
+              {primary.request_summary || "Parts ready for collection"}
+            </p>
+
+            <div className="mt-7 grid gap-4 sm:grid-cols-3">
               <WallboardMeta label="Machine" value={primary.machine_reference || "Not set"} />
-              <WallboardMeta label="Requester" value={primary.requester_name || "Fitter"} />
+              <WallboardMeta label="Requested by" value={primary.requester_name || "Fitter"} />
               <WallboardMeta label="Pick from bin" value={primary.bin_location || "Check ticket"} />
             </div>
-            <p className="mt-8 text-lg font-bold uppercase tracking-[0.18em] text-emerald-200/75">Waiting {formatRelativeAge(primary.requested_at)}</p>
           </article>
-          <aside className="space-y-3 rounded-[2rem] border border-white/10 bg-black/25 p-5">
-            <p className="px-2 text-xs font-bold uppercase tracking-[0.3em] text-white/45">Next waiting</p>
-            {requests.slice(1, 6).map((request) => (
-              <article key={request.request_id} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <div className="flex items-center justify-between gap-4">
-                  <p className="text-3xl font-black">{request.job_number}</p>
-                  <p className="text-sm font-bold text-emerald-200">#{request.queue_position}</p>
-                </div>
-                <p className="mt-2 line-clamp-2 text-lg font-semibold text-white/75">{request.request_summary || "Parts collection"}</p>
-              </article>
-            ))}
-          </aside>
+
+          {waitingBehind.length > 0 ? (
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {waitingBehind.map((request) => (
+                <article key={request.request_id} className="rounded-2xl border border-white/12 bg-white/[0.06] px-5 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-2xl font-black text-white">{request.job_number}</p>
+                    <p className="rounded-full bg-emerald-300/15 px-3 py-1 text-xs font-black text-emerald-100">NEXT #{request.queue_position}</p>
+                  </div>
+                  <p className="mt-2 truncate text-base font-semibold text-white/70">{request.request_summary || "Parts collection"}</p>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </section>
-        <footer className="rounded-2xl border border-emerald-300/20 bg-emerald-950/35 px-6 py-4 text-center text-lg font-black uppercase tracking-[0.18em] text-emerald-100/80">Pick the parts, hand them over, then scan the job ticket at the terminal</footer>
+
+        <footer className="rounded-2xl border border-emerald-300/25 bg-emerald-950/50 px-6 py-4 text-center text-base font-black uppercase tracking-[0.19em] text-emerald-50 2xl:text-lg">
+          Pick the parts · hand them over · scan the job ticket at the terminal
+        </footer>
       </div>
     </main>
   );
