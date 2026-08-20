@@ -1,7 +1,6 @@
-import type { Metadata } from "next";
-import { LegalTermsGate } from "@/components/legal-terms-gate";
+import type { Metadata, Viewport } from "next";
+import { AppRuntime } from "@/components/app-runtime";
 import { NotificationProvider } from "@/components/notification-provider";
-import { NotificationToasts } from "@/components/notification-toasts";
 import { StartupSplash } from "@/components/startup-splash";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
@@ -20,6 +19,12 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -31,9 +36,7 @@ export default function RootLayout({
         <ThemeProvider>
           <StartupSplash>
             <NotificationProvider>
-              <LegalTermsGate />
-              <NotificationToasts />
-              {children}
+              <AppRuntime>{children}</AppRuntime>
             </NotificationProvider>
           </StartupSplash>
         </ThemeProvider>

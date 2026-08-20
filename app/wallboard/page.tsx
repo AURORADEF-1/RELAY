@@ -15,6 +15,8 @@ import {
   shouldRetryWithoutUrgentFields,
 } from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
+import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { fetchFrontCounterCollectionQueue, type FrontCounterCollectionRequest } from "@/lib/front-counter";
 
 type WallboardTicket = {
   id: string;
@@ -64,6 +66,8 @@ export default function WallboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isFrontCounterMode, setIsFrontCounterMode] = useState(false);
+  const [collectionQueue, setCollectionQueue] = useState<FrontCounterCollectionRequest[]>([]);
   const [currentMode, setCurrentMode] = useState<WallboardMode>("inbound");
   const [modeStartedAt, setModeStartedAt] = useState(() => Date.now());
   const [currentPage, setCurrentPage] = useState(0);
@@ -74,9 +78,11 @@ export default function WallboardPage() {
   const supplierSpendTicketsRef = useRef<SupplierSpendTicket[]>([]);
   const adminOperatorNamesRef = useRef<string[]>(getDefaultAdminOperatorOptions());
   const pendingSignatureRef = useRef("");
+  const pendingTakeoverActiveRef = useRef(false);
   const modeStartedAtRef = useRef(modeStartedAt);
   const pageStartedAtRef = useRef(pageStartedAt);
   const currentModeRef = useRef(currentMode);
+  const frontCounterModeRef = useRef(false);
 
   useEffect(() => {
     modeStartedAtRef.current = modeStartedAt;
@@ -101,10 +107,49 @@ export default function WallboardPage() {
   useEffect(() => {
     let isActive = true;
 
+    function syncPendingTakeover(nextTickets: WallboardTicket[]) {
+      const nextHasPendingTakeover = nextTickets.some(
+        (ticket) => ticket.status === "PENDING" && !ticket.assigned_to?.trim(),
+      );
+      const wasPendingTakeoverActive = pendingTakeoverActiveRef.current;
+      pendingTakeoverActiveRef.current = nextHasPendingTakeover;
+
+      if (wasPendingTakeoverActive && !nextHasPendingTakeover) {
+        const now = Date.now();
+        setCurrentMode("inbound");
+        setModeStartedAt(now);
+        setCurrentPage(0);
+        setPageStartedAt(now);
+      }
+    }
+
     async function loadTickets() {
       const supabase = getSupabaseClient();
 
       if (!supabase || !isActive) {
+        return;
+      }
+
+      const access = await getCurrentUserWithRole(supabase);
+      if (access.isFrontCounter) {
+        frontCounterModeRef.current = true;
+        setIsFrontCounterMode(true);
+        const [ticketResult, nextCollectionQueue] = await Promise.all([
+          supabase.rpc("list_front_counter_wallboard_tickets"),
+          fetchFrontCounterCollectionQueue(supabase),
+        ]);
+        if (ticketResult.error) {
+          setLoadError(ticketResult.error.message);
+          setIsLoading(false);
+          return;
+        }
+        const nextTickets = (ticketResult.data ?? []) as WallboardTicket[];
+        setTickets(nextTickets);
+        setCollectionQueue(nextCollectionQueue);
+        setCurrentMode("ready");
+        setLoadError(null);
+        setLastUpdatedAt(new Date().toISOString());
+        setIsLoading(false);
         return;
       }
 
@@ -190,6 +235,7 @@ export default function WallboardPage() {
             .join("|");
 
           pendingSignatureRef.current = nextPendingSignature;
+          syncPendingTakeover(fallbackTickets);
 
           if (nextSignature !== signatureRef.current) {
             signatureRef.current = nextSignature;
@@ -272,6 +318,7 @@ export default function WallboardPage() {
       }
 
       pendingSignatureRef.current = nextPendingSignature;
+      syncPendingTakeover(nextTickets);
 
       if (nextSignature !== signatureRef.current) {
         signatureRef.current = nextSignature;
@@ -327,11 +374,34 @@ export default function WallboardPage() {
         }, REALTIME_REFRESH_DEBOUNCE_MS);
       },
     );
+    realtimeChannel?.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "front_counter_collection_requests" },
+      () => {
+        if (refreshTimeout) window.clearTimeout(refreshTimeout);
+        refreshTimeout = window.setTimeout(() => {
+          refreshTimeout = null;
+          void loadTickets();
+        }, REALTIME_REFRESH_DEBOUNCE_MS);
+      },
+    );
     realtimeChannel?.subscribe();
 
     const countdownInterval = window.setInterval(() => {
       const now = Date.now();
       setCountdownNow(now);
+
+      if (pendingTakeoverActiveRef.current) {
+        return;
+      }
+
+      if (frontCounterModeRef.current) {
+        if (now - pageStartedAtRef.current >= PAGE_DURATION_MS) {
+          setCurrentPage((previousPage) => previousPage + 1);
+          setPageStartedAt(now);
+        }
+        return;
+      }
 
       if (now - modeStartedAtRef.current >= MODE_DURATION_MS) {
         setCurrentMode((previousMode) => getNextWallboardMode(previousMode));
@@ -369,6 +439,14 @@ export default function WallboardPage() {
     };
   }, []);
 
+  const unassignedPendingTickets = useMemo(() => {
+    return [...tickets]
+      .filter((ticket) => ticket.status === "PENDING" && !ticket.assigned_to?.trim())
+      .sort((left, right) => compareIsoDates(left.created_at, right.created_at));
+  }, [tickets]);
+
+  const hasPendingTakeover = !isFrontCounterMode && unassignedPendingTickets.length > 0;
+
   const inboundTickets = useMemo(() => {
     return [...tickets]
       .filter(
@@ -393,33 +471,28 @@ export default function WallboardPage() {
   }, [tickets]);
 
   const operatorMetrics = useMemo(() => {
-    return adminOperatorNames
-      .map((operator) => {
-        const operatorTickets = tickets.filter(
-          (ticket) => normalizeOperatorName(ticket.assigned_to) === normalizeOperatorName(operator),
-        );
-        const pendingCount = operatorTickets.filter((ticket) => ticket.status === "PENDING").length;
-        const inProgressCount = operatorTickets.filter((ticket) => ticket.status === "IN_PROGRESS").length;
-        const orderedCount = operatorTickets.filter((ticket) => ticket.status === "ORDERED").length;
-        const readyCount = operatorTickets.filter((ticket) => ticket.status === "READY").length;
-        const oldestTicket = [...operatorTickets].sort((left, right) =>
-          compareIsoDates(left.created_at, right.created_at),
-        )[0];
-
-        return {
-          operator,
-          total: operatorTickets.length,
-          pendingCount,
-          inProgressCount,
-          orderedCount,
-          readyCount,
-          oldestAge: formatRelativeAge(oldestTicket?.created_at ?? null),
-        };
-      })
-      .sort(
-        (left, right) =>
-          right.total - left.total || left.operator.localeCompare(right.operator),
+    return adminOperatorNames.map((operator) => {
+      const operatorTickets = tickets.filter(
+        (ticket) => normalizeOperatorName(ticket.assigned_to) === normalizeOperatorName(operator),
       );
+      const pendingCount = operatorTickets.filter((ticket) => ticket.status === "PENDING").length;
+      const inProgressCount = operatorTickets.filter((ticket) => ticket.status === "IN_PROGRESS").length;
+      const orderedCount = operatorTickets.filter((ticket) => ticket.status === "ORDERED").length;
+      const readyCount = operatorTickets.filter((ticket) => ticket.status === "READY").length;
+      const oldestTicket = [...operatorTickets].sort((left, right) =>
+        compareIsoDates(left.created_at, right.created_at),
+      )[0];
+
+      return {
+        operator,
+        total: operatorTickets.length,
+        pendingCount,
+        inProgressCount,
+        orderedCount,
+        readyCount,
+        oldestAge: formatRelativeAge(oldestTicket?.created_at ?? null),
+      };
+    });
   }, [adminOperatorNames, tickets]);
 
   const supplierSpendSummary = useMemo(() => {
@@ -503,8 +576,28 @@ export default function WallboardPage() {
   );
   const nextModeLabel = getWallboardModeLabel(getNextWallboardMode(currentMode));
 
+  if (isFrontCounterMode && collectionQueue.length > 0) {
+    return (
+      <AuthGuard requiredRole="admin-or-front-counter">
+        <FrontCounterCollectionTakeover requests={collectionQueue} />
+      </AuthGuard>
+    );
+  }
+
+  if (hasPendingTakeover) {
+    return (
+      <AuthGuard requiredRole="admin-or-front-counter">
+        <PendingJobTakeover
+          tickets={unassignedPendingTickets}
+          now={countdownNow}
+          lastUpdatedAt={lastUpdatedAt}
+        />
+      </AuthGuard>
+    );
+  }
+
   return (
-    <AuthGuard requiredRole="admin">
+    <AuthGuard requiredRole="admin-or-front-counter">
       <main className="aurora-shell min-h-screen px-8 py-8 text-white">
         <div className="aurora-shell-inner max-w-[120rem] space-y-6 pb-8">
           <header className="rounded-[2rem] border border-white/12 bg-black/24 px-7 py-5 backdrop-blur-md">
@@ -649,6 +742,349 @@ export default function WallboardPage() {
       </main>
     </AuthGuard>
   );
+}
+
+function FrontCounterCollectionTakeover({
+  requests,
+}: {
+  requests: FrontCounterCollectionRequest[];
+}) {
+  const primary = requests[0];
+  return (
+    <main className="aurora-shell min-h-screen px-6 py-6 text-white">
+      <div className="aurora-shell-inner mx-auto flex min-h-[calc(100vh-3rem)] max-w-[120rem] flex-col rounded-[2rem] border border-emerald-300/40 bg-black/55 p-7 shadow-2xl backdrop-blur-xl">
+        <header className="flex items-center justify-between gap-8 border-b border-emerald-200/20 pb-6">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.36em] text-emerald-300/70">Front counter collection</p>
+            <h1 className="mt-2 text-5xl font-black uppercase tracking-tight">Fitter waiting</h1>
+          </div>
+          <div className="rounded-2xl border border-emerald-300/30 bg-emerald-400/12 px-7 py-4 text-center">
+            <p className="text-5xl font-black text-emerald-200">{requests.length}</p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-[0.22em] text-emerald-100/60">in queue</p>
+          </div>
+        </header>
+        <section className="grid flex-1 content-center gap-5 py-7 xl:grid-cols-[1.45fr_0.8fr]">
+          <article className="rounded-[2rem] border border-emerald-300/45 bg-emerald-950/55 p-8">
+            <p className="text-sm font-bold uppercase tracking-[0.3em] text-emerald-200/60">Pick now · Job</p>
+            <p className="mt-3 text-7xl font-black tracking-[0.05em]">{primary.job_number}</p>
+            <p className="mt-6 text-3xl font-bold leading-tight text-white/95">{primary.request_summary || "Parts ready for collection"}</p>
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              <WallboardMeta label="Machine" value={primary.machine_reference || "Not set"} />
+              <WallboardMeta label="Requester" value={primary.requester_name || "Fitter"} />
+              <WallboardMeta label="Pick from bin" value={primary.bin_location || "Check ticket"} />
+            </div>
+            <p className="mt-8 text-lg font-bold uppercase tracking-[0.18em] text-emerald-200/75">Waiting {formatRelativeAge(primary.requested_at)}</p>
+          </article>
+          <aside className="space-y-3 rounded-[2rem] border border-white/10 bg-black/25 p-5">
+            <p className="px-2 text-xs font-bold uppercase tracking-[0.3em] text-white/45">Next waiting</p>
+            {requests.slice(1, 6).map((request) => (
+              <article key={request.request_id} className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-3xl font-black">{request.job_number}</p>
+                  <p className="text-sm font-bold text-emerald-200">#{request.queue_position}</p>
+                </div>
+                <p className="mt-2 line-clamp-2 text-lg font-semibold text-white/75">{request.request_summary || "Parts collection"}</p>
+              </article>
+            ))}
+          </aside>
+        </section>
+        <footer className="rounded-2xl border border-emerald-300/20 bg-emerald-950/35 px-6 py-4 text-center text-lg font-black uppercase tracking-[0.18em] text-emerald-100/80">Pick the parts, hand them over, then scan the job ticket at the terminal</footer>
+      </div>
+    </main>
+  );
+}
+
+function PendingJobTakeover({
+  tickets,
+  now,
+  lastUpdatedAt,
+}: {
+  tickets: WallboardTicket[];
+  now: number;
+  lastUpdatedAt: string | null;
+}) {
+  const primaryTicket = tickets[0];
+  const remainingTickets = tickets.slice(1, 4);
+  const hiddenTicketCount = Math.max(0, tickets.length - 4);
+  const primaryRequest =
+    primaryTicket?.request_summary ??
+    primaryTicket?.request_details ??
+    "No summary provided";
+
+  if (!primaryTicket) {
+    return null;
+  }
+
+  if (tickets.length >= 5) {
+    return <PendingBacklogTakeover tickets={tickets} now={now} lastUpdatedAt={lastUpdatedAt} />;
+  }
+
+  return (
+    <main className="aurora-shell min-h-screen overflow-hidden px-5 py-5 text-white 2xl:px-8 2xl:py-7">
+      <div className="wallboard-pending-takeover aurora-shell-inner flex min-h-[calc(100vh-2.5rem)] max-w-[120rem] flex-col rounded-[2rem] border border-red-400/60 bg-black/60 p-5 shadow-[0_28px_100px_-40px_rgba(0,0,0,0.9)] backdrop-blur-md 2xl:min-h-[calc(100vh-3.5rem)] 2xl:p-7">
+        <header className="flex items-center justify-between gap-8 border-b border-red-300/20 pb-4 2xl:pb-5">
+          <div className="flex min-w-0 items-center gap-4 2xl:gap-5">
+            <div className="wallboard-pending-beacon relative h-12 w-12 shrink-0 rounded-full border border-red-300/65 bg-red-500/20 2xl:h-14 2xl:w-14">
+              <span className="absolute inset-[30%] rounded-full bg-red-300 shadow-[0_0_24px_rgba(248,113,113,0.9)]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.38em] text-red-100/60 2xl:text-xs">
+                Relay operations alert
+              </p>
+              <h1 className="mt-1.5 truncate text-[clamp(2rem,3.2vw,4rem)] font-black uppercase leading-none tracking-[0.035em] text-white">
+                Unassigned jobs
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-4 rounded-[1.25rem] border border-red-300/30 bg-red-950/45 px-5 py-3 2xl:px-6">
+            <p className="text-4xl font-black leading-none text-red-200 2xl:text-5xl">{tickets.length}</p>
+            <p className="max-w-[9rem] text-xs font-bold uppercase leading-5 tracking-[0.24em] text-red-100/75 2xl:text-sm">
+              Awaiting assignment
+            </p>
+          </div>
+        </header>
+
+        <div
+          className={`grid min-h-0 flex-1 gap-4 pt-4 2xl:gap-5 2xl:pt-5 ${
+            remainingTickets.length > 0 ? "xl:grid-cols-[minmax(0,1.5fr)_minmax(22rem,0.82fr)]" : ""
+          }`}
+        >
+          <article className="flex min-h-0 flex-col rounded-[1.75rem] border border-red-400/55 bg-[linear-gradient(145deg,rgba(105,20,27,0.62),rgba(31,6,11,0.9))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_20px_70px_-32px_rgba(239,68,68,0.45)] 2xl:p-7">
+            <div className="flex items-center justify-between gap-8 border-b border-red-300/20 pb-4 2xl:pb-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.36em] text-red-200/65">
+                  Priority job
+                </p>
+                <p className="mt-1.5 text-5xl font-black leading-none tracking-[0.045em] text-white 2xl:text-6xl">
+                  {primaryTicket.job_number ?? "TBC"}
+                </p>
+              </div>
+
+              <div className="rounded-[1.15rem] border border-red-300/35 bg-black/25 px-5 py-3 text-right 2xl:px-6">
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-100/55 2xl:text-xs">
+                  Unassigned for
+                </p>
+                <p className="mt-1 text-xl font-black uppercase tracking-[0.06em] text-red-100 2xl:text-2xl">
+                  {formatPendingDuration(primaryTicket.created_at, now)}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col pt-4 2xl:pt-5">
+              <div className="rounded-[1.35rem] border border-white/[0.08] bg-black/20 p-4 2xl:p-5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-red-100/55 2xl:text-xs">
+                  Request summary
+                </p>
+                <p className={`mt-2.5 max-h-[15rem] overflow-hidden font-bold text-white 2xl:max-h-[17rem] ${getPendingRequestTextClass(primaryRequest)}`}>
+                  {primaryRequest}
+                </p>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 2xl:mt-5 2xl:gap-4">
+                <PendingTakeoverField
+                  label="Machine"
+                  value={primaryTicket.machine_reference ?? "Not set"}
+                />
+                <PendingTakeoverField
+                  label="Requested by"
+                  value={primaryTicket.requester_name ?? "Unknown requester"}
+                />
+              </div>
+
+              <div className="mt-auto flex items-center justify-center gap-3 pt-4 text-center 2xl:pt-5">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-300 shadow-[0_0_16px_rgba(248,113,113,0.9)]" />
+                <p className="text-base font-black uppercase tracking-[0.2em] text-red-100/80 2xl:text-lg">
+                  Action required — assign in RELAY
+                </p>
+              </div>
+            </div>
+          </article>
+
+          {remainingTickets.length > 0 ? (
+            <aside className="flex min-h-0 flex-col rounded-[1.75rem] border border-red-300/20 bg-black/20 p-3 2xl:p-4">
+              <div className="flex items-center justify-between px-2 pb-3">
+                <p className="text-xs font-bold uppercase tracking-[0.32em] text-red-100/55">
+                  Next in queue
+                </p>
+                <p className="text-xs font-semibold text-white/40">
+                  Oldest first
+                </p>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col gap-3">
+              {remainingTickets.map((ticket) => (
+                <article
+                  key={ticket.id}
+                  className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-red-400/30 bg-[linear-gradient(145deg,rgba(78,16,23,0.7),rgba(22,5,9,0.9))] px-4 py-3.5 shadow-[0_12px_36px_-24px_rgba(239,68,68,0.55)] 2xl:px-5 2xl:py-4"
+                >
+                  <span className="absolute inset-y-0 left-0 w-1 bg-red-400/55" />
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-200/55 2xl:text-xs">
+                        Job
+                      </p>
+                      <p className="mt-0.5 text-2xl font-black tracking-[0.045em] text-white 2xl:text-3xl">
+                        {ticket.job_number ?? "TBC"}
+                      </p>
+                    </div>
+                    <p className="rounded-full border border-red-300/25 bg-black/20 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.05em] text-red-100/85">
+                      {formatPendingDuration(ticket.created_at, now)}
+                    </p>
+                  </div>
+                  <p className="mt-2.5 line-clamp-3 text-xl font-bold leading-[1.18] text-white/95 2xl:text-2xl">
+                    {ticket.request_summary ?? ticket.request_details ?? "No summary provided"}
+                  </p>
+                  <div className="mt-auto flex items-center justify-between gap-3 pt-3 text-xs font-bold uppercase tracking-[0.13em] text-red-100/50">
+                    <p className="truncate">Machine {ticket.machine_reference ?? "not set"}</p>
+                    <p className="truncate text-right">{ticket.requester_name ?? "Unknown requester"}</p>
+                  </div>
+                </article>
+              ))}
+              {hiddenTicketCount > 0 ? (
+                <div className="rounded-[1rem] border border-red-300/25 bg-red-950/35 px-4 py-2.5 text-center text-sm font-black uppercase tracking-[0.18em] text-red-100/75">
+                  + {hiddenTicketCount} more pending
+                </div>
+              ) : null}
+              </div>
+            </aside>
+          ) : null}
+        </div>
+
+        <footer className="mt-4 flex items-center justify-between rounded-[1.15rem] border border-red-300/20 bg-red-950/30 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-red-100/65 2xl:mt-5 2xl:text-sm">
+          <span>Wallboard paused until pending jobs are assigned</span>
+          <span className="text-white/35">
+            {lastUpdatedAt ? `Live sync ${formatClock(lastUpdatedAt)}` : "Connecting"}
+          </span>
+        </footer>
+      </div>
+    </main>
+  );
+}
+
+function PendingBacklogTakeover({
+  tickets,
+  now,
+  lastUpdatedAt,
+}: {
+  tickets: WallboardTicket[];
+  now: number;
+  lastUpdatedAt: string | null;
+}) {
+  const visibleTickets = tickets.slice(0, 8);
+  const hiddenTicketCount = Math.max(0, tickets.length - visibleTickets.length);
+  const denseLayout = visibleTickets.length >= 7;
+
+  return (
+    <main className="aurora-shell min-h-screen overflow-hidden px-7 py-7 text-white 2xl:px-10 2xl:py-9">
+      <div className="wallboard-pending-takeover aurora-shell-inner flex min-h-[calc(100vh-3.5rem)] max-w-[120rem] flex-col rounded-[2.25rem] border border-red-400/70 bg-black/55 p-6 backdrop-blur-md 2xl:min-h-[calc(100vh-4.5rem)] 2xl:p-9">
+        <header className="flex items-center justify-between gap-8 border-b border-red-300/25 pb-4 2xl:pb-6">
+          <div className="flex min-w-0 items-center gap-5 2xl:gap-7">
+            <div className="wallboard-pending-beacon relative h-14 w-14 shrink-0 rounded-full border border-red-300/70 bg-red-500/25 2xl:h-18 2xl:w-18">
+              <span className="absolute inset-[28%] rounded-full bg-red-300 shadow-[0_0_28px_rgba(248,113,113,1)]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.42em] text-red-100/65 2xl:text-sm">
+                Relay Wallboard
+              </p>
+              <h1 className="mt-1.5 truncate text-4xl font-black uppercase tracking-[0.045em] text-white xl:text-5xl 2xl:text-6xl">
+                Pending backlog — action required
+              </h1>
+            </div>
+          </div>
+
+          <div className="shrink-0 text-right">
+            <p className="text-5xl font-black text-red-300 2xl:text-7xl">{tickets.length}</p>
+            <p className="text-sm font-bold uppercase tracking-[0.24em] text-red-200 2xl:text-base">
+              Unassigned
+            </p>
+          </div>
+        </header>
+
+        <section className="grid min-h-0 flex-1 grid-cols-2 gap-3 pt-4 2xl:gap-4 2xl:pt-6">
+          {visibleTickets.map((ticket, index) => {
+            const isOldest = index === 0;
+
+            return (
+              <article
+                key={ticket.id}
+                className={`flex min-h-0 flex-col rounded-[1.45rem] border bg-[linear-gradient(145deg,rgba(79,13,21,0.72),rgba(22,4,8,0.9))] px-5 py-3.5 2xl:px-6 2xl:py-4 ${
+                  isOldest
+                    ? "wallboard-oldest-pending border-red-300/80"
+                    : "border-red-400/38 shadow-[0_0_24px_rgba(239,68,68,0.11)]"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-4 border-b border-red-300/25 pb-2.5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.3em] text-red-200/65">
+                      Job
+                    </p>
+                    <p className="truncate text-2xl font-black tracking-[0.05em] text-white 2xl:text-3xl">
+                      {ticket.job_number ?? "TBC"}
+                    </p>
+                    {isOldest ? (
+                      <span className="rounded-md border border-red-300/55 bg-red-500/14 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-200 2xl:text-xs">
+                        Oldest
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="shrink-0 text-base font-black uppercase tracking-[0.06em] text-red-200 2xl:text-lg">
+                    {formatPendingDuration(ticket.created_at, now)}
+                  </p>
+                </div>
+
+                <p
+                  className={`mt-2.5 line-clamp-2 font-bold leading-[1.08] text-white ${
+                    denseLayout ? "text-2xl 2xl:text-3xl" : "text-3xl 2xl:text-4xl"
+                  }`}
+                >
+                  {ticket.request_summary ?? ticket.request_details ?? "No summary provided"}
+                </p>
+
+                <div className="mt-auto flex items-center justify-between gap-4 pt-2 text-xs font-bold uppercase tracking-[0.15em] text-red-100/58 2xl:text-sm">
+                  <p className="truncate">Machine {ticket.machine_reference ?? "not set"}</p>
+                  <p className="truncate text-right">
+                    Requested by {ticket.requester_name ?? "unknown"}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+
+        <footer className="mt-4 rounded-[1.3rem] border border-red-300/35 bg-red-950/45 px-5 py-3 text-center text-sm font-black uppercase tracking-[0.18em] text-red-200 2xl:mt-5 2xl:text-base">
+          {hiddenTicketCount > 0
+            ? `Showing oldest ${visibleTickets.length} of ${tickets.length} pending jobs`
+            : `Showing all ${tickets.length} pending jobs`} — KPI and supplier screens paused
+          <span className="ml-6 text-white/38">
+            {lastUpdatedAt ? `Live sync ${formatClock(lastUpdatedAt)}` : "Connecting"}
+          </span>
+        </footer>
+      </div>
+    </main>
+  );
+}
+
+function PendingTakeoverField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-[1.1rem] border border-white/[0.07] bg-black/18 px-4 py-3 2xl:px-5 2xl:py-4">
+      <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-red-100/50 2xl:text-xs">
+        {label}
+      </p>
+      <p className="mt-1.5 truncate text-xl font-semibold text-white/95 2xl:text-2xl">{value}</p>
+    </div>
+  );
+}
+
+function getPendingRequestTextClass(value: string) {
+  if (value.length > 170) {
+    return "text-2xl leading-[1.2] 2xl:text-3xl";
+  }
+
+  if (value.length > 105) {
+    return "text-3xl leading-[1.14] 2xl:text-4xl";
+  }
+
+  return "text-4xl leading-[1.1] 2xl:text-5xl";
 }
 
 function WallboardMetric({
@@ -1097,6 +1533,41 @@ function formatRelativeAge(isoDate: string | null) {
 
   const days = Math.floor(hours / 24);
   return `${days} day`;
+}
+
+function formatPendingDuration(isoDate: string | null, now: number) {
+  if (!isoDate) {
+    return "just now";
+  }
+
+  const startedAt = new Date(isoDate).getTime();
+
+  if (Number.isNaN(startedAt)) {
+    return "just now";
+  }
+
+  const totalMinutes = Math.max(0, Math.floor((now - startedAt) / (1000 * 60)));
+
+  if (totalMinutes < 1) {
+    return "less than 1 min";
+  }
+
+  if (totalMinutes < 60) {
+    return `${totalMinutes} min`;
+  }
+
+  const totalHours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+
+  if (totalHours < 24) {
+    return remainingMinutes > 0
+      ? `${totalHours} hr ${remainingMinutes} min`
+      : `${totalHours} hr`;
+  }
+
+  const days = Math.floor(totalHours / 24);
+  const remainingHours = totalHours % 24;
+  return remainingHours > 0 ? `${days} day ${remainingHours} hr` : `${days} day`;
 }
 
 function formatClock(isoDate: string) {

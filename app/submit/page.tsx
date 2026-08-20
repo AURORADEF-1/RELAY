@@ -18,6 +18,7 @@ import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
 import { buildMachineSnapshot, lookupMachineRegistryRecord, type MachineRegistryRecord } from "@/lib/machine-registry";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
+import { getCurrentUserWithRole } from "@/lib/profile-access";
 
 const departmentOptions = ["Onsite", "Yard"] as const;
 
@@ -94,6 +95,13 @@ export default function SubmitPage() {
   const [machineRegistryRecord, setMachineRegistryRecord] = useState<MachineRegistryRecord | null>(null);
   const [isMachineLookupLoading, setIsMachineLookupLoading] = useState(false);
   const [machineLookupError, setMachineLookupError] = useState("");
+  const [isFrontCounter, setIsFrontCounter] = useState(false);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    void getCurrentUserWithRole(supabase).then((access) => setIsFrontCounter(access.isFrontCounter));
+  }, []);
 
   useEffect(() => {
     if (!successMessage) {
@@ -578,6 +586,14 @@ export default function SubmitPage() {
         <nav className="aurora-nav">
           <RelayLogo />
           <div className="aurora-nav-links text-sm font-medium">
+            {isFrontCounter ? (
+              <>
+                <Link href="/terminal" className="aurora-link">Terminal</Link>
+                <Link href="/wallboard" className="aurora-link">Wallboard</Link>
+                <LogoutButton />
+              </>
+            ) : (
+              <>
             <Link href="/" className="aurora-link">
               Home
             </Link>
@@ -608,6 +624,8 @@ export default function SubmitPage() {
             ) : null}
             <ThemeToggleButton />
             <LogoutButton />
+              </>
+            )}
           </div>
         </nav>
 
