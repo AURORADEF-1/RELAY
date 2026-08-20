@@ -26,6 +26,7 @@ launch_relay_window() {
   local url="$1"
   nohup "$CHROMIUM_BIN" \
     --profile-directory="$CHROMIUM_PROFILE" \
+    --ozone-platform=wayland \
     --app="$url" \
     --start-fullscreen \
     --no-first-run \
@@ -46,10 +47,10 @@ hdmi_output="$(find_output 'HDMI-A-')"
 touch_output="$(find_output 'DSI-')"
 
 if [[ -n "$touch_output" ]]; then
-  wlr-randr --output "$touch_output" --mode 720x1280 --pos 0,0 --transform normal || true
-  wlr-randr --output "$hdmi_output" --mode 1920x1080 --pos 720,0 --transform normal || true
+  wlr-randr --output "$touch_output" --preferred --pos 0,0 --transform normal || true
+  wlr-randr --output "$hdmi_output" --preferred --pos 720,0 --transform normal || true
 else
-  wlr-randr --output "$hdmi_output" --mode 1920x1080 --pos 0,0 --transform normal || true
+  wlr-randr --output "$hdmi_output" --preferred --pos 0,0 --transform normal || true
 fi
 
 pkill -TERM chromium 2>/dev/null || true
@@ -61,4 +62,3 @@ if [[ -n "$touch_output" ]]; then
   sleep 3
   launch_relay_window "$RELAY_BASE_URL/terminal"
 fi
-

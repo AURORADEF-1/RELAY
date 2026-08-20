@@ -44,5 +44,6 @@ describe("front counter live operations", () => {
     expect(kiosk).toContain('if [[ -n "$touch_output" ]]');
     expect(kiosk).toContain('launch_relay_window "$RELAY_BASE_URL/terminal"');
     expect(kiosk).toContain('--app="$url"');
+    expect(kiosk).toContain("--ozone-platform=wayland");
   });
 });
