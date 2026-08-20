@@ -203,6 +203,11 @@ export function DymoPrintStation() {
       processingRef.current = true;
 
       try {
+        const { error: failoverError } = await supabase.rpc(
+          "route_unhealthy_primary_jobs_to_backup",
+        );
+        if (failoverError) throw failoverError;
+
         for (let processed = 0; processed < 10 && !disposed; processed += 1) {
           const { data, error } = await supabase.rpc("claim_next_label_print_job", {
             p_session_id: sessionId,

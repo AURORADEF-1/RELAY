@@ -109,6 +109,34 @@ def printer_name():
         raise RuntimeError("No default CUPS printer is configured")
     return match.group(1).strip()
 
+def printer_health():
+    selected = printer_name()
+    result = subprocess.run(
+        ["lpstat", "-p", selected, "-l"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    status = f"{result.stdout}\n{result.stderr}".strip()
+    normalized = status.lower()
+    fault_markers = (
+        "disabled",
+        "stopped",
+        "offline",
+        "not available",
+        "media-empty",
+        "media-needed",
+        "paper-out",
+        "out of paper",
+        "marker-supply-empty",
+        "label roll empty",
+    )
+    fault = next((marker for marker in fault_markers if marker in normalized), None)
+    if fault:
+        raise RuntimeError(f"CUPS printer fault ({fault}): {status[:300]}")
+    return selected, status
+
 class Handler(BaseHTTPRequestHandler):
     def send_json_headers(self, status=200):
         self.send_response(status)
@@ -131,9 +159,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/health":
             return self.reply({"ok": False, "error": "Not found"}, 404)
         try:
-            selected = printer_name()
-            subprocess.run(["lpstat", "-p", selected], check=True, capture_output=True, text=True, timeout=5)
-            self.reply({"ok": True, "printer": selected})
+            selected, status = printer_health()
+            self.reply({"ok": True, "printer": selected, "status": status})
         except Exception as error:
             self.reply({"ok": False, "error": str(error)}, 503)
 
