@@ -16,10 +16,7 @@ import {
 } from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
-import {
-  fetchFrontCounterCollectionQueue,
-  type FrontCounterCollectionRequest,
-} from "@/lib/front-counter";
+import { fetchFrontCounterCollectionQueue, type FrontCounterCollectionRequest } from "@/lib/front-counter";
 
 type WallboardTicket = {
   id: string;
@@ -52,12 +49,7 @@ type SupplierSpendTicket = {
 
 type WallboardMode = "inbound" | "ready" | "operators" | "suppliers";
 
-const ROTATION_MODES: WallboardMode[] = [
-  "inbound",
-  "ready",
-  "operators",
-  "suppliers",
-];
+const ROTATION_MODES: WallboardMode[] = ["inbound", "ready", "operators", "suppliers"];
 const MODE_DURATION_MS = 1000 * 60;
 const POLL_INTERVAL_MS = 1000 * 30;
 const PAGE_DURATION_MS = 1000 * 30;
@@ -67,9 +59,7 @@ const REALTIME_REFRESH_DEBOUNCE_MS = 500;
 
 export default function WallboardPage() {
   const [tickets, setTickets] = useState<WallboardTicket[]>([]);
-  const [supplierSpendTickets, setSupplierSpendTickets] = useState<
-    SupplierSpendTicket[]
-  >([]);
+  const [supplierSpendTickets, setSupplierSpendTickets] = useState<SupplierSpendTicket[]>([]);
   const [adminOperatorNames, setAdminOperatorNames] = useState<string[]>(
     getDefaultAdminOperatorOptions(),
   );
@@ -77,9 +67,7 @@ export default function WallboardPage() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isFrontCounterMode, setIsFrontCounterMode] = useState(false);
-  const [collectionQueue, setCollectionQueue] = useState<
-    FrontCounterCollectionRequest[]
-  >([]);
+  const [collectionQueue, setCollectionQueue] = useState<FrontCounterCollectionRequest[]>([]);
   const [currentMode, setCurrentMode] = useState<WallboardMode>("inbound");
   const [modeStartedAt, setModeStartedAt] = useState(() => Date.now());
   const [currentPage, setCurrentPage] = useState(0);
@@ -88,9 +76,7 @@ export default function WallboardPage() {
   const signatureRef = useRef("");
   const supplierSpendSignatureRef = useRef("");
   const supplierSpendTicketsRef = useRef<SupplierSpendTicket[]>([]);
-  const adminOperatorNamesRef = useRef<string[]>(
-    getDefaultAdminOperatorOptions(),
-  );
+  const adminOperatorNamesRef = useRef<string[]>(getDefaultAdminOperatorOptions());
   const pendingSignatureRef = useRef("");
   const pendingTakeoverActiveRef = useRef(false);
   const modeStartedAtRef = useRef(modeStartedAt);
@@ -146,21 +132,19 @@ export default function WallboardPage() {
       const access = await getCurrentUserWithRole(supabase);
       if (access.isFrontCounter) {
         setIsFrontCounterMode(true);
-        const [ticketResult, spendResult, operatorResult, collectionResult] =
-          await Promise.allSettled([
-            supabase.rpc("list_front_counter_wallboard_tickets"),
-            supabase.rpc("list_front_counter_wallboard_supplier_spend"),
-            fetchAdminOperatorRecords(supabase),
-            fetchFrontCounterCollectionQueue(supabase),
-          ]);
+        const [ticketResult, spendResult, operatorResult, collectionResult] = await Promise.allSettled([
+          supabase.rpc("list_front_counter_wallboard_tickets"),
+          supabase.rpc("list_front_counter_wallboard_supplier_spend"),
+          fetchAdminOperatorRecords(supabase),
+          fetchFrontCounterCollectionQueue(supabase),
+        ]);
         if (ticketResult.status === "rejected" || ticketResult.value.error) {
           setLoadError("Unable to load the Front Counter wallboard queue.");
           setIsLoading(false);
           return;
         }
 
-        const nextTickets = (ticketResult.value.data ??
-          []) as WallboardTicket[];
+        const nextTickets = (ticketResult.value.data ?? []) as WallboardTicket[];
         const nextSupplierSpendTickets =
           spendResult.status === "fulfilled" && !spendResult.value.error
             ? ((spendResult.value.data ?? []) as SupplierSpendTicket[])
@@ -175,9 +159,7 @@ export default function WallboardPage() {
           spendResult.status === "rejected" || Boolean(spendResult.value.error);
         const nextSignature = buildTicketSignature(nextTickets);
         const nextPendingSignature = buildPendingSignature(nextTickets);
-        const nextSupplierSpendSignature = buildSupplierSpendSignature(
-          nextSupplierSpendTickets,
-        );
+        const nextSupplierSpendSignature = buildSupplierSpendSignature(nextSupplierSpendTickets);
 
         if (
           pendingSignatureRef.current &&
@@ -204,10 +186,7 @@ export default function WallboardPage() {
           setSupplierSpendTickets(nextSupplierSpendTickets);
         }
 
-        if (
-          nextOperatorNames.join("|") !==
-          adminOperatorNamesRef.current.join("|")
-        ) {
+        if (nextOperatorNames.join("|") !== adminOperatorNamesRef.current.join("|")) {
           setAdminOperatorNames(nextOperatorNames);
         }
 
@@ -236,19 +215,16 @@ export default function WallboardPage() {
           .order("updated_at", { ascending: false })
           .limit(LIVE_QUEUE_LIMIT);
 
-      const [queueResult, spendResult, operatorResult] =
-        await Promise.allSettled([
-          buildQueueQuery(true),
-          supabase
-            .from("tickets")
-            .select(
-              "id, supplier_name, order_amount, ordered_at, updated_at, created_at, status",
-            )
-            .not("supplier_name", "is", null)
-            .order("ordered_at", { ascending: false, nullsFirst: false })
-            .limit(500),
-          fetchAdminOperatorRecords(supabase),
-        ]);
+      const [queueResult, spendResult, operatorResult] = await Promise.allSettled([
+        buildQueueQuery(true),
+        supabase
+          .from("tickets")
+          .select("id, supplier_name, order_amount, ordered_at, updated_at, created_at, status")
+          .not("supplier_name", "is", null)
+          .order("ordered_at", { ascending: false, nullsFirst: false })
+          .limit(500),
+        fetchAdminOperatorRecords(supabase),
+      ]);
 
       if (!isActive) {
         return;
@@ -268,12 +244,10 @@ export default function WallboardPage() {
             return;
           }
 
-          const fallbackTickets = (fallbackQueueResult.data ??
-            []) as unknown as WallboardTicket[];
+          const fallbackTickets = (fallbackQueueResult.data ?? []) as unknown as WallboardTicket[];
           const nextSupplierSpendTickets =
             spendResult.status === "fulfilled" && !spendResult.value.error
-              ? ((spendResult.value.data ??
-                  []) as unknown as SupplierSpendTicket[])
+              ? ((spendResult.value.data ?? []) as unknown as SupplierSpendTicket[])
               : supplierSpendTicketsRef.current;
           const nextOperatorNames =
             operatorResult.status === "fulfilled"
@@ -296,9 +270,7 @@ export default function WallboardPage() {
             .join("|");
           const nextPendingSignature = fallbackTickets
             .filter((ticket) => ticket.status === "PENDING")
-            .map((ticket) =>
-              [ticket.id, ticket.updated_at, ticket.created_at].join(":"),
-            )
+            .map((ticket) => [ticket.id, ticket.updated_at, ticket.created_at].join(":"))
             .join("|");
           const nextSupplierSpendSignature = nextSupplierSpendTickets
             .map((ticket) =>
@@ -320,17 +292,12 @@ export default function WallboardPage() {
             setTickets(fallbackTickets);
           }
 
-          if (
-            nextSupplierSpendSignature !== supplierSpendSignatureRef.current
-          ) {
+          if (nextSupplierSpendSignature !== supplierSpendSignatureRef.current) {
             supplierSpendSignatureRef.current = nextSupplierSpendSignature;
             setSupplierSpendTickets(nextSupplierSpendTickets);
           }
 
-          if (
-            nextOperatorNames.join("|") !==
-            adminOperatorNamesRef.current.join("|")
-          ) {
+          if (nextOperatorNames.join("|") !== adminOperatorNamesRef.current.join("|")) {
             setAdminOperatorNames(nextOperatorNames);
           }
 
@@ -349,8 +316,7 @@ export default function WallboardPage() {
         return;
       }
 
-      const nextTickets = (queueResult.value.data ??
-        []) as unknown as WallboardTicket[];
+      const nextTickets = (queueResult.value.data ?? []) as unknown as WallboardTicket[];
       const nextSupplierSpendTickets =
         spendResult.status === "fulfilled" && !spendResult.value.error
           ? ((spendResult.value.data ?? []) as unknown as SupplierSpendTicket[])
@@ -376,9 +342,7 @@ export default function WallboardPage() {
         .join("|");
       const nextPendingSignature = nextTickets
         .filter((ticket) => ticket.status === "PENDING")
-        .map((ticket) =>
-          [ticket.id, ticket.updated_at, ticket.created_at].join(":"),
-        )
+        .map((ticket) => [ticket.id, ticket.updated_at, ticket.created_at].join(":"))
         .join("|");
       const nextSupplierSpendSignature = nextSupplierSpendTickets
         .map((ticket) =>
@@ -416,9 +380,7 @@ export default function WallboardPage() {
         setSupplierSpendTickets(nextSupplierSpendTickets);
       }
 
-      if (
-        nextOperatorNames.join("|") !== adminOperatorNamesRef.current.join("|")
-      ) {
+      if (nextOperatorNames.join("|") !== adminOperatorNamesRef.current.join("|")) {
         setAdminOperatorNames(nextOperatorNames);
       }
 
@@ -442,9 +404,7 @@ export default function WallboardPage() {
     }, POLL_INTERVAL_MS);
 
     let refreshTimeout: number | null = null;
-    const realtimeChannel = getSupabaseClient()?.channel(
-      "relay-wallboard-refresh",
-    );
+    const realtimeChannel = getSupabaseClient()?.channel("relay-wallboard-refresh");
 
     realtimeChannel?.on(
       "postgres_changes",
@@ -466,11 +426,7 @@ export default function WallboardPage() {
     );
     realtimeChannel?.on(
       "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "front_counter_collection_requests",
-      },
+      { event: "*", schema: "public", table: "front_counter_collection_requests" },
       () => {
         if (refreshTimeout) window.clearTimeout(refreshTimeout);
         refreshTimeout = window.setTimeout(() => {
@@ -527,12 +483,8 @@ export default function WallboardPage() {
 
   const unassignedPendingTickets = useMemo(() => {
     return [...tickets]
-      .filter(
-        (ticket) => ticket.status === "PENDING" && !ticket.assigned_to?.trim(),
-      )
-      .sort((left, right) =>
-        compareIsoDates(left.created_at, right.created_at),
-      );
+      .filter((ticket) => ticket.status === "PENDING" && !ticket.assigned_to?.trim())
+      .sort((left, right) => compareIsoDates(left.created_at, right.created_at));
   }, [tickets]);
 
   const hasPendingTakeover = unassignedPendingTickets.length > 0;
@@ -540,8 +492,7 @@ export default function WallboardPage() {
   const inboundTickets = useMemo(() => {
     return [...tickets]
       .filter(
-        (ticket) =>
-          ticket.status === "PENDING" || ticket.status === "IN_PROGRESS",
+        (ticket) => ticket.status === "PENDING" || ticket.status === "IN_PROGRESS",
       )
       .sort((left, right) => {
         const leftPriority = getInboundPriority(left.status);
@@ -564,22 +515,12 @@ export default function WallboardPage() {
   const operatorMetrics = useMemo(() => {
     return adminOperatorNames.map((operator) => {
       const operatorTickets = tickets.filter(
-        (ticket) =>
-          normalizeOperatorName(ticket.assigned_to) ===
-          normalizeOperatorName(operator),
+        (ticket) => normalizeOperatorName(ticket.assigned_to) === normalizeOperatorName(operator),
       );
-      const pendingCount = operatorTickets.filter(
-        (ticket) => ticket.status === "PENDING",
-      ).length;
-      const inProgressCount = operatorTickets.filter(
-        (ticket) => ticket.status === "IN_PROGRESS",
-      ).length;
-      const orderedCount = operatorTickets.filter(
-        (ticket) => ticket.status === "ORDERED",
-      ).length;
-      const readyCount = operatorTickets.filter(
-        (ticket) => ticket.status === "READY",
-      ).length;
+      const pendingCount = operatorTickets.filter((ticket) => ticket.status === "PENDING").length;
+      const inProgressCount = operatorTickets.filter((ticket) => ticket.status === "IN_PROGRESS").length;
+      const orderedCount = operatorTickets.filter((ticket) => ticket.status === "ORDERED").length;
+      const readyCount = operatorTickets.filter((ticket) => ticket.status === "READY").length;
       const oldestTicket = [...operatorTickets].sort((left, right) =>
         compareIsoDates(left.created_at, right.created_at),
       )[0];
@@ -598,30 +539,19 @@ export default function WallboardPage() {
 
   const supplierSpendSummary = useMemo(() => {
     const snapshots = buildMonthlySupplierSpendSnapshots(
-      supplierSpendTickets as unknown as Parameters<
-        typeof buildMonthlySupplierSpendSnapshots
-      >[0],
+      supplierSpendTickets as unknown as Parameters<typeof buildMonthlySupplierSpendSnapshots>[0],
     );
     const currentMonthKey = getMonthStartKey(new Date());
     const previousMonthKey = getPreviousMonthStartKey(currentMonthKey);
-    const currentMonthRows = snapshots.filter(
-      (snapshot) => snapshot.month_start === currentMonthKey,
-    );
-    const previousMonthRows = snapshots.filter(
-      (snapshot) => snapshot.month_start === previousMonthKey,
-    );
+    const currentMonthRows = snapshots.filter((snapshot) => snapshot.month_start === currentMonthKey);
+    const previousMonthRows = snapshots.filter((snapshot) => snapshot.month_start === previousMonthKey);
     const previousMonthMap = new Map(
-      previousMonthRows.map((snapshot) => [
-        snapshot.supplier_name_normalized,
-        snapshot,
-      ]),
+      previousMonthRows.map((snapshot) => [snapshot.supplier_name_normalized, snapshot]),
     );
 
     const suppliers = currentMonthRows
       .map((snapshot) => {
-        const previousSnapshot = previousMonthMap.get(
-          snapshot.supplier_name_normalized,
-        );
+        const previousSnapshot = previousMonthMap.get(snapshot.supplier_name_normalized);
         const previousTotalSpend = previousSnapshot?.total_spend ?? 0;
         const previousOrderCount = previousSnapshot?.order_count ?? 0;
 
@@ -631,9 +561,7 @@ export default function WallboardPage() {
           totalSpend: snapshot.total_spend,
           previousOrderCount,
           previousTotalSpend,
-          monthOverMonthSpendChange: Number(
-            (snapshot.total_spend - previousTotalSpend).toFixed(2),
-          ),
+          monthOverMonthSpendChange: Number((snapshot.total_spend - previousTotalSpend).toFixed(2)),
           monthOverMonthOrderChange: snapshot.order_count - previousOrderCount,
           lastOrderedAt: null as string | null,
         };
@@ -647,24 +575,14 @@ export default function WallboardPage() {
       });
 
     const totalSpend = Number(
-      currentMonthRows
-        .reduce((sum, snapshot) => sum + snapshot.total_spend, 0)
-        .toFixed(2),
+      currentMonthRows.reduce((sum, snapshot) => sum + snapshot.total_spend, 0).toFixed(2),
     );
     const previousTotalSpend = Number(
-      previousMonthRows
-        .reduce((sum, snapshot) => sum + snapshot.total_spend, 0)
-        .toFixed(2),
+      previousMonthRows.reduce((sum, snapshot) => sum + snapshot.total_spend, 0).toFixed(2),
     );
 
-    const previousOrderCount = previousMonthRows.reduce(
-      (sum, snapshot) => sum + snapshot.order_count,
-      0,
-    );
-    const orderCount = currentMonthRows.reduce(
-      (sum, snapshot) => sum + snapshot.order_count,
-      0,
-    );
+    const previousOrderCount = previousMonthRows.reduce((sum, snapshot) => sum + snapshot.order_count, 0);
+    const orderCount = currentMonthRows.reduce((sum, snapshot) => sum + snapshot.order_count, 0);
 
     const topSupplier = suppliers[0] ?? null;
 
@@ -682,14 +600,9 @@ export default function WallboardPage() {
     };
   }, [supplierSpendTickets]);
 
-  const activeQueueTickets =
-    currentMode === "inbound" ? inboundTickets : readyTickets;
-  const pageCount = Math.max(
-    1,
-    Math.ceil(activeQueueTickets.length / PAGE_SIZE),
-  );
-  const safePageIndex =
-    activeQueueTickets.length === 0 ? 0 : currentPage % pageCount;
+  const activeQueueTickets = currentMode === "inbound" ? inboundTickets : readyTickets;
+  const pageCount = Math.max(1, Math.ceil(activeQueueTickets.length / PAGE_SIZE));
+  const safePageIndex = activeQueueTickets.length === 0 ? 0 : currentPage % pageCount;
   const visibleTickets = activeQueueTickets.slice(
     safePageIndex * PAGE_SIZE,
     safePageIndex * PAGE_SIZE + PAGE_SIZE,
@@ -703,9 +616,7 @@ export default function WallboardPage() {
     0,
     Math.ceil((PAGE_DURATION_MS - (countdownNow - pageStartedAt)) / 1000),
   );
-  const nextModeLabel = getWallboardModeLabel(
-    getNextWallboardMode(currentMode),
-  );
+  const nextModeLabel = getWallboardModeLabel(getNextWallboardMode(currentMode));
 
   if (isFrontCounterMode && collectionQueue.length > 0) {
     return (
@@ -766,10 +677,7 @@ export default function WallboardPage() {
                 />
                 <WallboardMetric
                   label="Jobs Active"
-                  value={operatorMetrics.reduce(
-                    (sum, operator) => sum + operator.total,
-                    0,
-                  )}
+                  value={operatorMetrics.reduce((sum, operator) => sum + operator.total, 0)}
                   accent="blue"
                 />
                 <WallboardMetric
@@ -783,10 +691,7 @@ export default function WallboardPage() {
 
           <div>
             {currentMode === "operators" ? (
-              <OperatorKpiScreen
-                operatorMetrics={operatorMetrics}
-                tickets={tickets}
-              />
+              <OperatorKpiScreen operatorMetrics={operatorMetrics} tickets={tickets} />
             ) : currentMode === "suppliers" ? (
               <SupplierSpendScreen summary={supplierSpendSummary} />
             ) : (
@@ -821,16 +726,9 @@ export default function WallboardPage() {
                       </div>
 
                       <div className="mt-5 grid gap-3">
+                        <WallboardMeta label="Machine" value={ticket.machine_reference ?? "Not set"} />
                         <WallboardMeta
-                          label="Machine"
-                          value={ticket.machine_reference ?? "Not set"}
-                        />
-                        <WallboardMeta
-                          label={
-                            currentMode === "ready"
-                              ? "Prepared By"
-                              : "Assigned To"
-                          }
+                          label={currentMode === "ready" ? "Prepared By" : "Assigned To"}
                           value={ticket.assigned_to ?? "Awaiting assignment"}
                         />
                         <WallboardMeta
@@ -844,19 +742,13 @@ export default function WallboardPage() {
                           Request
                         </p>
                         <p className="mt-3 max-h-[6.75rem] overflow-hidden text-xl leading-snug text-white/92 2xl:text-2xl">
-                          {ticket.request_summary ??
-                            ticket.request_details ??
-                            "No summary provided"}
+                          {ticket.request_summary ?? ticket.request_details ?? "No summary provided"}
                         </p>
                       </div>
 
                       <div className="mt-auto pt-5 text-sm font-medium uppercase tracking-[0.2em] text-white/52">
-                        {currentMode === "ready"
-                          ? "Ready since"
-                          : "Waiting since"}{" "}
-                        {formatRelativeAge(
-                          ticket.updated_at ?? ticket.created_at,
-                        )}
+                        {currentMode === "ready" ? "Ready since" : "Waiting since"}{" "}
+                        {formatRelativeAge(ticket.updated_at ?? ticket.created_at)}
                       </div>
                     </article>
                   ))
@@ -864,15 +756,12 @@ export default function WallboardPage() {
                   <div className="col-span-full flex min-h-[50vh] items-center justify-center rounded-[2rem] border border-white/10 bg-black/20 px-8 py-12 text-center backdrop-blur-sm">
                     <div className="space-y-3">
                       <p className="text-sm font-semibold uppercase tracking-[0.38em] text-white/45">
-                        {currentMode === "inbound"
-                          ? "Inbound Queue"
-                          : "Ready Queue"}
+                        {currentMode === "inbound" ? "Inbound Queue" : "Ready Queue"}
                       </p>
                       <p className="text-4xl font-semibold text-white">
                         {isLoading
                           ? "Loading live tickets..."
-                          : (loadError ??
-                            "No live tickets in this queue right now")}
+                          : loadError ?? "No live tickets in this queue right now"}
                       </p>
                     </div>
                   </div>
@@ -883,17 +772,12 @@ export default function WallboardPage() {
 
           <footer className="flex items-center justify-between rounded-[2rem] border border-white/10 bg-black/22 px-6 py-4 text-sm text-white/60 backdrop-blur-sm">
             <p>
-              Refreshes every {Math.floor(POLL_INTERVAL_MS / 1000)} seconds.
-              Page flips every {Math.floor(PAGE_DURATION_MS / 1000)} seconds for
-              low-load full-queue coverage.
+              Refreshes every {Math.floor(POLL_INTERVAL_MS / 1000)} seconds. Page flips every{" "}
+              {Math.floor(PAGE_DURATION_MS / 1000)} seconds for low-load full-queue coverage.
             </p>
             <p className="text-right">
-              <span className="mr-5">
-                Next page {formatCountdown(pageSecondsRemaining)}
-              </span>
-              {lastUpdatedAt
-                ? `Last synced ${formatClock(lastUpdatedAt)}`
-                : "Waiting for first sync"}
+              <span className="mr-5">Next page {formatCountdown(pageSecondsRemaining)}</span>
+              {lastUpdatedAt ? `Last synced ${formatClock(lastUpdatedAt)}` : "Waiting for first sync"}
             </p>
           </footer>
         </div>
@@ -918,21 +802,13 @@ function FrontCounterCollectionTakeover({
               <span className="absolute inset-[31%] rounded-full bg-emerald-200 shadow-[0_0_28px_rgba(110,231,183,0.95)]" />
             </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.38em] text-emerald-200/70">
-                Front counter collection
-              </p>
-              <h1 className="mt-1 text-[clamp(2.2rem,4vw,4.8rem)] font-black uppercase leading-none tracking-tight">
-                Fitter waiting
-              </h1>
+              <p className="text-xs font-black uppercase tracking-[0.38em] text-emerald-200/70">Front counter collection</p>
+              <h1 className="mt-1 text-[clamp(2.2rem,4vw,4.8rem)] font-black uppercase leading-none tracking-tight">Fitter waiting</h1>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-4 rounded-[1.35rem] border border-emerald-300/35 bg-emerald-400/15 px-6 py-3">
-            <p className="text-5xl font-black leading-none text-emerald-100">
-              {requests.length}
-            </p>
-            <p className="max-w-24 text-xs font-bold uppercase leading-5 tracking-[0.22em] text-emerald-100/75">
-              waiting now
-            </p>
+            <p className="text-5xl font-black leading-none text-emerald-100">{requests.length}</p>
+            <p className="max-w-24 text-xs font-bold uppercase leading-5 tracking-[0.22em] text-emerald-100/75">waiting now</p>
           </div>
         </header>
 
@@ -940,20 +816,12 @@ function FrontCounterCollectionTakeover({
           <article className="rounded-[2rem] border border-emerald-200/55 bg-[linear-gradient(125deg,rgba(6,78,59,0.92),rgba(2,44,34,0.78))] p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] 2xl:p-9">
             <div className="flex items-start justify-between gap-8">
               <div className="min-w-0">
-                <p className="text-sm font-black uppercase tracking-[0.32em] text-emerald-100/75">
-                  Pick now · Job number
-                </p>
-                <p className="mt-3 text-[clamp(4.2rem,8.5vw,9rem)] font-black leading-[0.86] tracking-[0.02em] text-white">
-                  {primary.job_number}
-                </p>
+                <p className="text-sm font-black uppercase tracking-[0.32em] text-emerald-100/75">Pick now · Job number</p>
+                <p className="mt-3 text-[clamp(4.2rem,8.5vw,9rem)] font-black leading-[0.86] tracking-[0.02em] text-white">{primary.job_number}</p>
               </div>
               <div className="shrink-0 rounded-2xl border border-white/15 bg-black/20 px-5 py-4 text-right">
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-white/55">
-                  Waiting
-                </p>
-                <p className="mt-1 text-2xl font-black text-emerald-100">
-                  {formatRelativeAge(primary.requested_at)}
-                </p>
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-white/55">Waiting</p>
+                <p className="mt-1 text-2xl font-black text-emerald-100">{formatRelativeAge(primary.requested_at)}</p>
               </div>
             </div>
 
@@ -962,39 +830,21 @@ function FrontCounterCollectionTakeover({
             </p>
 
             <div className="mt-7 grid gap-4 sm:grid-cols-3">
-              <WallboardMeta
-                label="Machine"
-                value={primary.machine_reference || "Not set"}
-              />
-              <WallboardMeta
-                label="Requested by"
-                value={primary.requester_name || "Fitter"}
-              />
-              <WallboardMeta
-                label="Pick from bin"
-                value={primary.bin_location || "Check ticket"}
-              />
+              <WallboardMeta label="Machine" value={primary.machine_reference || "Not set"} />
+              <WallboardMeta label="Requested by" value={primary.requester_name || "Fitter"} />
+              <WallboardMeta label="Pick from bin" value={primary.bin_location || "Check ticket"} />
             </div>
           </article>
 
           {waitingBehind.length > 0 ? (
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {waitingBehind.map((request) => (
-                <article
-                  key={request.request_id}
-                  className="rounded-2xl border border-white/12 bg-white/[0.06] px-5 py-4"
-                >
+                <article key={request.request_id} className="rounded-2xl border border-white/12 bg-white/[0.06] px-5 py-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-2xl font-black text-white">
-                      {request.job_number}
-                    </p>
-                    <p className="rounded-full bg-emerald-300/15 px-3 py-1 text-xs font-black text-emerald-100">
-                      NEXT #{request.queue_position}
-                    </p>
+                    <p className="text-2xl font-black text-white">{request.job_number}</p>
+                    <p className="rounded-full bg-emerald-300/15 px-3 py-1 text-xs font-black text-emerald-100">NEXT #{request.queue_position}</p>
                   </div>
-                  <p className="mt-2 truncate text-base font-semibold text-white/70">
-                    {request.request_summary || "Parts collection"}
-                  </p>
+                  <p className="mt-2 truncate text-base font-semibold text-white/70">{request.request_summary || "Parts collection"}</p>
                 </article>
               ))}
             </div>
@@ -1031,13 +881,7 @@ function PendingJobTakeover({
   }
 
   if (tickets.length >= 5) {
-    return (
-      <PendingBacklogTakeover
-        tickets={tickets}
-        now={now}
-        lastUpdatedAt={lastUpdatedAt}
-      />
-    );
+    return <PendingBacklogTakeover tickets={tickets} now={now} lastUpdatedAt={lastUpdatedAt} />;
   }
 
   return (
@@ -1059,9 +903,7 @@ function PendingJobTakeover({
           </div>
 
           <div className="flex shrink-0 items-center gap-4 rounded-[1.25rem] border border-red-300/30 bg-red-950/45 px-5 py-3 2xl:px-6">
-            <p className="text-4xl font-black leading-none text-red-200 2xl:text-5xl">
-              {tickets.length}
-            </p>
+            <p className="text-4xl font-black leading-none text-red-200 2xl:text-5xl">{tickets.length}</p>
             <p className="max-w-[9rem] text-xs font-bold uppercase leading-5 tracking-[0.24em] text-red-100/75 2xl:text-sm">
               Awaiting assignment
             </p>
@@ -1070,9 +912,7 @@ function PendingJobTakeover({
 
         <div
           className={`grid min-h-0 flex-1 gap-4 pt-4 2xl:gap-5 2xl:pt-5 ${
-            remainingTickets.length > 0
-              ? "xl:grid-cols-[minmax(0,1.5fr)_minmax(22rem,0.82fr)]"
-              : ""
+            remainingTickets.length > 0 ? "xl:grid-cols-[minmax(0,1.5fr)_minmax(22rem,0.82fr)]" : ""
           }`}
         >
           <article className="flex min-h-0 flex-col rounded-[1.75rem] border border-red-400/55 bg-[linear-gradient(145deg,rgba(105,20,27,0.62),rgba(31,6,11,0.9))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_20px_70px_-32px_rgba(239,68,68,0.45)] 2xl:p-7">
@@ -1101,9 +941,7 @@ function PendingJobTakeover({
                 <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-red-100/55 2xl:text-xs">
                   Request summary
                 </p>
-                <p
-                  className={`mt-2.5 max-h-[15rem] overflow-hidden font-bold text-white 2xl:max-h-[17rem] ${getPendingRequestTextClass(primaryRequest)}`}
-                >
+                <p className={`mt-2.5 max-h-[15rem] overflow-hidden font-bold text-white 2xl:max-h-[17rem] ${getPendingRequestTextClass(primaryRequest)}`}>
                   {primaryRequest}
                 </p>
               </div>
@@ -1139,45 +977,39 @@ function PendingJobTakeover({
                 </p>
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-3">
-                {remainingTickets.map((ticket) => (
-                  <article
-                    key={ticket.id}
-                    className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-red-400/30 bg-[linear-gradient(145deg,rgba(78,16,23,0.7),rgba(22,5,9,0.9))] px-4 py-3.5 shadow-[0_12px_36px_-24px_rgba(239,68,68,0.55)] 2xl:px-5 2xl:py-4"
-                  >
-                    <span className="absolute inset-y-0 left-0 w-1 bg-red-400/55" />
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-200/55 2xl:text-xs">
-                          Job
-                        </p>
-                        <p className="mt-0.5 text-2xl font-black tracking-[0.045em] text-white 2xl:text-3xl">
-                          {ticket.job_number ?? "TBC"}
-                        </p>
-                      </div>
-                      <p className="rounded-full border border-red-300/25 bg-black/20 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.05em] text-red-100/85">
-                        {formatPendingDuration(ticket.created_at, now)}
+              {remainingTickets.map((ticket) => (
+                <article
+                  key={ticket.id}
+                  className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-red-400/30 bg-[linear-gradient(145deg,rgba(78,16,23,0.7),rgba(22,5,9,0.9))] px-4 py-3.5 shadow-[0_12px_36px_-24px_rgba(239,68,68,0.55)] 2xl:px-5 2xl:py-4"
+                >
+                  <span className="absolute inset-y-0 left-0 w-1 bg-red-400/55" />
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-200/55 2xl:text-xs">
+                        Job
+                      </p>
+                      <p className="mt-0.5 text-2xl font-black tracking-[0.045em] text-white 2xl:text-3xl">
+                        {ticket.job_number ?? "TBC"}
                       </p>
                     </div>
-                    <p className="mt-2.5 line-clamp-3 text-xl font-bold leading-[1.18] text-white/95 2xl:text-2xl">
-                      {ticket.request_summary ??
-                        ticket.request_details ??
-                        "No summary provided"}
+                    <p className="rounded-full border border-red-300/25 bg-black/20 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.05em] text-red-100/85">
+                      {formatPendingDuration(ticket.created_at, now)}
                     </p>
-                    <div className="mt-auto flex items-center justify-between gap-3 pt-3 text-xs font-bold uppercase tracking-[0.13em] text-red-100/50">
-                      <p className="truncate">
-                        Machine {ticket.machine_reference ?? "not set"}
-                      </p>
-                      <p className="truncate text-right">
-                        {ticket.requester_name ?? "Unknown requester"}
-                      </p>
-                    </div>
-                  </article>
-                ))}
-                {hiddenTicketCount > 0 ? (
-                  <div className="rounded-[1rem] border border-red-300/25 bg-red-950/35 px-4 py-2.5 text-center text-sm font-black uppercase tracking-[0.18em] text-red-100/75">
-                    + {hiddenTicketCount} more pending
                   </div>
-                ) : null}
+                  <p className="mt-2.5 line-clamp-3 text-xl font-bold leading-[1.18] text-white/95 2xl:text-2xl">
+                    {ticket.request_summary ?? ticket.request_details ?? "No summary provided"}
+                  </p>
+                  <div className="mt-auto flex items-center justify-between gap-3 pt-3 text-xs font-bold uppercase tracking-[0.13em] text-red-100/50">
+                    <p className="truncate">Machine {ticket.machine_reference ?? "not set"}</p>
+                    <p className="truncate text-right">{ticket.requester_name ?? "Unknown requester"}</p>
+                  </div>
+                </article>
+              ))}
+              {hiddenTicketCount > 0 ? (
+                <div className="rounded-[1rem] border border-red-300/25 bg-red-950/35 px-4 py-2.5 text-center text-sm font-black uppercase tracking-[0.18em] text-red-100/75">
+                  + {hiddenTicketCount} more pending
+                </div>
+              ) : null}
               </div>
             </aside>
           ) : null}
@@ -1186,9 +1018,7 @@ function PendingJobTakeover({
         <footer className="mt-4 flex items-center justify-between rounded-[1.15rem] border border-red-300/20 bg-red-950/30 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-red-100/65 2xl:mt-5 2xl:text-sm">
           <span>Wallboard paused until pending jobs are assigned</span>
           <span className="text-white/35">
-            {lastUpdatedAt
-              ? `Live sync ${formatClock(lastUpdatedAt)}`
-              : "Connecting"}
+            {lastUpdatedAt ? `Live sync ${formatClock(lastUpdatedAt)}` : "Connecting"}
           </span>
         </footer>
       </div>
@@ -1228,9 +1058,7 @@ function PendingBacklogTakeover({
           </div>
 
           <div className="shrink-0 text-right">
-            <p className="text-5xl font-black text-red-300 2xl:text-7xl">
-              {tickets.length}
-            </p>
+            <p className="text-5xl font-black text-red-300 2xl:text-7xl">{tickets.length}</p>
             <p className="text-sm font-bold uppercase tracking-[0.24em] text-red-200 2xl:text-base">
               Unassigned
             </p>
@@ -1271,20 +1099,14 @@ function PendingBacklogTakeover({
 
                 <p
                   className={`mt-2.5 line-clamp-2 font-bold leading-[1.08] text-white ${
-                    denseLayout
-                      ? "text-2xl 2xl:text-3xl"
-                      : "text-3xl 2xl:text-4xl"
+                    denseLayout ? "text-2xl 2xl:text-3xl" : "text-3xl 2xl:text-4xl"
                   }`}
                 >
-                  {ticket.request_summary ??
-                    ticket.request_details ??
-                    "No summary provided"}
+                  {ticket.request_summary ?? ticket.request_details ?? "No summary provided"}
                 </p>
 
                 <div className="mt-auto flex items-center justify-between gap-4 pt-2 text-xs font-bold uppercase tracking-[0.15em] text-red-100/58 2xl:text-sm">
-                  <p className="truncate">
-                    Machine {ticket.machine_reference ?? "not set"}
-                  </p>
+                  <p className="truncate">Machine {ticket.machine_reference ?? "not set"}</p>
                   <p className="truncate text-right">
                     Requested by {ticket.requester_name ?? "unknown"}
                   </p>
@@ -1297,12 +1119,9 @@ function PendingBacklogTakeover({
         <footer className="mt-4 rounded-[1.3rem] border border-red-300/35 bg-red-950/45 px-5 py-3 text-center text-sm font-black uppercase tracking-[0.18em] text-red-200 2xl:mt-5 2xl:text-base">
           {hiddenTicketCount > 0
             ? `Showing oldest ${visibleTickets.length} of ${tickets.length} pending jobs`
-            : `Showing all ${tickets.length} pending jobs`}{" "}
-          — KPI and supplier screens paused
+            : `Showing all ${tickets.length} pending jobs`} — KPI and supplier screens paused
           <span className="ml-6 text-white/38">
-            {lastUpdatedAt
-              ? `Live sync ${formatClock(lastUpdatedAt)}`
-              : "Connecting"}
+            {lastUpdatedAt ? `Live sync ${formatClock(lastUpdatedAt)}` : "Connecting"}
           </span>
         </footer>
       </div>
@@ -1310,21 +1129,13 @@ function PendingBacklogTakeover({
   );
 }
 
-function PendingTakeoverField({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function PendingTakeoverField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 rounded-[1.1rem] border border-white/[0.07] bg-black/18 px-4 py-3 2xl:px-5 2xl:py-4">
       <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-red-100/50 2xl:text-xs">
         {label}
       </p>
-      <p className="mt-1.5 truncate text-xl font-semibold text-white/95 2xl:text-2xl">
-        {value}
-      </p>
+      <p className="mt-1.5 truncate text-xl font-semibold text-white/95 2xl:text-2xl">{value}</p>
     </div>
   );
 }
@@ -1362,9 +1173,7 @@ function buildTicketSignature(tickets: WallboardTicket[]) {
 function buildPendingSignature(tickets: WallboardTicket[]) {
   return tickets
     .filter((ticket) => ticket.status === "PENDING")
-    .map((ticket) =>
-      [ticket.id, ticket.updated_at, ticket.created_at].join(":"),
-    )
+    .map((ticket) => [ticket.id, ticket.updated_at, ticket.created_at].join(":"))
     .join("|");
 }
 
@@ -1401,12 +1210,8 @@ function WallboardMetric({
           : "border-white/10 bg-white/6 text-white";
 
   return (
-    <div
-      className={`rounded-[1.35rem] border px-4 py-3.5 backdrop-blur-sm ${accentClass}`}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-white/55">
-        {label}
-      </p>
+    <div className={`rounded-[1.35rem] border px-4 py-3.5 backdrop-blur-sm ${accentClass}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-white/55">{label}</p>
       <p className="mt-2.5 text-3xl font-semibold tracking-[0.06em]">{value}</p>
     </div>
   );
@@ -1427,13 +1232,9 @@ function OperatorKpiScreen({
   }>;
   tickets: WallboardTicket[];
 }) {
-  const unassignedCount = tickets.filter(
-    (ticket) => !ticket.assigned_to?.trim(),
-  ).length;
+  const unassignedCount = tickets.filter((ticket) => !ticket.assigned_to?.trim()).length;
   const activeCount = tickets.length;
-  const busiestOperator = [...operatorMetrics].sort(
-    (left, right) => right.total - left.total,
-  )[0];
+  const busiestOperator = [...operatorMetrics].sort((left, right) => right.total - left.total)[0];
 
   return (
     <section className="grid min-h-[70vh] gap-5 xl:grid-cols-[1fr_0.42fr]">
@@ -1457,51 +1258,25 @@ function OperatorKpiScreen({
             </p>
 
             <div className="mt-8 grid gap-3">
-              <OperatorStat
-                label="Pending"
-                value={operator.pendingCount}
-                tone="red"
-              />
-              <OperatorStat
-                label="In Progress"
-                value={operator.inProgressCount}
-                tone="blue"
-              />
-              <OperatorStat
-                label="Ordered"
-                value={operator.orderedCount}
-                tone="amber"
-              />
-              <OperatorStat
-                label="Ready"
-                value={operator.readyCount}
-                tone="green"
-              />
+              <OperatorStat label="Pending" value={operator.pendingCount} tone="red" />
+              <OperatorStat label="In Progress" value={operator.inProgressCount} tone="blue" />
+              <OperatorStat label="Ordered" value={operator.orderedCount} tone="amber" />
+              <OperatorStat label="Ready" value={operator.readyCount} tone="green" />
             </div>
 
             <div className="mt-auto rounded-[1.35rem] border border-white/10 bg-black/18 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/42">
                 Oldest active
               </p>
-              <p className="mt-2 text-2xl font-semibold text-white">
-                {operator.oldestAge}
-              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">{operator.oldestAge}</p>
             </div>
           </article>
         ))}
       </div>
 
       <aside className="grid gap-5">
-        <GlassSummaryCard
-          label="Active workload"
-          value={activeCount}
-          helper="Live tickets across the admin queue."
-        />
-        <GlassSummaryCard
-          label="Unassigned"
-          value={unassignedCount}
-          helper="Jobs still sitting in Stores queue."
-        />
+        <GlassSummaryCard label="Active workload" value={activeCount} helper="Live tickets across the admin queue." />
+        <GlassSummaryCard label="Unassigned" value={unassignedCount} helper="Jobs still sitting in Stores queue." />
         <GlassSummaryCard
           label="Busiest admin"
           value={busiestOperator?.operator ?? "-"}
@@ -1537,14 +1312,8 @@ function SupplierSpendScreen({
   };
 }) {
   const topSuppliers = summary.suppliers.slice(0, 8);
-  const spendTrendPercent = formatPercentChange(
-    summary.currentTotalSpend,
-    summary.previousTotalSpend,
-  );
-  const orderTrendPercent = formatPercentChange(
-    summary.orderCount,
-    summary.previousOrderCount,
-  );
+  const spendTrendPercent = formatPercentChange(summary.currentTotalSpend, summary.previousTotalSpend);
+  const orderTrendPercent = formatPercentChange(summary.orderCount, summary.previousOrderCount);
 
   return (
     <section className="grid min-h-[70vh] gap-5 xl:grid-cols-[0.38fr_1fr]">
@@ -1613,25 +1382,13 @@ function SupplierSpendScreen({
                   {String(index + 1).padStart(2, "0")}
                 </p>
                 <div>
-                  <p className="text-2xl font-semibold text-white">
-                    {supplier.supplierName}
-                  </p>
+                  <p className="text-2xl font-semibold text-white">{supplier.supplierName}</p>
                   <p className="mt-1 text-sm font-medium uppercase tracking-[0.22em] text-white/42">
-                    {supplier.orderCount} order
-                    {supplier.orderCount === 1 ? "" : "s"} ·{" "}
-                    <span
-                      className={getChangeToneClass(
-                        supplier.monthOverMonthSpendChange,
-                      )}
-                    >
-                      {formatPercentChange(
-                        supplier.totalSpend,
-                        supplier.previousTotalSpend,
-                      )}{" "}
-                      vs last month
+                    {supplier.orderCount} order{supplier.orderCount === 1 ? "" : "s"} ·{" "}
+                    <span className={getChangeToneClass(supplier.monthOverMonthSpendChange)}>
+                      {formatPercentChange(supplier.totalSpend, supplier.previousTotalSpend)} vs last month
                     </span>{" "}
-                    · {formatSignedCount(supplier.monthOverMonthOrderChange)}{" "}
-                    orders
+                    · {formatSignedCount(supplier.monthOverMonthOrderChange)} orders
                   </p>
                 </div>
                 <p className="text-3xl font-semibold text-emerald-100">
@@ -1671,12 +1428,8 @@ function OperatorStat({
           : "border-emerald-300/25 bg-emerald-500/12 text-emerald-100";
 
   return (
-    <div
-      className={`flex items-center justify-between rounded-[1.1rem] border px-4 py-3 ${toneClass}`}
-    >
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/55">
-        {label}
-      </p>
+    <div className={`flex items-center justify-between rounded-[1.1rem] border px-4 py-3 ${toneClass}`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/55">{label}</p>
       <p className="text-2xl font-semibold">{value}</p>
     </div>
   );
@@ -1693,12 +1446,8 @@ function GlassSummaryCard({
 }) {
   return (
     <article className="rounded-[2rem] border border-white/12 bg-white/[0.075] p-6 shadow-[0_30px_90px_-56px_rgba(0,0,0,0.9)] backdrop-blur-md">
-      <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/45">
-        {label}
-      </p>
-      <p className="mt-4 text-5xl font-semibold tracking-[0.06em] text-white">
-        {value}
-      </p>
+      <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/45">{label}</p>
+      <p className="mt-4 text-5xl font-semibold tracking-[0.06em] text-white">{value}</p>
       <p className="mt-3 text-base leading-7 text-white/58">{helper}</p>
     </article>
   );
@@ -1707,9 +1456,7 @@ function GlassSummaryCard({
 function WallboardMeta({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/42">
-        {label}
-      </p>
+      <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/42">{label}</p>
       <p className="mt-1.5 text-lg text-white/90 2xl:text-xl">{value}</p>
     </div>
   );
@@ -1736,9 +1483,7 @@ function getInboundPriority(status: string | null) {
 
 function getNextWallboardMode(mode: WallboardMode) {
   const currentIndex = ROTATION_MODES.indexOf(mode);
-  return (
-    ROTATION_MODES[(currentIndex + 1) % ROTATION_MODES.length] ?? "inbound"
-  );
+  return ROTATION_MODES[(currentIndex + 1) % ROTATION_MODES.length] ?? "inbound";
 }
 
 function getWallboardModeLabel(mode: WallboardMode) {
@@ -1823,8 +1568,7 @@ function formatPercentChange(current: number, previous: number) {
   }
 
   const percent = ((current - previous) / previous) * 100;
-  const rounded =
-    Math.abs(percent) < 10 ? percent.toFixed(1) : percent.toFixed(0);
+  const rounded = Math.abs(percent) < 10 ? percent.toFixed(1) : percent.toFixed(0);
   const prefix = percent > 0 ? "+" : percent < 0 ? "-" : "";
   return `${prefix}${Math.abs(Number(rounded)).toFixed(rounded.includes(".") ? 1 : 0)}%`;
 }
@@ -1927,9 +1671,7 @@ function formatPendingDuration(isoDate: string | null, now: number) {
 
   const days = Math.floor(totalHours / 24);
   const remainingHours = totalHours % 24;
-  return remainingHours > 0
-    ? `${days} day ${remainingHours} hr`
-    : `${days} day`;
+  return remainingHours > 0 ? `${days} day ${remainingHours} hr` : `${days} day`;
 }
 
 function formatClock(isoDate: string) {
