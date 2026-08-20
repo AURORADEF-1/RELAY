@@ -45,5 +45,17 @@ describe("front counter live operations", () => {
     expect(kiosk).toContain('launch_relay_window "$RELAY_BASE_URL/terminal"');
     expect(kiosk).toContain('--app="$url"');
     expect(kiosk).toContain("--ozone-platform=wayland");
+    expect(kiosk).not.toContain("--start-fullscreen");
+
+    const windowRules = readFileSync(
+      resolve(process.cwd(), "printer-agents/cups/relay-labwc-rc.xml"),
+      "utf8",
+    );
+
+    expect(windowRules).toContain('title="RELAY Wallboard*"');
+    expect(windowRules).toContain('name="MoveToOutput" direction="right" wrap="no"');
+    expect(windowRules).toContain('title="RELAY Front Counter Terminal*"');
+    expect(windowRules).toContain('name="MoveToOutput" direction="left" wrap="no"');
+    expect(windowRules).not.toContain('output="HDMI-A-2"');
   });
 });

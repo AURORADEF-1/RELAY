@@ -20,3 +20,5 @@ The Front Counter Pi can run both RELAY screens from the same signed-in Chromium
 - Until the DSI display is connected, only the HDMI wallboard starts. The touch terminal starts automatically after the DSI display is detected at the next login or reboot.
 
 Install `relay-display-kiosk.sh` as `~/.local/bin/relay-display-kiosk.sh`, `relay-labwc-rc.xml` as `~/.config/labwc/rc.xml`, and `relay-labwc-autostart` as `~/.config/labwc/autostart`. Keep the existing Chromium profile signed in as the Front Counter account so both app windows share the same RELAY session.
+
+The launcher arranges the portrait DSI display to the left of the HDMI TV. Chromium must start windowed so Labwc can move each app window to the correct output before making it fullscreen; do not add Chromium's `--start-fullscreen` flag. The Labwc rules use left/right placement rather than fixed connector numbers, so either `HDMI-A-1` or `HDMI-A-2` works.
