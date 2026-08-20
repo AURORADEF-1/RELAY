@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<labwc_config>
+  <core>
+    <gap>0</gap>
+  </core>
+  <windowRules>
+    <windowRule title="RELAY Wallboard*">
+      <action name="MoveToOutput" output="HDMI-A-2" />
+      <action name="ToggleFullscreen" />
+    </windowRule>
+    <windowRule title="RELAY Front Counter Terminal*">
+      <action name="MoveToOutput" output="DSI-1" />
+      <action name="ToggleFullscreen" />
+    </windowRule>
+  </windowRules>
+</labwc_config>
+

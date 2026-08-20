@@ -1,0 +1,3 @@
+/etc/xdg/labwc/autostart
+$HOME/.local/bin/relay-display-kiosk.sh &
+

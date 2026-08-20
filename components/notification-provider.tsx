@@ -57,6 +57,7 @@ type NotificationToast = {
   href?: string;
   tone?: "default" | "success";
   variant?: "default" | "panel";
+  eyebrow?: string;
   notificationId?: string;
   persistent?: boolean;
 };
@@ -591,12 +592,18 @@ export function NotificationProvider({
         const toastableNotifications = adminUser
           ? activeUnreadNotifications.filter(
               (notification) =>
-                notification.type === "job_assigned" || notification.type === "new_ticket",
+                notification.type === "job_assigned" ||
+                notification.type === "new_ticket" ||
+                notification.type === "front_counter_collection",
             )
           : activeUnreadNotifications;
         const shouldShowToasts = options?.showToasts && (
           unreadNotificationsInitializedRef.current ||
-          toastableNotifications.some((notification) => notification.type === "job_assigned")
+          toastableNotifications.some(
+            (notification) =>
+              notification.type === "job_assigned" ||
+              notification.type === "front_counter_collection",
+          )
         );
         const extensionNotifications = adminUser
           && options?.showToasts
@@ -646,13 +653,22 @@ export function NotificationProvider({
                     ? `/tickets/${notification.ticket_id}`
                     : undefined,
               tone: "success",
-              variant: notification.type === "new_ticket" ? "panel" : undefined,
+              eyebrow:
+                notification.type === "front_counter_collection"
+                  ? "Front Counter Collection"
+                  : undefined,
+              variant:
+                notification.type === "new_ticket" ||
+                notification.type === "front_counter_collection"
+                  ? "panel"
+                  : undefined,
               notificationId: notification.id,
               persistent:
                 notification.type === "new_ticket" ||
                 notification.type === "operator_message" ||
                 notification.type === "ready_reminder" ||
                 notification.type === "ready_for_collection" ||
+                notification.type === "front_counter_collection" ||
                 notification.type === "job_assigned",
             });
             if (
@@ -660,6 +676,7 @@ export function NotificationProvider({
               notification.type === "operator_message" ||
               notification.type === "ready_reminder" ||
               notification.type === "ready_for_collection" ||
+              notification.type === "front_counter_collection" ||
               notification.type === "job_assigned"
             ) {
               pushBrowserNotification({
