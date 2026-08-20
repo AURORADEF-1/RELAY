@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { sanitizeAuthError } from "@/lib/security";
+import { clearCurrentUserWithRoleCache, getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export default function LoginPage() {
@@ -70,7 +71,9 @@ export default function LoginPage() {
       return;
     }
 
-    router.push(nextPath);
+    clearCurrentUserWithRoleCache();
+    const { isFrontCounter } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+    router.push(isFrontCounter ? "/terminal" : nextPath);
     router.refresh();
   }
 

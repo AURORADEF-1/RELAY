@@ -4,6 +4,7 @@ export type AppProfileRole = string | null;
 export type AppProfile = {
   role: AppProfileRole;
   display_name?: string | null;
+  interface_mode?: "standard" | "front_counter" | null;
 } | null;
 
 export type AccessLevel = "admin" | "user";
@@ -13,6 +14,7 @@ type CurrentUserWithRoleResult = {
   profile: AppProfile;
   accessLevel: AccessLevel;
   isAdmin: boolean;
+  isFrontCounter: boolean;
 };
 
 const USER_ROLE_CACHE_TTL_MS = 5_000;
@@ -102,12 +104,13 @@ async function resolveCurrentUserWithRole(
       profile: null,
       accessLevel: "user",
       isAdmin: false,
+      isFrontCounter: false,
     };
   }
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role, full_name")
+    .select("role, full_name, interface_mode")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -120,6 +123,8 @@ async function resolveCurrentUserWithRole(
         role: typeof profile.role === "string" ? profile.role : null,
         display_name:
           typeof profile.full_name === "string" ? profile.full_name : null,
+        interface_mode:
+          profile.interface_mode === "front_counter" ? "front_counter" : "standard",
       }
     : null;
 
@@ -137,6 +142,7 @@ async function resolveCurrentUserWithRole(
       : null;
 
   const accessLevel = getAccessLevel(user, resolvedProfile);
+  const isFrontCounter = resolvedProfile?.interface_mode === "front_counter";
 
   return {
     user,
@@ -144,6 +150,7 @@ async function resolveCurrentUserWithRole(
     profile: resolvedProfile,
     accessLevel,
     isAdmin: accessLevel === "admin",
+    isFrontCounter,
   };
 }
 
