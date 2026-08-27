@@ -22,6 +22,7 @@ const allowedNotificationTypes = new Set<RelayNotificationType>([
   "ready_for_collection",
   "part_collected",
   "part_returned",
+  "system_broadcast",
 ]);
 
 const requesterAdminNotificationTypes = new Set<RelayNotificationType>([

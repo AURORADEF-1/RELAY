@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { RelayAiPanel } from "@/components/console/relay-ai-panel";
@@ -17,6 +17,19 @@ import { triggerActionFeedback } from "@/lib/action-feedback";
 import { notifyAdminsOfNewTicket } from "@/lib/notifications";
 import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
 import { buildMachineSnapshot, lookupMachineRegistryRecord, type MachineRegistryRecord } from "@/lib/machine-registry";
+import {
+  buildRequesterOfflineNotice,
+  clearRequesterOfflineDraft,
+  countRequesterOfflineSubmissions,
+  createRequesterOfflineSubmissionRecord,
+  deleteRequesterOfflineSubmission,
+  isLikelyRequesterOfflineError,
+  listRequesterOfflineSubmissions,
+  loadRequesterOfflineDraft,
+  saveRequesterOfflineDraft,
+  updateRequesterOfflineSubmission,
+  upsertRequesterOfflineSubmission,
+} from "@/lib/requester-offline-submission";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -96,6 +109,15 @@ export default function SubmitPage() {
   const [machineRegistryRecord, setMachineRegistryRecord] = useState<MachineRegistryRecord | null>(null);
   const [isMachineLookupLoading, setIsMachineLookupLoading] = useState(false);
   const [machineLookupError, setMachineLookupError] = useState("");
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
+  const [isSyncingOfflineRequests, setIsSyncingOfflineRequests] = useState(false);
+  const [offlineStatusMessage, setOfflineStatusMessage] = useState<{
+    type: "success" | "error" | "info";
+    message: string;
+  } | null>(null);
+  const hasHydratedOfflineDraftRef = useRef(false);
+  const isSyncingOfflineQueueRef = useRef(false);
 
   useEffect(() => {
     if (!successMessage) {
@@ -152,6 +174,255 @@ export default function SubmitPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    function handleConnectionStateChange() {
+      setIsOnline(navigator.onLine);
+    }
+
+    setIsOnline(navigator.onLine);
+    window.addEventListener("online", handleConnectionStateChange);
+    window.addEventListener("offline", handleConnectionStateChange);
+
+    return () => {
+      window.removeEventListener("online", handleConnectionStateChange);
+      window.removeEventListener("offline", handleConnectionStateChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDraft() {
+      const draft = await loadRequesterOfflineDraft();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (draft) {
+        setValues(draft.values);
+        setIsRetailSale(draft.isRetailSale);
+        setLocationDraft(draft.locationDraft);
+      }
+
+      hasHydratedOfflineDraftRef.current = true;
+    }
+
+    void loadDraft();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydratedOfflineDraftRef.current) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void saveRequesterOfflineDraft({
+        values,
+        isRetailSale,
+        locationDraft,
+        savedAt: new Date().toISOString(),
+      });
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [isRetailSale, locationDraft, values]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function refreshOfflineQueueCount() {
+      const count = await countRequesterOfflineSubmissions().catch(() => 0);
+      if (!isMounted) {
+        return;
+      }
+      setOfflineQueueCount(count);
+    }
+
+    void refreshOfflineQueueCount();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const syncOfflineQueue = useCallback(async () => {
+    if (isSyncingOfflineQueueRef.current) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase || !navigator.onLine) {
+      const pendingCount = await countRequesterOfflineSubmissions().catch(() => 0);
+      setOfflineQueueCount(pendingCount);
+      return;
+    }
+
+    isSyncingOfflineQueueRef.current = true;
+    setIsSyncingOfflineRequests(true);
+
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        setOfflineStatusMessage({
+          type: "info",
+          message: "Sign back in to sync saved offline requests.",
+        });
+        return;
+      }
+
+      const queue = await listRequesterOfflineSubmissions();
+      const mine = queue.filter((submission) => submission.userId === user.id);
+
+      if (mine.length === 0) {
+        setOfflineQueueCount(queue.length);
+        return;
+      }
+
+      let syncedCount = 0;
+
+      for (const submission of mine) {
+        let ticketId = submission.ticketId;
+        let notified = submission.notified;
+
+        try {
+          let machineRegistryRecord: MachineRegistryRecord | null = null;
+
+          if (submission.values.machineReference.trim()) {
+            try {
+              machineRegistryRecord = await lookupMachineRegistryRecord(
+                supabase,
+                submission.values.machineReference,
+              );
+            } catch (lookupError) {
+              console.error("Offline sync machine lookup failed", lookupError);
+            }
+          }
+
+          const ticketPayload = buildTicketInsertPayload({
+            authenticatedUserId: user.id,
+            values: submission.values,
+            isRetailSale: submission.isRetailSale,
+            locationDraft: submission.locationDraft,
+            machineRegistryRecord,
+          });
+
+          if (submission.phase === "create-ticket" || !ticketId) {
+            const { data: ticket, error: insertError } = await supabase
+              .from("tickets")
+              .insert(ticketPayload)
+              .select("id")
+              .single();
+
+            if (insertError || !ticket) {
+              throw new Error(insertError?.message || "Failed to create ticket.");
+            }
+
+            ticketId = ticket.id;
+            await updateRequesterOfflineSubmission(submission.id, {
+              phase: "upload-attachments",
+              ticketId,
+              lastError: null,
+              attempts: submission.attempts + 1,
+            });
+          }
+
+          if (!notified && ticketId) {
+            await notifyAdminsOfNewTicket(supabase, {
+              ticketId,
+              jobNumber: ticketPayload.job_number,
+              requesterName: ticketPayload.requester_name,
+              requestSummary: ticketPayload.request_summary,
+            }).catch((notificationError) => {
+              console.error(
+                "Failed to create admin notifications for saved offline request",
+                notificationError,
+              );
+            });
+
+            notified = true;
+            await updateRequesterOfflineSubmission(submission.id, {
+              notified: true,
+              lastError: null,
+              attempts: submission.attempts + 1,
+            });
+          }
+
+          if (ticketId && submission.queuedPhotos.length > 0) {
+            await uploadTicketAttachments({
+              supabase,
+              ticketId,
+              userId: user.id,
+              files: submission.queuedPhotos,
+              attachmentKind: "ticket",
+            });
+          }
+
+          await deleteRequesterOfflineSubmission(submission.id);
+          syncedCount += 1;
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : "Unable to sync the saved request.";
+
+          if (isLikelyRequesterOfflineError(error, navigator.onLine)) {
+            await updateRequesterOfflineSubmission(submission.id, {
+              lastError: errorMessage,
+              attempts: submission.attempts + 1,
+            });
+            setOfflineStatusMessage({
+              type: "info",
+              message:
+                "A saved request is still waiting for a stronger connection. RELAY will retry automatically.",
+            });
+            break;
+          }
+
+          await updateRequesterOfflineSubmission(submission.id, {
+            phase: "failed",
+            lastError: errorMessage,
+            attempts: submission.attempts + 1,
+          });
+          setOfflineStatusMessage({
+            type: "error",
+            message: `A saved request needs attention before it can sync: ${errorMessage}`,
+          });
+        }
+      }
+
+      const pendingCount = await countRequesterOfflineSubmissions().catch(() => 0);
+      setOfflineQueueCount(pendingCount);
+
+      if (syncedCount > 0) {
+        setOfflineStatusMessage({
+          type: "success",
+          message: `Synced ${syncedCount} saved request${syncedCount === 1 ? "" : "s"} from this device.`,
+        });
+      } else if (pendingCount === 0) {
+        setOfflineStatusMessage(null);
+      }
+    } finally {
+      setIsSyncingOfflineRequests(false);
+      isSyncingOfflineQueueRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOnline) {
+      return;
+    }
+
+    void syncOfflineQueue();
+  }, [isOnline, syncOfflineQueue]);
 
   useEffect(() => {
     const nextMachineReference =
@@ -444,6 +715,43 @@ export default function SubmitPage() {
 
     setIsSubmitting(true);
 
+    let authenticatedUserId = "";
+
+    async function saveSubmissionForLater(reasonMessage: string) {
+      if (!authenticatedUserId) {
+        return;
+      }
+
+      await upsertRequesterOfflineSubmission(
+        createRequesterOfflineSubmissionRecord({
+          userId: authenticatedUserId,
+          values,
+          isRetailSale,
+          locationDraft,
+          queuedPhotos,
+        }),
+      );
+      await clearRequesterOfflineDraft();
+      const pendingCount = await countRequesterOfflineSubmissions().catch(() => 1);
+      setOfflineQueueCount(pendingCount);
+      setOfflineStatusMessage({
+        type: "info",
+        message: reasonMessage,
+      });
+      setSuccessMessage(
+        `Saved locally. RELAY will upload ${values.jobNumber || "this request"} when the connection returns.`,
+      );
+      triggerActionFeedback();
+      setValues({
+        ...initialValues,
+        requesterName: values.requesterName.trim(),
+      });
+      setIsRetailSale(false);
+      setErrors({});
+      setQueuedPhotos([]);
+      setLocationDraft(null);
+    }
+
     try {
       const {
         data: { user },
@@ -454,6 +762,7 @@ export default function SubmitPage() {
         setErrorMessage("Sign in to submit a ticket.");
         return;
       }
+      authenticatedUserId = user.id;
 
       let machineRegistryRecord: MachineRegistryRecord | null = null;
 
@@ -481,6 +790,13 @@ export default function SubmitPage() {
         locationDraft,
         machineRegistryRecord,
       });
+
+      if (!navigator.onLine) {
+        await saveSubmissionForLater(
+          "This request has been saved on this device and will sync automatically when the connection returns.",
+        );
+        return;
+      }
 
       const { data: ticket, error: insertError } = await supabase
         .from("tickets")
@@ -562,7 +878,20 @@ export default function SubmitPage() {
       setErrors({});
       setQueuedPhotos([]);
       setLocationDraft(null);
+      await clearRequesterOfflineDraft();
+      setOfflineQueueCount(await countRequesterOfflineSubmissions().catch(() => 0));
     } catch (submitError) {
+      if (isLikelyRequesterOfflineError(submitError, navigator.onLine)) {
+        try {
+          await saveSubmissionForLater(
+            "The connection dropped before RELAY could finish. The request was saved locally and will retry automatically.",
+          );
+          return;
+        } catch (queueError) {
+          console.error("Unable to store offline requester submission", queueError);
+        }
+      }
+
       setErrorMessage(
         submitError instanceof Error
           ? submitError.message
@@ -574,6 +903,11 @@ export default function SubmitPage() {
   }
 
   const hasQueuedPhotos = queuedPhotos.length > 0;
+  const offlineNotice = buildRequesterOfflineNotice(
+    offlineQueueCount,
+    isOnline,
+    isSyncingOfflineRequests,
+  );
 
   return (
     <main className="aurora-shell">
@@ -917,6 +1251,12 @@ export default function SubmitPage() {
                 {photoStatusMessage ? (
                   <AlertMessage type={photoStatusMessage.type}>{photoStatusMessage.message}</AlertMessage>
                 ) : null}
+                {offlineStatusMessage ? (
+                  <AlertMessage type={offlineStatusMessage.type}>{offlineStatusMessage.message}</AlertMessage>
+                ) : null}
+                {offlineNotice ? (
+                  <AlertMessage type={offlineNotice.type}>{offlineNotice.message}</AlertMessage>
+                ) : null}
                 {successMessage ? <AlertMessage type="success">{successMessage}</AlertMessage> : null}
 
                 <section className="aurora-panel rounded-[1.55rem] border-[color:var(--border-strong)] p-4 sm:p-5">
@@ -927,6 +1267,9 @@ export default function SubmitPage() {
                       </p>
                       <p className="text-sm text-[color:var(--foreground-muted)]">
                         All fields are required. Photos are optional but recommended where they help identification.
+                        {offlineQueueCount > 0
+                          ? ` ${offlineQueueCount} saved request${offlineQueueCount === 1 ? "" : "s"} are waiting to sync.`
+                          : ""}
                       </p>
                     </div>
                     <button
@@ -934,7 +1277,11 @@ export default function SubmitPage() {
                       disabled={isSubmitting}
                       className="aurora-button min-h-12 w-full rounded-[1rem] px-5 text-[0.82rem] uppercase tracking-[0.18em] sm:w-auto disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {isSubmitting ? "Submitting..." : "Submit Request"}
+                      {isSubmitting
+                        ? "Submitting..."
+                        : isOnline
+                          ? "Submit Request"
+                          : "Save Request Locally"}
                     </button>
                   </div>
                 </section>

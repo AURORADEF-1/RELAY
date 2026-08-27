@@ -67,7 +67,7 @@ export function NotificationToasts() {
               <div className="min-w-0 flex-1">
                 {isPanel ? (
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--success)]">
-                    Pending Job Alert
+                    {toast.href ? "Pending Job Alert" : "RELAY Announcement"}
                   </p>
                 ) : null}
                 <p className={`${isPanel ? "mt-2 text-lg" : "text-sm"} font-semibold text-[color:var(--foreground-strong)]`}>

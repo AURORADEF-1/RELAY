@@ -39,6 +39,9 @@ type TicketChatPanelProps = {
   unreadCount?: number;
   onOpen?: () => void;
   avoidRightDrawer?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onBack?: () => void;
 };
 
 const senderTone: Record<ChatRole, string> = {
@@ -68,16 +71,27 @@ export function TicketChatPanel({
   unreadCount: unreadCountOverride,
   onOpen,
   avoidRightDrawer = false,
+  open: controlledOpen,
+  onOpenChange,
+  onBack,
 }: TicketChatPanelProps) {
   const [draftMessage, setDraftMessage] = useState("");
   const [queuedImages, setQueuedImages] = useState<File[]>([]);
   const [showMoreActions, setShowMoreActions] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [lastReadMessageCount, setLastReadMessageCount] = useState(
     messages.length,
   );
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const isOpen = controlledOpen ?? internalOpen;
+
+  function setIsOpen(nextOpen: boolean) {
+    if (controlledOpen === undefined) {
+      setInternalOpen(nextOpen);
+    }
+    onOpenChange?.(nextOpen);
+  }
 
   const sortedMessages = useMemo(
     () =>
@@ -199,6 +213,16 @@ export function TicketChatPanel({
       <header className="shrink-0 bg-[#101827] px-4 pb-3 pt-3 text-white sm:px-5 sm:pb-4 sm:pt-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
+            {onBack ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-lg text-slate-300 transition hover:bg-white/10 hover:text-white"
+                aria-label="Back to messages"
+              >
+                ←
+              </button>
+            ) : null}
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-lg font-black">
               R
             </span>

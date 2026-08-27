@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAdminAssignmentLabel } from "@/lib/admin-assignees";
 import { buildRequesterReadyNotificationLine } from "@/lib/ticket-operational";
 
 export type RelayNotificationType =
@@ -11,7 +12,8 @@ export type RelayNotificationType =
   | "ready_reminder"
   | "ready_for_collection"
   | "part_collected"
-  | "part_returned";
+  | "part_returned"
+  | "system_broadcast";
 
 export type RelayNotificationRecord = {
   id: string;
@@ -175,9 +177,13 @@ export async function notifyAdminsOfRequesterMessage(
     requesterName: string | null;
     jobNumber: string | null;
     requestSummary: string | null;
+    assignedTo: string | null;
   },
 ) {
-  const adminUserIds = await fetchAdminUserIds(supabase);
+  const adminUserIds = await fetchAdminMessageRecipientIds(
+    supabase,
+    payload.assignedTo,
+  );
 
   if (adminUserIds.length === 0) {
     return;
@@ -200,6 +206,36 @@ export async function notifyAdminsOfRequesterMessage(
       body,
     })),
   );
+}
+
+async function fetchAdminMessageRecipientIds(
+  supabase: SupabaseClient,
+  assignedTo: string | null,
+) {
+  const assignmentLabel = getAdminAssignmentLabel(assignedTo ?? "");
+
+  if (!assignmentLabel) {
+    return fetchAdminUserIds(supabase);
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("role", "admin");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const matchingUserIds = (data ?? [])
+    .filter(
+      (profile) =>
+        typeof profile.id === "string" &&
+        getAdminAssignmentLabel(profile.full_name ?? "") === assignmentLabel,
+    )
+    .map((profile) => profile.id as string);
+
+  return matchingUserIds;
 }
 
 export async function notifyRequesterOfOperatorMessage(

@@ -298,7 +298,7 @@ export function ConsoleShell({
       >
         <div className="console-sidebar-brand">
           <Link href={isAdmin ? "/console" : "/"} aria-label="RELAY home">
-            <RelayLogo compact={isCollapsed} />
+            <RelayLogo compact={isCollapsed && !isMobileOpen} />
           </Link>
           <button
             type="button"
@@ -310,7 +310,7 @@ export function ConsoleShell({
           </button>
         </div>
 
-        <div className="console-sidebar-context" aria-hidden={isCollapsed}>
+        <div className="console-sidebar-context" aria-hidden={isCollapsed && !isMobileOpen}>
           <span className="console-live-dot" />
           <span title={signedInUserName}>{signedInUserName}</span>
         </div>

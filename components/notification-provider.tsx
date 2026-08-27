@@ -100,6 +100,7 @@ const REQUEST_NOTIFICATION_TYPES = new Set([
   "operator_message",
   "ready_reminder",
   "ready_for_collection",
+  "system_broadcast",
 ]);
 
 function emitAdminExtensionNotification(notification: {
@@ -591,12 +592,18 @@ export function NotificationProvider({
         const toastableNotifications = adminUser
           ? activeUnreadNotifications.filter(
               (notification) =>
-                notification.type === "job_assigned" || notification.type === "new_ticket",
+                notification.type === "job_assigned" ||
+                notification.type === "new_ticket" ||
+                notification.type === "system_broadcast",
             )
           : activeUnreadNotifications;
         const shouldShowToasts = options?.showToasts && (
           unreadNotificationsInitializedRef.current ||
-          toastableNotifications.some((notification) => notification.type === "job_assigned")
+          toastableNotifications.some(
+            (notification) =>
+              notification.type === "job_assigned" ||
+              notification.type === "system_broadcast",
+          )
         );
         const extensionNotifications = adminUser
           && options?.showToasts
@@ -622,7 +629,11 @@ export function NotificationProvider({
                   notification.ticket_id &&
                   alertedPendingTicketIdsRef.current.has(notification.ticket_id)
                 ) &&
-                (unreadNotificationsInitializedRef.current || notification.type === "job_assigned"),
+                (
+                  unreadNotificationsInitializedRef.current ||
+                  notification.type === "job_assigned" ||
+                  notification.type === "system_broadcast"
+                ),
             )
             .sort(
               (left, right) =>
@@ -646,10 +657,14 @@ export function NotificationProvider({
                     ? `/tickets/${notification.ticket_id}`
                     : undefined,
               tone: "success",
-              variant: notification.type === "new_ticket" ? "panel" : undefined,
+              variant:
+                notification.type === "new_ticket" || notification.type === "system_broadcast"
+                  ? "panel"
+                  : undefined,
               notificationId: notification.id,
               persistent:
                 notification.type === "new_ticket" ||
+                notification.type === "system_broadcast" ||
                 notification.type === "operator_message" ||
                 notification.type === "ready_reminder" ||
                 notification.type === "ready_for_collection" ||
@@ -657,6 +672,7 @@ export function NotificationProvider({
             });
             if (
               notification.type === "new_ticket" ||
+              notification.type === "system_broadcast" ||
               notification.type === "operator_message" ||
               notification.type === "ready_reminder" ||
               notification.type === "ready_for_collection" ||
@@ -806,6 +822,7 @@ export function NotificationProvider({
 
     let isMounted = true;
     let activeChannel: RealtimeChannel | null = null;
+    let activeSystemChannel: RealtimeChannel | null = null;
     let activePendingTicketChannel: RealtimeChannel | null = null;
     let activeUrgentTicketChannel: RealtimeChannel | null = null;
     let pollTimeout: number | null = null;
@@ -821,6 +838,11 @@ export function NotificationProvider({
       if (activeChannel) {
         await supabase.removeChannel(activeChannel);
         activeChannel = null;
+      }
+
+      if (activeSystemChannel) {
+        await supabase.removeChannel(activeSystemChannel);
+        activeSystemChannel = null;
       }
 
       if (activePendingTicketChannel) {
@@ -1066,6 +1088,20 @@ export function NotificationProvider({
             });
           }
         });
+
+        const systemChannel = supabase.channel("relay-system-notifications");
+        activeSystemChannel = systemChannel;
+        systemChannel
+          .on("broadcast", { event: "refresh" }, async () => {
+            if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+              return;
+            }
+
+            await syncUnreadNotifications(supabase, user.id, adminUser, {
+              showToasts: true,
+            });
+          })
+          .subscribe();
 
         if (adminUser) {
           const pendingTicketChannel = supabase.channel(`relay-pending-tickets-${user.id}`);

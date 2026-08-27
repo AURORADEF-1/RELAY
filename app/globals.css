@@ -3414,6 +3414,29 @@ select:focus-visible {
     transform: translateX(0);
   }
 
+  .console-shell-collapsed .console-sidebar-mobile-open .console-sidebar-brand {
+    justify-content: space-between;
+    padding-inline: 1rem;
+  }
+
+  .console-shell-collapsed .console-sidebar-mobile-open .console-sidebar-context {
+    justify-content: flex-start;
+    margin-inline: 1rem;
+    padding-inline: 0.75rem;
+  }
+
+  .console-shell-collapsed .console-sidebar-mobile-open .console-sidebar-context span:last-child,
+  .console-shell-collapsed .console-sidebar-mobile-open .console-nav-label,
+  .console-shell-collapsed .console-sidebar-mobile-open .console-nav-item > span:not(.console-nav-icon),
+  .console-shell-collapsed .console-sidebar-mobile-open .console-nav-item .inline-flex {
+    display: flex;
+  }
+
+  .console-shell-collapsed .console-sidebar-mobile-open .console-nav-item {
+    justify-content: flex-start;
+    padding-inline: 0.75rem;
+  }
+
   .console-sidebar-close {
     display: inline-flex !important;
   }
@@ -7839,6 +7862,123 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   backdrop-filter: none;
 }
 
+.admin-broadcast-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-broadcast-heading,
+.admin-broadcast-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-broadcast-heading p,
+.admin-broadcast-field > span {
+  color: var(--foreground-subtle);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.admin-broadcast-heading h2 {
+  margin-top: 0.25rem;
+  color: var(--foreground-strong);
+  font-size: 1.15rem;
+  font-weight: 740;
+}
+
+.admin-broadcast-heading span,
+.admin-broadcast-actions > span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--foreground-muted);
+  font-size: 0.82rem;
+}
+
+.admin-broadcast-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.admin-broadcast-kinds button {
+  min-height: 2.35rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--background-raised);
+  padding: 0.45rem 0.8rem;
+  color: var(--foreground-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.admin-broadcast-kinds button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--background-raised));
+  color: var(--accent);
+}
+
+.admin-broadcast-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.admin-broadcast-field input,
+.admin-broadcast-field textarea {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.75rem;
+  background: var(--background-raised);
+  padding: 0.72rem 0.8rem;
+  color: var(--foreground-strong);
+  font-size: 0.88rem;
+  outline: none;
+}
+
+.admin-broadcast-field input:focus,
+.admin-broadcast-field textarea:focus {
+  border-color: var(--accent);
+}
+
+.admin-broadcast-field small {
+  justify-self: end;
+  color: var(--foreground-subtle);
+  font-size: 0.72rem;
+}
+
+.admin-broadcast-actions p {
+  color: var(--success);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-broadcast-actions p[data-tone="error"] {
+  color: var(--danger);
+}
+
+.admin-broadcast-actions button {
+  display: inline-flex;
+  min-height: 2.65rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 0.7rem;
+  background: var(--accent);
+  padding: 0.65rem 0.95rem;
+  color: var(--accent-foreground);
+  font-size: 0.84rem;
+  font-weight: 740;
+}
+
+.admin-broadcast-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .admin-control-page .aurora-kicker {
   border-color: var(--border);
   background: var(--background-muted);
@@ -8037,8 +8177,47 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 
 .requester-collection-code-active {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr;
   justify-content: initial;
+}
+
+.requester-collection-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.requester-collection-heading strong {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--foreground-strong);
+  font-size: 1.35rem;
+}
+
+.requester-collection-heading > span {
+  margin-top: 0;
+  border-radius: 999px;
+  background: rgba(4, 120, 87, 0.1);
+  padding: 0.45rem 0.7rem;
+  color: #047857;
+  font-weight: 750;
+}
+
+.requester-collection-summary {
+  color: var(--foreground-muted) !important;
+  font-size: 0.9rem !important;
+  font-weight: 650 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.5;
+  text-transform: none !important;
+}
+
+.requester-collection-pass {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
 }
 
 .requester-collection-qr {
@@ -8050,7 +8229,7 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 
 .requester-collection-qr img {
   display: block;
-  width: min(12rem, 42vw);
+  width: min(9.5rem, 34vw);
   height: auto;
 }
 
@@ -8068,6 +8247,119 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   margin: 0.55rem 0 0.8rem;
   color: var(--foreground-subtle);
   font-size: 0.68rem;
+}
+
+.requester-collection-barcode {
+  display: grid;
+  justify-items: center;
+  overflow: hidden;
+  border-radius: 0.8rem;
+  background: white;
+  padding: 0.45rem 0.6rem 0.55rem;
+}
+
+.requester-collection-barcode svg {
+  width: min(100%, 28rem);
+  max-height: 4.5rem;
+}
+
+.requester-collection-barcode strong {
+  color: #0f172a;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  letter-spacing: 0.14em;
+}
+
+.requester-collection-barcode span {
+  margin-top: 0.1rem;
+  color: #64748b;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.requester-collection-refresh {
+  justify-self: start;
+  border: 1px solid rgba(4, 120, 87, 0.3);
+  background: white !important;
+  color: #047857 !important;
+}
+
+.requester-collection-loading {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid rgba(4, 120, 87, 0.18);
+  border-top-color: #047857;
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
+
+.requester-ticket-overview {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--background-raised);
+  padding: 1rem;
+}
+
+.requester-ticket-overview-copy p,
+.requester-ticket-overview dt {
+  color: var(--foreground-subtle);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.requester-ticket-overview-copy strong {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--foreground-strong);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.requester-ticket-overview dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.requester-ticket-overview dl > div {
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.requester-ticket-overview dd {
+  margin-top: 0.2rem;
+  overflow-wrap: anywhere;
+  color: var(--foreground-strong);
+  font-size: 0.86rem;
+  font-weight: 680;
+}
+
+.requester-ticket-overview-note {
+  color: var(--foreground-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.requester-return-panel {
+  border: 1px solid rgba(217, 119, 6, 0.24);
+  border-radius: 0.9rem;
+  background: rgba(255, 251, 235, 0.7);
+  padding: 0.8rem;
+}
+
+.requester-return-panel summary {
+  cursor: pointer;
+  color: #92400e;
+  font-size: 0.82rem;
+  font-weight: 750;
 }
 
 .admin-collection-confirmation {
@@ -8140,6 +8432,31 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 
   .requester-collection-qr {
     justify-self: center;
+  }
+
+  .requester-collection-pass {
+    grid-template-columns: 1fr;
+  }
+
+  .requester-collection-code-copy {
+    text-align: center;
+  }
+
+  .requester-collection-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .requester-collection-heading > span {
+    align-self: flex-start;
+  }
+
+  .requester-ticket-overview dl {
+    grid-template-columns: 1fr;
+  }
+
+  .console-shell-requester .console-content {
+    padding: 0.75rem;
   }
 
   .admin-collection-controls {

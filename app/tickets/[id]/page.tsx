@@ -738,6 +738,7 @@ export default function TicketDetailPage() {
           requesterName: ticket.requester_name,
           jobNumber: ticket.job_number,
           requestSummary: ticket.request_summary ?? ticket.request_details,
+          assignedTo: ticket.assigned_to,
         }).catch((notificationError) => {
           console.error("Failed to notify admins about requester message", notificationError);
         });
@@ -2041,6 +2042,7 @@ export default function TicketDetailPage() {
       <ConsoleShell
         eyebrow={isAdmin ? "Operations / ticket" : "My requests / ticket"}
         title={ticket?.job_number ? `Job ${ticket.job_number}` : "Ticket workspace"}
+        shellClassName={!isAdmin ? "console-shell-requester" : ""}
       >
           {statusWorkflowDialog ? (
             <TicketStatusWorkflowModal
@@ -2292,12 +2294,14 @@ export default function TicketDetailPage() {
                     }
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Ticket ID
+                          {isAdmin ? "Ticket ID" : "Request status"}
                         </p>
-                        <p className="mt-2 text-2xl font-semibold text-slate-950">
-                          {ticket.id}
+                        <p className={`mt-2 font-semibold text-slate-950 ${isAdmin ? "break-all text-2xl" : "text-xl"}`}>
+                          {isAdmin
+                            ? ticket.id
+                            : ticket.request_summary?.trim() || ticket.request_details?.trim() || "Parts request"}
                         </p>
                       </div>
                       <StatusBadge status={ticket.status ?? "PENDING"} />
@@ -2703,6 +2707,7 @@ export default function TicketDetailPage() {
                     ) : (
                       <>
                         <div className={activeWorkspaceTab === "overview" ? "" : "hidden"}>
+                          {isAdmin ? (
                           <dl className="mt-6 grid gap-5 sm:grid-cols-2">
                           {!ticket.is_retail_sale ? (
                             <>
@@ -2746,6 +2751,9 @@ export default function TicketDetailPage() {
                             value={formatDate(ticket.updated_at)}
                           />
                           </dl>
+                          ) : (
+                            <RequesterTicketOverview ticket={ticket} />
+                          )}
 
                         {ticket.status === "ORDERED" && outstandingTicketParts.length > 0 ? (
                           <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4">
@@ -2761,7 +2769,7 @@ export default function TicketDetailPage() {
                           </div>
                         ) : null}
 
-                        {!ticket.is_retail_sale ? (
+                        {isAdmin && !ticket.is_retail_sale ? (
                           <div className="mt-6">
                             <MachineDetailsCard ticket={ticket} />
                           </div>
@@ -2797,12 +2805,12 @@ export default function TicketDetailPage() {
                           </div>
                         ) : null}
 
-                        <div className="mt-6 space-y-4">
+                        {isAdmin ? <div className="mt-6 space-y-4">
                           <DetailBlock
                             label="Request Details"
                             value={ticket.request_details ?? ticket.request_summary}
                           />
-                        </div>
+                        </div> : null}
                         </div>
                         <div className={activeWorkspaceTab === "parts" ? "" : "hidden"}>
                         <section
@@ -3422,6 +3430,8 @@ export default function TicketDetailPage() {
                                 <RequesterCollectionCode
                                   ticketId={ticket.id}
                                   jobNumber={ticket.job_number}
+                                  binLocation={ticket.bin_location}
+                                  requestSummary={ticket.request_summary ?? ticket.request_details}
                                 />
                                 <div className="flex flex-wrap gap-3">
                                   <button
@@ -3430,13 +3440,11 @@ export default function TicketDetailPage() {
                                     disabled={isMarkingCollected || isSubmittingReturn}
                                     className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    {isMarkingCollected ? "Saving..." : "Confirm Collection"}
+                                    {isMarkingCollected ? "Saving..." : "I have collected these parts"}
                                   </button>
                                 </div>
-                                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-                                  <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-amber-800">
-                                    Request a return
-                                  </label>
+                                <details className="requester-return-panel">
+                                  <summary>Wrong part? Request a return</summary>
                                   <p className="mt-1 text-sm text-amber-800/80">
                                     If the supplied part is wrong or unsuitable, tell Stores why it needs to be returned.
                                   </p>
@@ -3457,7 +3465,7 @@ export default function TicketDetailPage() {
                                       {isSubmittingReturn ? "Saving..." : "Submit Return Request"}
                                     </button>
                                   </div>
-                                </div>
+                                </details>
                               </div>
                             )}
                           </div>
@@ -3884,6 +3892,55 @@ function EditArea({
         className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition focus:border-slate-400"
       />
     </label>
+  );
+}
+
+function RequesterTicketOverview({ ticket }: { ticket: TicketRecord }) {
+  const machineName = [ticket.machine_make?.trim(), ticket.machine_model?.trim()]
+    .filter(Boolean)
+    .join(" ");
+  const details = [
+    {
+      label: "Machine",
+      value: ticket.machine_number?.trim() || ticket.machine_reference?.trim() || null,
+    },
+    { label: "Make / model", value: machineName || null },
+    {
+      label: "Assigned to",
+      value: ticket.assigned_to?.trim() || "Waiting for Stores",
+    },
+    {
+      label: "Expected",
+      value: ticket.expected_delivery_date
+        ? formatOperationalDate(ticket.expected_delivery_date)
+        : null,
+    },
+    { label: "Collection bin", value: ticket.bin_location?.trim() || null },
+    { label: "Updated", value: ticket.updated_at ? formatDate(ticket.updated_at) : null },
+  ].filter((item): item is { label: string; value: string } => Boolean(item.value));
+
+  return (
+    <section className="requester-ticket-overview" aria-label="Request summary">
+      <div className="requester-ticket-overview-copy">
+        <p>What you requested</p>
+        <strong>
+          {ticket.request_details?.trim() || ticket.request_summary?.trim() || "Parts request"}
+        </strong>
+      </div>
+      <dl>
+        {details.map((item) => (
+          <div key={item.label}>
+            <dt>{item.label}</dt>
+            <dd>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {!ticket.machine_verified && (ticket.machine_number || ticket.machine_reference) ? (
+        <p className="requester-ticket-overview-note">
+          Machine details are awaiting a Stores check. Your request can still be processed.
+        </p>
+      ) : null}
+    </section>
   );
 }
 

@@ -79,6 +79,12 @@ export default function ConsolePage() {
     useState<ConsoleTicketActionSaved | null>(null);
   const closeTicketDrawer = useCallback(() => setSelectedTicketId(null), []);
   const dismissAssignmentNotice = useCallback(() => setAssignmentNotice(null), []);
+  const selectTicket = useCallback((ticketId: string) => {
+    setSelectedTicketId(ticketId);
+    window.dispatchEvent(
+      new CustomEvent("relay:ticket-selected", { detail: { ticketId } }),
+    );
+  }, []);
 
   const loadTickets = useCallback(async (showFullLoader = false) => {
     const supabase = getSupabaseClient();
@@ -315,7 +321,7 @@ export default function ConsolePage() {
                     key={ticket.id}
                     ticket={ticket}
                     selected={selectedTicketId === ticket.id}
-                    onSelect={() => setSelectedTicketId(ticket.id)}
+                    onSelect={() => selectTicket(ticket.id)}
                     onAddNote={() => setTicketAction({ mode: "note", ticket })}
                     onChangeStatus={() => setTicketAction({ mode: "status", ticket })}
                   />
@@ -324,7 +330,7 @@ export default function ConsolePage() {
                     key={ticket.id}
                     ticket={ticket}
                     selected={selectedTicketId === ticket.id}
-                    onSelect={() => setSelectedTicketId(ticket.id)}
+                    onSelect={() => selectTicket(ticket.id)}
                   />
                 ),
               )}

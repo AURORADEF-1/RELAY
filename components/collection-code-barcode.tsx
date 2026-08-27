@@ -14,11 +14,11 @@ export function CollectionCodeBarcode({ value }: { value: string }) {
       .then(({ default: JsBarcode }) => {
         if (!active || !svgRef.current) return;
         JsBarcode(svgRef.current, value, {
-          format: "CODE128",
-          width: 2,
-          height: 64,
-          margin: 8,
-          displayValue: true,
+          format: "CODE39",
+          width: 2.4,
+          height: 52,
+          margin: 10,
+          displayValue: false,
           font: "Arial",
           fontSize: 18,
           fontOptions: "bold",
@@ -40,7 +40,8 @@ export function CollectionCodeBarcode({ value }: { value: string }) {
   return (
     <div className="requester-collection-barcode">
       <svg ref={svgRef} role="img" aria-label={`Collection barcode ${value}`} />
-      <span>Code 128 · scan with a standard barcode scanner</span>
+      <strong>{value}</strong>
+      <span>Scanner code</span>
     </div>
   );
 }
