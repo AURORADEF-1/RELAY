@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
@@ -62,6 +63,7 @@ const mockUpdates: HomepageUpdate[] = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
   const [updates, setUpdates] = useState<HomepageUpdate[]>(mockUpdates);
   const [updatesMode, setUpdatesMode] = useState<"live" | "mock">("mock");
@@ -101,6 +103,13 @@ export default function Home() {
         return;
       }
 
+      if (isAdmin) {
+        router.replace("/console");
+        return;
+      }
+
+      router.replace("/requests");
+
       const query = supabase
         .from("tickets")
         .select(
@@ -113,8 +122,8 @@ export default function Home() {
         ? query
         : query.or(`user_id.eq.${user.id},visible_to_user_id.eq.${user.id}`);
 
-      let data: any = null;
-      let error: any = null;
+      let data: unknown[] | null = null;
+      let error: { message?: string } | null = null;
       ({ data, error } = await scopedQuery);
 
       if (error && shouldRetryWithoutUrgentFields(error)) {
@@ -155,7 +164,7 @@ export default function Home() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [router]);
 
   async function handleQuickSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -216,8 +225,8 @@ export default function Home() {
         })
         .join(",");
 
-      let data: any = null;
-      let error: any = null;
+      let data: unknown[] | null = null;
+      let error: { message?: string } | null = null;
       ({ data, error } = searchFilter ? await scopedQuery.or(searchFilter) : await scopedQuery);
 
       if (error && shouldRetryWithoutUrgentFields(error)) {
@@ -303,6 +312,12 @@ export default function Home() {
             {isAdmin ? (
               <>
                 <Link
+                  href="/console"
+                  className="rounded-full px-4 py-2 transition hover:bg-slate-100"
+                >
+                  Operations Console
+                </Link>
+                <Link
                   href="/incidents"
                   className="rounded-full px-4 py-2 transition hover:bg-slate-100"
                 >
@@ -382,6 +397,12 @@ export default function Home() {
                   )}
                   {isAdmin ? (
                     <>
+                      <Link
+                        href="/console"
+                        className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        Operations Console
+                      </Link>
                       <Link
                         href="/incidents"
                         className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-slate-50 px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
