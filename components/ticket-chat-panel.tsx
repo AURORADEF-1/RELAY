@@ -1,11 +1,7 @@
 "use client";
 
-<<<<<<< HEAD
 import { useMemo, useState } from "react";
 import { FileUploadPanel } from "@/components/file-upload-panel";
-=======
-import { useEffect, useMemo, useRef, useState } from "react";
->>>>>>> 93624dc (Make ticket chat global and responsive)
 import { StatusBadge } from "@/components/status-badge";
 
 export type ChatRole = "requester" | "operator" | "admin" | "ai";
@@ -39,8 +35,6 @@ type TicketChatPanelProps = {
   operatorChatHref?: string | null;
   operatorSmsHref?: string | null;
   operatorCallHrefs?: { label: string; href: string }[];
-  unreadCount?: number;
-  onOpen?: () => void;
 };
 
 const senderTone: Record<ChatRole, string> = {
@@ -66,22 +60,10 @@ export function TicketChatPanel({
   operatorChatHref = null,
   operatorSmsHref = null,
   operatorCallHrefs = [],
-  unreadCount: unreadCountOverride,
-  onOpen,
 }: TicketChatPanelProps) {
   const [draftMessage, setDraftMessage] = useState("");
   const [queuedImages, setQueuedImages] = useState<File[]>([]);
-<<<<<<< HEAD
   const [uploadResetKey, setUploadResetKey] = useState(0);
-=======
-  const [showMoreActions, setShowMoreActions] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const [lastReadMessageCount, setLastReadMessageCount] = useState(
-    messages.length,
-  );
-  const messageStreamRef = useRef<HTMLDivElement | null>(null);
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
->>>>>>> 93624dc (Make ticket chat global and responsive)
 
   const sortedMessages = useMemo(
     () =>
@@ -92,45 +74,6 @@ export function TicketChatPanel({
     [messages],
   );
 
-<<<<<<< HEAD
-=======
-  const conversationLabel = ticketLabel?.trim() || ticketId;
-  const conversationSubject = buildTicketChatSubject(ticketLabel, ticketId);
-  const queuedImagePreviews = useMemo(
-    () => queuedImages.map((file) => ({ file, url: URL.createObjectURL(file) })),
-    [queuedImages],
-  );
-  const unreadCount = isOpen
-    ? 0
-    : unreadCountOverride ?? Math.max(0, messages.length - lastReadMessageCount);
-  const showQuickActions =
-    Boolean(operatorChatHref) ||
-    Boolean(operatorSmsHref) ||
-    operatorCallHrefs.length > 0;
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const frame = window.requestAnimationFrame(() => {
-      const stream = messageStreamRef.current;
-      if (stream) {
-        stream.scrollTop = stream.scrollHeight;
-      }
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [isOpen, sortedMessages.length]);
-
-  useEffect(
-    () => () => {
-      queuedImagePreviews.forEach(({ url }) => URL.revokeObjectURL(url));
-    },
-    [queuedImagePreviews],
-  );
-
->>>>>>> 93624dc (Make ticket chat global and responsive)
   async function handleSend() {
     if (!onSendMessage) {
       return;
@@ -148,13 +91,7 @@ export function TicketChatPanel({
     if (wasSuccessful) {
       setDraftMessage("");
       setQueuedImages([]);
-<<<<<<< HEAD
       setUploadResetKey((current) => current + 1);
-=======
-      if (imageInputRef.current) {
-        imageInputRef.current.value = "";
-      }
->>>>>>> 93624dc (Make ticket chat global and responsive)
     }
   }
 
@@ -168,7 +105,6 @@ export function TicketChatPanel({
     setDraftMessage("");
   }
 
-<<<<<<< HEAD
   const conversationLabel = ticketLabel?.trim() || "this request";
   const showQuickActions =
     Boolean(operatorChatHref) || Boolean(operatorSmsHref) || operatorCallHrefs.length > 0;
@@ -200,66 +136,6 @@ export function TicketChatPanel({
             <StatusBadge status={ticketStatus} />
             <div className="rounded-full border border-[color:var(--border)] bg-[color:var(--background-muted)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
               Live thread
-=======
-  if (!isOpen) {
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          setLastReadMessageCount(messages.length);
-          setIsOpen(true);
-          onOpen?.();
-        }}
-        className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-3 z-[80] flex min-h-14 w-[min(22rem,calc(100vw-1.5rem))] items-center gap-3 rounded-2xl border border-white/10 bg-[#101827] px-4 py-3 text-left text-white shadow-[0_18px_50px_rgba(15,23,42,0.28)] transition hover:-translate-y-0.5 hover:bg-[#172235] focus:outline-none focus:ring-4 focus:ring-emerald-500/25 sm:bottom-5 sm:right-5"
-        aria-label={`Open ticket chat for job ${conversationLabel}`}
-      >
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 text-lg font-black text-white">
-          R
-        </span>
-        <span className="min-w-0">
-          <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-            Live ticket chat
-          </span>
-          <span className="block max-w-52 truncate text-sm font-semibold">
-            {conversationSubject}
-          </span>
-        </span>
-        {unreadCount > 0 ? (
-          <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-rose-500 px-1.5 text-xs font-bold text-white">
-            1
-          </span>
-        ) : (
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]" />
-        )}
-      </button>
-    );
-  }
-
-  return (
-    <aside
-      className="fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] right-2 z-[90] flex h-[min(42rem,calc(100dvh-1rem))] w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.3)] sm:bottom-4 sm:right-4 sm:h-[min(42rem,calc(100dvh-2rem))] sm:w-[min(27rem,calc(100vw-2rem))] sm:rounded-[1.5rem]"
-      aria-label={`Ticket live chat for job ${conversationLabel}`}
-    >
-      <header className="shrink-0 bg-[#101827] px-4 pb-3 pt-3 text-white sm:px-5 sm:pb-4 sm:pt-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-lg font-black">
-              R
-            </span>
-            <div className="min-w-0">
-              <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                Live ticket chat
-              </p>
-              <h2 className="mt-1 truncate text-lg font-bold">
-                {conversationSubject}
-              </h2>
-              <p className="mt-0.5 truncate text-xs text-slate-300">
-                {assignedTo?.trim()
-                  ? `With ${assignedTo.trim()}`
-                  : "Connected to RELAY Stores"}
-              </p>
->>>>>>> 93624dc (Make ticket chat global and responsive)
             </div>
           </div>
         </div>
@@ -338,7 +214,6 @@ export function TicketChatPanel({
           </div>
         </div>
 
-<<<<<<< HEAD
         <div className="mt-5 rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -378,35 +253,8 @@ export function TicketChatPanel({
               emptyText="No images queued."
               onFilesChange={setQueuedImages}
             />
-=======
-        {queuedImagePreviews.length > 0 ? (
-          <div className="mb-2 flex max-h-24 gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
-            {queuedImagePreviews.map(({ file, url }, index) => (
-              <div key={`${file.name}-${file.lastModified}-${index}`} className="relative shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={url}
-                  alt={`Photo ready to send: ${file.name}`}
-                  className="h-16 w-16 rounded-lg border border-slate-200 bg-white object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setQueuedImages((current) =>
-                      current.filter((_, candidateIndex) => candidateIndex !== index),
-                    )
-                  }
-                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white shadow"
-                  aria-label={`Remove ${file.name}`}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
->>>>>>> 93624dc (Make ticket chat global and responsive)
           </div>
 
-<<<<<<< HEAD
           {notice ? (
             <div
               className={`mt-4 ${
@@ -416,55 +264,6 @@ export function TicketChatPanel({
               }`}
             >
               {notice.message}
-=======
-        <input
-          ref={imageInputRef}
-          id={`chat-upload-${ticketId}-${mode}`}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-          multiple
-          className="sr-only"
-          onChange={(event) => setQueuedImages(Array.from(event.target.files ?? []))}
-        />
-
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10">
-          <textarea
-            rows={2}
-            value={draftMessage}
-            onChange={(event) => setDraftMessage(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void handleSend();
-              }
-            }}
-            placeholder={
-              mode === "operator"
-                ? "Reply to the requester…"
-                : "Message RELAY Stores…"
-            }
-            className="w-full resize-none bg-transparent px-2 py-1.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
-            aria-label={`Message about job ${conversationLabel}`}
-          />
-          <div className="mt-1 flex items-center justify-between gap-2 border-t border-slate-200 px-1 pt-2">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white"
-              >
-                + Photo
-                {queuedImages.length > 0 ? ` (${queuedImages.length})` : ""}
-              </button>
-              <button
-                type="button"
-                onClick={handleAskAi}
-                disabled={isAiLoading}
-                className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-white disabled:opacity-50"
-              >
-                {isAiLoading ? "Thinking…" : "Assistant"}
-              </button>
->>>>>>> 93624dc (Make ticket chat global and responsive)
             </div>
           ) : null}
 

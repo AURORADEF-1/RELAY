@@ -35,7 +35,6 @@ import {
   notifyAdminsOfPartCollected,
   notifyAdminsOfPartReturned,
   notifyAdminsOfRequesterMessage,
-  notifyRequesterOfOperatorMessage,
   notifyRequesterStatusChanged,
 } from "@/lib/notifications";
 import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
@@ -514,7 +513,6 @@ export default function TicketDetailPage() {
         message: "Message sent successfully.",
       });
       triggerActionFeedback();
-<<<<<<< HEAD
       void notifyAdminsOfRequesterMessage(supabase, {
         ticketId: ticket.id,
         requesterName: ticket.requester_name,
@@ -523,28 +521,6 @@ export default function TicketDetailPage() {
       }).catch((notificationError) => {
         console.error("Failed to notify admins about requester message", notificationError);
       });
-=======
-      if (!isAdmin) {
-        void notifyAdminsOfRequesterMessage(supabase, {
-          ticketId: ticket.id,
-          requesterName: ticket.requester_name,
-          jobNumber: ticket.job_number,
-          requestSummary: ticket.request_summary ?? ticket.request_details,
-        }).catch((notificationError) => {
-          console.error("Failed to notify admins about requester message", notificationError);
-        });
-      } else {
-        void notifyRequesterOfOperatorMessage(supabase, {
-          userId: ticket.user_id,
-          ticketId: ticket.id,
-          jobNumber: ticket.job_number,
-          assignedTo: currentUserDisplayName || ticket.assigned_to,
-          messageText: payload.messageText,
-        }).catch((notificationError) => {
-          console.error("Failed to notify requester about admin message", notificationError);
-        });
-      }
->>>>>>> 93624dc (Make ticket chat global and responsive)
       void reloadTicketConversation(supabase, ticket.id).catch((conversationReloadError) => {
         console.error("Failed to reload ticket conversation", conversationReloadError);
       });
@@ -2935,23 +2911,7 @@ export default function TicketDetailPage() {
                   onDeleteAttachment={(attachmentId) => void handleDeleteAttachment(attachmentId)}
                 />
 
-<<<<<<< HEAD
               <TicketChatPanel
-=======
-                <div className={activeWorkspaceTab === "conversation" ? "ticket-tab-surface" : "hidden"}>
-                  <div className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-center shadow-sm">
-                    <p className="text-sm font-semibold text-slate-800">
-                      Ticket chat is available from the message bar in the lower-right corner.
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">
-                      This conversation belongs only to Job {ticket.job_number?.trim() || ticket.id}.
-                    </p>
-                  </div>
-                </div>
-
-                <TicketChatPanel
-                  key={ticket.id}
->>>>>>> 93624dc (Make ticket chat global and responsive)
                   ticketId={ticket.id}
                   ticketLabel={ticket.is_retail_sale ? ticket.customer_name ?? "Retail order" : ticket.job_number}
                   ticketStatus={ticket.status ?? "PENDING"}

@@ -1,11 +1,5 @@
 import type { Metadata, Viewport } from "next";
-<<<<<<< HEAD
 import { AppRuntime } from "@/components/app-runtime";
-=======
-import { LegalTermsGate } from "@/components/legal-terms-gate";
-import { DymoPrintStation } from "@/components/dymo-print-station";
-import { GlobalTicketChat } from "@/components/global-ticket-chat";
->>>>>>> 93624dc (Make ticket chat global and responsive)
 import { NotificationProvider } from "@/components/notification-provider";
 import { StartupSplash } from "@/components/startup-splash";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -42,15 +36,7 @@ export default function RootLayout({
         <ThemeProvider>
           <StartupSplash>
             <NotificationProvider>
-<<<<<<< HEAD
               <AppRuntime>{children}</AppRuntime>
-=======
-              <LegalTermsGate />
-              <NotificationToasts />
-              <DymoPrintStation />
-              <GlobalTicketChat />
-              {children}
->>>>>>> 93624dc (Make ticket chat global and responsive)
             </NotificationProvider>
           </StartupSplash>
         </ThemeProvider>
