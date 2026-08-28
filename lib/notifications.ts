@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAdminAssignmentLabel } from "@/lib/admin-assignees";
 import { buildRequesterReadyNotificationLine } from "@/lib/ticket-operational";
 
 export type RelayNotificationType =
@@ -6,13 +7,13 @@ export type RelayNotificationType =
   | "status_update"
   | "requester_message"
   | "operator_message"
-  | "job_assigned"
   | "task_assigned"
+  | "job_assigned"
   | "ready_reminder"
   | "ready_for_collection"
-  | "front_counter_collection"
   | "part_collected"
-  | "part_returned";
+  | "part_returned"
+  | "system_broadcast";
 
 export type RelayNotificationRecord = {
   id: string;
@@ -176,9 +177,13 @@ export async function notifyAdminsOfRequesterMessage(
     requesterName: string | null;
     jobNumber: string | null;
     requestSummary: string | null;
+    assignedTo: string | null;
   },
 ) {
-  const adminUserIds = await fetchAdminUserIds(supabase);
+  const adminUserIds = await fetchAdminMessageRecipientIds(
+    supabase,
+    payload.assignedTo,
+  );
 
   if (adminUserIds.length === 0) {
     return;
@@ -201,6 +206,36 @@ export async function notifyAdminsOfRequesterMessage(
       body,
     })),
   );
+}
+
+async function fetchAdminMessageRecipientIds(
+  supabase: SupabaseClient,
+  assignedTo: string | null,
+) {
+  const assignmentLabel = getAdminAssignmentLabel(assignedTo ?? "");
+
+  if (!assignmentLabel) {
+    return fetchAdminUserIds(supabase);
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("role", "admin");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const matchingUserIds = (data ?? [])
+    .filter(
+      (profile) =>
+        typeof profile.id === "string" &&
+        getAdminAssignmentLabel(profile.full_name ?? "") === assignmentLabel,
+    )
+    .map((profile) => profile.id as string);
+
+  return matchingUserIds;
 }
 
 export async function notifyRequesterOfOperatorMessage(
@@ -251,6 +286,27 @@ export async function notifyUserTaskAssigned(
       type: "task_assigned",
       title: `New task assigned: ${payload.taskTitle}`,
       body: payload.taskDescription?.trim() || "A new RELAY task is waiting for you.",
+    },
+  ]);
+}
+
+export async function notifyAdminJobAssigned(
+  supabase: SupabaseClient,
+  payload: {
+    userId: string;
+    ticketId: string;
+    jobNumber: string;
+    requestSummary: string;
+    assignedBy: string;
+  },
+) {
+  await insertNotifications(supabase, [
+    {
+      user_id: payload.userId,
+      ticket_id: payload.ticketId,
+      type: "job_assigned",
+      title: `Job ${clampNotificationText(payload.jobNumber, 80)} assigned to you`,
+      body: `${clampNotificationText(payload.requestSummary, 170)} Assigned by ${clampNotificationText(payload.assignedBy, 50)}.`,
     },
   ]);
 }
@@ -473,6 +529,10 @@ async function insertNotifications(
   const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
   if (response.ok) {
+    void broadcastNotificationRefresh(
+      supabase,
+      notifications.map((notification) => notification.user_id),
+    ).catch((error) => console.error("Failed to broadcast notification refresh", error));
     return;
   }
 
@@ -510,4 +570,40 @@ async function insertNotifications(
   if (directInsertError) {
     throw new Error(`${dispatchErrorMessage} Direct insert fallback failed: ${directInsertError.message}`);
   }
+
+  void broadcastNotificationRefresh(
+    supabase,
+    notifications.map((notification) => notification.user_id),
+  ).catch((error) => console.error("Failed to broadcast notification refresh", error));
+}
+
+async function broadcastNotificationRefresh(
+  supabase: SupabaseClient,
+  userIds: string[],
+) {
+  await Promise.all(Array.from(new Set(userIds)).map(async (userId) => {
+    const channel = supabase.channel(`relay-notifications-${userId}`);
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        void supabase.removeChannel(channel);
+        resolve();
+      };
+      const timeoutId = setTimeout(finish, 2500);
+
+      channel.subscribe((status) => {
+        if (settled || status !== "SUBSCRIBED") return;
+        void channel.send({
+          type: "broadcast",
+          event: "refresh",
+          payload: {},
+        }).finally(() => {
+          clearTimeout(timeoutId);
+          finish();
+        });
+      });
+    });
+  }));
 }

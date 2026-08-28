@@ -4,6 +4,17 @@ export const CORE_ADMIN_OPERATOR_OPTIONS = ["Scott", "Tom", "George", "Samantha"
 
 export type AdminOperatorName = (typeof CORE_ADMIN_OPERATOR_OPTIONS)[number];
 
+const EXCLUDED_ADMIN_OPERATOR_NAMES = new Set([
+  "admin",
+  "drew",
+  "scot",
+  "scott alcock",
+]);
+
+const ADMIN_OPERATOR_REPORTING_ALIASES = new Map([
+  ["samanthac.admin", "Samantha"],
+]);
+
 export type AdminOperatorRecord = {
   name: string;
   sort_order: number;
@@ -14,8 +25,22 @@ export function normalizeAdminOperatorName(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+export function canonicalizeAdminOperatorName(value: string | null | undefined) {
+  const normalized = normalizeAdminOperatorName(value ?? "");
+  return ADMIN_OPERATOR_REPORTING_ALIASES.get(normalized.toLowerCase()) ?? normalized;
+}
+
+export function adminOperatorReportingKey(value: string | null | undefined) {
+  return canonicalizeAdminOperatorName(value).toLowerCase();
+}
+
+export function isReportableAdminOperatorName(value: string | null | undefined) {
+  const normalized = adminOperatorReportingKey(value);
+  return Boolean(normalized) && !EXCLUDED_ADMIN_OPERATOR_NAMES.has(normalized);
+}
+
 export function isCoreAdminOperatorName(value: string) {
-  const normalized = normalizeAdminOperatorName(value).toLowerCase();
+  const normalized = adminOperatorReportingKey(value);
   return CORE_ADMIN_OPERATOR_OPTIONS.some(
     (option) => normalizeAdminOperatorName(option).toLowerCase() === normalized,
   );
@@ -34,8 +59,8 @@ function mergeWithCoreAdminOperators(records: AdminOperatorRecord[]) {
   }
 
   for (const record of records) {
-    const normalizedName = normalizeAdminOperatorName(record.name);
-    if (!normalizedName) {
+    const normalizedName = canonicalizeAdminOperatorName(record.name);
+    if (!isReportableAdminOperatorName(normalizedName)) {
       continue;
     }
 
@@ -80,10 +105,14 @@ export async function addAdminOperator(
     sortOrder: number;
   },
 ) {
-  const normalizedName = normalizeAdminOperatorName(payload.name);
+  const normalizedName = canonicalizeAdminOperatorName(payload.name);
 
   if (!normalizedName) {
     throw new Error("Admin operator name is required.");
+  }
+
+  if (!isReportableAdminOperatorName(normalizedName)) {
+    throw new Error(`${normalizedName} is not a valid reporting operator.`);
   }
 
   if (isCoreAdminOperatorName(normalizedName)) {

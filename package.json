@@ -4,26 +4,37 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run release:verify",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "release:verify": "node scripts/verify-release-invariants.mjs"
   },
   "dependencies": {
+    "@huggingface/transformers": "3.8.1",
     "@supabase/supabase-js": "^2.99.1",
+    "jsbarcode": "^3.12.3",
     "jsqr": "^1.4.0",
     "next": "16.1.6",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "xlsx": "^0.18.5"
+    "qrcode": "1.5.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "xlsx": "^0.18.5",
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/jsbarcode": "^3.11.4",
     "@types/node": "^20",
+    "@types/qrcode": "1.5.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "3.2.4"
   }
 }
