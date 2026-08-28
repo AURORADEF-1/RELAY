@@ -518,6 +518,7 @@ export default function TicketDetailPage() {
         requesterName: ticket.requester_name,
         jobNumber: ticket.job_number,
         requestSummary: ticket.request_summary ?? ticket.request_details,
+        assignedTo: ticket.assigned_to,
       }).catch((notificationError) => {
         console.error("Failed to notify admins about requester message", notificationError);
       });
