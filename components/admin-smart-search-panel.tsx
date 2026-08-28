@@ -9,6 +9,7 @@ const entityLabels: Record<SmartSearchResult["entity"], string> = {
   order: "Orders",
   incident: "Incidents",
   task: "Tasks",
+  machine: "Machines",
 };
 
 export function AdminSmartSearchPanel({
