@@ -1,0 +1,102 @@
+"use client";
+
+import type { ReactNode } from "react";
+import { StatusBadge } from "@/components/status-badge";
+import { ConsoleIcon } from "@/components/console/console-icon";
+import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
+import { RequesterProfileLink } from "@/components/requester-profile-link";
+import type { ConsoleTicket } from "@/lib/console-tickets";
+import { formatConsoleCurrency, formatConsoleDate } from "@/lib/console-tickets";
+
+export function ConsoleTicketCard({
+  ticket,
+  selected,
+  onSelect,
+}: {
+  ticket: ConsoleTicket;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const summary = ticket.request_summary?.trim() || ticket.request_details?.trim() || "Untitled request";
+  const status = ticket.status?.trim().toUpperCase() || "PENDING";
+
+  return (
+    <article
+      className={`console-ticket-card ${selected ? "console-ticket-card-selected" : ""}`}
+      data-status={status}
+    >
+      <button
+        type="button"
+        className="console-ticket-card-button"
+        onClick={onSelect}
+        aria-label={`Preview job ${ticket.job_number?.trim() || ticket.id}: ${summary}`}
+        aria-pressed={selected}
+      >
+        <span className="sr-only">Preview ticket</span>
+      </button>
+      <div className="console-ticket-card-content">
+        <div className="console-ticket-card-heading">
+          <div className="min-w-0">
+            <div className="console-ticket-card-reference">
+              <span>JOB {ticket.job_number?.trim() || "—"}</span>
+              {ticket.is_urgent ? <strong>Urgent</strong> : null}
+            </div>
+            <h3>{summary}</h3>
+          </div>
+          <div className="console-ticket-card-status">
+            <span>Current status</span>
+            <StatusBadge status={status} />
+          </div>
+        </div>
+
+        <dl className="console-ticket-card-grid">
+          <div>
+            <dt>Machine</dt>
+            <dd><MachineReferenceIndicator machine={ticket} /></dd>
+          </div>
+          <TicketDatum label="Requester">
+            <RequesterProfileLink
+              userId={ticket.user_id}
+              requesterName={ticket.requester_name}
+              stopPropagation
+            />
+          </TicketDatum>
+          <TicketDatum label="Assigned" value={ticket.assigned_to} />
+          <TicketDatum label="Expected" value={formatConsoleDate(ticket.expected_delivery_date)} />
+          <TicketDatum label="Supplier" value={ticket.supplier_name} />
+          <TicketDatum label="PO" value={ticket.purchase_order_number} mono />
+          <TicketDatum label="Value" value={formatConsoleCurrency(ticket.order_amount)} mono />
+        </dl>
+
+        <div className="console-ticket-card-note">
+          <div>
+            <span>Latest note</span>
+            <p>{ticket.latest_note || "No note recorded"}</p>
+          </div>
+          <ConsoleIcon name="chevron" className="h-4 w-4 shrink-0" />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function TicketDatum({
+  label,
+  value,
+  children,
+  mono = false,
+}: {
+  label: string;
+  value?: string | null;
+  children?: ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd className={mono ? "font-mono" : undefined}>
+        {children ?? value?.trim() ?? "—"}
+      </dd>
+    </div>
+  );
+}

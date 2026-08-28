@@ -515,16 +515,16 @@ export default function WallboardPage() {
   const operatorMetrics = useMemo(() => {
     return adminOperatorNames
       .map((operator) => {
-      const operatorTickets = tickets.filter(
-        (ticket) => normalizeOperatorName(ticket.assigned_to) === normalizeOperatorName(operator),
-      );
-      const pendingCount = operatorTickets.filter((ticket) => ticket.status === "PENDING").length;
-      const inProgressCount = operatorTickets.filter((ticket) => ticket.status === "IN_PROGRESS").length;
-      const orderedCount = operatorTickets.filter((ticket) => ticket.status === "ORDERED").length;
-      const readyCount = operatorTickets.filter((ticket) => ticket.status === "READY").length;
-      const oldestTicket = [...operatorTickets].sort((left, right) =>
-        compareIsoDates(left.created_at, right.created_at),
-      )[0];
+        const operatorTickets = tickets.filter(
+          (ticket) => normalizeOperatorName(ticket.assigned_to) === normalizeOperatorName(operator),
+        );
+        const pendingCount = operatorTickets.filter((ticket) => ticket.status === "PENDING").length;
+        const inProgressCount = operatorTickets.filter((ticket) => ticket.status === "IN_PROGRESS").length;
+        const orderedCount = operatorTickets.filter((ticket) => ticket.status === "ORDERED").length;
+        const readyCount = operatorTickets.filter((ticket) => ticket.status === "READY").length;
+        const oldestTicket = [...operatorTickets].sort((left, right) =>
+          compareIsoDates(left.created_at, right.created_at),
+        )[0];
 
         return {
           operator,
