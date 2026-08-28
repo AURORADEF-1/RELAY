@@ -37,6 +37,7 @@ const PRESENCE_HEARTBEAT_MS = 5 * 60_000;
 export async function upsertUserPresence(
   supabase: SupabaseClient,
   userId: string,
+  _pathname?: string,
 ) {
   const { error } = await supabase.from("user_presence").upsert(
     {
