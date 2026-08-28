@@ -13,7 +13,7 @@ export type RelayAiContext = {
   expectedDeliveryDate?: string | null;
   binLocation?: string | null;
   customerName?: string | null;
-  orderAmount?: number | string | null;
+  orderAmount?: number | null;
   orderedAt?: string | null;
   readyAt?: string | null;
   jobNumber?: string | null;
