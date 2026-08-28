@@ -513,7 +513,8 @@ export default function WallboardPage() {
   }, [tickets]);
 
   const operatorMetrics = useMemo(() => {
-    return adminOperatorNames.map((operator) => {
+    return adminOperatorNames
+      .map((operator) => {
       const operatorTickets = tickets.filter(
         (ticket) => normalizeOperatorName(ticket.assigned_to) === normalizeOperatorName(operator),
       );
@@ -525,16 +526,20 @@ export default function WallboardPage() {
         compareIsoDates(left.created_at, right.created_at),
       )[0];
 
-      return {
-        operator,
-        total: operatorTickets.length,
-        pendingCount,
-        inProgressCount,
-        orderedCount,
-        readyCount,
-        oldestAge: formatRelativeAge(oldestTicket?.created_at ?? null),
-      };
-    });
+        return {
+          operator,
+          total: operatorTickets.length,
+          pendingCount,
+          inProgressCount,
+          orderedCount,
+          readyCount,
+          oldestAge: formatRelativeAge(oldestTicket?.created_at ?? null),
+        };
+      })
+      .sort(
+        (left, right) =>
+          right.total - left.total || left.operator.localeCompare(right.operator),
+      );
   }, [adminOperatorNames, tickets]);
 
   const supplierSpendSummary = useMemo(() => {
