@@ -3872,7 +3872,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="mt-8 rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
+            <div aria-hidden="true" className="hidden">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div className="space-y-2">
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
