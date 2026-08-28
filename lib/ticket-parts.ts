@@ -25,9 +25,25 @@ export type TicketPartRecord = {
   part_description: string;
   part_number: string;
   quantity: number;
+  received_quantity: number;
+  received_at: string | null;
+  received_by: string | null;
   part_status: TicketPartStatus;
   supplier_name: string | null;
   notes: string | null;
+  source_system: string | null;
+  source_product_id: string | null;
+  source_price_snapshot: number | null;
+  source_currency: string | null;
+  source_stock_snapshot: number | null;
+  source_checked_at: string | null;
+  source_bin_location: string | null;
+  source_subgroup: string | null;
+  source_requested_quantity: number | null;
+  source_issued_quantity: number | null;
+  source_shortfall_quantity: number | null;
+  source_stock_after: number | null;
+  source_allocation_status: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -46,9 +62,25 @@ type TicketPartRow = {
   part_description: string | null;
   part_number: string | null;
   quantity: number | null;
+  received_quantity: number | null;
+  received_at: string | null;
+  received_by: string | null;
   part_status: string | null;
   supplier_name: string | null;
   notes: string | null;
+  source_system?: string | null;
+  source_product_id?: string | null;
+  source_price_snapshot?: number | string | null;
+  source_currency?: string | null;
+  source_stock_snapshot?: number | null;
+  source_checked_at?: string | null;
+  source_bin_location?: string | null;
+  source_subgroup?: string | null;
+  source_requested_quantity?: number | null;
+  source_issued_quantity?: number | null;
+  source_shortfall_quantity?: number | null;
+  source_stock_after?: number | null;
+  source_allocation_status?: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -104,6 +136,30 @@ export function normalizeTicketPartMachineReference(value: string | null | undef
   return value?.trim().replace(/\s+/g, "").toUpperCase() || null;
 }
 
+export function getTicketPartOutstandingQuantity(
+  part: Pick<TicketPartRecord, "quantity" | "received_quantity" | "part_status">,
+) {
+  if (part.part_status === "CANCELLED") {
+    return 0;
+  }
+
+  return Math.max(part.quantity - part.received_quantity, 0);
+}
+
+export function getOutstandingTicketParts(parts: TicketPartRecord[]) {
+  return parts.filter((part) => getTicketPartOutstandingQuantity(part) > 0);
+}
+
+export function formatOutstandingTicketParts(parts: TicketPartRecord[]) {
+  return getOutstandingTicketParts(parts)
+    .map((part) => {
+      const quantity = getTicketPartOutstandingQuantity(part);
+      const label = part.part_number || part.part_description || "Unnamed part";
+      return `${quantity} x ${label}`;
+    })
+    .join(", ");
+}
+
 export async function fetchTicketParts(supabase: SupabaseClient, ticketId: string) {
   const { data, error } = await supabase
     .from("ticket_parts")
@@ -135,6 +191,14 @@ export async function createTicketPart(
     partStatus?: TicketPartStatus;
     supplierName?: string | null;
     notes?: string | null;
+    sourceSystem?: string | null;
+    sourceProductId?: string | null;
+    sourcePriceSnapshot?: number | null;
+    sourceCurrency?: string | null;
+    sourceStockSnapshot?: number | null;
+    sourceCheckedAt?: string | null;
+    sourceBinLocation?: string | null;
+    sourceSubgroup?: string | null;
   },
 ) {
   const { data, error } = await supabase
@@ -155,6 +219,16 @@ export async function createTicketPart(
       part_status: payload.partStatus ?? "REQUESTED",
       supplier_name: payload.supplierName?.trim() || null,
       notes: payload.notes?.trim() || null,
+      source_system: payload.sourceSystem?.trim() || null,
+      source_product_id: payload.sourceProductId?.trim() || null,
+      source_price_snapshot:
+        typeof payload.sourcePriceSnapshot === "number" ? payload.sourcePriceSnapshot : null,
+      source_currency: payload.sourceCurrency?.trim() || null,
+      source_stock_snapshot:
+        typeof payload.sourceStockSnapshot === "number" ? payload.sourceStockSnapshot : null,
+      source_checked_at: payload.sourceCheckedAt ?? null,
+      source_bin_location: payload.sourceBinLocation?.trim() || null,
+      source_subgroup: payload.sourceSubgroup?.trim() || null,
     })
     .select("*")
     .single();
@@ -166,7 +240,26 @@ export async function createTicketPart(
   return normalizeTicketPartRow(data as TicketPartRow);
 }
 
+export async function receiveTicketPart(
+  supabase: SupabaseClient,
+  partId: string,
+  quantity: number,
+) {
+  const { data, error } = await supabase.rpc("receive_ticket_part", {
+    p_part_id: partId,
+    p_quantity: quantity,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return normalizeTicketPartRow(data as TicketPartRow);
+}
+
 function normalizeTicketPartRow(row: TicketPartRow): TicketPartRecord {
+  const quantity = typeof row.quantity === "number" && row.quantity > 0 ? row.quantity : 1;
+
   return {
     id: row.id,
     ticket_id: row.ticket_id,
@@ -180,10 +273,34 @@ function normalizeTicketPartRow(row: TicketPartRow): TicketPartRecord {
     machine_model: row.machine_model?.trim() || null,
     part_description: row.part_description?.trim() || "",
     part_number: row.part_number?.trim() || "",
-    quantity: typeof row.quantity === "number" && row.quantity > 0 ? row.quantity : 1,
+    quantity,
+    received_quantity:
+      typeof row.received_quantity === "number" && row.received_quantity > 0
+        ? Math.min(row.received_quantity, quantity)
+        : 0,
+    received_at: row.received_at ?? null,
+    received_by: row.received_by ?? null,
     part_status: normalizeTicketPartStatus(row.part_status),
     supplier_name: row.supplier_name?.trim() || null,
     notes: row.notes?.trim() || null,
+    source_system: row.source_system?.trim() || null,
+    source_product_id: row.source_product_id?.trim() || null,
+    source_price_snapshot:
+      typeof row.source_price_snapshot === "number"
+        ? row.source_price_snapshot
+        : typeof row.source_price_snapshot === "string"
+          ? Number(row.source_price_snapshot)
+          : null,
+    source_currency: row.source_currency?.trim() || null,
+    source_stock_snapshot: row.source_stock_snapshot ?? null,
+    source_checked_at: row.source_checked_at ?? null,
+    source_bin_location: row.source_bin_location?.trim() || null,
+    source_subgroup: row.source_subgroup?.trim() || null,
+    source_requested_quantity: row.source_requested_quantity ?? null,
+    source_issued_quantity: row.source_issued_quantity ?? null,
+    source_shortfall_quantity: row.source_shortfall_quantity ?? null,
+    source_stock_after: row.source_stock_after ?? null,
+    source_allocation_status: row.source_allocation_status?.trim() || null,
     created_at: row.created_at ?? new Date().toISOString(),
     updated_at: row.updated_at ?? new Date().toISOString(),
   };
