@@ -6,6 +6,7 @@ export type RelayAiContext = {
   requesterName?: string | null;
   department?: string | null;
   machineReference?: string | null;
+  isRetailSale?: boolean;
   jobNumber?: string | null;
   requestSummary?: string | null;
   requestDetails?: string | null;
