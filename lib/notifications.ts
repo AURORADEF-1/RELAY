@@ -6,6 +6,7 @@ export type RelayNotificationType =
   | "status_update"
   | "requester_message"
   | "operator_message"
+  | "job_assigned"
   | "task_assigned"
   | "ready_reminder"
   | "ready_for_collection"
