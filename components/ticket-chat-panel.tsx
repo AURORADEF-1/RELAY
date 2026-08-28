@@ -35,6 +35,8 @@ type TicketChatPanelProps = {
   operatorChatHref?: string | null;
   operatorSmsHref?: string | null;
   operatorCallHrefs?: { label: string; href: string }[];
+  unreadCount?: number;
+  onOpen?: () => void;
 };
 
 const senderTone: Record<ChatRole, string> = {
