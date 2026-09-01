@@ -51,7 +51,7 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
     <>
       <LegalTermsGate />
       {isResolved && isFrontCounter ? <CupsPrintStation /> : <DymoPrintStation />}
-      {!isFrontCounter ? <NotificationToasts /> : null}
+      <NotificationToasts />
       {!isFrontCounter ? <GlobalTicketChat /> : null}
       {routeAllowed ? children : (
         <main className="flex min-h-screen items-center justify-center bg-slate-950 text-white">

@@ -37,6 +37,7 @@ import {
 import { getAdaptivePollDelay, usePageActivity } from "@/lib/page-activity";
 import { recordAdminHealthEvent } from "@/lib/admin-health";
 import { isLikelySameOperatorName } from "@/lib/ticket-urgency";
+import { RELAY_SYSTEM_BROADCAST_CHANNEL } from "@/lib/system-broadcast";
 
 type NotificationContextValue = {
   requesterUnreadCount: number;
@@ -96,6 +97,7 @@ const TOASTED_NOTIFICATION_IDS_STORAGE_PREFIX = "relay-toasted-notification-ids"
 const MAX_STORED_TOASTED_NOTIFICATION_IDS = 120;
 const JOB_ASSIGNMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const ADMIN_EXTENSION_NOTIFICATION_MESSAGE = "RELAY_ADMIN_NOTIFICATION";
+const SYSTEM_BROADCAST_TYPE = "system_broadcast";
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
   "operator_message",
@@ -585,7 +587,9 @@ export function NotificationProvider({
           (notification) => notification.type === "task_assigned",
         );
         const unreadRequesterNotifications = activeUnreadNotifications.filter(
-          (notification) => REQUEST_NOTIFICATION_TYPES.has(notification.type),
+          (notification) =>
+            REQUEST_NOTIFICATION_TYPES.has(notification.type) ||
+            notification.type === SYSTEM_BROADCAST_TYPE,
         );
         const nextUnreadIds = new Set(activeUnreadNotifications.map((notification) => notification.id));
 
@@ -594,7 +598,8 @@ export function NotificationProvider({
               (notification) =>
                 notification.type === "job_assigned" ||
                 notification.type === "new_ticket" ||
-                notification.type === "front_counter_collection",
+                notification.type === "front_counter_collection" ||
+                notification.type === SYSTEM_BROADCAST_TYPE,
             )
           : activeUnreadNotifications;
         const shouldShowToasts = options?.showToasts && (
@@ -602,7 +607,8 @@ export function NotificationProvider({
           toastableNotifications.some(
             (notification) =>
               notification.type === "job_assigned" ||
-              notification.type === "front_counter_collection",
+              notification.type === "front_counter_collection" ||
+              notification.type === SYSTEM_BROADCAST_TYPE,
           )
         );
         const extensionNotifications = adminUser
@@ -629,7 +635,11 @@ export function NotificationProvider({
                   notification.ticket_id &&
                   alertedPendingTicketIdsRef.current.has(notification.ticket_id)
                 ) &&
-                (unreadNotificationsInitializedRef.current || notification.type === "job_assigned"),
+                (
+                  unreadNotificationsInitializedRef.current ||
+                  notification.type === "job_assigned" ||
+                  notification.type === SYSTEM_BROADCAST_TYPE
+                ),
             )
             .sort(
               (left, right) =>
@@ -656,10 +666,13 @@ export function NotificationProvider({
               eyebrow:
                 notification.type === "front_counter_collection"
                   ? "Front Counter Collection"
-                  : undefined,
+                  : notification.type === SYSTEM_BROADCAST_TYPE
+                    ? "RELAY Announcement"
+                    : undefined,
               variant:
                 notification.type === "new_ticket" ||
-                notification.type === "front_counter_collection"
+                notification.type === "front_counter_collection" ||
+                notification.type === SYSTEM_BROADCAST_TYPE
                   ? "panel"
                   : undefined,
               notificationId: notification.id,
@@ -669,7 +682,8 @@ export function NotificationProvider({
                 notification.type === "ready_reminder" ||
                 notification.type === "ready_for_collection" ||
                 notification.type === "front_counter_collection" ||
-                notification.type === "job_assigned",
+                notification.type === "job_assigned" ||
+                notification.type === SYSTEM_BROADCAST_TYPE,
             });
             if (
               notification.type === "new_ticket" ||
@@ -677,7 +691,8 @@ export function NotificationProvider({
               notification.type === "ready_reminder" ||
               notification.type === "ready_for_collection" ||
               notification.type === "front_counter_collection" ||
-              notification.type === "job_assigned"
+              notification.type === "job_assigned" ||
+              notification.type === SYSTEM_BROADCAST_TYPE
             ) {
               pushBrowserNotification({
                 title: notification.title,
@@ -756,7 +771,11 @@ export function NotificationProvider({
         }
 
         const notificationsToMarkRead = adminUser
-          ? unreadNotifications.filter((notification) => notification.type !== "job_assigned")
+          ? unreadNotifications.filter(
+              (notification) =>
+                notification.type !== "job_assigned" &&
+                notification.type !== SYSTEM_BROADCAST_TYPE,
+            )
           : currentPath === "/tasks"
             ? unreadNotifications.filter((notification) => notification.type === "task_assigned")
             : currentPath.startsWith("/tickets/")
@@ -823,6 +842,7 @@ export function NotificationProvider({
 
     let isMounted = true;
     let activeChannel: RealtimeChannel | null = null;
+    let activeSystemBroadcastChannel: RealtimeChannel | null = null;
     let activePendingTicketChannel: RealtimeChannel | null = null;
     let activeUrgentTicketChannel: RealtimeChannel | null = null;
     let pollTimeout: number | null = null;
@@ -838,6 +858,11 @@ export function NotificationProvider({
       if (activeChannel) {
         await supabase.removeChannel(activeChannel);
         activeChannel = null;
+      }
+
+      if (activeSystemBroadcastChannel) {
+        await supabase.removeChannel(activeSystemBroadcastChannel);
+        activeSystemBroadcastChannel = null;
       }
 
       if (activePendingTicketChannel) {
@@ -1081,6 +1106,37 @@ export function NotificationProvider({
             }).catch((syncError) => {
               console.error("Failed to reconcile notifications after Realtime error", syncError);
             });
+          }
+        });
+
+        const systemBroadcastChannel = supabase.channel(RELAY_SYSTEM_BROADCAST_CHANNEL);
+        activeSystemBroadcastChannel = systemBroadcastChannel;
+
+        systemBroadcastChannel.on(
+          "broadcast",
+          { event: "refresh" },
+          async () => {
+            if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+              return;
+            }
+
+            await syncUnreadNotifications(supabase, user.id, adminUser, {
+              showToasts: true,
+            });
+          },
+        );
+
+        systemBroadcastChannel.subscribe((status, error) => {
+          if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
+            return;
+          }
+
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.error("RELAY system broadcast channel degraded", error ?? status);
+            recordAdminHealthEvent(
+              "notifications",
+              `System broadcast channel ${status.toLowerCase()}.`,
+            );
           }
         });
 

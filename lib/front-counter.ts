@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export const FRONT_COUNTER_LIVE_CHANNEL = "relay-front-counter-live";
+
 export type FrontCounterCollectionRequest = {
   request_id: string;
   ticket_id: string;

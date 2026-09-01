@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { normalizeFrontCounterIdentifier } from "@/lib/front-counter";
+import {
+  FRONT_COUNTER_LIVE_CHANNEL,
+  normalizeFrontCounterIdentifier,
+} from "@/lib/front-counter";
 
 describe("front counter identifiers", () => {
   it("normalizes job and verbal collection codes", () => {
@@ -105,6 +108,24 @@ describe("front counter live operations", () => {
     expect(migration).toContain(
       "revoke all on function public.list_front_counter_wallboard_supplier_spend() from public, anon",
     );
+  });
+
+  it("uses a shared fast refresh channel with a ten-second fallback", () => {
+    const wallboard = readFileSync(
+      resolve(process.cwd(), "app/wallboard/page.tsx"),
+      "utf8",
+    );
+    const terminal = readFileSync(
+      resolve(process.cwd(), "app/terminal/page.tsx"),
+      "utf8",
+    );
+
+    expect(wallboard).toContain('const POLL_INTERVAL_MS = 1000 * 10');
+    expect(FRONT_COUNTER_LIVE_CHANNEL).toBe("relay-front-counter-live");
+    expect(wallboard).toContain("channel(FRONT_COUNTER_LIVE_CHANNEL)");
+    expect(wallboard).toContain('{ event: "refresh" }');
+    expect(terminal).toContain("channel(FRONT_COUNTER_LIVE_CHANNEL)");
+    expect(terminal).toContain('event: "refresh"');
   });
 
   it("keeps Front Counter maintenance outbound-only and command allow-listed", () => {

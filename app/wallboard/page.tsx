@@ -16,7 +16,11 @@ import {
 } from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
-import { fetchFrontCounterCollectionQueue, type FrontCounterCollectionRequest } from "@/lib/front-counter";
+import {
+  fetchFrontCounterCollectionQueue,
+  FRONT_COUNTER_LIVE_CHANNEL,
+  type FrontCounterCollectionRequest,
+} from "@/lib/front-counter";
 
 type WallboardTicket = {
   id: string;
@@ -51,11 +55,11 @@ type WallboardMode = "inbound" | "ready" | "operators" | "suppliers";
 
 const ROTATION_MODES: WallboardMode[] = ["inbound", "ready", "operators", "suppliers"];
 const MODE_DURATION_MS = 1000 * 60;
-const POLL_INTERVAL_MS = 1000 * 30;
+const POLL_INTERVAL_MS = 1000 * 10;
 const PAGE_DURATION_MS = 1000 * 30;
 const PAGE_SIZE = 12;
 const LIVE_QUEUE_LIMIT = 1000;
-const REALTIME_REFRESH_DEBOUNCE_MS = 500;
+const REALTIME_REFRESH_DEBOUNCE_MS = 120;
 
 export default function WallboardPage() {
   const [tickets, setTickets] = useState<WallboardTicket[]>([]);
@@ -404,7 +408,18 @@ export default function WallboardPage() {
     }, POLL_INTERVAL_MS);
 
     let refreshTimeout: number | null = null;
-    const realtimeChannel = getSupabaseClient()?.channel("relay-wallboard-refresh");
+    const realtimeChannel = getSupabaseClient()?.channel(FRONT_COUNTER_LIVE_CHANNEL);
+
+    const scheduleRealtimeRefresh = () => {
+      if (refreshTimeout) {
+        window.clearTimeout(refreshTimeout);
+      }
+
+      refreshTimeout = window.setTimeout(() => {
+        refreshTimeout = null;
+        void loadTickets();
+      }, REALTIME_REFRESH_DEBOUNCE_MS);
+    };
 
     realtimeChannel?.on(
       "postgres_changes",
@@ -413,27 +428,17 @@ export default function WallboardPage() {
         schema: "public",
         table: "tickets",
       },
-      () => {
-        if (refreshTimeout) {
-          window.clearTimeout(refreshTimeout);
-        }
-
-        refreshTimeout = window.setTimeout(() => {
-          refreshTimeout = null;
-          void loadTickets();
-        }, REALTIME_REFRESH_DEBOUNCE_MS);
-      },
+      scheduleRealtimeRefresh,
     );
     realtimeChannel?.on(
       "postgres_changes",
       { event: "*", schema: "public", table: "front_counter_collection_requests" },
-      () => {
-        if (refreshTimeout) window.clearTimeout(refreshTimeout);
-        refreshTimeout = window.setTimeout(() => {
-          refreshTimeout = null;
-          void loadTickets();
-        }, REALTIME_REFRESH_DEBOUNCE_MS);
-      },
+      scheduleRealtimeRefresh,
+    );
+    realtimeChannel?.on(
+      "broadcast",
+      { event: "refresh" },
+      scheduleRealtimeRefresh,
     );
     realtimeChannel?.subscribe();
 

@@ -1,4 +1,5 @@
 export const relayBroadcastKinds = ["update", "maintenance", "notice"] as const;
+export const RELAY_SYSTEM_BROADCAST_CHANNEL = "relay-system-notifications";
 
 export type RelayBroadcastKind = (typeof relayBroadcastKinds)[number];
 

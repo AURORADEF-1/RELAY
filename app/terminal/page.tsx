@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { AuthGuard } from "@/components/auth-guard";
 import { LogoutButton } from "@/components/logout-button";
 import {
   completeFrontCounterCollection,
   fetchFrontCounterCollectionQueue,
+  FRONT_COUNTER_LIVE_CHANNEL,
   requestFrontCounterCollection,
   type FrontCounterCollectionRequest,
 } from "@/lib/front-counter";
@@ -22,6 +24,7 @@ export default function TerminalPage() {
   const [notice, setNotice] = useState<TerminalNotice | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const liveChannelRef = useRef<RealtimeChannel | null>(null);
 
   const loadQueue = useCallback(async () => {
     const supabase = getSupabaseClient();
@@ -37,11 +40,14 @@ export default function TerminalPage() {
     void loadQueue();
     const interval = window.setInterval(() => void loadQueue(), 10_000);
     const supabase = getSupabaseClient();
-    const channel = supabase?.channel("front-counter-terminal-queue")
+    const channel = supabase?.channel(FRONT_COUNTER_LIVE_CHANNEL)
       .on("postgres_changes", { event: "*", schema: "public", table: "front_counter_collection_requests" }, () => void loadQueue())
+      .on("broadcast", { event: "refresh" }, () => void loadQueue())
       .subscribe();
+    liveChannelRef.current = channel ?? null;
     return () => {
       window.clearInterval(interval);
+      liveChannelRef.current = null;
       if (supabase && channel) void supabase.removeChannel(channel);
     };
   }, [loadQueue]);
@@ -74,6 +80,11 @@ export default function TerminalPage() {
         });
       }
       setIdentifier("");
+      void liveChannelRef.current?.send({
+        type: "broadcast",
+        event: "refresh",
+        payload: { source: "front-counter-terminal" },
+      });
       await loadQueue();
     } catch (error) {
       setNotice({

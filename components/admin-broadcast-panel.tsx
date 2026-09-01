@@ -6,6 +6,7 @@ import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
 import {
   getRelayBroadcastPreset,
   normalizeRelayBroadcastDraft,
+  RELAY_SYSTEM_BROADCAST_CHANNEL,
   relayBroadcastKinds,
   type RelayBroadcastKind,
 } from "@/lib/system-broadcast";
@@ -58,7 +59,7 @@ export function AdminBroadcastPanel() {
 
       const supabase = getSupabaseClient();
       if (supabase) {
-        const channel = supabase.channel("relay-system-notifications");
+        const channel = supabase.channel(RELAY_SYSTEM_BROADCAST_CHANNEL);
         channel.subscribe((status) => {
           if (status !== "SUBSCRIBED") return;
           void channel
