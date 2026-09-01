@@ -8989,10 +8989,11 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 
 .completed-table th {
   position: sticky;
-  top: 5rem;
+  top: 0;
   z-index: 4;
   border-bottom: 1px solid var(--border);
   background: var(--background-panel-strong);
+  box-shadow: 0 1px 0 var(--border);
   padding: 0.72rem 0.8rem;
   color: var(--foreground-subtle);
   font-size: 0.6rem;
@@ -9000,6 +9001,7 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   letter-spacing: 0.13em;
   text-align: left;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .completed-table th:nth-child(1) {
@@ -9022,6 +9024,10 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 }
 .completed-table th:nth-child(7) {
   width: 15rem;
+}
+
+.completed-table .completed-actions-heading {
+  text-align: right;
 }
 
 .completed-table td {

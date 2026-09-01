@@ -519,9 +519,7 @@ export default function CompletedPage() {
                     <th>Request</th>
                     <th>Owner</th>
                     <th>Status</th>
-                    <th>
-                      <span className="sr-only">Actions</span>
-                    </th>
+                    <th className="completed-actions-heading">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
