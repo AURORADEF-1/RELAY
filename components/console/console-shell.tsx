@@ -26,6 +26,7 @@ type ConsoleShellProps = {
   searchValue?: string;
   searchPlaceholder?: string;
   onSearchChange?: (value: string) => void;
+  searchSuggestionsEnabled?: boolean;
   actions?: React.ReactNode;
   onOpenRelayAi?: () => void;
   isRelayAiOpen?: boolean;
@@ -115,6 +116,7 @@ export function ConsoleShell({
   searchValue,
   searchPlaceholder = "Search jobs, machines or requesters",
   onSearchChange,
+  searchSuggestionsEnabled = true,
   actions,
   onOpenRelayAi,
   isRelayAiOpen = false,
@@ -221,7 +223,12 @@ export function ConsoleShell({
   useEffect(() => {
     const query = searchValue?.trim() ?? "";
 
-    if (!isAdmin || !onSearchChange || query.length < 2) {
+    if (
+      !searchSuggestionsEnabled ||
+      !isAdmin ||
+      !onSearchChange ||
+      query.length < 2
+    ) {
       const resetId = window.setTimeout(() => setCommandMachineResults([]), 0);
       return () => window.clearTimeout(resetId);
     }
@@ -269,7 +276,7 @@ export function ConsoleShell({
       window.clearTimeout(timeoutId);
       abortController.abort();
     };
-  }, [isAdmin, onSearchChange, searchValue]);
+  }, [isAdmin, onSearchChange, searchSuggestionsEnabled, searchValue]);
 
   function toggleCollapsed() {
     const next = !isCollapsed;
