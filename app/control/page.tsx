@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/layout/page-header";
 
 const controlSections = [
   { href: "#overview", label: "Operations overview" },
+  { href: "/front-counter", label: "Front Counter" },
   { href: "#broadcasts", label: "User announcements" },
   { href: "#operators", label: "Operator names" },
   { href: "#health", label: "System health" },
@@ -35,17 +36,29 @@ export default function ControlPage() {
             description="Monitor operational health, maintain operator reporting, and manage active RELAY sessions from one administrative workspace."
             meta={
               <>
-                <span className="relay-live-label"><i /> Live administration data</span>
+                <span className="relay-live-label">
+                  <i /> Live administration data
+                </span>
                 <span>Restricted to RELAY administrators</span>
               </>
             }
             actions={
               <>
-                <Link href="/control/operations" target="_blank" rel="noreferrer" className="relay-button relay-button-secondary">
+                <Link
+                  href="/control/operations"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="relay-button relay-button-secondary"
+                >
                   <ConsoleIcon name="activity" className="h-4 w-4" />
                   Open operations view
                 </Link>
-                <Link href="/wallboard" target="_blank" rel="noreferrer" className="relay-button relay-button-primary">
+                <Link
+                  href="/wallboard"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="relay-button relay-button-primary"
+                >
                   <ConsoleIcon name="wallboard" className="h-4 w-4" />
                   TV wallboard
                 </Link>
@@ -53,7 +66,10 @@ export default function ControlPage() {
             }
           />
 
-          <nav className="admin-control-subnav" aria-label="Admin control sections">
+          <nav
+            className="admin-control-subnav"
+            aria-label="Admin control sections"
+          >
             {controlSections.map((section) => (
               <a key={section.href} href={section.href}>
                 {section.label}

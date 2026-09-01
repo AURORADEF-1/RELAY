@@ -2,25 +2,44 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { AuthGuard } from "@/components/auth-guard";
-import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
+import { ConsoleIcon, type ConsoleIconName } from "@/components/console/console-icon";
+import { ConsoleShell } from "@/components/console/console-shell";
 import { TicketStatusWorkflowModal } from "@/components/ticket-status-workflow-modal";
 import { TicketAttachmentGallery } from "@/components/ticket-attachment-gallery";
 import {
   type ChatMessage,
   TicketChatPanel,
 } from "@/components/ticket-chat-panel";
-import { LogoutButton } from "@/components/logout-button";
-import { RelayLogo } from "@/components/relay-logo";
-import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { StatusBadge } from "@/components/status-badge";
+import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
+import { AdminCollectionConfirmation } from "@/components/admin-collection-confirmation";
+import { PartLabelValidationPanel } from "@/components/part-label-validation-panel";
+import { RequesterCollectionCode } from "@/components/requester-collection-code";
+import { RequesterProfileLink } from "@/components/requester-profile-link";
 import { triggerActionFeedback } from "@/lib/action-feedback";
+import { getTicketChatSenderRole } from "@/lib/ticket-chat";
+import {
+  fetchAdminOperatorRecords,
+  getDefaultAdminOperatorOptions,
+} from "@/lib/admin-operators";
 import {
   buildOnsiteLocationMapUrl,
   formatOnsiteLocationSummary,
 } from "@/lib/onsite-location";
+import {
+  buildMachineSnapshot,
+  lookupMachineRegistryRecord,
+} from "@/lib/machine-registry";
 import { syncMonthlySupplierSpendSnapshotsForMonth } from "@/lib/monthly-supplier-spend";
 import {
   buildSupplierOrderDispatchPlan,
@@ -35,8 +54,11 @@ import {
   notifyAdminsOfPartCollected,
   notifyAdminsOfPartReturned,
   notifyAdminsOfRequesterMessage,
+  notifyAdminJobAssigned,
+  notifyRequesterOfOperatorMessage,
   notifyRequesterStatusChanged,
 } from "@/lib/notifications";
+import { fetchAdminAssigneeOptions } from "@/lib/admin-assignees";
 import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
 import {
   createTicketMessage,
@@ -53,12 +75,17 @@ import {
   buildEmptyTicketPartDraft,
   createTicketPart,
   fetchTicketParts,
+  formatOutstandingTicketParts,
   formatTicketPartStatus,
+  getOutstandingTicketParts,
+  getTicketPartOutstandingQuantity,
+  receiveTicketPart,
   ticketPartStatuses,
   type TicketPartDraft,
   type TicketPartRecord,
   type TicketPartStatus,
 } from "@/lib/ticket-parts";
+import type { NexusCataloguePart } from "@/lib/integrations/nexus/types";
 import {
   buildEmptyTicketPurchaseOrderDraft,
   createTicketPurchaseOrder,
@@ -69,12 +96,14 @@ import {
   type TicketPurchaseOrderRecord,
   type TicketPurchaseOrderStatus,
 } from "@/lib/ticket-purchase-orders";
+import { answerTicketQuestionInBrowser } from "@/lib/browser-ticket-assistant";
 import type { RelayAiContext } from "@/lib/relay-ai";
 import {
   buildRequesterReturnComment,
+  isRequesterCollectedComment,
   isRequesterReturnComment,
-  REQUESTER_COLLECTED_COMMENT,
 } from "@/lib/requester-ticket-actions";
+import { confirmOwnTicketCollectionManually } from "@/lib/ticket-collection";
 import {
   buildOrderedWorkflowComment,
   buildReadyWorkflowComment,
@@ -178,21 +207,17 @@ type TicketUpdate = {
   id?: string;
   status?: string | null;
   comment?: string | null;
-  notes?: string | null;
   created_at?: string | null;
 };
 
 type TicketEditDraft = {
+  requester_user_id: string;
   requester_name: string;
   department: string;
   machine_reference: string;
   job_number: string;
-  request_summary: string;
-  request_details: string;
   status: string;
   assigned_to: string;
-  visible_to_user_id: string;
-  notes: string;
   expected_delivery_date: string;
   lead_time_note: string;
   purchase_order_number: string;
@@ -240,8 +265,27 @@ type RequesterAccountOption = {
   full_name: string | null;
 };
 
+type WorkspaceTab = "overview" | "parts" | "activity" | "conversation" | "files";
+
+type NexusStockCheck =
+  | { status: "idle" | "checking"; message: string; part: null }
+  | { status: "found"; message: string; part: NexusCataloguePart; checkedAt: string }
+  | { status: "not_found" | "error"; message: string; part: null };
+
+const workspaceTabs: Array<{
+  id: WorkspaceTab;
+  label: string;
+  icon: ConsoleIconName;
+}> = [
+  { id: "overview", label: "Overview", icon: "clipboard" },
+  { id: "parts", label: "Parts & Purchase Orders", icon: "parts" },
+  { id: "activity", label: "Activity", icon: "activity" },
+  { id: "conversation", label: "Conversation", icon: "message" },
+  { id: "files", label: "Files", icon: "file" },
+];
+
 export default function TicketDetailPage() {
-  const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const { isAdmin } = useNotifications();
   const params = useParams<{ id: string }>();
   const ticketId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [ticket, setTicket] = useState<TicketRecord | null>(null);
@@ -254,13 +298,27 @@ export default function TicketDetailPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
   const [requesterAccounts, setRequesterAccounts] = useState<RequesterAccountOption[]>([]);
+  const [adminOperatorNames, setAdminOperatorNames] = useState<string[]>(
+    getDefaultAdminOperatorOptions,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [adminNoteDraft, setAdminNoteDraft] = useState("");
+  const [isAddingAdminNote, setIsAddingAdminNote] = useState(false);
+  const [adminNoteNotice, setAdminNoteNotice] = useState("");
   const [isSavingPart, setIsSavingPart] = useState(false);
   const [isSavingPurchaseOrder, setIsSavingPurchaseOrder] = useState(false);
+  const [receivingPartId, setReceivingPartId] = useState<string | null>(null);
+  const [receiveQuantities, setReceiveQuantities] = useState<Record<string, string>>({});
+  const [nexusStockCheck, setNexusStockCheck] = useState<NexusStockCheck>({
+    status: "idle",
+    message: "",
+    part: null,
+  });
+  const nexusStockRequestRef = useRef(0);
   const partFormRef = useRef<HTMLDivElement | null>(null);
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [requesterAvatarUrl, setRequesterAvatarUrl] = useState<string | null>(null);
@@ -274,6 +332,7 @@ export default function TicketDetailPage() {
     message: string;
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>("overview");
   const [editDraft, setEditDraft] = useState<TicketEditDraft | null>(null);
   const [partDraft, setPartDraft] = useState<TicketPartDraft>(buildEmptyTicketPartDraft());
   const [purchaseOrderDraft, setPurchaseOrderDraft] = useState<TicketPurchaseOrderDraft>(
@@ -285,6 +344,14 @@ export default function TicketDetailPage() {
   } | null>(null);
   const [statusWorkflowDialog, setStatusWorkflowDialog] = useState<StatusWorkflowDialogState | null>(null);
   const [editConflictDialog, setEditConflictDialog] = useState<EditConflictDialogState | null>(null);
+  const outstandingTicketParts = useMemo(
+    () => getOutstandingTicketParts(ticketParts),
+    [ticketParts],
+  );
+  const outstandingPartsSummary = useMemo(
+    () => formatOutstandingTicketParts(ticketParts),
+    [ticketParts],
+  );
 
   const loadTicket = useCallback(async () => {
     setIsLoading(true);
@@ -310,15 +377,27 @@ export default function TicketDetailPage() {
     setEditConflictDialog(null);
 
     if (isAdmin) {
-      try {
-        const requesterRecords = await fetchRequesterAccounts(supabase);
-        setRequesterAccounts(requesterRecords);
-      } catch (requesterError) {
-        console.error("Failed to load requester accounts", requesterError);
+      const [requesterResult, operatorResult] = await Promise.allSettled([
+        fetchRequesterAccounts(supabase),
+        fetchAdminOperatorRecords(supabase),
+      ]);
+
+      if (requesterResult.status === "fulfilled") {
+        setRequesterAccounts(requesterResult.value);
+      } else {
+        console.error("Failed to load requester accounts", requesterResult.reason);
         setRequesterAccounts([]);
+      }
+
+      if (operatorResult.status === "fulfilled") {
+        setAdminOperatorNames(operatorResult.value.map((operator) => operator.name));
+      } else {
+        console.error("Failed to load admin operators", operatorResult.reason);
+        setAdminOperatorNames(getDefaultAdminOperatorOptions());
       }
     } else {
       setRequesterAccounts([]);
+      setAdminOperatorNames(getDefaultAdminOperatorOptions());
     }
 
     const { data: ticketData, error: ticketError } = await supabase
@@ -361,7 +440,7 @@ export default function TicketDetailPage() {
       setPurchaseOrderDraft(buildEmptyTicketPurchaseOrderDraft());
       setHasRequesterCollected(
         (updateData ?? []).some(
-          (update) => update.comment === REQUESTER_COLLECTED_COMMENT,
+          (update) => isRequesterCollectedComment(update.comment),
         ),
       );
       setHasRequesterReturnRequested(
@@ -407,7 +486,7 @@ export default function TicketDetailPage() {
     }
 
     setIsLoading(false);
-  }, [ticketId]);
+  }, [isAdmin, ticketId]);
 
   const openEditMode = useCallback(() => {
     if (!ticket) {
@@ -416,6 +495,8 @@ export default function TicketDetailPage() {
 
     setIsEditing(true);
     setEditDraft(buildTicketEditDraft(ticket));
+    setAdminNoteDraft("");
+    setAdminNoteNotice("");
   }, [ticket]);
 
   const handleEditToggle = useCallback(() => {
@@ -441,6 +522,21 @@ export default function TicketDetailPage() {
   }, [currentUserDisplayName, isEditing, openEditMode, ticket]);
 
   useEffect(() => {
+    if (!isEditing) {
+      return;
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !statusWorkflowDialog) {
+        handleEditToggle();
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [handleEditToggle, isEditing, statusWorkflowDialog]);
+
+  useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadTicket();
     }, 0);
@@ -448,7 +544,79 @@ export default function TicketDetailPage() {
     return () => window.clearTimeout(timeoutId);
   }, [loadTicket]);
 
-  async function reloadTicketConversation(supabase: NonNullable<ReturnType<typeof getSupabaseClient>>, activeTicketId: string) {
+  useEffect(() => {
+    const partNumber = partDraft.part_number.trim();
+    const requestNumber = ++nexusStockRequestRef.current;
+
+    if (!isAdmin || !ticket?.id || partNumber.length < 2) {
+      setNexusStockCheck({ status: "idle", message: "", part: null });
+      return;
+    }
+
+    setNexusStockCheck({
+      status: "checking",
+      message: "Checking NEXUS stock...",
+      part: null,
+    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const token = await getSupabaseAccessToken();
+        if (!token) throw new Error("Sign in again to check NEXUS stock.");
+        const query = new URLSearchParams({ ticketId: ticket.id, partNumber });
+        const response = await fetch(`/api/integrations/nexus/stock?${query.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          data?: {
+            found: boolean;
+            part?: NexusCataloguePart;
+            reason?: string;
+            checkedAt?: string;
+          };
+          error?: string;
+        };
+        if (requestNumber !== nexusStockRequestRef.current) return;
+        if (!response.ok || payload.error) {
+          throw new Error(payload.error || "NEXUS stock could not be checked.");
+        }
+        if (payload.data?.found && payload.data.part) {
+          setNexusStockCheck({
+            status: "found",
+            message: `${payload.data.part.stockAvailable} available in NEXUS · bin ${payload.data.part.binLocation || "not recorded"}`,
+            part: payload.data.part,
+            checkedAt: payload.data.checkedAt || new Date().toISOString(),
+          });
+          return;
+        }
+        setNexusStockCheck({
+          status: "not_found",
+          message:
+            payload.data?.reason ||
+            "Not found in NEXUS for this machine. You can still add the part manually.",
+          part: null,
+        });
+      } catch (error) {
+        if (controller.signal.aborted || requestNumber !== nexusStockRequestRef.current) return;
+        setNexusStockCheck({
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "NEXUS stock could not be checked. You can still add the part manually.",
+          part: null,
+        });
+      }
+    }, 450);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [isAdmin, partDraft.part_number, ticket?.id]);
+
+  const reloadTicketConversation = useCallback(async (supabase: NonNullable<ReturnType<typeof getSupabaseClient>>, activeTicketId: string) => {
     const [attachmentData, messageData] = await Promise.all([
       fetchTicketAttachments(supabase, activeTicketId),
       fetchTicketMessages(supabase, activeTicketId),
@@ -463,7 +631,60 @@ export default function TicketDetailPage() {
     setAttachments(attachmentData);
     setMessages(messageData);
     setMessageSenderNameByUserId(senderNames);
-  }
+  }, []);
+
+  useEffect(() => {
+    const activeTicketId = ticket?.id;
+    const supabase = getSupabaseClient();
+
+    if (!activeTicketId || !supabase) {
+      return;
+    }
+
+    let refreshTimer: number | null = null;
+    const scheduleConversationRefresh = () => {
+      if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+      }
+
+      refreshTimer = window.setTimeout(() => {
+        void reloadTicketConversation(supabase, activeTicketId).catch((conversationReloadError) => {
+          console.error("Failed to refresh live ticket conversation", conversationReloadError);
+        });
+      }, 180);
+    };
+
+    const channel = supabase
+      .channel(`relay-ticket-chat-${activeTicketId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ticket_messages",
+          filter: `ticket_id=eq.${activeTicketId}`,
+        },
+        scheduleConversationRefresh,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ticket_attachments",
+          filter: `ticket_id=eq.${activeTicketId}`,
+        },
+        scheduleConversationRefresh,
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+      }
+      void supabase.removeChannel(channel);
+    };
+  }, [reloadTicketConversation, ticket?.id]);
 
   async function handleSendMessage(payload: { messageText: string; files: File[] }) {
     if (!ticket) {
@@ -501,7 +722,7 @@ export default function TicketDetailPage() {
         supabase,
         ticketId: ticket.id,
         senderUserId: currentUserId,
-        senderRole: "requester",
+        senderRole: getTicketChatSenderRole(isAdmin),
         messageText: payload.messageText,
         attachments: uploadedAttachments,
       });
@@ -513,15 +734,27 @@ export default function TicketDetailPage() {
         message: "Message sent successfully.",
       });
       triggerActionFeedback();
-      void notifyAdminsOfRequesterMessage(supabase, {
-        ticketId: ticket.id,
-        requesterName: ticket.requester_name,
-        jobNumber: ticket.job_number,
-        requestSummary: ticket.request_summary ?? ticket.request_details,
-        assignedTo: ticket.assigned_to,
-      }).catch((notificationError) => {
-        console.error("Failed to notify admins about requester message", notificationError);
-      });
+      if (!isAdmin) {
+        void notifyAdminsOfRequesterMessage(supabase, {
+          ticketId: ticket.id,
+          requesterName: ticket.requester_name,
+          jobNumber: ticket.job_number,
+          requestSummary: ticket.request_summary ?? ticket.request_details,
+          assignedTo: ticket.assigned_to,
+        }).catch((notificationError) => {
+          console.error("Failed to notify admins about requester message", notificationError);
+        });
+      } else {
+        void notifyRequesterOfOperatorMessage(supabase, {
+          userId: ticket.user_id,
+          ticketId: ticket.id,
+          jobNumber: ticket.job_number,
+          assignedTo: currentUserDisplayName || ticket.assigned_to,
+          messageText: payload.messageText,
+        }).catch((notificationError) => {
+          console.error("Failed to notify requester about admin message", notificationError);
+        });
+      }
       void reloadTicketConversation(supabase, ticket.id).catch((conversationReloadError) => {
         console.error("Failed to reload ticket conversation", conversationReloadError);
       });
@@ -552,26 +785,31 @@ export default function TicketDetailPage() {
     setErrorMessage("");
 
     try {
-      const accessToken = await getSupabaseAccessToken();
-
-      if (!accessToken) {
-        throw new Error("Authentication is required.");
-      }
-
       const ticketContext: RelayAiContext = {
         ticketId: ticket.id,
+        audience: isAdmin ? "admin" : "requester",
         status: ticket.status ?? "PENDING",
         assignedTo: ticket.assigned_to,
-        latestUpdate: updates[0]?.comment ?? updates[0]?.notes ?? ticket.notes,
+        latestUpdate: updates[0]?.comment ?? ticket.notes,
         requesterName: ticket.requester_name,
         department: ticket.department,
         machineReference: ticket.machine_reference,
         jobNumber: ticket.job_number,
         requestSummary: ticket.request_summary,
         requestDetails: ticket.request_details,
+        expectedDeliveryDate: ticket.expected_delivery_date,
+        purchaseOrderNumber: ticket.purchase_order_number,
+        supplierName: ticket.supplier_name,
+        binLocation: ticket.bin_location,
+        orderedAt: ticket.ordered_at,
+        readyAt: ticket.ready_at,
+        isRetailSale: Boolean(ticket.is_retail_sale),
+        customerName: ticket.customer_name,
+        retailSalesReference: ticket.retail_sales_reference,
+        orderAmount: ticket.order_amount,
         history: updates.map((update) => ({
           status: update.status,
-          comment: update.comment ?? update.notes,
+          comment: update.comment,
           createdAt: update.created_at,
         })),
         recentMessages: messages.slice(-6).map((message) => ({
@@ -581,23 +819,7 @@ export default function TicketDetailPage() {
         })),
       };
 
-      const response = await fetch(`/api/tickets/${ticket.id}/ai`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          question,
-          ticketContext,
-        }),
-      });
-
-      const payload = (await response.json()) as { message?: string; error?: string };
-
-      if (!response.ok || !payload.message) {
-        throw new Error(payload.error || "AI request failed.");
-      }
+      const answer = await answerTicketQuestionInBrowser(question, ticketContext);
 
       const aiSenderUserId = currentUserId ?? ticket.user_id;
 
@@ -612,7 +834,7 @@ export default function TicketDetailPage() {
           ticket_id: ticket.id,
           sender_user_id: aiSenderUserId,
           sender_role: "ai",
-          message_text: payload.message ?? null,
+          message_text: answer,
           attachment_url: null,
           attachment_type: null,
           is_ai_message: true,
@@ -626,6 +848,50 @@ export default function TicketDetailPage() {
     } finally {
       setIsAiLoading(false);
     }
+  }
+
+  async function handleAddAdminNote() {
+    if (!ticket || !isAdmin) {
+      setErrorMessage("Admin access is required for this action.");
+      return;
+    }
+
+    const comment = adminNoteDraft.trim();
+    if (!comment) {
+      setAdminNoteNotice("Enter an admin note before adding it.");
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setErrorMessage("Supabase environment variables are not configured.");
+      return;
+    }
+
+    setIsAddingAdminNote(true);
+    setAdminNoteNotice("");
+    setErrorMessage("");
+
+    const actorName = currentUserDisplayName || currentUserId || "Administrator";
+    const { data, error } = await supabase
+      .from("ticket_updates")
+      .insert({
+        ticket_id: ticket.id,
+        comment: `Admin note by ${actorName}: ${comment}`,
+      })
+      .select("id, status, comment, created_at")
+      .single();
+
+    if (error) {
+      setErrorMessage(sanitizeUserFacingError(error, "Unable to add the admin note."));
+      setIsAddingAdminNote(false);
+      return;
+    }
+
+    setUpdates((current) => [data as TicketUpdate, ...current]);
+    setAdminNoteDraft("");
+    setAdminNoteNotice("Admin note added to the activity chain.");
+    setIsAddingAdminNote(false);
   }
 
   async function handleSaveTicketEdit(confirmedWorkflow?: {
@@ -701,6 +967,8 @@ export default function TicketDetailPage() {
     const currentIsUrgent = Boolean(ticket.is_urgent);
     const assignmentChanged = editDraft.assigned_to.trim() !== (ticket.assigned_to?.trim() ?? "");
     const urgentFlagChanged = nextIsUrgent !== currentIsUrgent;
+    const machineReferenceChanged =
+      editDraft.machine_reference.trim() !== (ticket.machine_reference?.trim() ?? "");
 
     if (workflowRequirement && !confirmedWorkflow) {
       setStatusWorkflowDialog({
@@ -891,17 +1159,65 @@ export default function TicketDetailPage() {
       return;
     }
 
+    if (workflowRequirement === "ready" && outstandingTicketParts.length > 0) {
+      setStatusWorkflowDialog((current) =>
+        current
+          ? {
+              ...current,
+              errorMessage: `Receive all linked parts before marking READY. Outstanding: ${outstandingPartsSummary}`,
+            }
+          : current,
+      );
+      setIsSavingEdit(false);
+      return;
+    }
+
+    let machinePatch: Partial<TicketRecord> = {};
+    if (machineReferenceChanged) {
+      try {
+        const machineRecord = await lookupMachineRegistryRecord(
+          supabase,
+          editDraft.machine_reference,
+        );
+        machinePatch =
+          buildMachineSnapshot(
+            machineRecord,
+            currentUserDisplayName || currentUserId || "Administrator",
+          ) ?? {
+            machine_number: null,
+            machine_number_normalized: null,
+            machine_fleet_type: null,
+            machine_item_description: null,
+            machine_make: null,
+            machine_model: null,
+            machine_serial_number: null,
+            machine_status: null,
+            machine_quantity: null,
+            machine_buying_price: null,
+            machine_selling_price: null,
+            machine_source_sheet: null,
+            machine_source_row: null,
+            machine_verified: false,
+            machine_verified_at: null,
+            machine_verified_by: null,
+          };
+      } catch (machineError) {
+        setErrorMessage(
+          sanitizeUserFacingError(machineError, "Unable to verify the edited machine reference."),
+        );
+        setIsSavingEdit(false);
+        return;
+      }
+    }
+
     const ticketPatch = {
+      user_id: editDraft.requester_user_id.trim() || null,
       requester_name: editDraft.requester_name.trim() || null,
       department: editDraft.department.trim() || null,
       machine_reference: editDraft.machine_reference.trim() || null,
       job_number: editDraft.job_number.trim() || null,
-      request_summary: editDraft.request_summary.trim() || null,
-      request_details: editDraft.request_details.trim() || null,
       status: editDraft.status.trim() || null,
       assigned_to: editDraft.assigned_to.trim() || null,
-      visible_to_user_id: editDraft.visible_to_user_id.trim() || null,
-      notes: editDraft.notes.trim() || null,
       expected_delivery_date: nextExpectedDeliveryDate.trim() || null,
       lead_time_note: nextLeadTimeNote.trim() || null,
       purchase_order_number: nextPurchaseOrderNumber.trim() || null,
@@ -954,6 +1270,7 @@ export default function TicketDetailPage() {
           ? ticket.urgent_reminder_dismissed_by ?? null
           : null,
       updated_at: new Date().toISOString(),
+      ...machinePatch,
       ...(ticket.is_retail_sale
         ? {
             retail_sales_reference: nextRetailSalesReference.trim() || null,
@@ -967,14 +1284,12 @@ export default function TicketDetailPage() {
         : {}),
     };
 
-    const {
-      is_urgent: _ignoredUrgentFlag,
-      urgent_flagged_at: _ignoredUrgentFlaggedAt,
-      urgent_flagged_by: _ignoredUrgentFlaggedBy,
-      urgent_reminder_dismissed_at: _ignoredUrgentDismissedAt,
-      urgent_reminder_dismissed_by: _ignoredUrgentDismissedBy,
-      ...ticketPatchWithoutUrgency
-    } = ticketPatch;
+    const ticketPatchWithoutUrgency: Record<string, unknown> = { ...ticketPatch };
+    delete ticketPatchWithoutUrgency.is_urgent;
+    delete ticketPatchWithoutUrgency.urgent_flagged_at;
+    delete ticketPatchWithoutUrgency.urgent_flagged_by;
+    delete ticketPatchWithoutUrgency.urgent_reminder_dismissed_at;
+    delete ticketPatchWithoutUrgency.urgent_reminder_dismissed_by;
 
     let { error: updateError } = await supabase
       .from("tickets")
@@ -996,6 +1311,69 @@ export default function TicketDetailPage() {
       );
       setIsSavingEdit(false);
       return;
+    }
+
+    if (assignmentChanged) {
+      const previousAssignee = ticket.assigned_to?.trim() || "Unassigned";
+      const nextAssignee = ticketPatch.assigned_to?.trim() || "Unassigned";
+      const actorName = currentUserDisplayName || currentUserId || "Administrator";
+      const { data: assignmentUpdate, error: assignmentUpdateError } = await supabase
+        .from("ticket_updates")
+        .insert({
+          ticket_id: ticket.id,
+          comment: `Job reassigned from ${previousAssignee} to ${nextAssignee} by ${actorName}.`,
+        })
+        .select("id, status, comment, created_at")
+        .single();
+
+      if (assignmentUpdateError) {
+        setErrorMessage(
+          sanitizeUserFacingError(
+            assignmentUpdateError,
+            "The job was reassigned, but RELAY could not record the activity entry.",
+          ),
+        );
+        setIsSavingEdit(false);
+        return;
+      }
+
+      setUpdates((current) => [assignmentUpdate as TicketUpdate, ...current]);
+
+      if (ticketPatch.assigned_to) {
+        try {
+          const { user, profile } = await getCurrentUserWithRole(supabase, {
+            forceFresh: true,
+          });
+          if (user) {
+            const assignees = await fetchAdminAssigneeOptions(supabase, {
+              user,
+              displayName:
+                profile?.display_name?.trim()
+                || currentUserDisplayName
+                || user.email?.split("@")[0]
+                || "Administrator",
+            });
+            const assignedAdmin = assignees.find((option) =>
+              isLikelySameOperatorName(option.label, ticketPatch.assigned_to),
+            );
+
+            if (assignedAdmin && assignedAdmin.userId !== user.id) {
+              await notifyAdminJobAssigned(supabase, {
+                userId: assignedAdmin.userId,
+                ticketId: ticket.id,
+                jobNumber: ticket.job_number?.trim() || ticket.id.slice(0, 8),
+                requestSummary:
+                  ticket.request_summary?.trim()
+                  || ticket.request_details?.trim()
+                  || "Request details not recorded",
+                assignedBy: actorName,
+              });
+            }
+          }
+        } catch (notificationError) {
+          console.error("Failed to notify reassigned admin", notificationError);
+        }
+      }
     }
 
     if (ticket.status !== ticketPatch.status) {
@@ -1076,21 +1454,6 @@ export default function TicketDetailPage() {
       }
     }
 
-    if ((ticket.notes ?? "").trim() !== (ticketPatch.notes ?? "").trim() && ticketPatch.notes) {
-      const { error: noteError } = await supabase.from("ticket_updates").insert({
-        ticket_id: ticket.id,
-        comment: ticketPatch.notes,
-      });
-
-      if (noteError) {
-        setErrorMessage(
-          sanitizeUserFacingError(noteError, "Unable to save the ticket note."),
-        );
-        setIsSavingEdit(false);
-        return;
-      }
-    }
-
     setTicket((current) =>
       current
         ? {
@@ -1157,7 +1520,7 @@ export default function TicketDetailPage() {
         : null;
     if (ticket.status !== ticketPatch.status && !ticket.is_retail_sale) {
       void notifyRequesterStatusChanged(supabase, {
-        userId: ticket.user_id,
+        userId: ticketPatch.user_id,
         ticketId: ticket.id,
         jobNumber: ticket.job_number,
         nextStatus: ticketPatch.status ?? "PENDING",
@@ -1473,6 +1836,12 @@ export default function TicketDetailPage() {
     setPartNotice(null);
 
     try {
+      const nexusPart =
+        nexusStockCheck.status === "found" &&
+        normalizePartNumberForComparison(nexusStockCheck.part.partNumber) ===
+          normalizePartNumberForComparison(partNumber)
+          ? nexusStockCheck.part
+          : null;
       const createdPart = await createTicketPart(supabase, {
         ticketId: ticket.id,
         createdBy: currentUserId,
@@ -1488,13 +1857,27 @@ export default function TicketDetailPage() {
         partStatus: partDraft.part_status,
         supplierName: supplierName || null,
         notes: notes || null,
+        sourceSystem: nexusPart ? "NEXUS" : null,
+        sourceProductId: nexusPart?.id ?? null,
+        sourcePriceSnapshot: nexusPart?.sellPrice ?? null,
+        sourceCurrency: nexusPart?.currency ?? null,
+        sourceStockSnapshot: nexusPart?.stockAvailable ?? null,
+        sourceCheckedAt:
+          nexusPart && nexusStockCheck.status === "found"
+            ? nexusStockCheck.checkedAt
+            : null,
+        sourceBinLocation: nexusPart?.binLocation ?? null,
+        sourceSubgroup: nexusPart?.subgroup ?? null,
       });
 
       setTicketParts((current) => [createdPart, ...current]);
       setPartDraft(buildEmptyTicketPartDraft());
+      setNexusStockCheck({ status: "idle", message: "", part: null });
       setPartNotice({
         type: "success",
-        message: "Linked part added to this ticket.",
+        message: nexusPart
+          ? `Linked part added with NEXUS stock evidence (${nexusPart.stockAvailable} available).`
+          : "Linked part added manually to this ticket.",
       });
     } catch (partError) {
       setPartNotice({
@@ -1506,12 +1889,84 @@ export default function TicketDetailPage() {
     }
   }
 
-  function handleApplyTakeuchiSuggestion(part: {
+  async function handleReceiveTicketPart(part: TicketPartRecord) {
+    if (!ticket || !isAdmin) return;
+    const outstandingQuantity = getTicketPartOutstandingQuantity(part);
+    const requestedQuantity = Number.parseInt(
+      receiveQuantities[part.id] ?? String(outstandingQuantity),
+      10,
+    );
+    if (
+      !Number.isFinite(requestedQuantity) ||
+      requestedQuantity < 1 ||
+      requestedQuantity > outstandingQuantity
+    ) {
+      setPartNotice({
+        type: "error",
+        message: `Receive between 1 and ${outstandingQuantity} unit${outstandingQuantity === 1 ? "" : "s"} for ${part.part_number}.`,
+      });
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setPartNotice({
+        type: "error",
+        message: "Supabase environment variables are not configured.",
+      });
+      return;
+    }
+
+    setReceivingPartId(part.id);
+    setPartNotice(null);
+    try {
+      const updatedPart = await receiveTicketPart(supabase, part.id, requestedQuantity);
+      const remaining = getTicketPartOutstandingQuantity(updatedPart);
+      const refreshedPurchaseOrders = await fetchTicketPurchaseOrders(supabase, ticket.id);
+      setTicketParts((current) =>
+        current.map((candidate) => (candidate.id === updatedPart.id ? updatedPart : candidate)),
+      );
+      setPurchaseOrders(refreshedPurchaseOrders);
+      setReceiveQuantities((current) => {
+        const next = { ...current };
+        delete next[part.id];
+        return next;
+      });
+      await supabase.from("ticket_updates").insert({
+        ticket_id: ticket.id,
+        status: ticket.status,
+        comment:
+          remaining > 0
+            ? `Received ${requestedQuantity} x ${part.part_number}. ${remaining} still outstanding.`
+            : `Received ${requestedQuantity} x ${part.part_number}. This linked part is now complete.`,
+      });
+      setPartNotice({
+        type: "success",
+        message:
+          remaining > 0
+            ? `${part.part_number}: ${remaining} still outstanding. Ticket remains ORDERED.`
+            : `${part.part_number} is fully received.`,
+      });
+      triggerActionFeedback();
+    } catch (receiveError) {
+      setPartNotice({
+        type: "error",
+        message: sanitizeUserFacingError(
+          receiveError,
+          "Unable to receive this linked part right now.",
+        ),
+      });
+    } finally {
+      setReceivingPartId(null);
+    }
+  }
+
+  function handleApplyPartSuggestion(part: {
     part_description: string;
     part_number: string;
     suggested_part_number?: string | null;
-    bom_main_group: string;
-    bom_sub_group: string;
+    source_label: string;
+    evidence: string;
   }) {
     setPartDraft((current) => ({
       ...current,
@@ -1520,7 +1975,7 @@ export default function TicketDetailPage() {
     }));
     setPartNotice({
       type: "success",
-      message: `Applied Takeuchi suggestion from ${part.bom_main_group} · ${part.bom_sub_group}. Review the form and save it below.`,
+      message: `Applied ${part.source_label} suggestion. Review the evidence and save it below if the fitment is correct.`,
     });
     partFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -1541,27 +1996,7 @@ export default function TicketDetailPage() {
     setErrorMessage("");
 
     try {
-      const { data: existingCollectedUpdate, error: existingCollectedError } = await supabase
-        .from("ticket_updates")
-        .select("id")
-        .eq("ticket_id", ticket.id)
-        .eq("comment", REQUESTER_COLLECTED_COMMENT)
-        .limit(1);
-
-      if (existingCollectedError) {
-        throw new Error(existingCollectedError.message);
-      }
-
-      if ((existingCollectedUpdate ?? []).length === 0) {
-        const { error: insertError } = await supabase.from("ticket_updates").insert({
-          ticket_id: ticket.id,
-          comment: REQUESTER_COLLECTED_COMMENT,
-        });
-
-        if (insertError) {
-          throw new Error(insertError.message);
-        }
-      }
+      await confirmOwnTicketCollectionManually(supabase, ticket.id);
 
       setHasRequesterCollected(true);
 
@@ -1668,50 +2103,12 @@ export default function TicketDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <nav className="flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
-          <RelayLogo />
-          <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
-            <Link href="/" className="rounded-full px-4 py-2 hover:bg-white">
-              Home
-            </Link>
-            <Link href="/legal" className="rounded-full px-4 py-2 hover:bg-white">
-              Legal
-            </Link>
-            <Link href="/settings" className="rounded-full px-4 py-2 hover:bg-white">
-              Settings
-            </Link>
-            <RoleAwareRequestsLink className="rounded-full px-4 py-2 hover:bg-white" />
-            <Link href="/tasks" className="rounded-full px-4 py-2 hover:bg-white">
-              Tasks
-              <NotificationBadge count={taskUnreadCount} />
-            </Link>
-            {isAdmin ? (
-              <>
-                <Link
-                  href="/incidents"
-                  className="rounded-full px-4 py-2 hover:bg-white"
-                >
-                  Workshop Control
-                </Link>
-                <Link
-                  href="/control"
-                  className="rounded-full px-4 py-2 hover:bg-white"
-                >
-                  Admin Control
-                </Link>
-                <Link href="/admin" className="rounded-full px-4 py-2 hover:bg-white">
-                  Parts Control
-                  <NotificationBadge count={adminBadgeCount} />
-                </Link>
-              </>
-            ) : null}
-            <LogoutButton />
-          </div>
-        </nav>
-
-        <AuthGuard>
+    <AuthGuard>
+      <ConsoleShell
+        eyebrow={isAdmin ? "Operations / ticket" : "My requests / ticket"}
+        title={ticket?.job_number ? `Job ${ticket.job_number}` : "Ticket workspace"}
+        shellClassName={!isAdmin ? "console-shell-requester" : ""}
+      >
           {statusWorkflowDialog ? (
             <TicketStatusWorkflowModal
               mode={statusWorkflowDialog.mode}
@@ -1846,60 +2243,98 @@ export default function TicketDetailPage() {
               }}
             />
           ) : null}
-          <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
-            <div className="flex flex-col gap-8 lg:flex-row lg:justify-between">
-              <div className="space-y-5">
-                <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-                  Request Record
-                </div>
-                <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
-                  Ticket Detail
+          {isEditing ? (
+            <button
+              type="button"
+              className="ticket-edit-drawer-scrim"
+              aria-label="Close edit drawer"
+              onClick={handleEditToggle}
+            />
+          ) : null}
+          <section className="ticket-workspace">
+            <div className="ticket-workspace-header">
+              <div>
+                <p className="console-section-label">Request record</p>
+                <h1>
+                  {ticket?.request_summary?.trim() ||
+                    ticket?.request_details?.trim() ||
+                    "Ticket detail"}
                 </h1>
-                <p className="text-base leading-8 text-slate-600">
-                  Review request information, workflow history, and ticket
-                  commentary in one place.
+                <p className="flex flex-wrap items-center gap-x-1">
+                  {ticket ? (
+                    <MachineReferenceIndicator machine={ticket} />
+                  ) : (
+                    "No machine reference"
+                  )}
+                  {ticket?.requester_name ? (
+                    <>
+                      <span aria-hidden="true"> · </span>
+                      <span>Requested by </span>
+                      <RequesterProfileLink
+                        userId={ticket.user_id}
+                        requesterName={ticket.requester_name}
+                        enabled={isAdmin}
+                      />
+                    </>
+                  ) : null}
                 </p>
               </div>
-              <div className="self-start">
-                <div className="flex flex-wrap gap-3">
+              <div className="ticket-workspace-actions">
                   {isAdmin ? (
                     <button
                       type="button"
                       onClick={handleEditToggle}
-                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                      className="console-primary-compact-action"
                     >
-                      {isEditing ? "Cancel Edit" : "Edit Ticket"}
-                    </button>
-                  ) : null}
-                  {isAdmin && isEditing ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditing(false);
-                        setEditDraft(ticket ? buildTicketEditDraft(ticket) : null);
-                      }}
-                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                    >
-                      Back to Ticket
+                      Edit ticket
                     </button>
                   ) : null}
                   <button
                     type="button"
                     onClick={() => void loadTicket()}
                     disabled={isLoading}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="console-secondary-compact-action"
                   >
+                    <ConsoleIcon name="refresh" className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
                     {isLoading ? "Refreshing..." : "Refresh"}
                   </button>
-                  <RoleAwareRequestsLink
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                    userLabel="Back to Requests"
-                    adminLabel="Back to Smart Search"
-                    showBadge={false}
-                  />
-                </div>
+                  <Link
+                    href={isAdmin ? "/console" : "/requests"}
+                    className="console-secondary-compact-action"
+                  >
+                    Back to queue
+                  </Link>
               </div>
             </div>
+
+            <nav className="ticket-workspace-tabs" aria-label="Ticket workspace sections">
+              {workspaceTabs.map((tab) => {
+                const count =
+                  tab.id === "parts"
+                    ? ticketParts.length + purchaseOrders.length
+                    : tab.id === "activity"
+                      ? updates.length
+                      : tab.id === "conversation"
+                        ? messages.length
+                        : tab.id === "files"
+                          ? attachments.length
+                          : null;
+
+                return (
+                  <button
+                    type="button"
+                    key={tab.id}
+                    onClick={() => setActiveWorkspaceTab(tab.id)}
+                    className={activeWorkspaceTab === tab.id ? "ticket-workspace-tab-active" : undefined}
+                    aria-pressed={activeWorkspaceTab === tab.id}
+                  >
+                    <ConsoleIcon name={tab.icon} className="h-4 w-4" />
+                    <span>{tab.label}</span>
+                    {count !== null ? <strong>{count}</strong> : null}
+                  </button>
+                );
+              })}
+            </nav>
 
             {errorMessage ? (
               <div className="mt-8 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -1913,15 +2348,25 @@ export default function TicketDetailPage() {
               </div>
             ) : ticket ? (
               <div className="mt-8 space-y-6">
-                <div className="grid gap-6 lg:grid-cols-[1fr_0.95fr]">
-                  <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
+                <div className="grid gap-6">
+                  <section
+                    className={
+                      activeWorkspaceTab === "overview" ||
+                      activeWorkspaceTab === "parts" ||
+                      isEditing
+                        ? "ticket-workspace-panel"
+                        : "hidden"
+                    }
+                  >
                     <div className="flex items-start justify-between gap-4">
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Ticket ID
+                          {isAdmin ? "Ticket ID" : "Request status"}
                         </p>
-                        <p className="mt-2 text-2xl font-semibold text-slate-950">
-                          {ticket.id}
+                        <p className={`mt-2 font-semibold text-slate-950 ${isAdmin ? "break-all text-2xl" : "text-xl"}`}>
+                          {isAdmin
+                            ? ticket.id
+                            : ticket.request_summary?.trim() || ticket.request_details?.trim() || "Parts request"}
                         </p>
                       </div>
                       <StatusBadge status={ticket.status ?? "PENDING"} />
@@ -1958,7 +2403,22 @@ export default function TicketDetailPage() {
                     ) : null}
 
                     {isAdmin && isEditing && editDraft ? (
-                      <div className="mt-6 space-y-5">
+                      <aside className="ticket-edit-drawer" role="dialog" aria-modal="true" aria-label="Edit ticket">
+                        <div className="ticket-edit-drawer-header">
+                          <div>
+                            <p>Edit request</p>
+                            <h2>Job {ticket.job_number?.trim() || "—"}</h2>
+                          </div>
+                          <button
+                            type="button"
+                            className="console-icon-button"
+                            onClick={handleEditToggle}
+                            aria-label="Close edit drawer"
+                          >
+                            <ConsoleIcon name="close" className="h-5 w-5" />
+                          </button>
+                        </div>
+                        <div className="ticket-edit-drawer-body space-y-5">
                         <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4">
                           {requesterAvatarUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -1978,15 +2438,47 @@ export default function TicketDetailPage() {
                           </div>
                         </div>
                         <div className="grid gap-5 sm:grid-cols-2">
-                          <EditField
-                            label="Requester"
-                            value={editDraft.requester_name}
-                            onChange={(value) =>
-                              setEditDraft((current) =>
-                                current ? { ...current, requester_name: value } : current,
-                              )
-                            }
-                          />
+                          <label className="space-y-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                              Requester
+                            </span>
+                            <select
+                              value={editDraft.requester_user_id}
+                              onChange={(event) => {
+                                const requester = requesterAccounts.find(
+                                  (account) => account.user_id === event.target.value,
+                                );
+                                setEditDraft((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        requester_user_id: event.target.value,
+                                        requester_name:
+                                          requester?.full_name ?? requester?.user_id ?? current.requester_name,
+                                      }
+                                    : current,
+                                );
+                              }}
+                              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                            >
+                              {!editDraft.requester_user_id ? (
+                                <option value="">Select requester</option>
+                              ) : null}
+                              {editDraft.requester_user_id &&
+                              !requesterAccounts.some(
+                                (account) => account.user_id === editDraft.requester_user_id,
+                              ) ? (
+                                <option value={editDraft.requester_user_id}>
+                                  {editDraft.requester_name || "Current requester"}
+                                </option>
+                              ) : null}
+                              {requesterAccounts.map((account) => (
+                                <option key={account.user_id} value={account.user_id}>
+                                  {account.full_name ?? account.user_id}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
                           <EditSelect
                             label="Department"
                             value={editDraft.department}
@@ -2015,34 +2507,29 @@ export default function TicketDetailPage() {
                               )
                             }
                           />
-                          <EditField
-                            label="Assigned User"
-                            value={editDraft.assigned_to}
-                            onChange={(value) =>
-                              setEditDraft((current) =>
-                                current ? { ...current, assigned_to: value } : current,
-                              )
-                            }
-                          />
-                          <label className="space-y-2 sm:col-span-2">
+                          <label className="space-y-2">
                             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Requester visibility
+                              Assigned User
                             </span>
                             <select
-                              value={editDraft.visible_to_user_id}
+                              value={editDraft.assigned_to}
                               onChange={(event) =>
                                 setEditDraft((current) =>
                                   current
-                                    ? { ...current, visible_to_user_id: event.target.value }
+                                    ? { ...current, assigned_to: event.target.value }
                                     : current,
                                 )
                               }
                               className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                             >
-                              <option value="">Original requester only</option>
-                              {requesterAccounts.map((account) => (
-                                <option key={account.user_id} value={account.user_id}>
-                                  {account.full_name ?? account.user_id}
+                              <option value="">Unassigned</option>
+                              {editDraft.assigned_to &&
+                              !adminOperatorNames.includes(editDraft.assigned_to) ? (
+                                <option value={editDraft.assigned_to}>{editDraft.assigned_to}</option>
+                              ) : null}
+                              {adminOperatorNames.map((operator) => (
+                                <option key={operator} value={operator}>
+                                  {operator}
                                 </option>
                               ))}
                             </select>
@@ -2220,49 +2707,43 @@ export default function TicketDetailPage() {
                           ) : null}
                         </div>
 
-                        <EditArea
-                          label="Request Summary"
-                          value={editDraft.request_summary}
-                          onChange={(value) =>
-                            setEditDraft((current) =>
-                              current ? { ...current, request_summary: value } : current,
-                            )
-                          }
-                        />
-                        <EditArea
-                          label="Request Details"
-                          value={editDraft.request_details}
-                          onChange={(value) =>
-                            setEditDraft((current) =>
-                              current ? { ...current, request_details: value } : current,
-                            )
-                          }
-                        />
-                        <EditArea
-                          label="Admin Notes"
-                          value={editDraft.notes}
-                          onChange={(value) =>
-                            setEditDraft((current) =>
-                              current ? { ...current, notes: value } : current,
-                            )
-                          }
-                        />
-                        <EditArea
-                          label="Lead Time Note"
-                          value={editDraft.lead_time_note}
-                          onChange={(value) =>
-                            setEditDraft((current) =>
-                              current ? { ...current, lead_time_note: value } : current,
-                            )
-                          }
-                        />
+                        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <EditArea
+                            label="Add Admin Note"
+                            value={adminNoteDraft}
+                            onChange={(value) => {
+                              setAdminNoteDraft(value);
+                              setAdminNoteNotice("");
+                            }}
+                          />
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-xs leading-5 text-slate-500">
+                              Each note is added as a separate entry in the activity chain.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void handleAddAdminNote()}
+                              disabled={isAddingAdminNote || !adminNoteDraft.trim()}
+                              className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {isAddingAdminNote ? "Adding..." : "Add Note"}
+                            </button>
+                          </div>
+                          {adminNoteNotice ? (
+                            <p className="mt-3 text-xs font-semibold text-emerald-700">
+                              {adminNoteNotice}
+                            </p>
+                          ) : null}
+                        </section>
 
-                        <div className="flex justify-end gap-3">
+                        <div className="ticket-edit-drawer-actions">
                           <button
                             type="button"
                             onClick={() => {
                               setIsEditing(false);
                               setEditDraft(buildTicketEditDraft(ticket));
+                              setAdminNoteDraft("");
+                              setAdminNoteNotice("");
                             }}
                             className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                           >
@@ -2270,20 +2751,38 @@ export default function TicketDetailPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void handleSaveTicketEdit()}
+                            onClick={() => {
+                              if (
+                                editDraft.status === "COMPLETED" &&
+                                ticket.status !== "COMPLETED" &&
+                                !window.confirm("Are you sure you want to mark this request COMPLETED?")
+                              ) {
+                                return;
+                              }
+                              void handleSaveTicketEdit();
+                            }}
                             disabled={isSavingEdit}
                             className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {isSavingEdit ? "Saving..." : "Save Ticket"}
                           </button>
                         </div>
-                      </div>
+                        </div>
+                      </aside>
                     ) : (
                       <>
-                        <dl className="mt-6 grid gap-5 sm:grid-cols-2">
+                        <div className={activeWorkspaceTab === "overview" ? "" : "hidden"}>
+                          {isAdmin ? (
+                          <dl className="mt-6 grid gap-5 sm:grid-cols-2">
                           {!ticket.is_retail_sale ? (
                             <>
-                              <DetailItem label="Requester" value={ticket.requester_name} />
+                              <DetailItem label="Requester">
+                                <RequesterProfileLink
+                                  userId={ticket.user_id}
+                                  requesterName={ticket.requester_name}
+                                  enabled={isAdmin}
+                                />
+                              </DetailItem>
                               <DetailItem label="Department" value={ticket.department} />
                               <DetailItem label="Machine" value={ticket.machine_reference} />
                               <DetailItem label="Job Number" value={ticket.job_number} />
@@ -2316,12 +2815,53 @@ export default function TicketDetailPage() {
                             label="Updated"
                             value={formatDate(ticket.updated_at)}
                           />
-                        </dl>
+                          </dl>
+                          ) : (
+                            <RequesterTicketOverview ticket={ticket} />
+                          )}
 
-                        {!ticket.is_retail_sale ? (
+                        {ticket.status === "ORDERED" && outstandingTicketParts.length > 0 ? (
+                          <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                              ORDERED · Parts outstanding
+                            </p>
+                            <p className="mt-2 text-base font-semibold leading-7 text-amber-950">
+                              {outstandingPartsSummary}
+                            </p>
+                            <p className="mt-1 text-sm text-amber-800">
+                              Receive each delivery line in Parts &amp; Purchase Orders. READY remains locked until all linked parts arrive.
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {isAdmin && !ticket.is_retail_sale ? (
                           <div className="mt-6">
                             <MachineDetailsCard ticket={ticket} />
                           </div>
+                        ) : null}
+
+                        {isAdmin && ticket.status === "READY" && !hasRequesterCollected ? (
+                          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                            <div className="mb-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                                Collection verification
+                              </p>
+                              <p className="mt-1 text-sm text-emerald-900/75">
+                                Bin {ticket.bin_location?.trim() || "not recorded"} · verify the requester QR or verbal code.
+                              </p>
+                            </div>
+                            <AdminCollectionConfirmation
+                              ticketId={ticket.id}
+                              onConfirmed={() => void loadTicket()}
+                            />
+                          </div>
+                        ) : null}
+
+                        {isAdmin && (ticket.status === "READY" || ticket.status === "COMPLETED") ? (
+                          <PartLabelValidationPanel
+                            ticketId={ticket.id}
+                            ticketStatus={ticket.status}
+                          />
                         ) : null}
 
                         {isOnsiteTicket(ticket) ? (
@@ -2330,13 +2870,14 @@ export default function TicketDetailPage() {
                           </div>
                         ) : null}
 
-                        <div className="mt-6 space-y-4">
+                        {isAdmin ? <div className="mt-6 space-y-4">
                           <DetailBlock
                             label="Request Details"
                             value={ticket.request_details ?? ticket.request_summary}
                           />
-                          <DetailBlock label="Admin Notes" value={ticket.notes} />
+                        </div> : null}
                         </div>
+                        <div className={activeWorkspaceTab === "parts" ? "" : "hidden"}>
                         <section
                           id="purchase-orders"
                           className="mt-6 rounded-2xl border border-slate-200 bg-white p-5"
@@ -2364,7 +2905,12 @@ export default function TicketDetailPage() {
                             </div>
                           ) : (
                             <div className="mt-4 grid gap-3">
-                              {purchaseOrders.map((po) => (
+                              {purchaseOrders.map((po) => {
+                                const linkedParts = ticketParts.filter(
+                                  (part) => part.ticket_purchase_order_id === po.id,
+                                );
+                                const outstanding = formatOutstandingTicketParts(linkedParts);
+                                return (
                                 <article key={po.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                                   <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div>
@@ -2386,15 +2932,25 @@ export default function TicketDetailPage() {
                                     </p>
                                     <p>
                                       Parts linked: <span className="font-medium text-slate-900">
-                                        {ticketParts.filter((part) => part.ticket_purchase_order_id === po.id).length}
+                                        {linkedParts.length}
                                       </span>
                                     </p>
+                                    {outstanding ? (
+                                      <p className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-semibold text-amber-800">
+                                        Parts outstanding: {outstanding}
+                                      </p>
+                                    ) : linkedParts.length > 0 && po.po_status !== "CANCELLED" ? (
+                                      <p className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 font-semibold text-emerald-800">
+                                        All linked parts received
+                                      </p>
+                                    ) : null}
                                     {po.notes ? (
                                       <p className="sm:col-span-2 leading-6">{po.notes}</p>
                                     ) : null}
                                   </div>
                                 </article>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
 
@@ -2537,13 +3093,13 @@ export default function TicketDetailPage() {
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                Linked Parts
+                                Linked Parts &amp; Receiving
                               </p>
                               <h3 className="mt-1 text-lg font-semibold text-slate-950">
-                                Parts catalogue seed for this job
+                                Receive each order line as it arrives
                               </h3>
                               <p className="mt-1 text-sm leading-6 text-slate-600">
-                                Each part record stays tied to the ticket, job number, machine reference, and optionally a specific PO.
+                                Partial deliveries stay visible against their PO. The ticket remains ORDERED until every active linked part is fully received.
                               </p>
                             </div>
                             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
@@ -2557,7 +3113,12 @@ export default function TicketDetailPage() {
                             </div>
                           ) : (
                             <div className="mt-4 grid gap-3">
-                              {ticketParts.map((part) => (
+                              {ticketParts.map((part) => {
+                                const outstandingQuantity = getTicketPartOutstandingQuantity(part);
+                                const receivedPercent = Math.round(
+                                  (part.received_quantity / part.quantity) * 100,
+                                );
+                                return (
                                 <article
                                   key={part.id}
                                   className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
@@ -2571,6 +3132,27 @@ export default function TicketDetailPage() {
                                         Part <span className="font-medium text-slate-900">{part.part_number}</span>
                                         {" "}· Qty {part.quantity}
                                       </p>
+                                      {part.source_system === "NEXUS" ? (
+                                        <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+                                          <span className="rounded-md bg-emerald-100 px-2 py-1 text-emerald-800">
+                                            NEXUS {part.source_allocation_status?.toLowerCase() ?? "stock checked"}
+                                          </span>
+                                          {part.source_issued_quantity != null ? (
+                                            <span className="rounded-md bg-white px-2 py-1 text-slate-700">
+                                              {part.source_issued_quantity} issued
+                                            </span>
+                                          ) : part.source_stock_snapshot != null ? (
+                                            <span className="rounded-md bg-white px-2 py-1 text-slate-700">
+                                              {part.source_stock_snapshot} in stock when checked
+                                            </span>
+                                          ) : null}
+                                          {(part.source_shortfall_quantity ?? 0) > 0 ? (
+                                            <span className="rounded-md bg-amber-100 px-2 py-1 text-amber-800">
+                                              {part.source_shortfall_quantity} to order
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                      ) : null}
                                     </div>
                                     <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
                                       {formatTicketPartStatus(part.part_status)}
@@ -2594,19 +3176,80 @@ export default function TicketDetailPage() {
                                         Supplier: <span className="font-medium text-slate-900">{part.supplier_name}</span>
                                       </p>
                                     ) : null}
+                                    {part.source_system === "NEXUS" ? (
+                                      <p className="sm:col-span-2">
+                                        NEXUS bin: <span className="font-medium text-slate-900">{part.source_bin_location ?? "-"}</span>
+                                        {" · "}NEXUS stock: <span className="font-medium text-slate-900">{part.source_stock_after ?? part.source_stock_snapshot ?? "-"}</span>
+                                        {part.source_subgroup ? ` · ${part.source_subgroup}` : ""}
+                                      </p>
+                                    ) : null}
                                     {part.notes ? (
                                       <p className="sm:col-span-2 leading-6">
                                         {part.notes}
                                       </p>
                                     ) : null}
                                   </div>
+                                  {part.part_status !== "CANCELLED" ? (
+                                    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                                      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                        <span className="font-semibold text-slate-900">
+                                          Received {part.received_quantity} of {part.quantity}
+                                        </span>
+                                        <span className={outstandingQuantity > 0 ? "font-semibold text-amber-700" : "font-semibold text-emerald-700"}>
+                                          {outstandingQuantity > 0
+                                            ? `${outstandingQuantity} outstanding`
+                                            : "Complete"}
+                                        </span>
+                                      </div>
+                                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                                        <div
+                                          className={`h-full rounded-full ${outstandingQuantity > 0 ? "bg-amber-500" : "bg-emerald-600"}`}
+                                          style={{ width: `${Math.min(100, Math.max(0, receivedPercent))}%` }}
+                                        />
+                                      </div>
+                                      {isAdmin && outstandingQuantity > 0 ? (
+                                        <div className="mt-3 flex flex-wrap items-end gap-2">
+                                          <label className="min-w-32 flex-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                            Quantity arriving now
+                                            <input
+                                              type="number"
+                                              min="1"
+                                              max={outstandingQuantity}
+                                              step="1"
+                                              value={receiveQuantities[part.id] ?? String(outstandingQuantity)}
+                                              onChange={(event) =>
+                                                setReceiveQuantities((current) => ({
+                                                  ...current,
+                                                  [part.id]: event.target.value,
+                                                }))
+                                              }
+                                              className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500"
+                                            />
+                                          </label>
+                                          <button
+                                            type="button"
+                                            onClick={() => void handleReceiveTicketPart(part)}
+                                            disabled={receivingPartId === part.id}
+                                            className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                                          >
+                                            {receivingPartId === part.id ? "Receiving..." : "Receive part"}
+                                          </button>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                 </article>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
 
                           <TakeuchiPartSuggestions
                             ticket={{
+                              ticket_id: ticket.id,
+                              machine_number: ticket.machine_number,
+                              machine_number_normalized: ticket.machine_number_normalized,
+                              machine_reference: ticket.machine_reference,
                               machine_make: ticket.machine_make,
                               machine_model: ticket.machine_model,
                               machine_serial_number: ticket.machine_serial_number,
@@ -2615,7 +3258,7 @@ export default function TicketDetailPage() {
                               request_details: ticket.request_details,
                             }}
                             isAdmin={isAdmin}
-                            onApplySuggestion={handleApplyTakeuchiSuggestion}
+                            onApplySuggestion={handleApplyPartSuggestion}
                           />
 
                           {isAdmin ? (
@@ -2626,7 +3269,7 @@ export default function TicketDetailPage() {
                                     Add linked part
                                   </p>
                                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                                    Capture the requested part number now so the same machine, job, and PO can grow into a better catalogue over time.
+                                    Enter a part number to check live NEXUS stock. If it is not found or NEXUS is unavailable, complete the fields and add it manually.
                                   </p>
                                 </div>
                               </div>
@@ -2648,11 +3291,12 @@ export default function TicketDetailPage() {
                                     className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                                   />
                                 </label>
-                                <label className="block">
-                                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                <div className="block">
+                                  <label htmlFor="linked-part-number" className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                                     Part Number
-                                  </span>
+                                  </label>
                                   <input
+                                    id="linked-part-number"
                                     value={partDraft.part_number}
                                     onChange={(event) =>
                                       setPartDraft((current) => ({
@@ -2663,7 +3307,46 @@ export default function TicketDetailPage() {
                                     placeholder="PN-1111"
                                     className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                                   />
-                                </label>
+                                  {nexusStockCheck.status !== "idle" ? (
+                                    <div
+                                      className={`mt-2 rounded-xl border px-3 py-2 text-xs leading-5 ${
+                                        nexusStockCheck.status === "found"
+                                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                          : nexusStockCheck.status === "checking"
+                                            ? "border-sky-200 bg-sky-50 text-sky-800"
+                                            : "border-amber-200 bg-amber-50 text-amber-800"
+                                      }`}
+                                      role="status"
+                                    >
+                                      <p className="font-semibold">
+                                        {nexusStockCheck.status === "checking"
+                                          ? "NEXUS stock check"
+                                          : nexusStockCheck.status === "found"
+                                            ? "Found in NEXUS"
+                                            : "Manual entry available"}
+                                      </p>
+                                      <p>{nexusStockCheck.message}</p>
+                                      {nexusStockCheck.status === "found" ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setPartDraft((current) => ({
+                                              ...current,
+                                              part_number: nexusStockCheck.part.partNumber,
+                                              part_description:
+                                                nexusStockCheck.part.description || current.part_description,
+                                              supplier_name:
+                                                nexusStockCheck.part.manufacturer || current.supplier_name,
+                                            }))
+                                          }
+                                          className="mt-2 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                                        >
+                                          Use NEXUS details
+                                        </button>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </div>
                                 <label className="block">
                                   <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                                     Quantity
@@ -2785,6 +3468,8 @@ export default function TicketDetailPage() {
                             </div>
                           ) : null}
                         </section>
+                        </div>
+                        <div className={activeWorkspaceTab === "overview" ? "" : "hidden"}>
                         {!isAdmin && ticket.status === "READY" && ticket.bin_location?.trim() ? (
                           <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
                             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
@@ -2807,6 +3492,12 @@ export default function TicketDetailPage() {
                               </div>
                             ) : (
                               <div className="space-y-4">
+                                <RequesterCollectionCode
+                                  ticketId={ticket.id}
+                                  jobNumber={ticket.job_number}
+                                  binLocation={ticket.bin_location}
+                                  requestSummary={ticket.request_summary ?? ticket.request_details}
+                                />
                                 <div className="flex flex-wrap gap-3">
                                   <button
                                     type="button"
@@ -2814,13 +3505,11 @@ export default function TicketDetailPage() {
                                     disabled={isMarkingCollected || isSubmittingReturn}
                                     className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    {isMarkingCollected ? "Saving..." : "Confirm Collection"}
+                                    {isMarkingCollected ? "Saving..." : "I have collected these parts"}
                                   </button>
                                 </div>
-                                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-                                  <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-amber-800">
-                                    Request a return
-                                  </label>
+                                <details className="requester-return-panel">
+                                  <summary>Wrong part? Request a return</summary>
                                   <p className="mt-1 text-sm text-amber-800/80">
                                     If the supplied part is wrong or unsuitable, tell Stores why it needs to be returned.
                                   </p>
@@ -2841,16 +3530,19 @@ export default function TicketDetailPage() {
                                       {isSubmittingReturn ? "Saving..." : "Submit Return Request"}
                                     </button>
                                   </div>
-                                </div>
+                                </details>
                               </div>
                             )}
                           </div>
                         ) : null}
+                        </div>
                       </>
                     )}
                   </section>
 
-                  <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-6">
+                  <section
+                    className={activeWorkspaceTab === "activity" ? "ticket-workspace-panel" : "hidden"}
+                  >
                     <div className="space-y-2">
                       <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Status History & Comments
@@ -2880,7 +3572,7 @@ export default function TicketDetailPage() {
                               </p>
                             </div>
                             <p className="mt-4 text-sm leading-7 text-slate-600">
-                              {update.comment ?? update.notes ?? "Status updated."}
+                              {update.comment ?? "Status updated."}
                             </p>
                           </article>
                         ))
@@ -2889,36 +3581,49 @@ export default function TicketDetailPage() {
                   </section>
                 </div>
 
-                <TicketAttachmentGallery
-                  attachments={attachments.map((attachment) => ({
-                    id: attachment.id,
-                    name: attachment.file_name ?? "Attachment",
-                    url: attachment.signed_url ?? null,
-                    returnHref: `/tickets/${ticket.id}`,
-                    caption:
-                      attachment.attachment_context === "chat"
-                        ? "Image shared in the ticket conversation"
-                        : "Image uploaded with the parts request",
-                  }))}
-                  allowDownload={isAdmin}
-                  canDeleteAttachmentIds={attachments
-                    .filter(
-                      (attachment) =>
-                        attachment.uploaded_by === currentUserId &&
-                        attachment.attachment_context === "ticket",
-                    )
-                    .map((attachment) => attachment.id)}
-                  deletingAttachmentId={deletingAttachmentId}
-                  onDeleteAttachment={(attachmentId) => void handleDeleteAttachment(attachmentId)}
-                />
+                <div className={activeWorkspaceTab === "files" ? "ticket-tab-surface" : "hidden"}>
+                  <TicketAttachmentGallery
+                    attachments={attachments.map((attachment) => ({
+                      id: attachment.id,
+                      name: attachment.file_name ?? "Attachment",
+                      url: attachment.signed_url ?? null,
+                      returnHref: `/tickets/${ticket.id}`,
+                      caption:
+                        attachment.attachment_context === "chat"
+                          ? "Image shared in the ticket conversation"
+                          : "Image uploaded with the parts request",
+                    }))}
+                    allowDownload={isAdmin}
+                    canDeleteAttachmentIds={attachments
+                      .filter(
+                        (attachment) =>
+                          attachment.uploaded_by === currentUserId &&
+                          attachment.attachment_context === "ticket",
+                      )
+                      .map((attachment) => attachment.id)}
+                    deletingAttachmentId={deletingAttachmentId}
+                    onDeleteAttachment={(attachmentId) => void handleDeleteAttachment(attachmentId)}
+                  />
+                </div>
 
-              <TicketChatPanel
+                <div className={activeWorkspaceTab === "conversation" ? "ticket-tab-surface" : "hidden"}>
+                  <div className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-center shadow-sm">
+                    <p className="text-sm font-semibold text-slate-800">
+                      Ticket chat is available from the message bar in the lower-right corner.
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      This conversation belongs only to Job {ticket.job_number?.trim() || ticket.id}.
+                    </p>
+                  </div>
+                </div>
+
+                <TicketChatPanel
+                  key={ticket.id}
                   ticketId={ticket.id}
-                  ticketLabel={ticket.is_retail_sale ? ticket.customer_name ?? "Retail order" : ticket.job_number}
+                  ticketLabel={ticket.job_number?.trim() || ticket.id}
                   ticketStatus={ticket.status ?? "PENDING"}
                   latestUpdate={
                     updates[0]?.comment ??
-                    updates[0]?.notes ??
                     "No recent chat summary available."
                   }
                   assignedTo={ticket.assigned_to}
@@ -2930,6 +3635,7 @@ export default function TicketDetailPage() {
                     currentUserDisplayName,
                     messageSenderNameByUserId,
                   )}
+                  mode={isAdmin ? "operator" : "requester"}
                   isSending={isSending}
                   isAiLoading={isAiLoading}
                   notice={chatNotice}
@@ -2938,6 +3644,7 @@ export default function TicketDetailPage() {
                   operatorChatHref={buildOperatorChatHref(ticket)}
                   operatorSmsHref={buildOperatorSmsHref(ticket)}
                   operatorCallHrefs={buildOperatorCallHrefs()}
+                  avoidRightDrawer={isEditing}
                 />
               </div>
             ) : (
@@ -2946,9 +3653,8 @@ export default function TicketDetailPage() {
               </div>
             )}
           </section>
-        </AuthGuard>
-      </div>
-    </main>
+      </ConsoleShell>
+    </AuthGuard>
   );
 }
 
@@ -2993,7 +3699,7 @@ function resolveSenderName(
   senderNameByUserId: Record<string, string>,
 ) {
   if (message.is_ai_message || message.sender_role === "ai") {
-    return "RELAY Assistant";
+    return "RELAY Local Assistant";
   }
 
   if (message.sender_role === "requester") {
@@ -3060,16 +3766,13 @@ function buildOperatorSmsHref(ticket: TicketRecord) {
 
 function buildTicketEditDraft(ticket: TicketRecord): TicketEditDraft {
   return {
+    requester_user_id: ticket.user_id ?? "",
     requester_name: ticket.requester_name ?? "",
     department: ticket.department ?? "",
     machine_reference: ticket.machine_reference ?? "",
     job_number: ticket.job_number ?? "",
-    request_summary: ticket.request_summary ?? "",
-    request_details: ticket.request_details ?? "",
     status: ticket.status ?? "PENDING",
     assigned_to: ticket.assigned_to ?? "",
-    visible_to_user_id: ticket.visible_to_user_id ?? "",
-    notes: ticket.notes ?? "",
     expected_delivery_date: toDateInputValue(ticket.expected_delivery_date),
     lead_time_note: ticket.lead_time_note ?? "",
     purchase_order_number: ticket.purchase_order_number ?? "",
@@ -3158,16 +3861,20 @@ function AdminEditConflictModal({
 function DetailItem({
   label,
   value,
+  children,
 }: {
   label: string;
-  value: string | null | undefined;
+  value?: string | null;
+  children?: ReactNode;
 }) {
   return (
     <div>
       <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
         {label}
       </dt>
-      <dd className="mt-2 text-sm leading-7 text-slate-700">{value || "-"}</dd>
+      <dd className="mt-2 text-sm leading-7 text-slate-700">
+        {children ?? value ?? "-"}
+      </dd>
     </div>
   );
 }
@@ -3250,6 +3957,55 @@ function EditArea({
         className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition focus:border-slate-400"
       />
     </label>
+  );
+}
+
+function RequesterTicketOverview({ ticket }: { ticket: TicketRecord }) {
+  const machineName = [ticket.machine_make?.trim(), ticket.machine_model?.trim()]
+    .filter(Boolean)
+    .join(" ");
+  const details = [
+    {
+      label: "Machine",
+      value: ticket.machine_number?.trim() || ticket.machine_reference?.trim() || null,
+    },
+    { label: "Make / model", value: machineName || null },
+    {
+      label: "Assigned to",
+      value: ticket.assigned_to?.trim() || "Waiting for Stores",
+    },
+    {
+      label: "Expected",
+      value: ticket.expected_delivery_date
+        ? formatOperationalDate(ticket.expected_delivery_date)
+        : null,
+    },
+    { label: "Collection bin", value: ticket.bin_location?.trim() || null },
+    { label: "Updated", value: ticket.updated_at ? formatDate(ticket.updated_at) : null },
+  ].filter((item): item is { label: string; value: string } => Boolean(item.value));
+
+  return (
+    <section className="requester-ticket-overview" aria-label="Request summary">
+      <div className="requester-ticket-overview-copy">
+        <p>What you requested</p>
+        <strong>
+          {ticket.request_details?.trim() || ticket.request_summary?.trim() || "Parts request"}
+        </strong>
+      </div>
+      <dl>
+        {details.map((item) => (
+          <div key={item.label}>
+            <dt>{item.label}</dt>
+            <dd>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {!ticket.machine_verified && (ticket.machine_number || ticket.machine_reference) ? (
+        <p className="requester-ticket-overview-note">
+          Machine details are awaiting a Stores check. Your request can still be processed.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -3379,6 +4135,10 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function normalizePartNumberForComparison(value: string) {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
 function formatDateTime(value: string | null | undefined) {

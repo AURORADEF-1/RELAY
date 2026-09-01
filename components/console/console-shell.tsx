@@ -45,10 +45,21 @@ type NavigationItem = {
 const navigation: NavigationItem[] = [
   { href: "/console", label: "Operations", icon: "console", adminOnly: true },
   { href: "/my-jobs", label: "My Jobs", icon: "clipboard", adminOnly: true },
+  {
+    href: "/completed",
+    label: "Completed Jobs",
+    icon: "clipboard",
+    adminOnly: true,
+  },
   { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", adminOnly: true },
   { href: "/scan", label: "Scan & Issue", icon: "parts", adminOnly: true },
   { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
-  { href: "/oversight", label: "Oversight", icon: "activity", oversightOnly: true },
+  {
+    href: "/oversight",
+    label: "Oversight",
+    icon: "activity",
+    oversightOnly: true,
+  },
   { href: "/submit", label: "New request", icon: "ticket" },
   { href: "/stores", label: "Stores Self-Service", icon: "parts" },
   {
@@ -73,6 +84,12 @@ const navigation: NavigationItem[] = [
     badge: "admin",
   },
   { href: "/incidents", label: "Workshop", icon: "workshop", adminOnly: true },
+  {
+    href: "/front-counter",
+    label: "Front Counter",
+    icon: "wallboard",
+    adminOnly: true,
+  },
   { href: "/tasks", label: "Tasks", icon: "activity", badge: "tasks" },
   {
     href: "/control",
@@ -141,8 +158,17 @@ export function ConsoleShell({
         }
 
         const [{ data }, { data: oversightAccess }] = await Promise.all([
-          supabase.from("customer_fleet_members").select("fleet_id").eq("user_id", user.id).limit(1),
-          supabase.from("oversight_access").select("enabled").eq("user_id", user.id).eq("enabled", true).maybeSingle(),
+          supabase
+            .from("customer_fleet_members")
+            .select("fleet_id")
+            .eq("user_id", user.id)
+            .limit(1),
+          supabase
+            .from("oversight_access")
+            .select("enabled")
+            .eq("user_id", user.id)
+            .eq("enabled", true)
+            .maybeSingle(),
         ]);
 
         if (isMounted) {
@@ -310,7 +336,10 @@ export function ConsoleShell({
           </button>
         </div>
 
-        <div className="console-sidebar-context" aria-hidden={isCollapsed && !isMobileOpen}>
+        <div
+          className="console-sidebar-context"
+          aria-hidden={isCollapsed && !isMobileOpen}
+        >
           <span className="console-live-dot" />
           <span title={signedInUserName}>{signedInUserName}</span>
         </div>

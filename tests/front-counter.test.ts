@@ -10,11 +10,15 @@ describe("front counter identifiers", () => {
   });
 
   it("extracts a RELAY label token from keyboard-scanner wrappers", () => {
-    expect(normalizeFrontCounterIdentifier("scan:RLY-ABC12345:end")).toBe("RLY-ABC12345");
+    expect(normalizeFrontCounterIdentifier("scan:RLY-ABC12345:end")).toBe(
+      "RLY-ABC12345",
+    );
   });
 
   it("does not silently reinterpret unknown content", () => {
-    expect(normalizeFrontCounterIdentifier("not a relay code")).toBe("NOT A RELAY CODE");
+    expect(normalizeFrontCounterIdentifier("not a relay code")).toBe(
+      "NOT A RELAY CODE",
+    );
   });
 });
 
@@ -56,16 +60,23 @@ describe("front counter live operations", () => {
     expect(windowRules).toContain(
       'identifier="chrome-relay-ryoz.vercel.app__wallboard-Default"',
     );
-    expect(windowRules).toContain('name="MoveToOutput" direction="right" wrap="no"');
+    expect(windowRules).toContain(
+      'name="MoveToOutput" direction="right" wrap="no"',
+    );
     expect(windowRules).toContain(
       'identifier="chrome-relay-ryoz.vercel.app__terminal-Default"',
     );
-    expect(windowRules).toContain('name="MoveToOutput" direction="left" wrap="no"');
+    expect(windowRules).toContain(
+      'name="MoveToOutput" direction="left" wrap="no"',
+    );
     expect(windowRules).not.toContain('output="HDMI-A-2"');
   });
 
   it("keeps the admin wallboard rotation on Front Counter and only overrides it for collections", () => {
-    const wallboard = readFileSync(resolve(process.cwd(), "app/wallboard/page.tsx"), "utf8");
+    const wallboard = readFileSync(
+      resolve(process.cwd(), "app/wallboard/page.tsx"),
+      "utf8",
+    );
     const migration = readFileSync(
       resolve(
         process.cwd(),
@@ -74,17 +85,58 @@ describe("front counter live operations", () => {
       "utf8",
     );
 
-    expect(wallboard).toContain('supabase.rpc("list_front_counter_wallboard_supplier_spend")');
-    expect(wallboard).toContain("const hasPendingTakeover = unassignedPendingTickets.length > 0");
-    expect(wallboard).not.toContain("!isFrontCounterMode && unassignedPendingTickets.length > 0");
-    expect(wallboard.indexOf("isFrontCounterMode && collectionQueue.length > 0")).toBeLessThan(
-      wallboard.indexOf("if (hasPendingTakeover)"),
+    expect(wallboard).toContain(
+      'supabase.rpc("list_front_counter_wallboard_supplier_spend")',
     );
+    expect(wallboard).toContain(
+      "const hasPendingTakeover = unassignedPendingTickets.length > 0",
+    );
+    expect(wallboard).not.toContain(
+      "!isFrontCounterMode && unassignedPendingTickets.length > 0",
+    );
+    expect(
+      wallboard.indexOf("isFrontCounterMode && collectionQueue.length > 0"),
+    ).toBeLessThan(wallboard.indexOf("if (hasPendingTakeover)"));
     expect(migration).toContain("ticket.supplier_name");
     expect(migration).toContain("ticket.order_amount");
-    expect(migration).toContain("if not public.is_front_counter_user(auth.uid()) then");
+    expect(migration).toContain(
+      "if not public.is_front_counter_user(auth.uid()) then",
+    );
     expect(migration).toContain(
       "revoke all on function public.list_front_counter_wallboard_supplier_spend() from public, anon",
     );
+  });
+
+  it("keeps Front Counter maintenance outbound-only and command allow-listed", () => {
+    const migration = readFileSync(
+      resolve(
+        process.cwd(),
+        "supabase/migrations/20260901081725_front_counter_device_control.sql",
+      ),
+      "utf8",
+    );
+    const agent = readFileSync(
+      resolve(process.cwd(), "printer-agents/cups/relay_device_agent.py"),
+      "utf8",
+    );
+    const navigation = readFileSync(
+      resolve(process.cwd(), "components/console/console-shell.tsx"),
+      "utf8",
+    );
+
+    expect(migration).toContain("('refresh_session', 'reboot', 'shutdown')");
+    expect(migration).toContain("profile.role = 'admin'");
+    expect(migration).toContain("public.is_front_counter_user(auth.uid())");
+    expect(migration).toContain(
+      "revoke all on function public.request_front_counter_device_command(text)",
+    );
+    expect(agent).toContain(
+      'ALLOWED_COMMANDS = {"refresh_session", "reboot", "shutdown"}',
+    );
+    expect(agent).toContain('required_env("RELAY_DEVICE_TOKEN")');
+    expect(agent).not.toContain('required_env("RELAY_DEVICE_PASSWORD")');
+    expect(agent).not.toContain("paramiko");
+    expect(navigation).toContain('href: "/front-counter"');
+    expect(navigation).toContain('label: "Front Counter"');
   });
 });

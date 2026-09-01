@@ -7,6 +7,10 @@ export function buildRequesterReturnComment(reason: string) {
   return `${REQUESTER_RETURN_PREFIX} ${reason.trim()}`;
 }
 
+export function isRequesterCollectedComment(comment: string | null | undefined) {
+  return comment?.startsWith(REQUESTER_COLLECTED_COMMENT) ?? false;
+}
+
 export function isRequesterReturnComment(comment: string | null | undefined) {
   return comment?.startsWith(REQUESTER_RETURN_PREFIX) ?? false;
 }

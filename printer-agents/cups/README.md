@@ -22,3 +22,9 @@ The Front Counter Pi can run both RELAY screens from the same signed-in Chromium
 Install `relay-display-kiosk.sh` as `~/.local/bin/relay-display-kiosk.sh`, `relay-labwc-rc.xml` as `~/.config/labwc/rc.xml`, and `relay-labwc-autostart` as `~/.config/labwc/autostart`. Keep the existing Chromium profile signed in as the Front Counter account so both app windows share the same RELAY session.
 
 The launcher arranges the portrait DSI display to the left of the HDMI TV. Chromium must start windowed so Labwc can move each app window to the correct output before making it fullscreen; do not add Chromium's `--start-fullscreen` flag. The Labwc rules use left/right placement rather than fixed connector numbers, so either `HDMI-A-1` or `HDMI-A-2` works.
+
+## Device control agent
+
+The admin-only `/front-counter` tab uses an outbound device agent rather than exposing SSH, CUPS or another inbound Pi port to the internet. Install it with `sudo ./install-device-agent.sh`, place the Front Counter Supabase connection values in `/etc/relay-device-agent.env`, then start it with `sudo systemctl enable --now relay-device-agent`.
+
+The agent accepts only three database-authorised commands: relaunch the two Chromium RELAY windows, reboot, and graceful shutdown. A shutdown Pi cannot be powered on through SSH; a future Power On button requires a managed PoE switch or smart power relay.
