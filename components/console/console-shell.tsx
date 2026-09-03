@@ -298,7 +298,7 @@ export function ConsoleShell({
       >
         <div className="console-sidebar-brand">
           <Link href={isAdmin ? "/console" : "/"} aria-label="RELAY home">
-            <RelayLogo compact={isCollapsed} />
+            <RelayLogo compact={isCollapsed && !isMobileOpen} />
           </Link>
           <button
             type="button"
@@ -310,9 +310,15 @@ export function ConsoleShell({
           </button>
         </div>
 
-        <div className="console-sidebar-context" aria-hidden={isCollapsed}>
+        <div
+          className="console-sidebar-context"
+          aria-hidden={isCollapsed && !isMobileOpen}
+        >
           <span className="console-live-dot" />
-          <span title={signedInUserName}>{signedInUserName}</span>
+          <span className="console-sidebar-user" title={signedInUserName}>
+            <strong>{signedInUserName}</strong>
+            <small>{isAdmin ? "Administrator" : "Fitter access"}</small>
+          </span>
         </div>
 
         <nav className="console-navigation" aria-label="Primary navigation">
@@ -327,7 +333,7 @@ export function ConsoleShell({
               setIsMobileOpen(false);
             }}
             className={`console-nav-item ${effectiveRelayAiOpen ? "console-nav-item-active" : ""}`}
-            title={isCollapsed ? "RELAY AI" : undefined}
+            title={isCollapsed && !isMobileOpen ? "RELAY AI" : undefined}
             aria-pressed={effectiveRelayAiOpen}
           >
             <ConsoleIcon name="message" className="console-nav-icon" />
@@ -348,7 +354,7 @@ export function ConsoleShell({
                 rel={item.external ? "noreferrer" : undefined}
                 onClick={() => setIsMobileOpen(false)}
                 className={`console-nav-item ${active ? "console-nav-item-active" : ""}`}
-                title={isCollapsed ? item.label : undefined}
+                title={isCollapsed && !isMobileOpen ? item.label : undefined}
               >
                 <ConsoleIcon name={item.icon} className="console-nav-icon" />
                 <span className="console-nav-label">{item.label}</span>
@@ -374,6 +380,10 @@ export function ConsoleShell({
             />
             <span className="console-nav-label">Collapse</span>
           </button>
+          <div className="console-mobile-sidebar-actions">
+            <ThemeToggleButton />
+            <LogoutButton />
+          </div>
         </div>
       </aside>
 

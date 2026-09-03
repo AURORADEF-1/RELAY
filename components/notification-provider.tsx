@@ -96,6 +96,8 @@ const TOASTED_NOTIFICATION_IDS_STORAGE_PREFIX = "relay-toasted-notification-ids"
 const MAX_STORED_TOASTED_NOTIFICATION_IDS = 120;
 const JOB_ASSIGNMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const ADMIN_EXTENSION_NOTIFICATION_MESSAGE = "RELAY_ADMIN_NOTIFICATION";
+const SYSTEM_BROADCAST_TYPE = "system_broadcast";
+const RELAY_NOTIFICATION_WORKER_PATH = "/relay-notifications-sw.js";
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
   "operator_message",
@@ -125,6 +127,42 @@ function emitAdminExtensionNotification(notification: {
           : "/console",
     },
   }, window.location.origin);
+}
+
+async function showRelaySystemNotification(notification: {
+  title: string;
+  body: string;
+  href?: string;
+  tag: string;
+}) {
+  if ("serviceWorker" in navigator) {
+    await navigator.serviceWorker.register(
+      RELAY_NOTIFICATION_WORKER_PATH,
+      { scope: "/" },
+    );
+    const readyRegistration = await navigator.serviceWorker.ready;
+    await readyRegistration.showNotification(notification.title, {
+      body: notification.body,
+      tag: notification.tag,
+      data: { href: notification.href ?? "/requests" },
+    });
+    return;
+  }
+
+  const browserNotification = new Notification(notification.title, {
+    body: notification.body,
+    tag: notification.tag,
+  });
+
+  browserNotification.onclick = () => {
+    window.focus();
+
+    if (notification.href) {
+      window.location.href = notification.href;
+    }
+
+    browserNotification.close();
+  };
 }
 
 async function clearArchivedTicketNotifications(
@@ -300,14 +338,34 @@ export function NotificationProvider({
     setDesktopNotificationPermission(permission);
 
     if (permission === "granted") {
-      const confirmation = new Notification("RELAY desktop alerts enabled", {
-        body: "New pending jobs will now appear as desktop alerts while RELAY is open.",
+      await showRelaySystemNotification({
+        title: "RELAY browser alerts enabled",
+        body: "Important RELAY updates will now appear while RELAY is open, even when its tab is in the background.",
         tag: "relay-desktop-alerts-enabled",
+        href: "/requests",
       });
-      window.setTimeout(() => confirmation.close(), 6000);
     }
 
     return permission;
+  }, []);
+
+  useEffect(() => {
+    if (typeof Notification === "undefined") {
+      setDesktopNotificationPermission("unsupported");
+      return;
+    }
+
+    const syncDesktopNotificationPermission = () => {
+      setDesktopNotificationPermission(Notification.permission);
+    };
+
+    window.addEventListener("focus", syncDesktopNotificationPermission);
+    document.addEventListener("visibilitychange", syncDesktopNotificationPermission);
+
+    return () => {
+      window.removeEventListener("focus", syncDesktopNotificationPermission);
+      document.removeEventListener("visibilitychange", syncDesktopNotificationPermission);
+    };
   }, []);
 
   const dismissToast = useCallback(async (id: string) => {
@@ -366,20 +424,14 @@ export function NotificationProvider({
         return;
       }
 
-      const browserNotification = new Notification(notification.title, {
+      void showRelaySystemNotification({
+        title: notification.title,
         body: notification.body,
+        href: notification.href,
         tag: notification.href ?? notification.title,
+      }).catch((error) => {
+        console.error("Unable to show RELAY browser notification", error);
       });
-
-      browserNotification.onclick = () => {
-        window.focus();
-
-        if (notification.href) {
-          window.location.href = notification.href;
-        }
-
-        browserNotification.close();
-      };
     },
     [],
   );
@@ -585,7 +637,9 @@ export function NotificationProvider({
           (notification) => notification.type === "task_assigned",
         );
         const unreadRequesterNotifications = activeUnreadNotifications.filter(
-          (notification) => REQUEST_NOTIFICATION_TYPES.has(notification.type),
+          (notification) =>
+            REQUEST_NOTIFICATION_TYPES.has(notification.type) ||
+            notification.type === SYSTEM_BROADCAST_TYPE,
         );
         const nextUnreadIds = new Set(activeUnreadNotifications.map((notification) => notification.id));
 
@@ -594,7 +648,8 @@ export function NotificationProvider({
               (notification) =>
                 notification.type === "job_assigned" ||
                 notification.type === "new_ticket" ||
-                notification.type === "front_counter_collection",
+                notification.type === "front_counter_collection" ||
+                notification.type === SYSTEM_BROADCAST_TYPE,
             )
           : activeUnreadNotifications;
         const shouldShowToasts = options?.showToasts && (
@@ -602,7 +657,8 @@ export function NotificationProvider({
           toastableNotifications.some(
             (notification) =>
               notification.type === "job_assigned" ||
-              notification.type === "front_counter_collection",
+              notification.type === "front_counter_collection" ||
+              notification.type === SYSTEM_BROADCAST_TYPE,
           )
         );
         const extensionNotifications = adminUser
@@ -629,7 +685,11 @@ export function NotificationProvider({
                   notification.ticket_id &&
                   alertedPendingTicketIdsRef.current.has(notification.ticket_id)
                 ) &&
-                (unreadNotificationsInitializedRef.current || notification.type === "job_assigned"),
+                (
+                  unreadNotificationsInitializedRef.current ||
+                  notification.type === "job_assigned" ||
+                  notification.type === SYSTEM_BROADCAST_TYPE
+                ),
             )
             .sort(
               (left, right) =>
@@ -656,10 +716,13 @@ export function NotificationProvider({
               eyebrow:
                 notification.type === "front_counter_collection"
                   ? "Front Counter Collection"
-                  : undefined,
+                  : notification.type === SYSTEM_BROADCAST_TYPE
+                    ? "RELAY Announcement"
+                    : undefined,
               variant:
                 notification.type === "new_ticket" ||
-                notification.type === "front_counter_collection"
+                notification.type === "front_counter_collection" ||
+                notification.type === SYSTEM_BROADCAST_TYPE
                   ? "panel"
                   : undefined,
               notificationId: notification.id,
@@ -669,7 +732,8 @@ export function NotificationProvider({
                 notification.type === "ready_reminder" ||
                 notification.type === "ready_for_collection" ||
                 notification.type === "front_counter_collection" ||
-                notification.type === "job_assigned",
+                notification.type === "job_assigned" ||
+                notification.type === SYSTEM_BROADCAST_TYPE,
             });
             if (
               notification.type === "new_ticket" ||
@@ -677,7 +741,8 @@ export function NotificationProvider({
               notification.type === "ready_reminder" ||
               notification.type === "ready_for_collection" ||
               notification.type === "front_counter_collection" ||
-              notification.type === "job_assigned"
+              notification.type === "job_assigned" ||
+              notification.type === SYSTEM_BROADCAST_TYPE
             ) {
               pushBrowserNotification({
                 title: notification.title,
@@ -756,7 +821,11 @@ export function NotificationProvider({
         }
 
         const notificationsToMarkRead = adminUser
-          ? unreadNotifications.filter((notification) => notification.type !== "job_assigned")
+          ? unreadNotifications.filter(
+              (notification) =>
+                notification.type !== "job_assigned" &&
+                notification.type !== SYSTEM_BROADCAST_TYPE,
+            )
           : currentPath === "/tasks"
             ? unreadNotifications.filter((notification) => notification.type === "task_assigned")
             : currentPath.startsWith("/tickets/")
@@ -823,8 +892,6 @@ export function NotificationProvider({
 
     let isMounted = true;
     let activeChannel: RealtimeChannel | null = null;
-    let activePendingTicketChannel: RealtimeChannel | null = null;
-    let activeUrgentTicketChannel: RealtimeChannel | null = null;
     let pollTimeout: number | null = null;
     let presenceTimeout: number | null = null;
     let sessionControlTimeout: number | null = null;
@@ -838,16 +905,6 @@ export function NotificationProvider({
       if (activeChannel) {
         await supabase.removeChannel(activeChannel);
         activeChannel = null;
-      }
-
-      if (activePendingTicketChannel) {
-        await supabase.removeChannel(activePendingTicketChannel);
-        activePendingTicketChannel = null;
-      }
-
-      if (activeUrgentTicketChannel) {
-        await supabase.removeChannel(activeUrgentTicketChannel);
-        activeUrgentTicketChannel = null;
       }
 
       if (pollTimeout) {
@@ -1022,7 +1079,7 @@ export function NotificationProvider({
           pathnameRef.current,
         );
 
-        const channel = supabase.channel(`relay-notifications-${user.id}`);
+        const channel = supabase.channel(`relay-live-${user.id}`);
         activeChannel = channel;
 
         channel.on(
@@ -1044,51 +1101,8 @@ export function NotificationProvider({
           },
         );
 
-        channel.on(
-          "broadcast",
-          { event: "refresh" },
-          async () => {
-            if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
-              return;
-            }
-
-            await syncUnreadNotifications(supabase, user.id, adminUser, {
-              showToasts: true,
-            });
-          },
-        );
-
-        channel.subscribe((status, error) => {
-          if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
-            return;
-          }
-
-          if (status === "SUBSCRIBED") {
-            void syncUnreadNotifications(supabase, user.id, adminUser, {
-              showToasts: true,
-            });
-            return;
-          }
-
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            console.error("RELAY notification Realtime channel degraded", error ?? status);
-            recordAdminHealthEvent(
-              "notifications",
-              `Realtime notification channel ${status.toLowerCase()}.`,
-            );
-            void syncUnreadNotifications(supabase, user.id, adminUser, {
-              showToasts: true,
-            }).catch((syncError) => {
-              console.error("Failed to reconcile notifications after Realtime error", syncError);
-            });
-          }
-        });
-
         if (adminUser) {
-          const pendingTicketChannel = supabase.channel(`relay-pending-tickets-${user.id}`);
-          activePendingTicketChannel = pendingTicketChannel;
-
-          pendingTicketChannel.on(
+          channel.on(
             "postgres_changes",
             {
               event: "INSERT",
@@ -1104,34 +1118,9 @@ export function NotificationProvider({
               await refreshPendingTicketCount(adminUser);
             },
           );
-
-          pendingTicketChannel.subscribe((status, error) => {
-            if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
-              return;
-            }
-
-            if (status === "SUBSCRIBED") {
-              void refreshPendingTicketCount(adminUser);
-              return;
-            }
-
-            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-              console.error("RELAY pending-ticket Realtime channel degraded", error ?? status);
-              recordAdminHealthEvent(
-                "notifications",
-                `Pending-ticket Realtime channel ${status.toLowerCase()}.`,
-              );
-              void refreshPendingTicketCount(adminUser).catch((syncError) => {
-                console.error("Failed to reconcile pending jobs after Realtime error", syncError);
-              });
-            }
-          });
         }
 
-        const urgentTicketChannel = supabase.channel(`relay-urgent-tickets-${user.id}`);
-        activeUrgentTicketChannel = urgentTicketChannel;
-
-        urgentTicketChannel.on(
+        channel.on(
           "postgres_changes",
           {
             event: "*",
@@ -1147,24 +1136,36 @@ export function NotificationProvider({
           },
         );
 
-        urgentTicketChannel.subscribe((status, error) => {
+        channel.subscribe((status, error) => {
           if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
             return;
           }
 
           if (status === "SUBSCRIBED") {
+            void syncUnreadNotifications(supabase, user.id, adminUser, {
+              showToasts: true,
+            });
+            if (adminUser) {
+              void refreshPendingTicketCount(adminUser);
+            }
             void refreshUrgentTicketReminders();
             return;
           }
 
           if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            console.error("RELAY urgent-ticket Realtime channel degraded", error ?? status);
+            console.error("RELAY live Realtime channel degraded", error ?? status);
             recordAdminHealthEvent(
               "notifications",
-              `Urgent-ticket Realtime channel ${status.toLowerCase()}.`,
+              `Live notification channel ${status.toLowerCase()}.`,
             );
-            void refreshUrgentTicketReminders().catch((syncError) => {
-              console.error("Failed to reconcile urgent jobs after Realtime error", syncError);
+            void Promise.all([
+              syncUnreadNotifications(supabase, user.id, adminUser, {
+                showToasts: true,
+              }),
+              adminUser ? refreshPendingTicketCount(adminUser) : Promise.resolve(),
+              refreshUrgentTicketReminders(),
+            ]).catch((syncError) => {
+              console.error("Failed to reconcile RELAY activity after Realtime error", syncError);
             });
           }
         });
@@ -1271,6 +1272,27 @@ export function NotificationProvider({
       return request;
     };
 
+    const setupNotificationsAfterCurrentAttempt = async (expectedUserId: string) => {
+      const currentAttempt = notificationSetupInFlightRef.current;
+
+      if (currentAttempt) {
+        await currentAttempt.catch(() => {});
+      }
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (
+        isAuthenticatedRef.current &&
+        currentUserIdRef.current === expectedUserId
+      ) {
+        return;
+      }
+
+      await setupNotifications();
+    };
+
     void setupNotifications();
 
     const {
@@ -1292,7 +1314,10 @@ export function NotificationProvider({
           return;
         }
 
-        void setupNotifications();
+        // A SIGNED_IN event can arrive while the initial anonymous setup is
+        // still resolving. Wait for that attempt to release its lock, then
+        // initialise the authenticated notification lifecycle.
+        void setupNotificationsAfterCurrentAttempt(session.user.id);
       },
     );
 

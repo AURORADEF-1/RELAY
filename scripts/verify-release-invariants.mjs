@@ -39,6 +39,28 @@ const printerFile = "components/dymo-print-station.tsx";
 requireText(printerFile, "requestedBy:", "requested-by data passed to the printer template");
 requireText(printerFile, "readyAt:", "READY timestamp passed to the printer template");
 
+const cupsBridgeFile = "printer-agents/cups/relay_cups_bridge.py";
+requireText(cupsBridgeFile, "CODE39_WIDE_RATIO = 2", "scan-safe CUPS Code 39 wide ratio");
+requireText(cupsBridgeFile, "CODE39_MIN_NARROW_PIXELS = 3", "scan-safe minimum CUPS barcode width");
+requireText(cupsBridgeFile, "Barcode is too dense to print reliably", "CUPS barcode density guard");
+
+const frontCounterTerminalFile = "app/terminal/page.tsx";
+requireText(
+  frontCounterTerminalFile,
+  "requestFrontCounterCollection",
+  "Fitter Waiting barcode collection request",
+);
+requireText(
+  frontCounterTerminalFile,
+  "completeFrontCounterCollection",
+  "Front Counter barcode handover verification",
+);
+requireText(
+  "app/wallboard/page.tsx",
+  "Fitter waiting",
+  "Fitter Waiting wallboard takeover",
+);
+
 const operationsFile = "app/admin/page.tsx";
 requireText(operationsFile, "Bin location required before marking this ticket READY.", "Operations READY validation");
 requireText(operationsFile, "syncNexusEcommerceOrderStatus", "NEXUS order-status synchronization");
@@ -46,6 +68,89 @@ requireText(operationsFile, "syncNexusEcommerceOrderStatus", "NEXUS order-status
 const consoleFile = "components/console/console-ticket-action-modal.tsx";
 requireText(consoleFile, "Enter a bin location before marking this job READY.", "Console READY bin validation");
 requireText(consoleFile, 'placeholder="Enter Stores bin location"', "Console bin-location input");
+
+const readyBinMigrationFile = "supabase/migrations/20260903064344_enforce_ready_bin_location.sql";
+requireText(
+  readyBinMigrationFile,
+  "create trigger enforce_ready_ticket_bin_location",
+  "database READY bin-location trigger",
+);
+requireText(
+  readyBinMigrationFile,
+  "new.status = 'READY' and nullif(btrim(new.bin_location), '') is null",
+  "database READY bin-location validation",
+);
+
+requireText(
+  "components/notification-provider.tsx",
+  "supabase.channel(`relay-live-${user.id}`)",
+  "consolidated authenticated Realtime subscription",
+);
+requireText(
+  "components/notification-toasts.tsx",
+  "onClick={() => void requestDesktopNotifications()}",
+  "user-initiated browser notification permission control",
+);
+requireText(
+  "components/notification-provider.tsx",
+  "readyRegistration.showNotification",
+  "mobile-capable service-worker notifications",
+);
+requireText(
+  "public/relay-notifications-sw.js",
+  'self.addEventListener("notificationclick"',
+  "notification click routing",
+);
+forbidText(
+  "components/notification-provider.tsx",
+  "Notification.permission === \"default\"",
+  "automatic browser notification permission request",
+);
+requireText(
+  "lib/supabase.ts",
+  "worker: true",
+  "background Realtime heartbeat worker",
+);
+requireText(
+  "lib/supabase.ts",
+  'status === "disconnected"',
+  "Realtime heartbeat reconnect",
+);
+forbidText(
+  "lib/notifications.ts",
+  "broadcastNotificationRefresh",
+  "per-recipient Realtime channel fan-out",
+);
+requireText(
+  "lib/profile-access.ts",
+  "if (currentUserWithRoleInFlight)",
+  "coalesced browser identity refresh",
+);
+requireText(
+  "app/control/page.tsx",
+  "<AdminBroadcastPanel />",
+  "Admin Control announcement panel",
+);
+requireText(
+  "components/app-runtime.tsx",
+  "<NotificationToasts />",
+  "global in-browser notification popups",
+);
+forbidText(
+  "components/app-runtime.tsx",
+  "!isFrontCounter ? <NotificationToasts /> : null",
+  "Front Counter notification suppression",
+);
+requireText(
+  "components/console/console-shell.tsx",
+  'className="console-mobile-sidebar-actions"',
+  "fitter mobile session controls",
+);
+requireText(
+  "app/requests/page.tsx",
+  "New parts request",
+  "fitter mobile primary action",
+);
 
 requireText(
   "app/api/integrations/nexus/orders/route.ts",
@@ -76,4 +181,4 @@ if (failures.length > 0) {
 }
 
 console.log("RELAY release integrity check passed.");
-console.log("Protected: Code 39 labels, READY metadata, bin workflow and NEXUS order bridge.");
+console.log("Protected: Code 39 labels, Fitter Waiting scans, READY metadata and bin enforcement, browser notifications, and NEXUS order bridge.");

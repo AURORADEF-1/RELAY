@@ -50,7 +50,7 @@ export function getStatusWorkflowRequirement(
     return "ordered";
   }
 
-  if (previousStatus === "ORDERED" && nextStatus === "READY") {
+  if (previousStatus !== "READY" && nextStatus === "READY") {
     return "ready";
   }
 

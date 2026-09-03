@@ -24,14 +24,7 @@ let cachedCurrentUserWithRole:
   | null = null;
 let currentUserWithRoleInFlight: Promise<CurrentUserWithRoleResult> | null = null;
 
-function getNormalizedEmailLocalPart(user: User | null) {
-  const email = (user?.email || "").toLowerCase().trim();
-  return email.split("@")[0] || "";
-}
-
 export function getAccessLevel(user: User | null, profile: AppProfile): AccessLevel {
-  const email = (user?.email || "").toLowerCase().trim();
-  const emailLocalPart = getNormalizedEmailLocalPart(user);
   const role = (profile?.role || "").toLowerCase().trim();
 
   if (role === "admin") {
@@ -39,18 +32,6 @@ export function getAccessLevel(user: User | null, profile: AppProfile): AccessLe
   }
 
   if (role === "user") {
-    return "user";
-  }
-
-  if (email === "admin@mlp.local") {
-    return "admin";
-  }
-
-  if (emailLocalPart.endsWith(".admin")) {
-    return "admin";
-  }
-
-  if (emailLocalPart.endsWith(".user")) {
     return "user";
   }
 
@@ -63,21 +44,6 @@ export function isAdmin(user: User | null, profile: AppProfile) {
 
 export function isUserOnly(user: User | null, profile: AppProfile) {
   return getAccessLevel(user, profile) === "user";
-}
-
-function getDerivedProfileRole(user: User | null): "admin" | "user" | null {
-  const email = (user?.email || "").toLowerCase().trim();
-  const emailLocalPart = getNormalizedEmailLocalPart(user);
-
-  if (email === "admin@mlp.local" || emailLocalPart.endsWith(".admin")) {
-    return "admin";
-  }
-
-  if (emailLocalPart.endsWith(".user")) {
-    return "user";
-  }
-
-  return null;
 }
 
 export function clearCurrentUserWithRoleCache() {
@@ -128,18 +94,13 @@ async function resolveCurrentUserWithRole(
       }
     : null;
 
-  const derivedRole = getDerivedProfileRole(user);
   const resolvedProfile: AppProfile = normalizedProfile
-    ? {
-        ...normalizedProfile,
-        role: normalizedProfile.role ?? derivedRole,
-      }
-    : derivedRole
-      ? {
-          role: derivedRole,
-          display_name: null,
-        }
-      : null;
+    ? normalizedProfile
+    : {
+        role: "requester",
+        display_name: null,
+        interface_mode: "standard",
+      };
 
   const accessLevel = getAccessLevel(user, resolvedProfile);
   const isFrontCounter = resolvedProfile?.interface_mode === "front_counter";
@@ -164,7 +125,10 @@ export async function getCurrentUserWithRole(
     return cachedCurrentUserWithRole.value;
   }
 
-  if (!options?.forceFresh && currentUserWithRoleInFlight) {
+  // A fresh lookup should bypass the completed cache, not duplicate an identity
+  // request that is already running. Coalescing here prevents competing GoTrue
+  // browser-lock requests when several client components mount together.
+  if (currentUserWithRoleInFlight) {
     return currentUserWithRoleInFlight;
   }
 

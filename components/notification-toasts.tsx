@@ -9,16 +9,13 @@ export function NotificationToasts() {
   const {
     desktopNotificationPermission,
     dismissToast,
-    isAdmin,
     isAuthenticated,
     requestDesktopNotifications,
     toasts,
   } = useNotifications();
   const showDesktopAlertControl =
-    isAdmin &&
     isAuthenticated &&
-    desktopNotificationPermission !== "granted" &&
-    desktopNotificationPermission !== "unsupported";
+    desktopNotificationPermission !== "granted";
 
   if (pathname === "/wallboard" || (toasts.length === 0 && !showDesktopAlertControl)) {
     return null;
@@ -37,7 +34,9 @@ export function NotificationToasts() {
           <p className="mt-1 text-sm leading-6 text-[color:var(--foreground-muted)]">
             {desktopNotificationPermission === "denied"
               ? "Desktop alerts are blocked. Allow notifications for this site in your browser settings, then reload RELAY."
-              : "Get an operating-system alert when a requester submits a new pending job, even while this tab is in the background."}
+              : desktopNotificationPermission === "unsupported"
+                ? "On iPhone, add RELAY to your Home Screen, open the installed RELAY app, then enable alerts. Keep in-app alerts available by leaving RELAY signed in."
+                : "Get Chrome alerts for ticket updates, collection readiness, assigned tasks and RELAY announcements—even while the tab is in the background."}
           </p>
           {desktopNotificationPermission === "default" ? (
             <button

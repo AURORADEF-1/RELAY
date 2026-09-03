@@ -5,9 +5,9 @@ import { isRicoAdmin } from "@/lib/integrations/rico/route-auth";
 vi.mock("server-only", () => ({}));
 
 describe("RICO route security", () => {
-  it("enforces the existing admin role convention", () => {
+  it("requires an explicit admin profile role", () => {
     expect(isRicoAdmin({ email: "person@example.test" }, "admin")).toBe(true);
-    expect(isRicoAdmin({ email: "person.admin@mlp.local" }, null)).toBe(true);
+    expect(isRicoAdmin({ email: "person.admin@mlp.local" }, null)).toBe(false);
     expect(isRicoAdmin({ email: "person.user@mlp.local" }, "requester")).toBe(false);
   });
 

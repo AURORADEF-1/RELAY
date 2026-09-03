@@ -43,19 +43,30 @@ export async function updateProfileSettings(
     avatarPath?: string | null;
   },
 ) {
-  const { error } = await supabase
+  const profileValues = {
+    full_name: payload.fullName.trim() || null,
+    ...(payload.avatarPath !== undefined ? { avatar_path: payload.avatarPath } : {}),
+  };
+  const { data: updatedProfile, error: updateError } = await supabase
     .from("profiles")
-    .upsert(
-      {
-        id: payload.userId,
-        full_name: payload.fullName.trim() || null,
-        ...(payload.avatarPath !== undefined ? { avatar_path: payload.avatarPath } : {}),
-      },
-      { onConflict: "id" },
-    );
+    .update(profileValues)
+    .eq("id", payload.userId)
+    .select("id")
+    .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  if (!updatedProfile) {
+    const { error: insertError } = await supabase.from("profiles").insert({
+      id: payload.userId,
+      ...profileValues,
+    });
+
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
   }
 }
 

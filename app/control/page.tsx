@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
 import { AdminHealthPanel } from "@/components/admin-health-panel";
+import { AdminBroadcastPanel } from "@/components/admin-broadcast-panel";
 import { AdminOperatorManagementPanel } from "@/components/admin-operator-management-panel";
 import { AdminOversightAccessPanel } from "@/components/admin-oversight-access-panel";
 import { AdminOperationsOverview } from "@/components/admin-operations-overview";
@@ -13,6 +14,8 @@ import { PageHeader } from "@/components/layout/page-header";
 
 const controlSections = [
   { href: "#overview", label: "Operations overview" },
+  { href: "#broadcasts", label: "User announcements" },
+  { href: "/front-counter", label: "Front Counter" },
   { href: "#operators", label: "Operator names" },
   { href: "#health", label: "System health" },
   { href: "#sessions", label: "Session tools" },
@@ -62,6 +65,10 @@ export default function ControlPage() {
           <div className="admin-control-workspace">
             <div id="overview" className="admin-control-section-anchor">
               <AdminOperationsOverview />
+            </div>
+
+            <div id="broadcasts" className="admin-control-section-anchor">
+              <AdminBroadcastPanel />
             </div>
 
             <div className="admin-control-support-grid">
