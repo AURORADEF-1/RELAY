@@ -135,7 +135,13 @@ export function AdminBroadcastPanel() {
       </label>
 
       <div className="admin-broadcast-actions">
-        {notice ? <p data-tone={notice.tone}>{notice.message}</p> : <span>Messages remain visible until each user closes them.</span>}
+        {notice ? (
+          <p data-tone={notice.tone} role="status" aria-live="polite">
+            {notice.message}
+          </p>
+        ) : (
+          <span>Messages remain visible until each user closes them.</span>
+        )}
         <button type="button" onClick={() => void handleSend()} disabled={isSending || !message.trim()}>
           <ConsoleIcon name="message" className="h-4 w-4" />
           {isSending ? "Sending…" : "Send to everyone"}

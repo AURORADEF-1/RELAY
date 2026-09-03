@@ -51,6 +51,14 @@ describe("RELAY system broadcasts", () => {
       resolve(process.cwd(), "app/api/notifications/broadcast/route.ts"),
       "utf8",
     );
+    const broadcastPanel = readFileSync(
+      resolve(process.cwd(), "components/admin-broadcast-panel.tsx"),
+      "utf8",
+    );
+    const globalStyles = readFileSync(
+      resolve(process.cwd(), "app/globals.css"),
+      "utf8",
+    );
 
     expect(provider).toContain('const SYSTEM_BROADCAST_TYPE = "system_broadcast"');
     expect(provider).toContain('notification.type === SYSTEM_BROADCAST_TYPE');
@@ -61,6 +69,12 @@ describe("RELAY system broadcasts", () => {
     expect(controlPage).toContain("<AdminBroadcastPanel />");
     expect(broadcastRoute).toContain("/realtime/v1/api/broadcast/");
     expect(broadcastRoute).toContain("realtimeDispatched");
+    expect(broadcastPanel).toContain('className="admin-broadcast-field"');
+    expect(broadcastPanel).toContain('role="status" aria-live="polite"');
+    expect(globalStyles).toContain(".admin-broadcast-panel {");
+    expect(globalStyles).toContain(".admin-broadcast-kinds button[aria-pressed=\"true\"]");
+    expect(globalStyles).toContain(".admin-broadcast-field textarea {");
+    expect(globalStyles).toContain(".admin-broadcast-actions button {");
   });
 
   it("enforces a bin location for READY tickets in the database", () => {
