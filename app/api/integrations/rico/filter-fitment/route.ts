@@ -4,7 +4,7 @@ import {
   getRicoFleetMachine,
   getRicoFleetMachines,
 } from "@/lib/integrations/rico/fleet-client";
-import { authorizeRicoRoute } from "@/lib/integrations/rico/route-auth";
+import { authorizeRelayRequesterRoute } from "@/lib/integrations/rico/route-auth";
 import { ricoRouteError } from "@/lib/integrations/rico/route-response";
 import { lookupMachineRegistryRecord } from "@/lib/machine-registry";
 import {
@@ -19,7 +19,7 @@ const querySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const auth = await authorizeRicoRoute(request);
+  const auth = await authorizeRelayRequesterRoute(request);
   if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
   const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) {

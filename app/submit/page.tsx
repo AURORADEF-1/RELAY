@@ -4,15 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { AuthGuard } from "@/components/auth-guard";
-import { RelayAiPanel } from "@/components/console/relay-ai-panel";
+import { ConsoleIcon } from "@/components/console/console-icon";
+import { ConsoleShell } from "@/components/console/console-shell";
 import { FileUploadPanel } from "@/components/file-upload-panel";
-import { NotificationBadge } from "@/components/notification-badge";
+import { PageHeader } from "@/components/layout/page-header";
 import { useNotifications } from "@/components/notification-provider";
 import { QrMachineReferenceScanner } from "@/components/qr-machine-reference-scanner";
-import { LogoutButton } from "@/components/logout-button";
-import { RelayLogo } from "@/components/relay-logo";
-import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
-import { ThemeToggleButton } from "@/components/theme-toggle-button";
 import { triggerActionFeedback } from "@/lib/action-feedback";
 import { notifyAdminsOfNewTicket } from "@/lib/notifications";
 import { fetchCurrentProfileSettings } from "@/lib/profile-settings";
@@ -32,7 +29,6 @@ import {
 } from "@/lib/requester-offline-submission";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
-import { getCurrentUserWithRole } from "@/lib/profile-access";
 
 const departmentOptions = ["Onsite", "Yard"] as const;
 
@@ -81,7 +77,7 @@ const fieldLabels: Record<keyof FormValues, string> = {
 };
 
 export default function SubmitPage() {
-  const { adminBadgeCount, isAdmin, taskUnreadCount } = useNotifications();
+  const { isAdmin } = useNotifications();
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState("");
@@ -97,7 +93,6 @@ export default function SubmitPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [queuedPhotos, setQueuedPhotos] = useState<File[]>([]);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [isRelayAiOpen, setIsRelayAiOpen] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [locationDraft, setLocationDraft] = useState<{
     lat: number;
@@ -110,7 +105,6 @@ export default function SubmitPage() {
   const [machineRegistryRecord, setMachineRegistryRecord] = useState<MachineRegistryRecord | null>(null);
   const [isMachineLookupLoading, setIsMachineLookupLoading] = useState(false);
   const [machineLookupError, setMachineLookupError] = useState("");
-  const [isFrontCounter, setIsFrontCounter] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
   const [isSyncingOfflineRequests, setIsSyncingOfflineRequests] = useState(false);
@@ -120,12 +114,6 @@ export default function SubmitPage() {
   } | null>(null);
   const hasHydratedOfflineDraftRef = useRef(false);
   const isSyncingOfflineQueueRef = useRef(false);
-
-  useEffect(() => {
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-    void getCurrentUserWithRole(supabase).then((access) => setIsFrontCounter(access.isFrontCounter));
-  }, []);
 
   useEffect(() => {
     function handleConnectionStateChange() {
@@ -877,106 +865,81 @@ export default function SubmitPage() {
   );
 
   return (
-    <main className="aurora-shell">
-      <div className="aurora-shell-inner max-w-6xl space-y-6">
-        <nav className="aurora-nav">
-          <RelayLogo />
-          <div className="aurora-nav-links text-sm font-medium">
-            {isFrontCounter ? (
+    <AuthGuard>
+      <ConsoleShell
+        shellClassName="console-shell-requester"
+        contentClassName="new-request-console-content"
+        eyebrow="RELAY intake"
+        title="New request"
+        actions={
+          <Link href="/requests" className="console-command-action">
+            <ConsoleIcon name="clipboard" className="h-4 w-4" />
+            <span>My requests</span>
+          </Link>
+        }
+      >
+        <div className="new-request-workspace">
+          <PageHeader
+            title={isRetailSale ? "New retail sale" : "New parts request"}
+            description="Give Stores the essential machine, job and part details for fast identification and fulfilment."
+            meta={
               <>
-                <Link href="/terminal" className="aurora-link">Terminal</Link>
-                <Link href="/wallboard" className="aurora-link">Wallboard</Link>
-                <LogoutButton />
+                <span className={isOnline ? "relay-live-label" : "new-request-offline-label"}>
+                  <i /> {isOnline ? "Online · ready to submit" : "Offline · saves on this device"}
+                </span>
+                <span>
+                  {offlineQueueCount > 0
+                    ? `${offlineQueueCount} request${offlineQueueCount === 1 ? "" : "s"} awaiting sync`
+                    : "No requests awaiting sync"}
+                </span>
               </>
-            ) : (
-              <>
-            <Link href="/" className="aurora-link">
-              Home
-            </Link>
-            <Link href="/legal" className="aurora-link">
-              Legal
-            </Link>
-            <Link href="/settings" className="aurora-link">
-              Settings
-            </Link>
-            <RoleAwareRequestsLink className="aurora-link" />
-            <button
-              type="button"
-              className="aurora-link"
-              onClick={() => setIsRelayAiOpen(true)}
-            >
-              RELAY AI
-            </button>
-            <Link href="/tasks" className="aurora-link">
-              Tasks
-              <NotificationBadge count={taskUnreadCount} />
-            </Link>
-            {isAdmin ? (
-              <>
-                <Link href="/incidents" className="aurora-link">
-                  Workshop Control
-                </Link>
-                <Link href="/control" className="aurora-link">
-                  Admin Control
-                </Link>
-                <Link href="/admin" className="aurora-link">
-                  Parts Control
-                  <NotificationBadge count={adminBadgeCount} />
-                </Link>
-              </>
-            ) : null}
-            <ThemeToggleButton />
-            <LogoutButton />
-              </>
-            )}
-          </div>
-        </nav>
+            }
+          />
 
-        <AuthGuard>
-          <section className="aurora-section relative overflow-hidden px-5 py-6 sm:px-7 sm:py-7 lg:px-8">
-            <div className="absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_62%)] opacity-70" />
-            <div className="relative space-y-5">
-              <header className="space-y-4 border-b border-[color:var(--border)] pb-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <RelayLogo compact className="scale-[0.88] origin-left" />
-                      <span className="aurora-kicker">Workshop Intake</span>
-                    </div>
-                    <div className="space-y-2">
-                      <h1 className="aurora-title text-[clamp(2.3rem,6vw,4.35rem)]">
-                        Parts Request
-                      </h1>
-                      <p className="max-w-2xl text-sm leading-6 text-[color:var(--foreground-muted)] sm:text-[0.95rem]">
-                        Submit a parts request to Stores with the information needed for fast
-                        identification and fulfilment.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] px-4 py-3 text-left sm:max-w-xs">
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[color:var(--foreground-subtle)]">
-                      Operational Note
-                    </p>
-                    <p className="mt-2 text-sm text-[color:var(--foreground-muted)]">
-                      All request fields remain required. Dark mode is the reference presentation.
-                    </p>
-                  </div>
-                </div>
-                {scannedMachineReference ? (
-                  <div className="rounded-[1.2rem] border border-[color:var(--success)] bg-[color:var(--success-soft)] px-4 py-3 text-sm text-[color:var(--foreground-strong)]">
-                    Machine reference <span className="font-semibold">{scannedMachineReference}</span>{" "}
-                    captured from QR and prefilled below.
-                  </div>
-                ) : null}
-              </header>
+          <section className="new-request-status-strip" aria-label="Request intake summary">
+            <div>
+              <p>Request type</p>
+              <strong>{isRetailSale ? "Retail sale" : "Workshop parts"}</strong>
+            </div>
+            <div>
+              <p>Machine check</p>
+              <strong>
+                {isRetailSale
+                  ? "Not required"
+                  : machineRegistryRecord
+                    ? "Verified"
+                    : isMachineLookupLoading
+                      ? "Checking"
+                      : values.machineReference.trim() || machineLookupError
+                        ? "Not verified"
+                        : "Required"}
+              </strong>
+            </div>
+            <div>
+              <p>Photos</p>
+              <strong>{hasQueuedPhotos ? `${queuedPhotos.length} selected` : "Optional"}</strong>
+            </div>
+            <div>
+              <p>Delivery</p>
+              <strong>{isOnline ? "Immediate" : "Auto-sync"}</strong>
+            </div>
+          </section>
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <section className="aurora-panel rounded-[1.6rem] border-[color:var(--border-strong)] bg-[color:var(--background-panel-strong)] p-4 sm:p-5">
+          {scannedMachineReference ? (
+            <div className="aurora-alert aurora-alert-success">
+              Machine reference <span className="font-semibold">{scannedMachineReference}</span>{" "}
+              captured from QR and prefilled below.
+            </div>
+          ) : null}
+
+          <div className="new-request-intake-tools">
+            <section className="new-request-tool-card">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1.5">
-                      <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
+                      <p className="new-request-step-label">Quick start</p>
+                      <h2 className="text-sm font-semibold text-[color:var(--foreground-strong)]">
                         Machine QR intake
-                      </p>
+                      </h2>
                       <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">
                         Scan a machine label to prefill the reference before completing the request.
                       </p>
@@ -986,10 +949,17 @@ export default function SubmitPage() {
                 </section>
 
                 <HelpPanel isOpen={isHelpOpen} onToggle={() => setIsHelpOpen((current) => !current)} />
-              </div>
+          </div>
 
-              <form onSubmit={handleSubmit} noValidate className="space-y-4">
-                <section className="aurora-panel rounded-[1.7rem] border-[color:var(--border-strong)] bg-[color:var(--background-panel-strong)] p-4 sm:p-5">
+          <form onSubmit={handleSubmit} noValidate className="new-request-form">
+                <section className="new-request-form-panel">
+                  <div className="new-request-panel-heading">
+                    <div>
+                      <p className="new-request-step-label">Step 1</p>
+                      <h2>Request details</h2>
+                    </div>
+                    <span>Required fields</span>
+                  </div>
                   <div className="space-y-5">
                     {isAdmin ? (
                       <div className="rounded-[1.35rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] p-4">
@@ -1139,14 +1109,23 @@ export default function SubmitPage() {
                   </div>
                 </section>
 
-                <FileUploadPanel
-                  label="Photo upload"
-                  helperText="Attach clear photos of the part, machine area, or identification plate when needed."
-                  inputId="ticket-photo-upload"
-                  buttonLabel="Add photos"
-                  emptyText="No request photos selected."
-                  onFilesChange={setQueuedPhotos}
-                />
+                <section className="new-request-form-panel new-request-upload-panel">
+                  <div className="new-request-panel-heading">
+                    <div>
+                      <p className="new-request-step-label">Step 2</p>
+                      <h2>Supporting photos</h2>
+                    </div>
+                    <span>Optional</span>
+                  </div>
+                  <FileUploadPanel
+                    label="Photo upload"
+                    helperText="Attach clear photos of the part, machine area, or identification plate when needed."
+                    inputId="ticket-photo-upload"
+                    buttonLabel="Add photos"
+                    emptyText="No request photos selected."
+                    onFilesChange={setQueuedPhotos}
+                  />
+                </section>
 
                 {hasQueuedPhotos ? (
                   <div className="rounded-[1rem] border border-[color:var(--border)] bg-[color:var(--background-muted)] px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
@@ -1155,12 +1134,16 @@ export default function SubmitPage() {
                 ) : null}
 
                 {!isRetailSale && values.department === "Onsite" ? (
-                  <section className="aurora-panel rounded-[1.6rem] p-4 sm:p-5">
+                  <section className="new-request-form-panel">
+                    <div className="new-request-panel-heading">
+                      <div>
+                        <p className="new-request-step-label">Step 3</p>
+                        <h2>Onsite location</h2>
+                      </div>
+                      <span>Onsite request</span>
+                    </div>
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="space-y-1.5">
-                        <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
-                          Onsite location
-                        </p>
                         <p className="text-sm leading-6 text-[color:var(--foreground-muted)]">
                           Capture and confirm your current location before submission.
                         </p>
@@ -1236,12 +1219,13 @@ export default function SubmitPage() {
                 ) : null}
                 {successMessage ? <AlertMessage type="success">{successMessage}</AlertMessage> : null}
 
-                <section className="aurora-panel rounded-[1.55rem] border-[color:var(--border-strong)] p-4 sm:p-5">
+                <section className="new-request-submit-panel">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
-                      <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
+                      <p className="new-request-step-label">Final check</p>
+                      <h2 className="text-sm font-semibold text-[color:var(--foreground-strong)]">
                         Ready to submit
-                      </p>
+                      </h2>
                       <p className="text-sm text-[color:var(--foreground-muted)]">
                         All fields are required. Photos are optional but recommended where they help identification.
                         {offlineQueueCount > 0
@@ -1263,17 +1247,9 @@ export default function SubmitPage() {
                   </div>
                 </section>
               </form>
-            </div>
-          </section>
-        </AuthGuard>
-      </div>
-      <RelayAiPanel
-        key={isAdmin ? "relay-ai-full" : "relay-ai-requester"}
-        isOpen={isRelayAiOpen}
-        onClose={() => setIsRelayAiOpen(false)}
-        accessMode={isAdmin ? "full" : "requester"}
-      />
-    </main>
+        </div>
+      </ConsoleShell>
+    </AuthGuard>
   );
 }
 

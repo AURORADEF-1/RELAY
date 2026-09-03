@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getRicoCrossReference } from "@/lib/integrations/rico/client";
 import { buildRicoReferenceCandidates } from "@/lib/integrations/rico/normalizers";
-import { authorizeRicoRoute } from "@/lib/integrations/rico/route-auth";
+import { authorizeRelayRequesterRoute } from "@/lib/integrations/rico/route-auth";
 import { ricoRouteError } from "@/lib/integrations/rico/route-response";
 
 const querySchema = z.object({ q: z.string().trim().min(2).max(120) });
 
 export async function GET(request: NextRequest) {
-  const auth = await authorizeRicoRoute(request);
+  const auth = await authorizeRelayRequesterRoute(request);
   if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
   const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) return NextResponse.json({ ok: false, error: "Enter a valid part reference." }, { status: 400 });
