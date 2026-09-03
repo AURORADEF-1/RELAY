@@ -152,6 +152,16 @@ requireText(
   "Completed Jobs admin navigation",
 );
 requireText(
+  "app/globals.css",
+  ".completed-overview-strip",
+  "Completed Jobs archive layout",
+);
+requireText(
+  "app/globals.css",
+  ".completed-table th",
+  "Completed Jobs table layout",
+);
+requireText(
   "components/console/console-shell.tsx",
   'href: "/front-counter"',
   "Front Counter admin navigation",
@@ -160,6 +170,26 @@ requireText(
   "app/requests/page.tsx",
   "New parts request",
   "fitter mobile primary action",
+);
+requireText(
+  "components/console/console-shell.tsx",
+  '{ href: "/filters", label: "Filter Lookup", icon: "filter" }',
+  "requester Filter Lookup navigation",
+);
+requireText(
+  "components/console/console-shell.tsx",
+  '{ href: "/settings", label: "Settings", icon: "settings" }',
+  "requester Settings navigation",
+);
+forbidText(
+  "app/filters/page.tsx",
+  'requiredRole="admin"',
+  "admin-only Filter Lookup page gate",
+);
+requireText(
+  "app/api/integrations/rico/ticket-parts/route.ts",
+  "authorizeRicoRoute(request)",
+  "admin-only RICO ticket write boundary",
 );
 
 requireText(

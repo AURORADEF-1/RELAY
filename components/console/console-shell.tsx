@@ -38,11 +38,25 @@ type NavigationItem = {
   adminOnly?: boolean;
   oversightOnly?: boolean;
   fleetMemberOnly?: boolean;
+  frontCounterOnly?: boolean;
   badge?: "admin" | "requester" | "tasks";
   external?: boolean;
 };
 
 const navigation: NavigationItem[] = [
+  {
+    href: "/terminal",
+    label: "Terminal",
+    icon: "console",
+    frontCounterOnly: true,
+  },
+  {
+    href: "/wallboard",
+    label: "Wallboard",
+    icon: "wallboard",
+    frontCounterOnly: true,
+    external: true,
+  },
   { href: "/console", label: "Operations", icon: "console", adminOnly: true },
   { href: "/my-jobs", label: "My Jobs", icon: "clipboard", adminOnly: true },
   {
@@ -63,8 +77,9 @@ const navigation: NavigationItem[] = [
     icon: "clipboard",
     badge: "requester",
   },
+  { href: "/filters", label: "Filter Lookup", icon: "filter" },
+  { href: "/settings", label: "Settings", icon: "settings" },
   { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
-  { href: "/filters", label: "Filter Lookup", icon: "filter", adminOnly: true },
   {
     href: "/parts-knowledge",
     label: "Parts Knowledge",
@@ -123,6 +138,7 @@ export function ConsoleShell({
   const [signedInUserName, setSignedInUserName] = useState("Signed in");
   const [hasCustomerFleet, setHasCustomerFleet] = useState(false);
   const [hasOversightAccess, setHasOversightAccess] = useState(false);
+  const [isFrontCounter, setIsFrontCounter] = useState(false);
   const [commandMachineResults, setCommandMachineResults] = useState<
     SmartSearchResult[]
   >([]);
@@ -138,13 +154,14 @@ export function ConsoleShell({
     }
 
     void getCurrentUserWithRole(supabase)
-      .then(async ({ user, profile }) => {
+      .then(async ({ user, profile, isFrontCounter: accessIsFrontCounter }) => {
         if (!isMounted) {
           return;
         }
 
         const displayName = profile?.display_name?.trim();
         setSignedInUserName(displayName || user?.email?.trim() || "Signed in");
+        setIsFrontCounter(accessIsFrontCounter);
 
         if (!user) {
           setHasCustomerFleet(false);
@@ -283,10 +300,18 @@ export function ConsoleShell({
   }
 
   const visibleNavigation = navigation.filter(
-    (item) =>
-      (!item.adminOnly || isAdmin) &&
-      (!item.oversightOnly || hasOversightAccess) &&
-      (!item.fleetMemberOnly || isAdmin || hasCustomerFleet),
+    (item) => {
+      if (isFrontCounter) {
+        return item.frontCounterOnly;
+      }
+
+      return (
+        !item.frontCounterOnly &&
+        (!item.adminOnly || isAdmin) &&
+        (!item.oversightOnly || hasOversightAccess) &&
+        (!item.fleetMemberOnly || isAdmin || hasCustomerFleet)
+      );
+    },
   );
   const effectiveRelayAiOpen = onOpenRelayAi
     ? isRelayAiOpen
@@ -329,7 +354,13 @@ export function ConsoleShell({
           <span className="console-live-dot" />
           <span className="console-sidebar-user" title={signedInUserName}>
             <strong>{signedInUserName}</strong>
-            <small>{isAdmin ? "Administrator" : "Fitter access"}</small>
+            <small>
+              {isFrontCounter
+                ? "Front Counter"
+                : isAdmin
+                  ? "Administrator"
+                  : "Fitter access"}
+            </small>
           </span>
         </div>
 

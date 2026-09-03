@@ -6,7 +6,7 @@ import { FilterLookupWorkspace } from "@/components/rico/filter-lookup-workspace
 
 export default function FilterLookupPage() {
   return (
-    <AuthGuard requiredRole="admin">
+    <AuthGuard>
       <ConsoleShell
         eyebrow="RELAY parts intelligence"
         title="Filter Lookup"

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { ConsoleIcon } from "@/components/console/console-icon";
+import { useNotifications } from "@/components/notification-provider";
 import { normalizeMachineNumber, type MachineRegistryRecord } from "@/lib/machine-registry";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
@@ -40,6 +41,7 @@ const tabs: Array<{ id: LookupMode; label: string }> = [
 ];
 
 export function FilterLookupWorkspace() {
+  const { isAdmin } = useNotifications();
   const [mode, setMode] = useState<LookupMode>("machine");
   const [catalogueSource, setCatalogueSource] = useState<CatalogueSource>("retail");
   const [machineQuery, setMachineQuery] = useState("");
@@ -96,7 +98,7 @@ export function FilterLookupWorkspace() {
   }, [machineQuery]);
 
   useEffect(() => {
-    if (!selectedProduct) return;
+    if (!isAdmin || !selectedProduct) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
     void supabase
@@ -106,7 +108,7 @@ export function FilterLookupWorkspace() {
       .order("updated_at", { ascending: false })
       .limit(150)
       .then(({ data }) => setTickets((data ?? []) as OpenTicket[]));
-  }, [selectedProduct]);
+  }, [isAdmin, selectedProduct]);
 
   const listTotal = useMemo(
     () => list.reduce((total, item) => total + item.product.price * item.quantity, 0),
@@ -512,7 +514,7 @@ export function FilterLookupWorkspace() {
                 product={product}
                 matchLabel={matchLabel}
                 onAdd={() => addToList(product)}
-                onTicket={() => setSelectedProduct(product)}
+                onTicket={isAdmin ? () => setSelectedProduct(product) : undefined}
               />
             )) : (
               <div className="rico-empty">
@@ -534,7 +536,7 @@ export function FilterLookupWorkspace() {
               <div><strong>{item.product.reference}</strong><span>{item.product.name}</span></div>
               <label><span>Qty</span><input type="number" min={1} value={item.quantity} onChange={(event) => setList((current) => current.map((entry) => entry.product.id === item.product.id ? { ...entry, quantity: Math.max(1, Number(event.target.value)) } : entry))} /></label>
               <span>{formatMoney(item.product.price * item.quantity)}</span>
-              <button type="button" onClick={() => setSelectedProduct(item.product)}>Add to ticket</button>
+              {isAdmin ? <button type="button" onClick={() => setSelectedProduct(item.product)}>Add to ticket</button> : null}
               <button type="button" aria-label={`Remove ${item.product.reference}`} onClick={() => setList((current) => current.filter((entry) => entry.product.id !== item.product.id))}>×</button>
             </div>
           )) : <div className="rico-empty"><h3>Your Filter List is empty</h3><p>Add live RICO results here before attaching them to a ticket.</p></div>}
@@ -809,7 +811,7 @@ function compactFleetSearchValue(value: string) {
   return normalizeFleetSearchValue(value).replace(/[\s\-_/\\.]+/g, "");
 }
 
-function ProductRow({ product, matchLabel, onAdd, onTicket }: { product: RicoProduct; matchLabel: string; onAdd: () => void; onTicket: () => void }) {
+function ProductRow({ product, matchLabel, onAdd, onTicket }: { product: RicoProduct; matchLabel: string; onAdd: () => void; onTicket?: () => void }) {
   const [imageFailed, setImageFailed] = useState(false);
   const image = product.images.find((item) => item.cover) ?? product.images[0];
   const kitType = product.features.find((feature) =>
@@ -866,7 +868,7 @@ function ProductRow({ product, matchLabel, onAdd, onTicket }: { product: RicoPro
         ) : null}
       </div>
       <div className="rico-product-commercial"><strong>{formatMoney(product.price)}</strong><span>Net account price, ex VAT</span><em data-stock={product.quantity > 0 ? "available" : "backorder"}>{stockLabel(product.quantity)}</em><small>Updated {formatDate(product.dateUpdated)}</small></div>
-      <div className="rico-product-actions"><button type="button" onClick={onAdd}>Add to list</button><button type="button" className="console-primary-action" onClick={onTicket}>Add to ticket</button></div>
+      <div className="rico-product-actions"><button type="button" onClick={onAdd}>Add to list</button>{onTicket ? <button type="button" className="console-primary-action" onClick={onTicket}>Add to ticket</button> : null}</div>
     </article>
   );
 }
