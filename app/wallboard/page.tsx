@@ -390,18 +390,16 @@ export default function WallboardPage() {
       { event: "refresh" },
       scheduleRealtimeRefresh,
     );
-    realtimeChannel?.on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "front_counter_collection_requests" },
-      () => {
-        if (refreshTimeout) window.clearTimeout(refreshTimeout);
-        refreshTimeout = window.setTimeout(() => {
-          refreshTimeout = null;
-          void loadTickets();
-        }, REALTIME_REFRESH_DEBOUNCE_MS);
-      },
-    );
-    realtimeChannel?.subscribe();
+    realtimeChannel?.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        scheduleRealtimeRefresh();
+        return;
+      }
+
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        void loadTickets();
+      }
+    });
 
     const countdownInterval = window.setInterval(() => {
       const now = Date.now();

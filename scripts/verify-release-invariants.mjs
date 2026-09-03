@@ -83,13 +83,48 @@ requireText(
 
 requireText(
   "components/notification-provider.tsx",
-  "supabase.channel(RELAY_SYSTEM_BROADCAST_CHANNEL)",
-  "all-user broadcast Realtime subscription",
+  "supabase.channel(`relay-live-${user.id}`)",
+  "consolidated authenticated Realtime subscription",
+);
+requireText(
+  "components/notification-toasts.tsx",
+  "onClick={() => void requestDesktopNotifications()}",
+  "user-initiated browser notification permission control",
 );
 requireText(
   "components/notification-provider.tsx",
-  "requestDesktopNotifications().catch",
-  "native browser notification permission prompt",
+  "readyRegistration.showNotification",
+  "mobile-capable service-worker notifications",
+);
+requireText(
+  "public/relay-notifications-sw.js",
+  'self.addEventListener("notificationclick"',
+  "notification click routing",
+);
+forbidText(
+  "components/notification-provider.tsx",
+  "Notification.permission === \"default\"",
+  "automatic browser notification permission request",
+);
+requireText(
+  "lib/supabase.ts",
+  "worker: true",
+  "background Realtime heartbeat worker",
+);
+requireText(
+  "lib/supabase.ts",
+  'status === "disconnected"',
+  "Realtime heartbeat reconnect",
+);
+forbidText(
+  "lib/notifications.ts",
+  "broadcastNotificationRefresh",
+  "per-recipient Realtime channel fan-out",
+);
+requireText(
+  "lib/profile-access.ts",
+  "if (currentUserWithRoleInFlight)",
+  "coalesced browser identity refresh",
 );
 requireText(
   "app/control/page.tsx",
@@ -105,6 +140,16 @@ forbidText(
   "components/app-runtime.tsx",
   "!isFrontCounter ? <NotificationToasts /> : null",
   "Front Counter notification suppression",
+);
+requireText(
+  "components/console/console-shell.tsx",
+  'className="console-mobile-sidebar-actions"',
+  "fitter mobile session controls",
+);
+requireText(
+  "app/requests/page.tsx",
+  "New parts request",
+  "fitter mobile primary action",
 );
 
 requireText(

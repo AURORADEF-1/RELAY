@@ -164,7 +164,10 @@ export async function getCurrentUserWithRole(
     return cachedCurrentUserWithRole.value;
   }
 
-  if (!options?.forceFresh && currentUserWithRoleInFlight) {
+  // A fresh lookup should bypass the completed cache, not duplicate an identity
+  // request that is already running. Coalescing here prevents competing GoTrue
+  // browser-lock requests when several client components mount together.
+  if (currentUserWithRoleInFlight) {
     return currentUserWithRoleInFlight;
   }
 

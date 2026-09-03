@@ -356,7 +356,7 @@ export default function RequestsPage() {
         }
       >
         <section className="console-queue-panel requester-requests-panel !mt-0 min-w-0 max-w-full p-3 sm:p-6">
-          <div className="flex min-w-0 flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+          <div className="requester-dashboard-header flex min-w-0 flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
             <div className="min-w-0 max-w-3xl space-y-4 sm:space-y-5">
               <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
                 Requester Dashboard
@@ -366,12 +366,21 @@ export default function RequestsPage() {
                 <NotificationBadge count={isAdmin ? adminBadgeCount : requesterUnreadCount} />
               </h1>
               <p className="text-base leading-8 text-slate-600">
-                Track active parts requests. Completed jobs are archived and remain
-                visible to admin only.
+                Track every active parts request, see collection locations and open a
+                ticket for its latest update.
               </p>
+              {!isAdmin ? (
+                <div className="requester-primary-actions">
+                  <Link href="/submit" className="requester-new-request-button">
+                    <ConsoleIcon name="ticket" className="h-4 w-4" />
+                    New parts request
+                  </Link>
+                  <span>Updates appear here automatically.</span>
+                </div>
+              ) : null}
             </div>
 
-            <div className="request-status-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-7">
+            <div className="request-status-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-7" aria-label="Request status summary">
               {activeTicketStatuses.map((status) => (
                 <div
                   key={status}

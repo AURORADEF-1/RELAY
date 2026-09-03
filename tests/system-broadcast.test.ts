@@ -63,7 +63,7 @@ describe("RELAY system broadcasts", () => {
     expect(provider).toContain('const SYSTEM_BROADCAST_TYPE = "system_broadcast"');
     expect(provider).toContain('notification.type === SYSTEM_BROADCAST_TYPE');
     expect(RELAY_SYSTEM_BROADCAST_CHANNEL).toBe("relay-system-notifications");
-    expect(provider).toContain("supabase.channel(RELAY_SYSTEM_BROADCAST_CHANNEL)");
+    expect(provider).toContain("supabase.channel(`relay-live-${user.id}`)");
     expect(runtime).toContain("<NotificationToasts />");
     expect(runtime).not.toContain("!isFrontCounter ? <NotificationToasts /> : null");
     expect(controlPage).toContain("<AdminBroadcastPanel />");
@@ -92,17 +92,42 @@ describe("RELAY system broadcasts", () => {
     );
   });
 
-  it("restores Chrome's native notification permission prompt after login", () => {
+  it("requests Chrome notification permission only from a visible user action", () => {
     const provider = readFileSync(
       resolve(process.cwd(), "components/notification-provider.tsx"),
       "utf8",
     );
+    const toasts = readFileSync(
+      resolve(process.cwd(), "components/notification-toasts.tsx"),
+      "utf8",
+    );
 
     expect(provider).toContain("Notification.requestPermission()");
-    expect(provider).toContain(
-      "shouldPromptBrowserNotifications(pathnameRef.current)",
+    expect(provider).not.toContain('Notification.permission === "default"');
+    expect(provider).not.toContain("relay-browser-notification-prompt");
+    expect(toasts).toContain("Enable RELAY desktop alerts");
+    expect(toasts).toContain("onClick={() => void requestDesktopNotifications()}");
+    expect(toasts).not.toContain("isAdmin &&");
+    expect(provider).toContain("readyRegistration.showNotification");
+    expect(provider).toContain('"/relay-notifications-sw.js"');
+  });
+
+  it("uses one live data channel and background-safe Realtime heartbeats", () => {
+    const provider = readFileSync(
+      resolve(process.cwd(), "components/notification-provider.tsx"),
+      "utf8",
     );
-    expect(provider).toContain("getBrowserNotificationPromptKey(adminUser)");
-    expect(provider).toContain("requestDesktopNotifications().catch");
+    const notifications = readFileSync(
+      resolve(process.cwd(), "lib/notifications.ts"),
+      "utf8",
+    );
+    const supabase = readFileSync(resolve(process.cwd(), "lib/supabase.ts"), "utf8");
+
+    expect(provider).toContain("supabase.channel(`relay-live-${user.id}`)");
+    expect(provider).not.toContain("relay-pending-tickets-");
+    expect(provider).not.toContain("relay-urgent-tickets-");
+    expect(notifications).not.toContain("broadcastNotificationRefresh");
+    expect(supabase).toContain("worker: true");
+    expect(supabase).toContain('status === "disconnected"');
   });
 });

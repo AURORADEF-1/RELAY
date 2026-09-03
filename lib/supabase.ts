@@ -11,7 +11,20 @@ export function getSupabaseClient() {
   }
 
   if (!browserClient) {
-    browserClient = createClient(supabaseUrl, supabaseAnonKey);
+    browserClient = createClient(supabaseUrl, supabaseAnonKey, {
+      realtime: {
+        worker: true,
+        heartbeatCallback: (status) => {
+          if (
+            status === "disconnected" &&
+            browserClient &&
+            !browserClient.realtime.isConnected()
+          ) {
+            browserClient.realtime.connect();
+          }
+        },
+      },
+    });
   }
 
   return browserClient;
