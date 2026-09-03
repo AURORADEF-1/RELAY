@@ -13,17 +13,11 @@ export type RicoRouteAuth =
   | { ok: false; status: 401 | 403 | 500; error: string };
 
 export function isRicoAdmin(
-  user: { email?: string | null },
+  _user: { email?: string | null },
   role?: string | null,
 ) {
   const normalizedRole = role?.trim().toLowerCase();
-  const email = (user.email ?? "").trim().toLowerCase();
-  const localPart = email.split("@")[0] ?? "";
-  return (
-    normalizedRole === "admin" ||
-    email === "admin@mlp.local" ||
-    localPart.endsWith(".admin")
-  );
+  return normalizedRole === "admin";
 }
 
 async function authorizeRelayRoute(

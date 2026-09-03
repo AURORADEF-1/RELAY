@@ -2,12 +2,28 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   clearCurrentUserWithRoleCache,
+  getAccessLevel,
   getCurrentUserWithRole,
 } from "@/lib/profile-access";
 
 describe("RELAY profile access", () => {
   beforeEach(() => {
     clearCurrentUserWithRoleCache();
+  });
+
+  it("does not infer administrator access from an email address", () => {
+    expect(
+      getAccessLevel(
+        { email: "relay.v25.admin@mlpparts.co.uk" } as never,
+        { role: "requester", interface_mode: "standard" },
+      ),
+    ).toBe("user");
+    expect(
+      getAccessLevel(
+        { email: "ordinary@example.test" } as never,
+        { role: "admin", interface_mode: "standard" },
+      ),
+    ).toBe("admin");
   });
 
   it("coalesces simultaneous fresh identity lookups", async () => {

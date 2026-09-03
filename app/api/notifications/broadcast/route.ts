@@ -19,10 +19,8 @@ function getSupabaseConfig() {
   return { supabaseUrl, supabaseAnonKey, serviceRoleKey };
 }
 
-function isAdminIdentity(user: { email?: string | null }, role: string | null) {
-  if (role?.trim().toLowerCase() === "admin") return true;
-  const email = user.email?.trim().toLowerCase() ?? "";
-  return email === "admin@mlp.local" || email.split("@")[0]?.endsWith(".admin") === true;
+function isAdminIdentity(role: string | null) {
+  return role?.trim().toLowerCase() === "admin";
 }
 
 async function dispatchRealtimeRefresh(
@@ -88,7 +86,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle<{ role?: string | null }>();
 
     if (senderProfileError) throw new Error(senderProfileError.message);
-    if (!isAdminIdentity(user, senderProfile?.role ?? null)) {
+    if (!isAdminIdentity(senderProfile?.role ?? null)) {
       return NextResponse.json(
         { error: "Administrator access is required." },
         { status: 403 },

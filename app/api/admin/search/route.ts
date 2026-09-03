@@ -16,17 +16,8 @@ function getSupabasePublicConfig() {
   return { supabaseUrl, supabaseAnonKey };
 }
 
-function deriveAdminFromUser(user: { email?: string | null }, role: string | null) {
-  const normalizedRole = role?.trim().toLowerCase() ?? "";
-
-  if (normalizedRole === "admin") {
-    return true;
-  }
-
-  const email = (user.email ?? "").trim().toLowerCase();
-  const emailLocalPart = email.split("@")[0] || "";
-
-  return email === "admin@mlp.local" || emailLocalPart.endsWith(".admin");
+function deriveAdminFromRole(role: string | null) {
+  return role?.trim().toLowerCase() === "admin";
 }
 
 function normalizeQuery(rawValue: string) {
@@ -117,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     const role = typeof profileRow?.role === "string" ? profileRow.role : null;
 
-    if (!deriveAdminFromUser(user, role)) {
+    if (!deriveAdminFromRole(role)) {
       return NextResponse.json({ error: "Admin access is required for smart search." }, { status: 403 });
     }
 

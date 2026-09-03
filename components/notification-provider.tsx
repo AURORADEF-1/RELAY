@@ -1272,6 +1272,27 @@ export function NotificationProvider({
       return request;
     };
 
+    const setupNotificationsAfterCurrentAttempt = async (expectedUserId: string) => {
+      const currentAttempt = notificationSetupInFlightRef.current;
+
+      if (currentAttempt) {
+        await currentAttempt.catch(() => {});
+      }
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (
+        isAuthenticatedRef.current &&
+        currentUserIdRef.current === expectedUserId
+      ) {
+        return;
+      }
+
+      await setupNotifications();
+    };
+
     void setupNotifications();
 
     const {
@@ -1293,7 +1314,10 @@ export function NotificationProvider({
           return;
         }
 
-        void setupNotifications();
+        // A SIGNED_IN event can arrive while the initial anonymous setup is
+        // still resolving. Wait for that attempt to release its lock, then
+        // initialise the authenticated notification lifecycle.
+        void setupNotificationsAfterCurrentAttempt(session.user.id);
       },
     );
 

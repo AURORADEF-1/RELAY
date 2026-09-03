@@ -3,8 +3,19 @@ import {
   buildRequesterOfflineNotice,
   isLikelyRequesterOfflineError,
 } from "@/lib/requester-offline-submission";
+import { readFile } from "node:fs/promises";
 
 describe("requester offline submission helpers", () => {
+  it("keeps the requester form wired to the offline queue", async () => {
+    const source = await readFile("app/submit/page.tsx", "utf8");
+
+    expect(source).toContain("createRequesterOfflineSubmissionRecord");
+    expect(source).toContain("await supabase.auth.getSession()");
+    expect(source).toContain("if (!navigator.onLine)");
+    expect(source).toContain("Save Request Locally");
+    expect(source).toContain("void syncOfflineQueue()");
+  });
+
   it("describes offline queue state clearly", () => {
     expect(buildRequesterOfflineNotice(0, false, false)).toMatchObject({
       type: "info",

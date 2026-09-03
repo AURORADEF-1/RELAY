@@ -44,17 +44,8 @@ function getSupabaseConfig() {
   return { supabaseUrl, supabaseAnonKey, serviceRoleKey };
 }
 
-function deriveAdminFromUser(user: { email?: string | null }, role: string | null) {
-  const normalizedRole = role?.trim().toLowerCase() ?? "";
-
-  if (normalizedRole === "admin") {
-    return true;
-  }
-
-  const email = (user.email ?? "").trim().toLowerCase();
-  const emailLocalPart = email.split("@")[0] || "";
-
-  return email === "admin@mlp.local" || emailLocalPart.endsWith(".admin");
+function deriveAdminFromRole(role: string | null) {
+  return role?.trim().toLowerCase() === "admin";
 }
 
 function isValidNotificationPayload(value: unknown): value is NotificationInsertPayload {
@@ -159,8 +150,7 @@ export async function POST(request: NextRequest) {
       throw new Error(adminProfilesError.message);
     }
 
-    const isAdmin = deriveAdminFromUser(
-      user,
+    const isAdmin = deriveAdminFromRole(
       typeof senderProfile?.role === "string" ? senderProfile.role : null,
     );
     const adminUserIds = new Set(

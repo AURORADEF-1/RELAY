@@ -342,6 +342,16 @@ export function DymoPrintStation() {
       }
     };
 
+    const startStationAfterCurrentAttempt = async () => {
+      while (starting && !disposed) {
+        await new Promise((resolve) => window.setTimeout(resolve, 25));
+      }
+
+      if (!disposed && !station) {
+        await startStation();
+      }
+    };
+
     void startStation();
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session?.user) {
@@ -349,8 +359,14 @@ export function DymoPrintStation() {
         return;
       }
 
+      if (station?.user_id && station.user_id !== session.user.id) {
+        stopActiveStation();
+      }
+
       window.setTimeout(() => {
-        void startStation();
+        // Do not lose SIGNED_IN when the initial anonymous startup attempt is
+        // still holding the station lock.
+        void startStationAfterCurrentAttempt();
       }, 0);
     });
 
