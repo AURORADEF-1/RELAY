@@ -1,0 +1,23 @@
+[Unit]
+Description=RELAY Front Counter Device Agent
+After=network-online.target graphical.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mlpparts
+EnvironmentFile=/etc/relay-device-agent.env
+ExecStart=/usr/bin/python3 /opt/relay-device-agent/relay_device_agent.py
+Restart=always
+RestartSec=5
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictRealtime=true
+
+[Install]
+WantedBy=multi-user.target

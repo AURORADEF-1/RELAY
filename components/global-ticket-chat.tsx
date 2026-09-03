@@ -312,6 +312,7 @@ export function GlobalTicketChat() {
             requesterName: ticket.requester_name,
             jobNumber: ticket.job_number,
             requestSummary: messageText || ticket.request_summary || ticket.request_details,
+            assignedTo: ticket.assigned_to,
           }).catch((error) => {
             console.error("Failed to notify admins about global requester chat", error);
           });

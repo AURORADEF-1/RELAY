@@ -47,6 +47,39 @@ const consoleFile = "components/console/console-ticket-action-modal.tsx";
 requireText(consoleFile, "Enter a bin location before marking this job READY.", "Console READY bin validation");
 requireText(consoleFile, 'placeholder="Enter Stores bin location"', "Console bin-location input");
 
+const readyBinMigrationFile = "supabase/migrations/20260903064344_enforce_ready_bin_location.sql";
+requireText(
+  readyBinMigrationFile,
+  "create trigger enforce_ready_ticket_bin_location",
+  "database READY bin-location trigger",
+);
+requireText(
+  readyBinMigrationFile,
+  "new.status = 'READY' and nullif(btrim(new.bin_location), '') is null",
+  "database READY bin-location validation",
+);
+
+requireText(
+  "components/notification-provider.tsx",
+  "supabase.channel(RELAY_SYSTEM_BROADCAST_CHANNEL)",
+  "all-user broadcast Realtime subscription",
+);
+requireText(
+  "app/control/page.tsx",
+  "<AdminBroadcastPanel />",
+  "Admin Control announcement panel",
+);
+requireText(
+  "components/app-runtime.tsx",
+  "<NotificationToasts />",
+  "global in-browser notification popups",
+);
+forbidText(
+  "components/app-runtime.tsx",
+  "!isFrontCounter ? <NotificationToasts /> : null",
+  "Front Counter notification suppression",
+);
+
 requireText(
   "app/api/integrations/nexus/orders/route.ts",
   'supabase.rpc("accept_nexus_ecommerce_order"',
@@ -76,4 +109,4 @@ if (failures.length > 0) {
 }
 
 console.log("RELAY release integrity check passed.");
-console.log("Protected: Code 39 labels, READY metadata, bin workflow and NEXUS order bridge.");
+console.log("Protected: Code 39 labels, READY metadata and bin enforcement, browser notifications, and NEXUS order bridge.");

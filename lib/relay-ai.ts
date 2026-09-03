@@ -1,25 +1,25 @@
 export type RelayAiContext = {
   ticketId: string;
-  audience?: "admin" | "requester";
   status: string;
+  audience?: "requester" | "admin";
   assignedTo?: string | null;
   latestUpdate?: string | null;
   requesterName?: string | null;
   department?: string | null;
   machineReference?: string | null;
-  jobNumber?: string | null;
-  requestSummary?: string | null;
-  requestDetails?: string | null;
-  expectedDeliveryDate?: string | null;
-  purchaseOrderNumber?: string | null;
-  supplierName?: string | null;
-  binLocation?: string | null;
-  orderedAt?: string | null;
-  readyAt?: string | null;
   isRetailSale?: boolean | null;
+  supplierName?: string | null;
+  purchaseOrderNumber?: string | null;
+  expectedDeliveryDate?: string | null;
+  binLocation?: string | null;
   customerName?: string | null;
   retailSalesReference?: string | null;
   orderAmount?: number | null;
+  orderedAt?: string | null;
+  readyAt?: string | null;
+  jobNumber?: string | null;
+  requestSummary?: string | null;
+  requestDetails?: string | null;
   history: Array<{
     status?: string | null;
     comment?: string | null;

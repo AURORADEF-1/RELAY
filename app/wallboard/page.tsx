@@ -16,7 +16,11 @@ import {
 } from "@/lib/ticket-urgency";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
-import { fetchFrontCounterCollectionQueue, type FrontCounterCollectionRequest } from "@/lib/front-counter";
+import {
+  fetchFrontCounterCollectionQueue,
+  FRONT_COUNTER_LIVE_CHANNEL,
+  type FrontCounterCollectionRequest,
+} from "@/lib/front-counter";
 
 type WallboardTicket = {
   id: string;
@@ -51,11 +55,11 @@ type WallboardMode = "inbound" | "ready" | "operators" | "suppliers";
 
 const ROTATION_MODES: WallboardMode[] = ["inbound", "ready", "operators", "suppliers"];
 const MODE_DURATION_MS = 1000 * 60;
-const POLL_INTERVAL_MS = 1000 * 30;
+const POLL_INTERVAL_MS = 1000 * 10;
 const PAGE_DURATION_MS = 1000 * 30;
 const PAGE_SIZE = 12;
 const LIVE_QUEUE_LIMIT = 1000;
-const REALTIME_REFRESH_DEBOUNCE_MS = 500;
+const REALTIME_REFRESH_DEBOUNCE_MS = 120;
 
 export default function WallboardPage() {
   const [tickets, setTickets] = useState<WallboardTicket[]>([]);
@@ -354,7 +358,18 @@ export default function WallboardPage() {
     }, POLL_INTERVAL_MS);
 
     let refreshTimeout: number | null = null;
-    const realtimeChannel = getSupabaseClient()?.channel("relay-wallboard-refresh");
+    const realtimeChannel = getSupabaseClient()?.channel(FRONT_COUNTER_LIVE_CHANNEL);
+
+    const scheduleRealtimeRefresh = () => {
+      if (refreshTimeout) {
+        window.clearTimeout(refreshTimeout);
+      }
+
+      refreshTimeout = window.setTimeout(() => {
+        refreshTimeout = null;
+        void loadTickets();
+      }, REALTIME_REFRESH_DEBOUNCE_MS);
+    };
 
     realtimeChannel?.on(
       "postgres_changes",
@@ -363,16 +378,17 @@ export default function WallboardPage() {
         schema: "public",
         table: "tickets",
       },
-      () => {
-        if (refreshTimeout) {
-          window.clearTimeout(refreshTimeout);
-        }
-
-        refreshTimeout = window.setTimeout(() => {
-          refreshTimeout = null;
-          void loadTickets();
-        }, REALTIME_REFRESH_DEBOUNCE_MS);
-      },
+      scheduleRealtimeRefresh,
+    );
+    realtimeChannel?.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "front_counter_collection_requests" },
+      scheduleRealtimeRefresh,
+    );
+    realtimeChannel?.on(
+      "broadcast",
+      { event: "refresh" },
+      scheduleRealtimeRefresh,
     );
     realtimeChannel?.on(
       "postgres_changes",
@@ -471,28 +487,33 @@ export default function WallboardPage() {
   }, [tickets]);
 
   const operatorMetrics = useMemo(() => {
-    return adminOperatorNames.map((operator) => {
-      const operatorTickets = tickets.filter(
-        (ticket) => normalizeOperatorName(ticket.assigned_to) === normalizeOperatorName(operator),
-      );
-      const pendingCount = operatorTickets.filter((ticket) => ticket.status === "PENDING").length;
-      const inProgressCount = operatorTickets.filter((ticket) => ticket.status === "IN_PROGRESS").length;
-      const orderedCount = operatorTickets.filter((ticket) => ticket.status === "ORDERED").length;
-      const readyCount = operatorTickets.filter((ticket) => ticket.status === "READY").length;
-      const oldestTicket = [...operatorTickets].sort((left, right) =>
-        compareIsoDates(left.created_at, right.created_at),
-      )[0];
+    return adminOperatorNames
+      .map((operator) => {
+        const operatorTickets = tickets.filter(
+          (ticket) => normalizeOperatorName(ticket.assigned_to) === normalizeOperatorName(operator),
+        );
+        const pendingCount = operatorTickets.filter((ticket) => ticket.status === "PENDING").length;
+        const inProgressCount = operatorTickets.filter((ticket) => ticket.status === "IN_PROGRESS").length;
+        const orderedCount = operatorTickets.filter((ticket) => ticket.status === "ORDERED").length;
+        const readyCount = operatorTickets.filter((ticket) => ticket.status === "READY").length;
+        const oldestTicket = [...operatorTickets].sort((left, right) =>
+          compareIsoDates(left.created_at, right.created_at),
+        )[0];
 
-      return {
-        operator,
-        total: operatorTickets.length,
-        pendingCount,
-        inProgressCount,
-        orderedCount,
-        readyCount,
-        oldestAge: formatRelativeAge(oldestTicket?.created_at ?? null),
-      };
-    });
+        return {
+          operator,
+          total: operatorTickets.length,
+          pendingCount,
+          inProgressCount,
+          orderedCount,
+          readyCount,
+          oldestAge: formatRelativeAge(oldestTicket?.created_at ?? null),
+        };
+      })
+      .sort(
+        (left, right) =>
+          right.total - left.total || left.operator.localeCompare(right.operator),
+      );
   }, [adminOperatorNames, tickets]);
 
   const supplierSpendSummary = useMemo(() => {
