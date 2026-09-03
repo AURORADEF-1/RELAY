@@ -39,6 +39,23 @@ const printerFile = "components/dymo-print-station.tsx";
 requireText(printerFile, "requestedBy:", "requested-by data passed to the printer template");
 requireText(printerFile, "readyAt:", "READY timestamp passed to the printer template");
 
+const frontCounterTerminalFile = "app/terminal/page.tsx";
+requireText(
+  frontCounterTerminalFile,
+  "requestFrontCounterCollection",
+  "Fitter Waiting barcode collection request",
+);
+requireText(
+  frontCounterTerminalFile,
+  "completeFrontCounterCollection",
+  "Front Counter barcode handover verification",
+);
+requireText(
+  "app/wallboard/page.tsx",
+  "Fitter waiting",
+  "Fitter Waiting wallboard takeover",
+);
+
 const operationsFile = "app/admin/page.tsx";
 requireText(operationsFile, "Bin location required before marking this ticket READY.", "Operations READY validation");
 requireText(operationsFile, "syncNexusEcommerceOrderStatus", "NEXUS order-status synchronization");
@@ -114,4 +131,4 @@ if (failures.length > 0) {
 }
 
 console.log("RELAY release integrity check passed.");
-console.log("Protected: Code 39 labels, READY metadata and bin enforcement, browser notifications, and NEXUS order bridge.");
+console.log("Protected: Code 39 labels, Fitter Waiting scans, READY metadata and bin enforcement, browser notifications, and NEXUS order bridge.");
