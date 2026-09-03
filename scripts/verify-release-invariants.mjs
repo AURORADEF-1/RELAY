@@ -147,6 +147,16 @@ requireText(
   "fitter mobile session controls",
 );
 requireText(
+  "components/console/console-shell.tsx",
+  'href: "/completed"',
+  "Completed Jobs admin navigation",
+);
+requireText(
+  "components/console/console-shell.tsx",
+  'href: "/front-counter"',
+  "Front Counter admin navigation",
+);
+requireText(
   "app/requests/page.tsx",
   "New parts request",
   "fitter mobile primary action",

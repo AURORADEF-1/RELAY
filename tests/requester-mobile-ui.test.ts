@@ -3,6 +3,18 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("RELAY fitter mobile workspace", () => {
+  it("keeps the completed archive and Front Counter controls in admin navigation", () => {
+    const shell = readFileSync(
+      resolve(process.cwd(), "components/console/console-shell.tsx"),
+      "utf8",
+    );
+
+    expect(shell).toContain('href: "/completed"');
+    expect(shell).toContain('label: "Completed Jobs"');
+    expect(shell).toContain('href: "/front-counter"');
+    expect(shell).toContain('label: "Front Counter"');
+  });
+
   it("keeps navigation labels visible and provides a mobile logout action", () => {
     const shell = readFileSync(
       resolve(process.cwd(), "components/console/console-shell.tsx"),

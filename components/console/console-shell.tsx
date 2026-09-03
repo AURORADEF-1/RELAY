@@ -45,6 +45,12 @@ type NavigationItem = {
 const navigation: NavigationItem[] = [
   { href: "/console", label: "Operations", icon: "console", adminOnly: true },
   { href: "/my-jobs", label: "My Jobs", icon: "clipboard", adminOnly: true },
+  {
+    href: "/completed",
+    label: "Completed Jobs",
+    icon: "clipboard",
+    adminOnly: true,
+  },
   { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", adminOnly: true },
   { href: "/scan", label: "Scan & Issue", icon: "parts", adminOnly: true },
   { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
@@ -73,6 +79,12 @@ const navigation: NavigationItem[] = [
     badge: "admin",
   },
   { href: "/incidents", label: "Workshop", icon: "workshop", adminOnly: true },
+  {
+    href: "/front-counter",
+    label: "Front Counter",
+    icon: "wallboard",
+    adminOnly: true,
+  },
   { href: "/tasks", label: "Tasks", icon: "activity", badge: "tasks" },
   {
     href: "/control",
