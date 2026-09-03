@@ -46,4 +46,15 @@ describe("front counter live operations", () => {
     expect(kiosk).toContain('--app="$url"');
     expect(kiosk).toContain("--ozone-platform=wayland");
   });
+
+  it("keeps READY labels scan-safe after CUPS scaling", () => {
+    const bridge = readFileSync(
+      resolve(process.cwd(), "printer-agents/cups/relay_cups_bridge.py"),
+      "utf8",
+    );
+
+    expect(bridge).toContain("CODE39_WIDE_RATIO = 2");
+    expect(bridge).toContain("CODE39_MIN_NARROW_PIXELS = 3");
+    expect(bridge).toContain("Barcode is too dense to print reliably");
+  });
 });

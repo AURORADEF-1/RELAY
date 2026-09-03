@@ -39,6 +39,11 @@ const printerFile = "components/dymo-print-station.tsx";
 requireText(printerFile, "requestedBy:", "requested-by data passed to the printer template");
 requireText(printerFile, "readyAt:", "READY timestamp passed to the printer template");
 
+const cupsBridgeFile = "printer-agents/cups/relay_cups_bridge.py";
+requireText(cupsBridgeFile, "CODE39_WIDE_RATIO = 2", "scan-safe CUPS Code 39 wide ratio");
+requireText(cupsBridgeFile, "CODE39_MIN_NARROW_PIXELS = 3", "scan-safe minimum CUPS barcode width");
+requireText(cupsBridgeFile, "Barcode is too dense to print reliably", "CUPS barcode density guard");
+
 const frontCounterTerminalFile = "app/terminal/page.tsx";
 requireText(
   frontCounterTerminalFile,

@@ -17,6 +17,8 @@ PORT = int(os.environ.get("RELAY_CUPS_PORT", "8765"))
 PRINTER = os.environ.get("RELAY_CUPS_PRINTER", "").strip()
 ALLOWED_ORIGIN = os.environ.get("RELAY_ALLOWED_ORIGIN", "https://relay-ryoz.vercel.app")
 TOKEN_RE = re.compile(r"^RLY-[A-Z0-9]{8,32}$")
+CODE39_WIDE_RATIO = 2
+CODE39_MIN_NARROW_PIXELS = 3
 CODE39 = {
     "0":"nnnwwnwnn", "1":"wnnwnnnnw", "2":"nnwwnnnnw", "3":"wnwwnnnnn",
     "4":"nnnwwnnnw", "5":"wnnwwnnnn", "6":"nnwwwnnnn", "7":"nnnwnnwnw",
@@ -51,13 +53,15 @@ def draw_code39(draw, value, x, y, width, height):
     encoded = f"*{value}*"
     if any(character not in CODE39 for character in encoded):
         raise ValueError("Barcode contains a character unsupported by Code 39")
-    units = sum(3 if width_code == "w" else 1 for char in encoded for width_code in CODE39[char]) + len(encoded) - 1
-    narrow = max(1, width // units)
+    units = sum(CODE39_WIDE_RATIO if width_code == "w" else 1 for char in encoded for width_code in CODE39[char]) + len(encoded) - 1
+    narrow = width // units
+    if narrow < CODE39_MIN_NARROW_PIXELS:
+        raise ValueError("Barcode is too dense to print reliably")
     used = units * narrow
     cursor = x + max(0, (width - used) // 2)
     for char_index, char in enumerate(encoded):
         for index, width_code in enumerate(CODE39[char]):
-            segment = narrow * (3 if width_code == "w" else 1)
+            segment = narrow * (CODE39_WIDE_RATIO if width_code == "w" else 1)
             if index % 2 == 0:
                 draw.rectangle((cursor, y, cursor + segment - 1, y + height), fill="black")
             cursor += segment
