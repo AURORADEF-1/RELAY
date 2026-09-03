@@ -77,4 +77,18 @@ describe("RELAY system broadcasts", () => {
       "new.status = 'READY' and nullif(btrim(new.bin_location), '') is null",
     );
   });
+
+  it("restores Chrome's native notification permission prompt after login", () => {
+    const provider = readFileSync(
+      resolve(process.cwd(), "components/notification-provider.tsx"),
+      "utf8",
+    );
+
+    expect(provider).toContain("Notification.requestPermission()");
+    expect(provider).toContain(
+      "shouldPromptBrowserNotifications(pathnameRef.current)",
+    );
+    expect(provider).toContain("getBrowserNotificationPromptKey(adminUser)");
+    expect(provider).toContain("requestDesktopNotifications().catch");
+  });
 });

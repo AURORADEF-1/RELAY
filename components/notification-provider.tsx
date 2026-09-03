@@ -98,6 +98,7 @@ const MAX_STORED_TOASTED_NOTIFICATION_IDS = 120;
 const JOB_ASSIGNMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const ADMIN_EXTENSION_NOTIFICATION_MESSAGE = "RELAY_ADMIN_NOTIFICATION";
 const SYSTEM_BROADCAST_TYPE = "system_broadcast";
+const BROWSER_NOTIFICATION_PROMPT_VERSION = "v2";
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
   "operator_message",
@@ -203,6 +204,23 @@ function shouldTrackUserPresence(pathname: string) {
     pathname === "/wallboard" ||
     pathname.startsWith("/oversight")
   );
+}
+
+function shouldPromptBrowserNotifications(pathname: string) {
+  return !(
+    pathname === "/login" ||
+    pathname === "/legal" ||
+    pathname === "/wallboard" ||
+    pathname === "/terminal" ||
+    pathname === "/scan" ||
+    pathname.startsWith("/oversight")
+  );
+}
+
+function getBrowserNotificationPromptKey(adminUser: boolean) {
+  return `relay-browser-notification-prompt-${BROWSER_NOTIFICATION_PROMPT_VERSION}-${
+    adminUser ? "admin" : "requester"
+  }`;
 }
 
 function getToastedNotificationStorageKey(userId: string) {
@@ -956,6 +974,26 @@ export function NotificationProvider({
         presenceFailureCountRef.current = 0;
         sessionControlFailureCountRef.current = 0;
 
+        if (
+          shouldPromptBrowserNotifications(pathnameRef.current) &&
+          typeof window !== "undefined" &&
+          typeof Notification !== "undefined" &&
+          Notification.permission === "default"
+        ) {
+          const browserNotificationPromptKey =
+            getBrowserNotificationPromptKey(adminUser);
+
+          if (!window.localStorage.getItem(browserNotificationPromptKey)) {
+            window.localStorage.setItem(browserNotificationPromptKey, "1");
+            void requestDesktopNotifications().catch((notificationError) => {
+              console.error(
+                "Failed to request RELAY desktop notification permission",
+                notificationError,
+              );
+            });
+          }
+        }
+
         const syncPresence = async () => {
           if (!isMounted || notificationLifecycleVersionRef.current !== lifecycleVersion) {
             return false;
@@ -1362,6 +1400,7 @@ export function NotificationProvider({
     markPathNotificationsRead,
     refreshPendingTicketCount,
     refreshUrgentTicketReminders,
+    requestDesktopNotifications,
     syncUnreadNotifications,
   ]);
 

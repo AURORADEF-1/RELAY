@@ -65,6 +65,11 @@ requireText(
   "all-user broadcast Realtime subscription",
 );
 requireText(
+  "components/notification-provider.tsx",
+  "requestDesktopNotifications().catch",
+  "native browser notification permission prompt",
+);
+requireText(
   "app/control/page.tsx",
   "<AdminBroadcastPanel />",
   "Admin Control announcement panel",
