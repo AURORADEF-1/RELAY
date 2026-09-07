@@ -86,7 +86,6 @@ export default function WallboardPage() {
   const modeStartedAtRef = useRef(modeStartedAt);
   const pageStartedAtRef = useRef(pageStartedAt);
   const currentModeRef = useRef(currentMode);
-  const frontCounterModeRef = useRef(false);
 
   useEffect(() => {
     modeStartedAtRef.current = modeStartedAt;
@@ -136,22 +135,36 @@ export default function WallboardPage() {
 
       const access = await getCurrentUserWithRole(supabase);
       if (access.isFrontCounter) {
-        frontCounterModeRef.current = true;
         setIsFrontCounterMode(true);
-        const [ticketResult, nextCollectionQueue] = await Promise.all([
+        const [ticketResult, spendResult, operatorResult, collectionResult] = await Promise.allSettled([
           supabase.rpc("list_front_counter_wallboard_tickets"),
+          supabase.rpc("list_front_counter_wallboard_supplier_spend"),
+          fetchAdminOperatorRecords(supabase),
           fetchFrontCounterCollectionQueue(supabase),
         ]);
-        if (ticketResult.error) {
-          setLoadError(ticketResult.error.message);
+        if (!isActive) return;
+        if (ticketResult.status === "rejected" || ticketResult.value.error) {
+          setLoadError("Unable to load the Front Counter wallboard queue.");
           setIsLoading(false);
           return;
         }
-        const nextTickets = (ticketResult.data ?? []) as WallboardTicket[];
+        const nextTickets = (ticketResult.value.data ?? []) as WallboardTicket[];
+        syncPendingTakeover(nextTickets);
         setTickets(nextTickets);
-        setCollectionQueue(nextCollectionQueue);
-        setCurrentMode("ready");
-        setLoadError(null);
+        if (spendResult.status === "fulfilled" && !spendResult.value.error) {
+          setSupplierSpendTickets((spendResult.value.data ?? []) as SupplierSpendTicket[]);
+        }
+        if (operatorResult.status === "fulfilled") {
+          setAdminOperatorNames(operatorResult.value.map((operator) => operator.name));
+        }
+        setCollectionQueue(collectionResult.status === "fulfilled" ? collectionResult.value : []);
+        setLoadError(
+          spendResult.status === "rejected" || spendResult.value.error
+            ? "Supplier spend unavailable. Live queue is current."
+            : collectionResult.status === "rejected"
+              ? "Collection alerts unavailable. Live queue is current."
+              : null,
+        );
         setLastUpdatedAt(new Date().toISOString());
         setIsLoading(false);
         return;
@@ -409,14 +422,6 @@ export default function WallboardPage() {
         return;
       }
 
-      if (frontCounterModeRef.current) {
-        if (now - pageStartedAtRef.current >= PAGE_DURATION_MS) {
-          setCurrentPage((previousPage) => previousPage + 1);
-          setPageStartedAt(now);
-        }
-        return;
-      }
-
       if (now - modeStartedAtRef.current >= MODE_DURATION_MS) {
         setCurrentMode((previousMode) => getNextWallboardMode(previousMode));
         setModeStartedAt(now);
@@ -459,7 +464,7 @@ export default function WallboardPage() {
       .sort((left, right) => compareIsoDates(left.created_at, right.created_at));
   }, [tickets]);
 
-  const hasPendingTakeover = !isFrontCounterMode && unassignedPendingTickets.length > 0;
+  const hasPendingTakeover = unassignedPendingTickets.length > 0;
 
   const inboundTickets = useMemo(() => {
     return [...tickets]
