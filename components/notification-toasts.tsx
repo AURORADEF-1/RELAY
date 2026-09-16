@@ -1,10 +1,48 @@
 "use client";
 
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useNotifications } from "@/components/notification-provider";
 
+const PROMPT_DISMISSED_KEY = "relay:desktop-alert-prompt-dismissed:v1";
+const PROMPT_CHANGED_EVENT = "relay:desktop-alert-prompt-changed";
+let dismissedForSession = false;
+
+function subscribeToPromptPreference(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(PROMPT_CHANGED_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(PROMPT_CHANGED_EVENT, onChange);
+  };
+}
+
+function isPromptDismissed() {
+  if (dismissedForSession) return true;
+  try {
+    return window.localStorage.getItem(PROMPT_DISMISSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function dismissDesktopAlertPrompt() {
+  dismissedForSession = true;
+  try {
+    window.localStorage.setItem(PROMPT_DISMISSED_KEY, "true");
+  } catch {
+    // Still dismiss for this session if the browser blocks storage.
+  }
+  window.dispatchEvent(new Event(PROMPT_CHANGED_EVENT));
+}
+
 export function NotificationToasts() {
+  const promptDismissed = useSyncExternalStore(
+    subscribeToPromptPreference,
+    isPromptDismissed,
+    () => true,
+  );
   const pathname = usePathname();
   const {
     desktopNotificationPermission,
@@ -15,6 +53,8 @@ export function NotificationToasts() {
   } = useNotifications();
   const showDesktopAlertControl =
     isAuthenticated &&
+    !promptDismissed &&
+    desktopNotificationPermission !== "unsupported" &&
     desktopNotificationPermission !== "granted";
 
   if (pathname === "/wallboard" || (toasts.length === 0 && !showDesktopAlertControl)) {
@@ -28,15 +68,23 @@ export function NotificationToasts() {
     >
       {showDesktopAlertControl ? (
         <div className="pointer-events-auto w-[min(34rem,calc(100vw-2rem))] rounded-[1.5rem] border border-amber-400/30 bg-[color:var(--background-elevated)] px-5 py-4 shadow-[var(--shadow-panel)] backdrop-blur">
-          <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
-            Enable RELAY desktop alerts
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
+              Enable RELAY desktop alerts
+            </p>
+            <button
+              type="button"
+              onClick={dismissDesktopAlertPrompt}
+              aria-label="Dismiss desktop alert reminder"
+              className="min-h-11 shrink-0 rounded-full px-3 text-sm font-semibold text-[color:var(--foreground-subtle)] transition hover:bg-[color:var(--accent-soft)]"
+            >
+              Close
+            </button>
+          </div>
           <p className="mt-1 text-sm leading-6 text-[color:var(--foreground-muted)]">
             {desktopNotificationPermission === "denied"
               ? "Desktop alerts are blocked. Allow notifications for this site in your browser settings, then reload RELAY."
-              : desktopNotificationPermission === "unsupported"
-                ? "On iPhone, add RELAY to your Home Screen, open the installed RELAY app, then enable alerts. Keep in-app alerts available by leaving RELAY signed in."
-                : "Get Chrome alerts for ticket updates, collection readiness, assigned tasks and RELAY announcements—even while the tab is in the background."}
+              : "Get Chrome alerts for ticket updates, collection readiness, assigned tasks and RELAY announcements—even while the tab is in the background."}
           </p>
           {desktopNotificationPermission === "default" ? (
             <button
