@@ -254,7 +254,8 @@ type StatusExportFieldKey =
   | "ordered_at"
   | "ready_at"
   | "created_at"
-  | "updated_at";
+  | "updated_at"
+  | "bin_location";
 
 const STATUS_EXPORT_FIELD_OPTIONS: Array<{
   key: StatusExportFieldKey;
@@ -282,6 +283,7 @@ const STATUS_EXPORT_FIELD_OPTIONS: Array<{
   { key: "ready_at", label: "Ready at" },
   { key: "created_at", label: "Created at" },
   { key: "updated_at", label: "Updated at" },
+  { key: "bin_location", label: "Bin location" },
 ];
 
 const DEFAULT_STATUS_EXPORT_FIELDS: Record<StatusExportFieldKey, boolean> = {
@@ -307,10 +309,13 @@ const DEFAULT_STATUS_EXPORT_FIELDS: Record<StatusExportFieldKey, boolean> = {
   ready_at: false,
   created_at: true,
   updated_at: true,
+  bin_location: true,
 };
 
 function getStatusExportFieldValue(ticket: Ticket, field: StatusExportFieldKey) {
   switch (field) {
+    case "bin_location":
+      return ticket.bin_location ?? "";
     case "job_number":
       return ticket.job_number ?? "";
     case "status":

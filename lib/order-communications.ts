@@ -277,6 +277,7 @@ export function buildOrdersCsvContent(
           "assigned_to",
           "created_at",
           "updated_at",
+          "bin_location",
         ]
       : [
           "status",
@@ -291,6 +292,7 @@ export function buildOrdersCsvContent(
           "machine_reference",
           "request_summary",
           "assigned_to",
+          "bin_location",
         ],
     ...orders.map((order) =>
       includeAllFields
@@ -317,6 +319,7 @@ export function buildOrdersCsvContent(
             order.assigned_to ?? "",
             order.created_at ?? "",
             order.updated_at ?? "",
+            order.bin_location ?? "",
           ]
         : [
             order.status ?? "",
@@ -331,6 +334,7 @@ export function buildOrdersCsvContent(
             order.machine_reference ?? "",
             order.request_summary ?? order.request_details ?? "",
             order.assigned_to ?? "",
+            order.bin_location ?? "",
           ],
     ),
   ];
