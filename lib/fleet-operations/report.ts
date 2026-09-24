@@ -21,18 +21,35 @@ export function positionSide(position: LinkedJcbMachine['position'], now:number)
   return inside?'off_hire':'on_hire';
 }
 export function hireState(samples:Snapshot[],now:number){
-  const points=[...new Map(samples.filter(s=>s.payload.position?.at).map(s=>[s.payload.position!.at!,s.payload.position!])).values()].sort((a,b)=>Date.parse(a.at!)-Date.parse(b.at!));
+  const points=[...new Map(samples.filter(s=>s.payload.position?.at).map(s=>[s.payload.position!.at!,s.payload.position!])).values()].filter(p=>Number.isFinite(Date.parse(p.at!))&&Date.parse(p.at!)<=now).sort((a,b)=>Date.parse(a.at!)-Date.parse(b.at!));
   let lastKnown:HireStatus='unknown',lastKnownAt:string|null=null;
-  for(let i=1;i<points.length;i++){
-    const time=Date.parse(points[i].at!);
-    const side=positionSide(points[i],time),prior=positionSide(points[i-1],time);
-    if(side!=='unknown'&&side===prior){lastKnown=side;lastKnownAt=points[i].at;}
+  for(let i=0;i<points.length;i++){
+    const time=Date.parse(points[i].at!),side=positionSide(points[i],time);
+    if(side==='unknown')continue;
+    // A first valid observation establishes status. Only a change of side needs
+    // a second distinct, recent observation; repeated cached timestamps cannot confirm it.
+    if(lastKnown==='unknown'||side===lastKnown||(i>0&&positionSide(points[i-1],time)===side)){
+      lastKnown=side;lastKnownAt=points[i].at;
+    }
   }
-  const latest=points.at(-1),prior=points.at(-2);
-  const side=samples.at(-1)?.payload.position?positionSide(latest??null,now):'unknown';
-  const status:HireStatus=side!=='unknown'&&prior&&positionSide(prior,now)===side?side:'unknown';
-  return {status,lastKnown,lastKnownAt,position:latest??null,reason:!samples.at(-1)?.payload.position?'No current GPS reading':!latest?'No GPS reading':positionSide(latest,now)==='unknown'?'Stale, invalid or near yard boundary':status==='unknown'?'Awaiting two distinct GPS readings':'Confirmed by two distinct GPS readings'};
+  const current=samples.at(-1)?.payload.position,latest=points.at(-1);
+  const at=Date.parse(current?.at??''),age=now-at;
+  let state:'current'|'stale'|'missing'|'invalid'|'boundary'|'crossing'='current';
+  if(!current)state='missing';
+  else if(!Number.isFinite(at)||age<0||!Number.isFinite(current.latitude)||!Number.isFinite(current.longitude)||Math.abs(current.latitude)>90||Math.abs(current.longitude)>180||(current.latitude===0&&current.longitude===0))state='invalid';
+  else if(age>DAY)state='stale';
+  else if(positionSide(current,now)==='unknown')state='boundary';
+  else if(positionSide(current,now)!==lastKnown)state='crossing';
+  const status:HireStatus=state==='current'?positionSide(current!,now):'unknown';
+  const reasons={current:'Based on latest valid location',stale:'GPS location is over 24 hours old',missing:'No current GPS reading',invalid:'GPS reading is invalid or has no valid timestamp',boundary:'Within 20 metres of the yard boundary',crossing:'Awaiting a second GPS report to confirm yard crossing'};
+  return {status,lastKnown,lastKnownAt,position:current??latest??null,state,reason:reasons[state]};
 }
+export function hireLabel(hire:ReturnType<typeof hireState>){
+  if(hire.status==='on_hire')return 'On hire';
+  if(hire.status==='off_hire')return 'Off hire';
+  return {current:'Location unavailable',stale:'Old location',missing:'No GPS location',invalid:'Invalid GPS',boundary:'Near yard boundary',crossing:'Awaiting crossing update'}[hire.state];
+}
+
 type Metric = 'fuelUsed'|'hours'|'idleHours';
 type Interval = {start:number;end:number;value:number};
 function intervals(samples:Snapshot[],metric:Metric,from:number,to:number):Interval[]{
