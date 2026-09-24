@@ -7,7 +7,7 @@ export async function POST(request:NextRequest){
  try{
   await authorizeOperations(request);
   const {provider}=await request.json();
-  if(provider!=='jcb'&&provider!=='trackunit')return jcbJson({error:'Choose JCB or Manitou.'},400);
+  if(provider!=='jcb'&&provider!=='trackunit'&&provider!=='takeuchi')return jcbJson({error:'Choose JCB, Manitou or Takeuchi.'},400);
   const last=await operationsDatabase().from('fleet_operation_runs').select('checked_at').eq('provider',provider).order('checked_at',{ascending:false}).limit(1).maybeSingle();
   if(last.error)return jcbJson({error:'Unable to verify the previous collection.'},503);
   if(last.data&&Date.now()-Date.parse(last.data.checked_at)<15*60000)return jcbJson({recent:true});

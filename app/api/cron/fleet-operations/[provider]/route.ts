@@ -6,6 +6,6 @@ export const maxDuration=300;
 export async function GET(request:NextRequest,{params}:{params:Promise<{provider:string}>}){
  if(!validCronAuthorization(request.headers.get('authorization'),process.env.CRON_SECRET))return jcbJson({error:'Authentication required.'},401);
  const {provider}=await params;
- if(provider!=='jcb'&&provider!=='trackunit')return jcbJson({error:'Unknown provider.'},404);
+ if(provider!=='jcb'&&provider!=='trackunit'&&provider!=='takeuchi')return jcbJson({error:'Unknown provider.'},404);
  try{return jcbJson(await collectOperations(provider));}catch(error){return jcbError(error);}
 }

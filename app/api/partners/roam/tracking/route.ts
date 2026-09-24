@@ -1,3 +1,5 @@
+import {getTakeuchiFleet} from '@/lib/integrations/takeuchi/client';
+import {linkTakeuchiMachines} from '@/lib/integrations/takeuchi/normalize';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authorizeRicoFleetFeed } from '@/lib/integrations/rico/feed-auth';
@@ -28,19 +30,21 @@ export async function GET(request:NextRequest) {
       }
       throw Error('Registry exceeded supported size');
     }
-    const [registry,owned,jcbMappings,trackMappings]=await Promise.all([
+    const [registry,owned,jcbMappings,trackMappings,takeuchiMappings]=await Promise.all([
       rows<RegistryMachine&{lifecycle_status:string}>('machines','id,machine_number,serial_number,make,model,lifecycle_status','id'),
       rows<{machine_id:string}>('customer_fleet_machines','machine_id,fleet_id','machine_id,fleet_id'),
       rows<{pin:string;machine_id:string}>('jcb_livelink_mappings','pin,machine_id','pin'),
       rows<{pin:string;machine_id:string}>('trackunit_mappings','pin,machine_id','pin'),
+      rows<{pin:string;machine_id:string}>('takeuchi_mappings','pin,machine_id','pin'),
     ]);
     const customerIds=new Set(owned.map(m=>m.machine_id));
     const allowed=new Set(registry.filter(m=>m.lifecycle_status==='active'&&!customerIds.has(m.id)).map(m=>m.id));
     const results=await Promise.allSettled([
       (async()=>{if(process.env.JCB_LIVELINK_ENABLED!=='true')throw Error();const f=await getJcbFleet();return {machines:linkMachines(f.machines,registry,jcbMappings),checkedAt:f.checkedAt};})(),
       (async()=>{if(process.env.TRACKUNIT_ENABLED!=='true')throw Error();const f=await getTrackunitFleet();return {machines:linkTrackunitMachines(f.machines,registry,trackMappings),checkedAt:f.checkedAt};})(),
+      (async()=>{if(process.env.TAKEUCHI_ENABLED!=='true')throw Error();const f=await getTakeuchiFleet();return {machines:linkTakeuchiMachines(f.machines,registry,takeuchiMappings),checkedAt:f.checkedAt};})(),
     ]);
-    const groups=results.map((r,i):{source:TrackingSource;machines:LinkedJcbMachine[]}=>({source:{provider:i===0?'jcb':'trackunit',available:r.status==='fulfilled',checked_at:r.status==='fulfilled'?r.value.checkedAt:null},machines:r.status==='fulfilled'?r.value.machines:[]}));
+    const groups=results.map((r,i):{source:TrackingSource;machines:LinkedJcbMachine[]}=>({source:{provider:i===0?'jcb':i===1?'trackunit':'takeuchi',available:r.status==='fulfilled',checked_at:r.status==='fulfilled'?r.value.checkedAt:null},machines:r.status==='fulfilled'?r.value.machines:[]}));
     return json(trackingSnapshot(groups,allowed),results.every(r=>r.status==='rejected')?503:200);
   }catch{return json({error:'Unable to verify fleet ownership. Tracking feed unavailable.'},503);}
 }

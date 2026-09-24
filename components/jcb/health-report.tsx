@@ -6,7 +6,7 @@ import { healthLabel, priorityRank, type HealthRow } from "@/lib/integrations/jc
 import { FaultCards } from "./fault-cards";
 import { machineBrand, partsRequestUrl } from "@/lib/integrations/jcb/types";
 import "./health.css";
-export function HealthReport({sample,now,provider="jcb"}: {sample?:HealthRow[];now?:number;provider?:"jcb"|"trackunit"}) {
+export function HealthReport({sample,now,provider="jcb"}: {sample?:HealthRow[];now?:number;provider?:"jcb"|"trackunit"|"takeuchi"}) {
   const [rows,setRows]=useState<HealthRow[]>(sample ?? []),[loading,setLoading]=useState(!sample),[error,setError]=useState("");
   const [monitor,setMonitor]=useState(sample ? "Preview: hourly admin alerts after activation" : "Checking monitoring status…");
   const [version,setVersion]=useState(0),[filter,setFilter]=useState("all"),[search,setSearch]=useState(""),[selected,setSelected]=useState<string|null>(null),[total,setTotal]=useState(sample?.length ?? 0);
@@ -24,7 +24,7 @@ export function HealthReport({sample,now,provider="jcb"}: {sample?:HealthRow[];n
   const count=(priority:string)=>rows.filter(r=>priority==="clear"?!r.issues.length:r.issues.some(i=>i.priority===priority)).length;
   const visible=rows.filter(r=>(`${r.machine.equipmentId} ${r.machine.model} ${r.machine.pin}`).toLowerCase().includes(search.toLowerCase())&&(filter==="all"||filter==="clear"&&!r.issues.length||r.issues.some(i=>i.priority===filter))).sort((a,b)=>(a.issues[0]?priorityRank(a.issues[0].priority):3)-(b.issues[0]?priorityRank(b.issues[0].priority):3));
   const chosen=rows.find(r=>r.machine.pin===selected);
-  return <section className="fh-report"><header className="fh-header"><div><span className="fh-eyebrow">REPORTS / {provider === "jcb" ? "JCB LIVELINK" : "MANITOU TRACK"}</span><h2>Fleet health<span className="fh-live">{sample?"SAMPLE DATA":provider==="jcb"?"JCB API":"TRACKUNIT API"}</span></h2><p>Know what needs attention. Plan the next step.</p></div><button className="fh-button fh-outline" disabled={loading} onClick={()=>sample?setFilter("all"):setVersion(v=>v+1)}>{loading?"Checking machines…":"Refresh health report"}</button></header>
+  return <section className="fh-report"><header className="fh-header"><div><span className="fh-eyebrow">REPORTS / {provider === "takeuchi" ? "TAKEUCHI TRACK" : provider === "jcb" ? "JCB LIVELINK" : "MANITOU TRACK"}</span><h2>Fleet health<span className="fh-live">{sample?"SAMPLE DATA":provider==="jcb"?"JCB API":"TRACKUNIT API"}</span></h2><p>Know what needs attention. Plan the next step.</p></div><button className="fh-button fh-outline" disabled={loading} onClick={()=>sample?setFilter("all"):setVersion(v=>v+1)}>{loading?"Checking machines…":"Refresh health report"}</button></header>
     <div className="fh-coverage"><span>{rows.length} / {total} machines checked{loading?" · checking in batches":""}</span><span>{monitor}</span></div>
     {error && <p role="alert" className="fh-error">{error} Report incomplete — unscanned machines have not been assessed.</p>}
     {sample && <aside className="fh-notification"><span className="fh-eyebrow">ADMIN NOTIFICATION PREVIEW</span><strong>JCB Fleet Health: 3 warnings to review</strong><p>DEMO 01: priority inspection · DEMO 02: low fuel · DEMO 03: location needs checking.</p><button className="fh-button fh-outline" onClick={()=>setFilter("urgent")}>Review priority machines →</button></aside>}

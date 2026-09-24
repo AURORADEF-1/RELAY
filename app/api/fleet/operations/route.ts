@@ -26,6 +26,6 @@ export async function GET(request:NextRequest){
     const withLatest=[...samples,{captured_at:new Date(now).toISOString(),payload:machine}];
     return {machine,hire:hireState(withLatest,now),report:operationalReport(samples,from,now)};
   }));
-  return jcbJson({rows,total:machines.length,next:start+batch.length<machines.length?batch.at(-1)!.relay!.id:null,from:new Date(from).toISOString(),to:new Date(now).toISOString(),runs:['jcb','trackunit'].map(p=>runs.data.find(r=>r.provider===p)??{provider:p,checked_at:null}),excludedConflicts:current.filter(m=>m.relay&&allowed.has(m.relay.id)).length-machines.length});
+  return jcbJson({rows,total:machines.length,next:start+batch.length<machines.length?batch.at(-1)!.relay!.id:null,from:new Date(from).toISOString(),to:new Date(now).toISOString(),runs:['jcb','trackunit','takeuchi'].map(p=>runs.data.find(r=>r.provider===p)??{provider:p,checked_at:null}),excludedConflicts:current.filter(m=>m.relay&&allowed.has(m.relay.id)).length-machines.length});
  }catch(error){return jcbError(error);}
 }
