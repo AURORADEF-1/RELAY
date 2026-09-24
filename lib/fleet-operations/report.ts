@@ -47,7 +47,7 @@ export function hireState(samples:Snapshot[],now:number){
 export function hireLabel(hire:ReturnType<typeof hireState>){
   if(hire.status==='on_hire')return 'On hire';
   if(hire.status==='off_hire')return 'Off hire';
-  return {current:'Location unavailable',stale:'Old location',missing:'No GPS location',invalid:'Invalid GPS',boundary:'Near yard boundary',crossing:'Awaiting crossing update'}[hire.state];
+  return {current:'Location unavailable',stale:'Not checked in',missing:'No GPS location',invalid:'Invalid GPS',boundary:'Near yard boundary',crossing:'Awaiting crossing update'}[hire.state];
 }
 
 type Metric = 'fuelUsed'|'hours'|'idleHours';
