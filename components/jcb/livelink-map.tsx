@@ -35,11 +35,17 @@ export default function LiveLinkMap({ machines, selectedPin, onSelect, showYard=
       if (!machine.position) continue;
       const { latitude, longitude, at } = machine.position;
       const name = machine.relay?.machine_number || machine.equipmentId || machine.pin;
-      const old = !at || Date.now() - Date.parse(at) > 48 * 3_600_000;
+      const notCheckedIn = showYard && (!at || !Number.isFinite(Date.parse(at)) || Date.now() - Date.parse(at) > 24 * 3_600_000);
+      const old = notCheckedIn || !at || Date.now() - Date.parse(at) > 48 * 3_600_000;
       const icon = L.divIcon({ className: "jcb-map-marker", html: `<span class="jcb-map-dot${old ? " jcb-map-dot-old" : machine.source === "trackunit" ? " trackunit-map-dot" : ""}"></span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
-      const marker = L.marker([latitude, longitude], { icon, title: `${name} · ${machine.model} · ${positionAge(at)}`, keyboard: true });
+      const marker = L.marker([latitude, longitude], { icon, title: `${name} · ${machine.model} · ${notCheckedIn ? "Not checked in" : positionAge(at)}`, keyboard: true });
       const popup = document.createElement("div");
       const title = document.createElement("strong"); title.textContent = `${name} · ${machineBrand(machine)} ${machine.model}`; popup.append(title);
+      if (notCheckedIn) {
+        const status = document.createElement("p"); status.textContent = "Not checked in — last known position only"; popup.append(status);
+        const pinLabel = document.createElement("span"); pinLabel.textContent = `${name} · Not checked in`;
+        marker.bindTooltip(pinLabel, { permanent: true, direction: "top", offset: [0, -15], className: "fo-unchecked-pin" });
+      }
       const time = document.createElement("p"); time.textContent = `Last position: ${at ? new Date(at).toLocaleString() : "time unavailable"}`; popup.append(time);
       const button = document.createElement("button"); button.type = "button"; button.textContent = "View machine"; button.className = "jcb-popup-button";
       button.onclick = () => select.current(machineKey(machine)); popup.append(button);
