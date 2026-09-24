@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/trackunit-health",
       "schedule": "15 * * * *"
+    },
+    {
+      "path": "/api/cron/fleet-operations/jcb",
+      "schedule": "5 * * * *"
+    },
+    {
+      "path": "/api/cron/fleet-operations/trackunit",
+      "schedule": "35 * * * *"
     }
   ]
 }

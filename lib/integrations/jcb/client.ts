@@ -67,7 +67,7 @@ export async function fetchJcbFleet(): Promise<{ machines: JcbMachine[]; checked
   }
   return { machines, checkedAt: new Date().toISOString() };
 }
-export const getJcbFleet = unstable_cache(fetchJcbFleet, ["jcb-fleet-v1"], { revalidate: 900 });
+export const getJcbFleet = unstable_cache(fetchJcbFleet, ["jcb-fleet-v2-fuel"], { revalidate: 900 });
 
 export async function fetchJcbFaults(pin: string): Promise<{ faults: JcbFault[]; checkedAt: string }> {
   let url: string | undefined = BASE + `Fleet/Equipment/${encodeURIComponent(pin)}/Faults/1`;

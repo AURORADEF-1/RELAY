@@ -38,3 +38,9 @@ export async function fetchTrackunitDetails(pin:string){
   return {telemetry:telemetry?.success?telemetry.data.result:[],faults:faults?.success?faults.data.list.map(normalizeFault):[],telemetryError:!telemetry?.success,faultError:!faults?.success,checkedAt:now.toISOString()};
 }
 export const getTrackunitDetails=unstable_cache(fetchTrackunitDetails,["trackunit-details-v1"],{revalidate:900});
+
+export async function fetchTrackunitTelemetry(unitId:string){
+  const parsed=z.object({result:z.array(telemetrySchema)}).safeParse(await request("GetUnitExtendedInfo",{Id:unitId}));
+  if(!parsed.success)throw new JcbError("Manitou telemetry is unavailable.");
+  return parsed.data.result;
+}

@@ -5,7 +5,7 @@ const field = z.record(z.string(), z.unknown()).nullish();
 export const equipmentSchema = z.object({
   EquipmentHeader: z.object({ Pin: z.string().min(1), EquipmentId: z.string().nullish(), Model: z.string().nullish() }),
   Location: field, CumulativeOperatingHours: field, CumulativeIdleHours: field,
-  FuelRemaining: field, DEFRemaining: field, EngineStatus: field,
+  FuelUsed: field, FuelUsedLast24: field, FuelRemaining: field, DEFRemaining: field, EngineStatus: field,
 });
 export const linksSchema = z.array(z.object({ Rel: z.string(), Href: z.string() })).default([]);
 export const fleetSchema = z.object({ Equipment: z.array(equipmentSchema), Links: linksSchema });
@@ -26,6 +26,10 @@ function numericReading(value: Record<string, unknown> | null | undefined, key: 
   const n = number(value?.[key]);
   return n !== null && n >= 0 && n <= max ? { value: n, at: timestamp(value?.DateTime) } : null;
 }
+function fuelReading(raw: Record<string, unknown> | null | undefined) {
+  if (!['l', 'litre', 'litres', 'liter', 'liters'].includes(String(raw?.FuelUnits ?? '').trim().toLowerCase())) return null;
+  return numericReading(raw, 'FuelConsumed');
+}
 export function normalizeEquipment(raw: z.infer<typeof equipmentSchema>): JcbMachine {
   const lat = number(raw.Location?.Latitude), lon = number(raw.Location?.Longitude);
   return {
@@ -33,6 +37,7 @@ export function normalizeEquipment(raw: z.infer<typeof equipmentSchema>): JcbMac
     position: lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
       ? { latitude: lat, longitude: lon, at: timestamp(raw.Location?.DateTime) } : null,
     hours: numericReading(raw.CumulativeOperatingHours, "Hour"), idleHours: numericReading(raw.CumulativeIdleHours, "Hour"),
+    fuelUsed: fuelReading(raw.FuelUsed), fuelUsed24h: fuelReading(raw.FuelUsedLast24),
     fuel: numericReading(raw.FuelRemaining, "Percent", 100), adblue: numericReading(raw.DEFRemaining, "Percent", 100),
     engine: typeof raw.EngineStatus?.Running === "boolean" ? { value: raw.EngineStatus.Running, at: timestamp(raw.EngineStatus.DateTime) } : null,
   };
