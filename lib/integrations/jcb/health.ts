@@ -16,7 +16,7 @@ export function faultAdvice(fault: JcbFault, now = Date.now()): HealthIssue {
     key: `fault:${fault.code}:${fault.severity.toLowerCase()}`,
     code: fault.code, priority,
     title: !recent ? "Historical / undated fault" : severe ? "Priority inspection" : "Check reported fault",
-    detail: fault.description === "No description supplied" ? "JCB supplied a code without an explanation. Check the machine display and the correct model's fault guide." : fault.description,
+    detail: fault.description === "No description supplied" ? "The provider supplied a code without an explanation. Check the machine display and the correct model's fault guide." : fault.description,
     action: !recent ? "Check the machine display and maintenance history to confirm whether this fault was resolved."
       : severe ? "Contact the operator promptly. Check the machine display; if a stop warning or unsafe behaviour is present, stop safely and arrange a qualified inspection."
       : "Ask the operator about symptoms, check the machine display and arrange a fitter inspection if the warning remains. Confirm the cause before ordering parts.",
@@ -41,7 +41,7 @@ export function assessMachine(machine: LinkedJcbMachine, faults: JcbFault[], fau
   }
   const positionAge = readingAge(machine.position?.at, now);
   if (positionAge === null || positionAge > 2 * DAY) issues.push({key:"position",priority:"review",title:"Location needs checking",detail:"No valid position reported within 48 hours.",action:"Contact the operator to confirm the location and check the telematics connection before sending a fitter.",at:machine.position?.at ?? null,notify:true});
-  if (faultError) issues.push({key:"connection",priority:"review",title:"Fault check unavailable",detail:"JCB could not return this machine's fault records.",action:"Retry the report and check directly with the operator. Missing data does not mean the machine is clear.",at:null,notify:false});
+  if (faultError) issues.push({key:"connection",priority:"review",title:"Fault check unavailable",detail:"The provider could not return this machine's fault records.",action:"Retry the report and check directly with the operator. Missing data does not mean the machine is clear.",at:null,notify:false});
   return {machine, faults:latestFaults(faults), issues:issues.sort((a,b)=>priorityRank(a.priority)-priorityRank(b.priority)),checkedAt:new Date(now).toISOString(),faultError};
 }
 export const priorityRank = (priority: Priority) => ({urgent:0,review:1,info:2})[priority];
