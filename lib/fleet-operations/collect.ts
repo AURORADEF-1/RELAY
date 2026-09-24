@@ -1,7 +1,7 @@
 import 'server-only';
 import {createHash} from 'node:crypto';
-import {getJcbFleet,JcbError} from '@/lib/integrations/jcb/client';
-import {getTrackunitFleet,fetchTrackunitTelemetry} from '@/lib/integrations/trackunit/client';
+import {fetchJcbFleet,JcbError} from '@/lib/integrations/jcb/client';
+import {fetchTrackunitFleet,fetchTrackunitTelemetry} from '@/lib/integrations/trackunit/client';
 import {linkMachines} from '@/lib/integrations/jcb/normalize';
 import {linkTrackunitMachines,applyTelemetry} from '@/lib/integrations/trackunit/normalize';
 import {operationsDatabase,ownership,allRows,eligibleMachines} from './server';
@@ -10,7 +10,7 @@ export async function collectOperations(provider:'jcb'|'trackunit'){
  if((provider==='jcb'?process.env.JCB_LIVELINK_ENABLED:process.env.TRACKUNIT_ENABLED)!=='true')throw new JcbError('Tracking provider is disabled.',503);
  const {registry,allowed}=await ownership(db);
  const mappings=await allRows<{pin:string;machine_id:string}>(db,provider==='jcb'?'jcb_livelink_mappings':'trackunit_mappings','pin,machine_id','pin');
- const jcb=provider==='jcb'?await getJcbFleet():null,track=provider==='trackunit'?await getTrackunitFleet():null;
+ const jcb=provider==='jcb'?await fetchJcbFleet():null,track=provider==='trackunit'?await fetchTrackunitFleet():null;
  const machines=eligibleMachines(jcb?linkMachines(jcb.machines,registry,mappings):linkTrackunitMachines(track!.machines,registry,mappings),allowed).sort((a,b)=>a.pin.localeCompare(b.pin));
  if(!machines.length)throw new JcbError('No eligible tracked MLP machines returned; collection incomplete.',503);
  const last=await db.from('fleet_operation_runs').select('next_pin').eq('provider',provider).order('checked_at',{ascending:false}).limit(1).maybeSingle();
