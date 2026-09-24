@@ -122,7 +122,9 @@ function emitAdminExtensionNotification(notification: {
       body: notification.body ?? "New RELAY admin activity.",
       href: notification.ticket_id
         ? `/tickets/${notification.ticket_id}`
-        : notification.type === "task_assigned"
+        : notification.type === "jcb_health"
+          ? "/reports?tab=fleet"
+          : notification.type === "task_assigned"
           ? "/tasks"
           : "/console",
     },
@@ -631,7 +633,7 @@ export function NotificationProvider({
           ...staleAssignmentNotificationIds,
         ]);
         const activeUnreadNotifications = unreadNotifications.filter(
-          (notification) => !inactiveNotificationIds.has(notification.id),
+          (notification) => !inactiveNotificationIds.has(notification.id) && (notification.type !== "jcb_health" || adminUser),
         );
         const unreadTaskNotifications = activeUnreadNotifications.filter(
           (notification) => notification.type === "task_assigned",
@@ -649,6 +651,7 @@ export function NotificationProvider({
                 notification.type === "job_assigned" ||
                 notification.type === "new_ticket" ||
                 notification.type === "front_counter_collection" ||
+                notification.type === "jcb_health" ||
                 notification.type === SYSTEM_BROADCAST_TYPE,
             )
           : activeUnreadNotifications;
@@ -658,7 +661,8 @@ export function NotificationProvider({
             (notification) =>
               notification.type === "job_assigned" ||
               notification.type === "front_counter_collection" ||
-              notification.type === SYSTEM_BROADCAST_TYPE,
+              notification.type === "jcb_health" ||
+                notification.type === SYSTEM_BROADCAST_TYPE,
           )
         );
         const extensionNotifications = adminUser
@@ -688,7 +692,8 @@ export function NotificationProvider({
                 (
                   unreadNotificationsInitializedRef.current ||
                   notification.type === "job_assigned" ||
-                  notification.type === SYSTEM_BROADCAST_TYPE
+                  notification.type === "jcb_health" ||
+                notification.type === SYSTEM_BROADCAST_TYPE
                 ),
             )
             .sort(
@@ -707,21 +712,26 @@ export function NotificationProvider({
               href:
                 notification.type === "job_assigned" && notification.ticket_id
                   ? `/tickets/${notification.ticket_id}`
-                  : notification.type === "task_assigned"
+                  : notification.type === "jcb_health"
+          ? "/reports?tab=fleet"
+          : notification.type === "task_assigned"
                   ? "/tasks"
                   : notification.ticket_id
                     ? `/tickets/${notification.ticket_id}`
                     : undefined,
-              tone: "success",
+              tone: notification.type === "jcb_health" ? "default" : "success",
               eyebrow:
                 notification.type === "front_counter_collection"
                   ? "Front Counter Collection"
-                  : notification.type === SYSTEM_BROADCAST_TYPE
+                  : notification.type === "jcb_health"
+                    ? "Fleet Health · Admin"
+                    : notification.type === SYSTEM_BROADCAST_TYPE
                     ? "RELAY Announcement"
                     : undefined,
               variant:
                 notification.type === "new_ticket" ||
                 notification.type === "front_counter_collection" ||
+                notification.type === "jcb_health" ||
                 notification.type === SYSTEM_BROADCAST_TYPE
                   ? "panel"
                   : undefined,
@@ -733,6 +743,7 @@ export function NotificationProvider({
                 notification.type === "ready_for_collection" ||
                 notification.type === "front_counter_collection" ||
                 notification.type === "job_assigned" ||
+                notification.type === "jcb_health" ||
                 notification.type === SYSTEM_BROADCAST_TYPE,
             });
             if (
@@ -742,12 +753,13 @@ export function NotificationProvider({
               notification.type === "ready_for_collection" ||
               notification.type === "front_counter_collection" ||
               notification.type === "job_assigned" ||
-              notification.type === SYSTEM_BROADCAST_TYPE
+              notification.type === "jcb_health" ||
+                notification.type === SYSTEM_BROADCAST_TYPE
             ) {
               pushBrowserNotification({
                 title: notification.title,
                 body: notification.body ?? "New RELAY activity.",
-                href: notification.ticket_id ? `/tickets/${notification.ticket_id}` : undefined,
+                href: notification.type === "jcb_health" ? "/reports?tab=fleet" : notification.ticket_id ? `/tickets/${notification.ticket_id}` : undefined,
               });
             }
             playNotificationSound();

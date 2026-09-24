@@ -1,0 +1,39 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { getSupabaseAccessToken } from "@/lib/supabase";
+import { healthLabel, priorityRank, type HealthRow } from "@/lib/integrations/jcb/health";
+import { FaultCards } from "./fault-cards";
+import { partsRequestUrl } from "@/lib/integrations/jcb/types";
+import "./health.css";
+export function HealthReport({sample,now}: {sample?:HealthRow[];now?:number}) {
+  const [rows,setRows]=useState<HealthRow[]>(sample ?? []),[loading,setLoading]=useState(!sample),[error,setError]=useState("");
+  const [monitor,setMonitor]=useState(sample ? "Preview: hourly admin alerts after activation" : "Checking monitoring status…");
+  const [version,setVersion]=useState(0),[filter,setFilter]=useState("all"),[search,setSearch]=useState(""),[selected,setSelected]=useState<string|null>(null),[total,setTotal]=useState(sample?.length ?? 0);
+  useEffect(()=>{
+    if(sample) return;
+    const controller=new AbortController();
+    async function load(){setLoading(true);setError("");setRows([]);setTotal(0);
+      try {const token=await getSupabaseAccessToken();if(!token)throw new Error("Sign in to view Fleet Health.");let cursor:string|null=null;
+        do {const response:Response=await fetch(`/api/integrations/jcb/health${cursor?`?after=${encodeURIComponent(cursor)}`:""}`,{headers:{Authorization:`Bearer ${token}`},signal:controller.signal});const data:{rows:HealthRow[];total:number;next:string|null;error?:string;monitor?:string}=await response.json();if(!response.ok)throw new Error(data.error||"Unable to check JCB fleet health.");if(controller.signal.aborted)return;setRows(previous=>[...previous,...data.rows]);setTotal(data.total);if(data.monitor)setMonitor(data.monitor);cursor=data.next;}while(cursor);
+      }catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:"Unable to check fleet health.");}finally{if(!controller.signal.aborted)setLoading(false);}}
+    void load();return()=>controller.abort();
+  },[sample,version]);
+  const dialog=useRef<HTMLDialogElement>(null);
+  useEffect(()=>{if(selected)dialog.current?.showModal();else dialog.current?.close();},[selected]);
+  const count=(priority:string)=>rows.filter(r=>priority==="clear"?!r.issues.length:r.issues.some(i=>i.priority===priority)).length;
+  const visible=rows.filter(r=>(`${r.machine.equipmentId} ${r.machine.model} ${r.machine.pin}`).toLowerCase().includes(search.toLowerCase())&&(filter==="all"||filter==="clear"&&!r.issues.length||r.issues.some(i=>i.priority===filter))).sort((a,b)=>(a.issues[0]?priorityRank(a.issues[0].priority):3)-(b.issues[0]?priorityRank(b.issues[0].priority):3));
+  const chosen=rows.find(r=>r.machine.pin===selected);
+  return <section className="fh-report"><header className="fh-header"><div><span className="fh-eyebrow">REPORTS / JCB LIVELINK</span><h2>Fleet health<span className="fh-live">{sample?"SAMPLE DATA":"JCB API"}</span></h2><p>Know what needs attention. Plan the next step.</p></div><button className="fh-button fh-outline" disabled={loading} onClick={()=>sample?setFilter("all"):setVersion(v=>v+1)}>{loading?"Checking machines…":"Refresh health report"}</button></header>
+    <div className="fh-coverage"><span>{rows.length} / {total} machines checked{loading?" · checking in batches":""}</span><span>{monitor}</span></div>
+    {error && <p role="alert" className="fh-error">{error} Report incomplete — unscanned machines have not been assessed.</p>}
+    {sample && <aside className="fh-notification"><span className="fh-eyebrow">ADMIN NOTIFICATION PREVIEW</span><strong>JCB Fleet Health: 3 warnings to review</strong><p>DEMO 01: priority inspection · DEMO 02: low fuel · DEMO 03: location needs checking.</p><button className="fh-button fh-outline" onClick={()=>setFilter("urgent")}>Review priority machines →</button></aside>}
+    <div className="fh-stats">{[["urgent","Priority inspection",count("urgent"),"Recent serious fault reports"],["review","Needs review",count("review"),"Levels, faults or location"],["info","Data / history",count("info"),"Old or undated readings"],["clear","No recent warnings",count("clear"),"Not a mechanical all-clear"]].map(([id,label,value,caption])=><button className={`fh-stat fh-${id}`} aria-pressed={filter===id} onClick={()=>setFilter(filter===id?"all":String(id))} key={id}><span>{label}</span><strong>{value}</strong><small>{caption}</small></button>)}</div>
+    <div className="fh-toolbar"><div><h3>Attention list</h3><p className="fh-muted">Recent faults: 7 days · low fuel: ≤15% · low AdBlue: ≤10%</p></div><label>Find machine<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Fleet number, model or PIN" /></label><button className="fh-button fh-outline" onClick={()=>{setFilter("all");setSearch("");}}>Show all</button></div>
+    <p className="fh-muted">Counts can overlap. Alerts use faults from the last 24 hours and fresh fluid readings. This live report is independent of the ticket report date filter.</p>
+    <div className="fh-list">{visible.map(row=><article className="fh-row" key={row.machine.pin}><div className="fh-machine"><span className={`fh-badge fh-${row.issues[0]?.priority??"clear"}`}>{healthLabel(row)}</span><h4>{row.machine.relay?.machine_number||row.machine.equipmentId}<span>JCB {row.machine.model}</span></h4><p className="fh-muted">Checked {new Date(row.checkedAt).toLocaleString("en-GB")}</p></div><div className="fh-findings">{row.issues.length?row.issues.slice(0,3).map(issue=><div key={issue.key}><strong>{issue.title}{issue.code?` · ${issue.code}`:""}</strong><p>{issue.detail}</p><small>{issue.at?`Reported ${new Date(issue.at).toLocaleString("en-GB")}`:"Reading time unavailable"}</small></div>):<p>No recent warnings in the returned JCB data.</p>}{row.issues.length>3&&<p>+{row.issues.length-3} more in machine details</p>}</div><div className="fh-next"><span className="fh-eyebrow">SUGGESTED NEXT STEP</span><p>{row.issues[0]?.action??"Continue routine checks and scheduled servicing."}</p><button className="fh-button fh-outline" onClick={()=>setSelected(row.machine.pin)}>View machine &amp; action plan →</button></div></article>)}</div>
+    {!visible.length&&!loading&&<p className="fh-empty">No machines match this filter.</p>}
+    <aside className="fh-policy"><strong>How admin alerts work</strong><p>Hourly checks send a single digest to administrators when new warnings are found. The same machine warning is suppressed for 24 hours. Fitters can read faults when selecting a machine; they do not receive fleet-wide health alerts.</p><p>JCB does not confirm that a fault is still active. Check the display, symptoms and service history before deciding on repairs.</p></aside>
+    {chosen&&<dialog ref={dialog} className="fh-overlay" aria-label="Machine action plan" onCancel={()=>setSelected(null)}><div className="fh-drawer"><button autoFocus className="fh-button fh-outline" onClick={()=>setSelected(null)}>Close machine details ×</button><h2>{chosen.machine.equipmentId} · JCB {chosen.machine.model}</h2><h3>Suggested action plan</h3><ol>{chosen.issues.map(i=><li key={i.key}><strong>{i.title}</strong><p>{i.action}</p></li>)}</ol>{!chosen.issues.length&&<p>Continue routine checks and servicing.</p>}{chosen.faultError?<p className="fh-error">Fault records unavailable. Retry before assessing this machine.</p>:<FaultCards machine={chosen.machine} faults={chosen.faults} checkedAt={chosen.checkedAt} preview={!!sample} now={now}/>}{!sample&&partsRequestUrl(chosen.machine)&&<Link className="fh-button" href={partsRequestUrl(chosen.machine)!}>Raise parts request</Link>}</div></dialog>}
+  </section>;
+}

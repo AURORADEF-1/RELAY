@@ -14,8 +14,8 @@ beforeEach(() => {
 it("keeps original position time and correct RELAY reference without fitter health",async()=>{
   const r=await get(); const body=await r.json(); expect(r.status).toBe(200); expect(body.machineReference).toBe("MLP-1"); expect(body.text).toContain("2026-09-20T08:00:00Z"); expect(body.text).not.toContain("Operating hours"); expect(mocks.faults).not.toHaveBeenCalled();
 });
-it("rejects fitter fault context before calling the upstream",async()=>{
-  expect((await get("pin=TEST&fault=F1")).status).toBe(403); expect(mocks.faults).not.toHaveBeenCalled(); expect(mocks.fleet).not.toHaveBeenCalled();
+it("allows an authorised fitter to attach a fault without admin telemetry",async()=>{
+  const response=await get("pin=TEST&fault=F1"); expect(response.status).toBe(200);const body=await response.json();expect(body.text).toContain("F1: Reported issue");expect(body.text).not.toContain("Operating hours");
 });
 it("refuses to prefill an unlinked or missing machine",async()=>{
   expect((await get("pin=MISSING")).status).toBe(409);

@@ -4,7 +4,7 @@ import { authorizeJcb, getLinkedFleet, jcbError, jcbJson } from "@/lib/integrati
 export const maxDuration = 60;
 export async function GET(request: NextRequest) {
   try {
-    const auth = await authorizeJcb(request, true);
+    const auth = await authorizeJcb(request);
     const pin = request.nextUrl.searchParams.get("pin");
     if (!pin || pin.length > 100) throw new JcbError("Select a valid machine.", 400);
     const fleet = await getLinkedFleet(auth);

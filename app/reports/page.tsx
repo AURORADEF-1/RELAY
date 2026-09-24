@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { HealthReport } from "@/components/jcb/health-report";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { ConsoleIcon } from "@/components/console/console-icon";
@@ -369,7 +370,7 @@ export default function ReportsPage() {
                       onExport={exportClosedJobs}
                     />
                   ) : null}
-                  {activeTab === "fleet" ? <FleetReport analytics={analytics} /> : null}
+                  {activeTab === "fleet" ? <><HealthReport /><FleetReport analytics={analytics} /></> : null}
                   {activeTab === "parts" ? (
                     <RankedReport
                       title="Most common parts requested"
@@ -796,7 +797,7 @@ function FleetReport({ analytics }: { analytics: ReturnType<typeof buildReportAn
       <article className="report-panel">
         <ReportHeading
           eyebrow="Fleet risk distribution"
-          title="Fleet Health"
+          title="Ticket-based fleet pressure"
           description="Health reflects current active, urgent and ordered pressure plus request frequency in the selected period."
         />
         <ReportDonutChart
