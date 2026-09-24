@@ -6,11 +6,11 @@ import { getJcbFleet, JcbError } from "./client";
 import { linkMachines, projectMachine } from "./normalize";
 import type { RegistryMachine } from "./types";
 
-export async function authorizeJcb(request: NextRequest, adminOnly = false, provider: "jcb" | "trackunit" = "jcb") {
+export async function authorizeJcb(request: NextRequest, adminOnly = false, provider: "jcb" | "trackunit" | "takeuchi" = "jcb") {
   const auth = await authorizeRelayRequesterRoute(request);
   if (!auth.ok) throw new JcbError(auth.error, auth.status);
-  const enabled = provider === "jcb" ? process.env.JCB_LIVELINK_ENABLED : process.env.TRACKUNIT_ENABLED;
-  if (enabled !== "true") throw new JcbError(`${provider === "jcb" ? "JCB LiveLink" : "Manitou Track"} is not enabled yet.`, 503);
+  const enabled = provider === "takeuchi" ? process.env.TAKEUCHI_ENABLED : provider === "jcb" ? process.env.JCB_LIVELINK_ENABLED : process.env.TRACKUNIT_ENABLED;
+  if (enabled !== "true") throw new JcbError(`${provider === "takeuchi" ? "Takeuchi Track" : provider === "jcb" ? "JCB LiveLink" : "Manitou Track"} is not enabled yet.`, 503);
   const { data: profile, error } = await auth.supabase.from("profiles").select("role").eq("id", auth.user.id).single();
   if (error) throw new JcbError("Unable to check LiveLink access.", 503);
   const admin = profile.role === "admin";

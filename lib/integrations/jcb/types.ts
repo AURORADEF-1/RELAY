@@ -1,7 +1,7 @@
 export type Reading<T> = { value: T; at: string | null };
 export type JcbFault = { code: string; description: string; severity: string; at: string | null };
 export type JcbMachine = {
-  source?: "jcb" | "trackunit";
+  source?: "jcb" | "trackunit" | "takeuchi";
   pin: string;
   equipmentId: string;
   model: string;
@@ -16,7 +16,7 @@ export type JcbMachine = {
 };
 export type RegistryMachine = { id: string; machine_number: string; serial_number: string | null; make: string | null; model: string | null };
 export type LinkedJcbMachine = Pick<JcbMachine, "pin" | "equipmentId" | "model" | "position"> & Partial<Pick<JcbMachine, "hours" | "idleHours" | "fuel" | "adblue" | "engine" | "fuelUsed" | "fuelUsed24h">> & {
-  source?: "jcb" | "trackunit";
+  source?: "jcb" | "trackunit" | "takeuchi";
   relay: RegistryMachine | null;
   match: "confirmed" | "exact" | "unmatched" | "ambiguous";
 };
@@ -34,10 +34,10 @@ export function positionAge(at: string | null | undefined, now = Date.now()) {
 export function partsRequestUrl(machine: LinkedJcbMachine, faultCode?: string) {
   if (!machine.relay) return null;
   const query = new URLSearchParams({ machineReference: machine.relay.machine_number, livelink: machine.pin });
-  if (machine.source === "trackunit") query.set("telematics", "trackunit");
+  if (machine.source && machine.source !== "jcb") query.set("telematics", machine.source);
   if (faultCode) query.set("livelinkFault", faultCode);
   return `/submit?${query}`;
 }
 
 export const machineKey = (machine: LinkedJcbMachine) => `${machine.source ?? "jcb"}:${machine.pin}`;
-export const machineBrand = (machine: LinkedJcbMachine) => machine.source === "trackunit" ? "Manitou" : "JCB";
+export const machineBrand = (machine: LinkedJcbMachine) => machine.source === "takeuchi" ? "Takeuchi" : machine.source === "trackunit" ? "Manitou" : "JCB";

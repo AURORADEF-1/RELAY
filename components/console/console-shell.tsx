@@ -40,6 +40,7 @@ type NavigationItem = {
   fleetMemberOnly?: boolean;
   liveLinkOnly?: boolean;
   trackunitOnly?: boolean;
+  takeuchiOnly?: boolean;
   frontCounterOnly?: boolean;
   badge?: "admin" | "requester" | "tasks";
   external?: boolean;
@@ -83,6 +84,7 @@ const navigation: NavigationItem[] = [
   { href: "/settings", label: "Settings", icon: "settings" },
   { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
   { href: "/manitou", label: "Manitou Track", icon: "fleet", trackunitOnly: true },
+  { href: "/takeuchi", label: "Takeuchi Track", icon: "fleet", takeuchiOnly: true },
   { href: "/livelink", label: "JCB LiveLink", icon: "fleet", liveLinkOnly: true },
   {
     href: "/parts-knowledge",
@@ -141,6 +143,7 @@ export function ConsoleShell({
   const [isInternalRelayAiOpen, setIsInternalRelayAiOpen] = useState(false);
   const [signedInUserName, setSignedInUserName] = useState("Signed in");
   const [hasCustomerFleet, setHasCustomerFleet] = useState(false);
+  const [hasTakeuchiAccess,setHasTakeuchiAccess] = useState(false);
   const [hasTrackunitAccess, setHasTrackunitAccess] = useState(false);
   const [hasLiveLinkAccess, setHasLiveLinkAccess] = useState(false);
   const [hasOversightAccess, setHasOversightAccess] = useState(false);
@@ -171,7 +174,7 @@ export function ConsoleShell({
 
         if (!user) {
           setHasLiveLinkAccess(false);
-          setHasTrackunitAccess(false);
+          setHasTrackunitAccess(false); setHasTakeuchiAccess(false);
           setHasCustomerFleet(false);
           setHasOversightAccess(false);
           return;
@@ -180,9 +183,9 @@ export function ConsoleShell({
         // The server checks explicit fitter access; customer-fleet membership is not enough.
         void getSupabaseAccessToken().then(async (token) => {
           if (!token) return;
-          const [jcb, trackunit] = await Promise.allSettled(["jcb", "trackunit"].map(provider => fetch(`/api/integrations/${provider}/access`, { headers: { Authorization: `Bearer ${token}` } })));
-          if (isMounted) { setHasLiveLinkAccess(jcb.status === "fulfilled" && jcb.value.ok); setHasTrackunitAccess(trackunit.status === "fulfilled" && trackunit.value.ok); }
-        }).catch(() => { if (isMounted) { setHasLiveLinkAccess(false); setHasTrackunitAccess(false); } });
+          const [jcb, trackunit, takeuchi] = await Promise.allSettled(["jcb", "trackunit", "takeuchi"].map(provider => fetch(`/api/integrations/${provider}/access`, { headers: { Authorization: `Bearer ${token}` } })));
+          if (isMounted) { setHasLiveLinkAccess(jcb.status === "fulfilled" && jcb.value.ok); setHasTrackunitAccess(trackunit.status === "fulfilled" && trackunit.value.ok); setHasTakeuchiAccess(takeuchi.status === "fulfilled" && takeuchi.value.ok); }
+        }).catch(() => { if (isMounted) { setHasLiveLinkAccess(false); setHasTrackunitAccess(false); setHasTakeuchiAccess(false); } });
 
         const [{ data }, { data: oversightAccess }] = await Promise.all([
           supabase.from("customer_fleet_members").select("fleet_id").eq("user_id", user.id).limit(1),
@@ -326,7 +329,7 @@ export function ConsoleShell({
         (!item.oversightOnly || hasOversightAccess) &&
         (!item.fleetMemberOnly || isAdmin || hasCustomerFleet) &&
         (!item.liveLinkOnly || hasLiveLinkAccess) &&
-        (!item.trackunitOnly || hasTrackunitAccess)
+        (!item.trackunitOnly || hasTrackunitAccess) && (!item.takeuchiOnly || hasTakeuchiAccess)
       );
     },
   );

@@ -37,7 +37,7 @@ export default function LiveLinkMap({ machines, selectedPin, onSelect, showYard=
       const name = machine.relay?.machine_number || machine.equipmentId || machine.pin;
       const notCheckedIn = showYard && (!at || !Number.isFinite(Date.parse(at)) || Date.now() - Date.parse(at) > 24 * 3_600_000);
       const old = notCheckedIn || !at || Date.now() - Date.parse(at) > 48 * 3_600_000;
-      const icon = L.divIcon({ className: "jcb-map-marker", html: `<span class="jcb-map-dot${old ? " jcb-map-dot-old" : machine.source === "trackunit" ? " trackunit-map-dot" : ""}"></span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+      const icon = L.divIcon({ className: "jcb-map-marker", html: `<span class="jcb-map-dot${old ? " jcb-map-dot-old" : machine.source === "takeuchi" ? " takeuchi-map-dot" : machine.source === "trackunit" ? " trackunit-map-dot" : ""}"></span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
       const marker = L.marker([latitude, longitude], { icon, title: `${name} · ${machine.model} · ${notCheckedIn ? "Not checked in" : positionAge(at)}`, keyboard: true });
       const popup = document.createElement("div");
       const title = document.createElement("strong"); title.textContent = `${name} · ${machineBrand(machine)} ${machine.model}`; popup.append(title);

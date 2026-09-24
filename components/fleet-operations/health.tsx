@@ -10,20 +10,20 @@ export function OperationsHealth({machines,initialSearch=''}:{machines:Operation
  const [rows,setRows]=useState<HealthRow[]>([]),[errors,setErrors]=useState<string[]>([]),[loading,setLoading]=useState(true),[version,setVersion]=useState(0),[search,setSearch]=useState(initialSearch),[filter,setFilter]=useState('all');
  useEffect(()=>{
   const controller=new AbortController();setLoading(true);setRows([]);setErrors([]);
-  async function load(provider:'jcb'|'trackunit',token:string){
+  async function load(provider:'jcb'|'trackunit'|'takeuchi',token:string){
    try{let after:string|null=null;do{
     const response=await fetch(`/api/integrations/${provider}/health${after?`?after=${encodeURIComponent(after)}`:''}`,{headers:{Authorization:`Bearer ${token}`},signal:controller.signal});
     const data:{rows:HealthRow[];next:string|null;error?:string}=await response.json();if(!response.ok)throw new Error(data.error||'Health check unavailable.');
     if(controller.signal.aborted)return;setRows(previous=>[...previous,...data.rows]);after=data.next;
-   }while(after);}catch(e){if(!controller.signal.aborted)setErrors(previous=>[...previous,`${provider==='jcb'?'JCB':'Manitou'}: ${e instanceof Error?e.message:'Unable to check faults.'}`]);}
+   }while(after);}catch(e){if(!controller.signal.aborted)setErrors(previous=>[...previous,`${provider==='takeuchi'?'Takeuchi':provider==='jcb'?'JCB':'Manitou'}: ${e instanceof Error?e.message:'Unable to check faults.'}`]);}
   }
-  void (async()=>{try{const token=await getSupabaseAccessToken();if(!token)throw new Error('Sign in to check fleet health.');await Promise.all([load('jcb',token),load('trackunit',token)]);}catch(e){if(!controller.signal.aborted)setErrors([e instanceof Error?e.message:'Unable to check health.']);}finally{if(!controller.signal.aborted)setLoading(false);}})();
+  void (async()=>{try{const token=await getSupabaseAccessToken();if(!token)throw new Error('Sign in to check fleet health.');await Promise.all([load('jcb',token),load('trackunit',token),load('takeuchi',token)]);}catch(e){if(!controller.signal.aborted)setErrors([e instanceof Error?e.message:'Unable to check health.']);}finally{if(!controller.signal.aborted)setLoading(false);}})();
   return()=>controller.abort();
  },[version]);
  const allowed=new Set(machines.map(r=>machineKey(r.machine)));
  const included=rows.filter(r=>allowed.has(machineKey(r.machine)));
  const visible=included.filter(r=>`${r.machine.relay?.machine_number} ${r.machine.equipmentId} ${r.machine.model} ${r.machine.pin} ${r.faults.map(f=>`${f.code} ${f.description}`).join(' ')}`.toLowerCase().includes(search.toLowerCase())&&(filter==='all'||filter==='faults'&&r.faults.length>0||filter==='unavailable'&&r.faultError||r.issues.some(i=>i.priority===filter))).sort((a,b)=>(a.issues[0]?priorityRank(a.issues[0].priority):3)-(b.issues[0]?priorityRank(b.issues[0].priority):3)||(a.machine.relay?.machine_number??'').localeCompare(b.machine.relay?.machine_number??'',undefined,{numeric:true}));
- return <section className="fo-health"><div className="fo-section-heading"><div><h2>Fleet Health &amp; Error Codes</h2><p>JCB and Manitou · grouped by machine · recent and historical provider reports</p></div><button disabled={loading} onClick={()=>setVersion(v=>v+1)}>Refresh health</button></div>
+ return <section className="fo-health"><div className="fo-section-heading"><div><h2>Fleet Health &amp; Error Codes</h2><p>JCB, Manitou and Takeuchi · grouped by machine · recent and historical provider reports</p></div><button disabled={loading} onClick={()=>setVersion(v=>v+1)}>Refresh health</button></div>
  <p role="status">{loading?'Checking machines… ':''}{included.length} / {machines.length} tracked MLP machines checked · {included.filter(r=>r.faults.length).length} with reported codes · {included.filter(r=>r.faultError).length} checks unavailable</p>
  <p>Readings may describe a previous fault. Confirm the current machine display before arranging repairs. No pop-up notifications are sent.</p>
  {errors.map(e=><p role="alert" className="fo-error" key={e}>{e} Results are incomplete.</p>)}

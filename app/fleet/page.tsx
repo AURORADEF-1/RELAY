@@ -734,7 +734,7 @@ function FleetWorkspace() {
           </button>
         }
       >
-        {access?.isAdmin && <div className="mb-4 flex flex-wrap gap-3"><Link href="/fleet/operations" className="console-command-action">Fleet Operations &amp; Error Codes</Link><Link href="/fleet/map" className="console-command-action">Combined fleet map · JCB &amp; Manitou</Link><Link href="/manitou" className="console-command-action">Manitou Track</Link></div>}
+        {access?.isAdmin && <div className="mb-4 flex flex-wrap gap-3"><Link href="/fleet/operations" className="console-command-action">Fleet Operations &amp; Error Codes</Link><Link href="/fleet/map" className="console-command-action">Combined fleet map · JCB, Manitou &amp; Takeuchi</Link><Link href="/manitou" className="console-command-action">Manitou Track</Link><Link href="/takeuchi" className="console-command-action">Takeuchi Track</Link></div>}
         <PageHeader
           title={access?.fleetName ? `${access.fleetName} Fleet` : "Fleet workspace"}
           description={

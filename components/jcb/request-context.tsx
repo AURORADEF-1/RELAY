@@ -10,8 +10,8 @@ export function LiveLinkRequestContext({ onUse }: { onUse: (machineReference: st
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const pin = query.get("livelink");
-    const source = query.get("telematics") === "trackunit" ? "trackunit" : "jcb";
-    setProvider(source === "trackunit" ? "Manitou Track" : "JCB LiveLink");
+    const source = query.get("telematics") === "takeuchi" ? "takeuchi" : query.get("telematics") === "trackunit" ? "trackunit" : "jcb";
+    setProvider(source === "takeuchi" ? "Takeuchi Track" : source === "trackunit" ? "Manitou Track" : "JCB LiveLink");
     if (!pin) return;
     const controller = new AbortController();
     void (async () => {

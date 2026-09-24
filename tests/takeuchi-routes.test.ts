@@ -1,0 +1,15 @@
+import {beforeEach,expect,it,vi} from 'vitest';
+import {NextRequest,NextResponse} from 'next/server';
+const m=vi.hoisted(()=>({auth:vi.fn(),fleet:vi.fn(),details:vi.fn()}));
+vi.mock('server-only',()=>({}));
+vi.mock('@/lib/integrations/takeuchi/server',()=>({authorizeTakeuchi:m.auth,getLinkedTakeuchiFleet:m.fleet,takeuchiError:(e:{message:string;status?:number})=>NextResponse.json({error:e.message},{status:e.status??503})}));
+vi.mock('@/lib/integrations/takeuchi/client',()=>({getTakeuchiDetails:m.details}));
+import {GET as context} from '@/app/api/integrations/takeuchi/context/route';
+import {GET as detail} from '@/app/api/integrations/takeuchi/machine/route';
+const machine={source:'takeuchi',pin:'12345',equipmentId:'TB260 12345',model:'TB260',position:{latitude:52.4,longitude:.95,at:'2026-09-24T10:00:00Z'},relay:{machine_number:'24001'},match:'exact'};
+const req=(query='pin=12345')=>new NextRequest(`https://relay.test/api?${query}`);
+beforeEach(()=>{vi.clearAllMocks();m.auth.mockResolvedValue({admin:false});m.fleet.mockResolvedValue({machines:[machine],checkedAt:'2026-09-24T10:00:00Z'});m.details.mockResolvedValue({faults:[{code:'E1',description:'Provider fault',severity:'Not supplied',at:'2026-09-24T09:00:00Z'}],faultError:false,checkedAt:'2026-09-24T10:00:00Z'});});
+it('includes verified machine, original fault and GPS timestamps in a Takeuchi parts request',async()=>{const r=await context(req('pin=12345&fault=E1'));const d=await r.json();expect(r.status).toBe(200);expect(d.machineReference).toBe('24001');expect(d.text).toContain('Takeuchi Track snapshot');expect(d.text).toContain('E1: Provider fault');expect(d.text).toContain('2026-09-24T09:00:00Z');});
+it('does not attach unlinked assets or unavailable faults',async()=>{m.fleet.mockResolvedValueOnce({machines:[{...machine,relay:null}]});expect((await context(req())).status).toBe(409);m.details.mockResolvedValueOnce({faults:[],faultError:true});expect((await context(req('pin=12345&fault=E1'))).status).toBe(503);});
+it('rejects unknown assets before fetching fault data',async()=>{expect((await detail(req('pin=OTHER'))).status).toBe(404);expect(m.details).not.toHaveBeenCalled();});
+it('returns dated faults to fitters without original administrator telemetry',async()=>{const d=await(await detail(req())).json();expect(d.faults[0].at).toBe('2026-09-24T09:00:00Z');expect(d).not.toHaveProperty('telemetry');expect(d.machine).not.toHaveProperty('fuel');});

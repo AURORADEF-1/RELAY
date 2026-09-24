@@ -1,0 +1,33 @@
+import 'server-only';
+import {operationsDatabase} from '@/lib/fleet-operations/server';
+import {JcbError} from '../jcb/client';
+import type {JcbMachine,JcbFault} from '../jcb/types';
+import {takeuchiFleetSchema,takeuchiFaultSchema,normalizeTakeuchi,normalizeTakeuchiFault} from './normalize';
+const BASE='https://iris.trackunit.com/public/api/aemp/v2/15143/-3/';
+let token:{value:string;expires:number}|null=null;
+let tokenRequest:Promise<string>|null=null;
+async function accessToken():Promise<string>{
+ if(token&&token.expires>Date.now())return token.value;
+ if(tokenRequest)return tokenRequest;
+ tokenRequest=(async()=>{const id=process.env.TAKEUCHI_CLIENT_ID,secret=process.env.TAKEUCHI_CLIENT_SECRET;if(!id||!secret)throw new JcbError('Takeuchi Track is not configured.',503);
+ const response=await fetch('https://auth.trackunit.com/token/v2',{method:'POST',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(20000),headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'client_credentials',client_id:id,client_secret:secret,scope:'api.iso15143.snapshot api.iso15143.timeseries'})});
+ if(!response.ok)throw new JcbError('Takeuchi authentication unavailable. Check API key permissions.',503);
+ const data=await response.json();if(typeof data.access_token!=='string'||typeof data.expires_in!=='number')throw new JcbError('Invalid Takeuchi authentication response.',503);token={value:data.access_token,expires:Date.now()+Math.max(0,data.expires_in-60)*1000};return token.value;})();
+ try{return await tokenRequest;}finally{tokenRequest=null;}
+}
+export function safeTakeuchiPath(href:string,prefix:string){const url=new URL(href,BASE);if(url.origin!=='https://iris.trackunit.com'||!url.pathname.startsWith(new URL(BASE+prefix).pathname)||url.username||url.password||url.hash)throw new JcbError('Invalid Takeuchi pagination link.',503);return url;}
+async function request(url:URL){const response=await fetch(url,{headers:{Authorization:`Bearer ${await accessToken()}`,Accept:'application/json','Accept-Language':'en'},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(20000)});if(!response.ok){if(response.status===401)token=null;throw new JcbError(response.status===429?'Takeuchi rate limit reached. Retry after 15 minutes.':'Takeuchi readings are temporarily unavailable.',503);}return response.json();}
+// Shared durable cache honours the provider's 15-minute request interval across
+// browser sessions, health scans and scheduled collections. The lease is atomic.
+export async function cachedTakeuchi<T>(key:string,load:()=>Promise<T>):Promise<{data:T;checkedAt:string}>{
+ const db=operationsDatabase(),now=Date.now();
+ const read=await db.from('takeuchi_api_cache').select('payload,checked_at,lease_until').eq('cache_key',key).maybeSingle();if(read.error)throw new JcbError('Takeuchi cache is unavailable.',503);
+ if(read.data?.checked_at&&now-Date.parse(read.data.checked_at)<15*60000&&read.data.payload!==null)return {data:read.data.payload as T,checkedAt:read.data.checked_at};
+ if(!read.data){const seed=await db.from('takeuchi_api_cache').upsert({cache_key:key},{onConflict:'cache_key',ignoreDuplicates:true});if(seed.error)throw new JcbError('Takeuchi cache is unavailable.',503);}
+ const lease=await db.from('takeuchi_api_cache').update({lease_until:new Date(now+240000).toISOString()}).eq('cache_key',key).lt('lease_until',new Date(now).toISOString()).select('cache_key');
+ if(lease.error||!lease.data?.length)throw new JcbError('Takeuchi readings are updating or cooling down. Retry shortly.',503);
+ try{const data=await load(),checkedAt=new Date().toISOString();const saved=await db.from('takeuchi_api_cache').update({payload:data,checked_at:checkedAt,lease_until:new Date(0).toISOString()}).eq('cache_key',key);if(saved.error)throw new JcbError('Unable to store Takeuchi readings.',503);return {data,checkedAt};}
+ catch(error){await db.from('takeuchi_api_cache').update({lease_until:new Date(Date.now()+15*60000).toISOString()}).eq('cache_key',key);throw error instanceof JcbError?error:new JcbError('Takeuchi readings are temporarily unavailable.',503);}
+}
+export async function getTakeuchiFleet(){const cached=await cachedTakeuchi('fleet',async()=>{const machines:JcbMachine[]=[],visited=new Set<string>();let url:URL|null=new URL(BASE+'Fleet/1?addMetadata=true');while(url){if(visited.has(url.pathname)||visited.size>=100)throw new JcbError('Takeuchi fleet pagination is incomplete.',503);visited.add(url.pathname);const parsed=takeuchiFleetSchema.safeParse(await request(url));if(!parsed.success)throw new JcbError('Invalid Takeuchi fleet response.',503);if(parsed.data.equipment.some(m=>m.EquipmentHeader.OEMName.trim().toLowerCase()!=='takeuchi'))throw new JcbError('Unexpected manufacturer in the Takeuchi account. Review fleet scope.',503);machines.push(...parsed.data.equipment.map(normalizeTakeuchi));const next=parsed.data.links.find(l=>l.rel==='next');url=next?safeTakeuchiPath(next.href,'Fleet/'):null;if(url){if(!/^\/public\/api\/aemp\/v2\/15143\/-3\/Fleet\/\d+$/.test(url.pathname))throw new JcbError('Invalid fleet page.',503);url.searchParams.set('addMetadata','true');}}if(!machines.length||new Set(machines.map(m=>m.pin)).size!==machines.length)throw new JcbError('Takeuchi fleet is empty or contains duplicate identities.',503);return machines;});return {machines:cached.data,checkedAt:cached.checkedAt};}
+export async function getTakeuchiDetails(pin:string){const fleet=await getTakeuchiFleet();if(!fleet.machines.some(m=>m.pin===pin))throw new JcbError('Machine not found in Takeuchi fleet.',404);try{const cached=await cachedTakeuchi(`faults:${pin}`,async()=>{const end=new Date(Math.floor(Date.now()/900000)*900000),start=new Date(end.getTime()-7*86400000);const prefix=`Fleet/Equipment/ID/${encodeURIComponent(pin)}/Faults/`;let url:URL|null=new URL(BASE+prefix+`${start.toISOString()}/${end.toISOString()}/1`);const faults:JcbFault[]=[],visited=new Set<string>();while(url){if(visited.has(url.href)||visited.size>=100)throw new JcbError('Takeuchi fault history is incomplete.',503);visited.add(url.href);const parsed=takeuchiFaultSchema.safeParse(await request(url));if(!parsed.success)throw new JcbError('Invalid Takeuchi fault response.',503);faults.push(...parsed.data.faultCode.map(normalizeTakeuchiFault));const next=parsed.data.links.find(l=>l.rel==='next');url=next?safeTakeuchiPath(next.href,prefix):null;}return faults;});return {faults:cached.data,faultError:false,checkedAt:cached.checkedAt};}catch{return {faults:[] as JcbFault[],faultError:true,checkedAt:new Date().toISOString()};}}
