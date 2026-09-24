@@ -45,3 +45,21 @@ describe('Fuel location timing and uncertainty',()=>{
   expect(result.unattributedReasons.gpsGap).toBe(8);expect(Object.values(result.unattributedReasons).reduce((a,b)=>a+b,0)).toBe(result.unattributedFuel);
  });
 });
+
+it('optionally estimates missing historical GPS from last known status without changing fuel totals',()=>{
+ const a=sample(now-3600000,100,10,4),b=sample(now,108,11,4.25,52.4);
+ a.payload.position=b.payload.position;
+ const result=operationalReport([a,b],now-DAY,now,{estimateFromLastKnown:true});
+ expect(result).toMatchObject({fuelLitres:8,onHireFuel:8,yardFuel:0,statusEstimatedFuel:8,unattributedFuel:0});
+});
+it('labels crossing allocations as estimates and preserves no-location fuel for attention',()=>{
+ const a=sample(now-3600000,100,10,4),b=sample(now,108,11,4.25,52.4);
+ expect(operationalReport([a,b],now-DAY,now,{estimateFromLastKnown:true})).toMatchObject({onHireFuel:8,statusEstimatedFuel:8,unattributedFuel:0});
+ const missing=[a,b].map(s=>({...s,payload:{...s.payload,position:null}}));
+ expect(operationalReport(missing,now-DAY,now,{estimateFromLastKnown:true})).toMatchObject({fuelLitres:8,statusEstimatedFuel:0,unattributedFuel:8});
+});
+it('never uses future GPS to estimate fuel allocation',()=>{
+ const a=sample(now-3600000,100,10,4),b=sample(now,108,11,4.25);
+ a.payload.position.at=b.payload.position.at=new Date(now+60000).toISOString();
+ expect(operationalReport([a,b],now-DAY,now,{estimateFromLastKnown:true})).toMatchObject({unattributedFuel:8,statusEstimatedFuel:0});
+});

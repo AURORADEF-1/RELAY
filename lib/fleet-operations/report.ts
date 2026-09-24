@@ -64,7 +64,7 @@ function intervals(samples:Snapshot[],metric:Metric,from:number,to:number):Inter
   }
   return result;
 }
-export function operationalReport(samples:Snapshot[],from:number,to:number){
+export function operationalReport(samples:Snapshot[],from:number,to:number,options:{estimateFromLastKnown?:boolean}={}){
   const fuel=intervals(samples,'fuelUsed',from,to),hours=intervals(samples,'hours',from,to),idle=intervals(samples,'idleHours',from,to);
   const total=(rows:Interval[])=>rows.length?rows.reduce((a,b)=>a+b.value,0):null;
   const aligned=(a:Interval[],b:Interval[])=>a.flatMap(x=>{const y=b.find(y=>y.start===x.start&&y.end===x.end);return y?[{a:x.value,b:y.value}]:[];});
@@ -73,7 +73,7 @@ export function operationalReport(samples:Snapshot[],from:number,to:number){
   // GPS and counters are sampled independently. Prefer a complete bracket;
   // permit a labelled estimate only with two distinct observations within 15
   // minutes of the endpoints, no observed crossing and no long GPS gaps.
-  let yardFuel=0,onHireFuel=0,unattributedFuel=0,timingEstimatedFuel=0;
+  let yardFuel=0,onHireFuel=0,unattributedFuel=0,timingEstimatedFuel=0,statusEstimatedFuel=0;
   const unattributedReasons={missingStart:0,missingEnd:0,gpsGap:0,invalidPosition:0,crossing:0};
   const positions=samples.flatMap(s=>s.payload.position?.at?[s.payload.position]:[])
     .filter(p=>Number.isFinite(Date.parse(p.at!))&&Date.parse(p.at!)<=to).sort((a,b)=>Date.parse(a.at!)-Date.parse(b.at!));
@@ -98,10 +98,16 @@ export function operationalReport(samples:Snapshot[],from:number,to:number){
     if(!reason&&all.some((p,i)=>i>0&&at(p)-at(all[i-1])>2*3600000))reason='gpsGap';
     if(!reason&&(!sides.length||sides.includes('unknown')))reason='invalidPosition';
     if(!reason&&sides.some(s=>s!==side))reason='crossing';
-    if(reason){unattributedFuel+=f.value;unattributedReasons[reason]+=f.value;}
+    if(reason){
+      // Explicit operational estimate: use the latest valid reported side, even
+      // when stale or observed after the interval. Never call this observed fuel.
+      const last=options.estimateFromLastKnown?positions.filter(p=>positionSide(p,at(p))!=='unknown').at(-1):undefined;
+      if(last){if(positionSide(last,at(last))==='off_hire')yardFuel+=f.value;else onHireFuel+=f.value;statusEstimatedFuel+=f.value;}
+      else {unattributedFuel+=f.value;unattributedReasons[reason]+=f.value;}
+    }
     else {if(side==='off_hire')yardFuel+=f.value;else onHireFuel+=f.value;if(estimated)timingEstimatedFuel+=f.value;}
   }
-  return {fuelLitres:total(fuel),engineHours:total(hours),idleHours:total(idle),litresPerHour:denominator>0?fuelHours.reduce((n,p)=>n+p.a,0)/denominator:null,idlePercent:idleDenominator>0?idleHours.reduce((n,p)=>n+p.a,0)/idleDenominator*100:null,nonIdleHours:idleHours.length?idleHours.reduce((n,p)=>n+p.b-p.a,0):null,yardFuel:fuel.length?yardFuel:null,onHireFuel:fuel.length?onHireFuel:null,unattributedFuel:fuel.length?unattributedFuel:null,timingEstimatedFuel,unattributedReasons,fuelIntervals:fuel.length,hoursIntervals:hours.length,fuelCoverageHours:fuel.reduce((n,p)=>n+(p.end-p.start)/3600000,0),firstObserved:samples[0]?.captured_at??null};
+  return {fuelLitres:total(fuel),engineHours:total(hours),idleHours:total(idle),litresPerHour:denominator>0?fuelHours.reduce((n,p)=>n+p.a,0)/denominator:null,idlePercent:idleDenominator>0?idleHours.reduce((n,p)=>n+p.a,0)/idleDenominator*100:null,nonIdleHours:idleHours.length?idleHours.reduce((n,p)=>n+p.b-p.a,0):null,yardFuel:fuel.length?yardFuel:null,onHireFuel:fuel.length?onHireFuel:null,unattributedFuel:fuel.length?unattributedFuel:null,timingEstimatedFuel,statusEstimatedFuel,unattributedReasons,fuelIntervals:fuel.length,hoursIntervals:hours.length,fuelCoverageHours:fuel.reduce((n,p)=>n+(p.end-p.start)/3600000,0),firstObserved:samples[0]?.captured_at??null};
 }
 export type OpenPartsRequest={id:string;jobNumber:string|null;status:string};
 export type OperationRow={openPartsRequests:OpenPartsRequest[]|null;machine:LinkedJcbMachine;hire:ReturnType<typeof hireState>;report:ReturnType<typeof operationalReport>};
