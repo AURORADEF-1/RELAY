@@ -38,6 +38,7 @@ type NavigationItem = {
   adminOnly?: boolean;
   oversightOnly?: boolean;
   fleetMemberOnly?: boolean;
+  liveLinkOnly?: boolean;
   frontCounterOnly?: boolean;
   badge?: "admin" | "requester" | "tasks";
   external?: boolean;
@@ -80,6 +81,7 @@ const navigation: NavigationItem[] = [
   { href: "/filters", label: "Filter Lookup", icon: "filter" },
   { href: "/settings", label: "Settings", icon: "settings" },
   { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
+  { href: "/livelink", label: "JCB LiveLink", icon: "fleet", liveLinkOnly: true },
   {
     href: "/parts-knowledge",
     label: "Parts Knowledge",
@@ -137,6 +139,7 @@ export function ConsoleShell({
   const [isInternalRelayAiOpen, setIsInternalRelayAiOpen] = useState(false);
   const [signedInUserName, setSignedInUserName] = useState("Signed in");
   const [hasCustomerFleet, setHasCustomerFleet] = useState(false);
+  const [hasLiveLinkAccess, setHasLiveLinkAccess] = useState(false);
   const [hasOversightAccess, setHasOversightAccess] = useState(false);
   const [isFrontCounter, setIsFrontCounter] = useState(false);
   const [commandMachineResults, setCommandMachineResults] = useState<
@@ -164,10 +167,18 @@ export function ConsoleShell({
         setIsFrontCounter(accessIsFrontCounter);
 
         if (!user) {
+          setHasLiveLinkAccess(false);
           setHasCustomerFleet(false);
           setHasOversightAccess(false);
           return;
         }
+
+        // The server checks explicit fitter access; customer-fleet membership is not enough.
+        void getSupabaseAccessToken().then(async (token) => {
+          if (!token) return;
+          const response = await fetch("/api/integrations/jcb/access", { headers: { Authorization: `Bearer ${token}` } });
+          if (isMounted) setHasLiveLinkAccess(response.ok);
+        }).catch(() => { if (isMounted) setHasLiveLinkAccess(false); });
 
         const [{ data }, { data: oversightAccess }] = await Promise.all([
           supabase.from("customer_fleet_members").select("fleet_id").eq("user_id", user.id).limit(1),
@@ -309,7 +320,8 @@ export function ConsoleShell({
         !item.frontCounterOnly &&
         (!item.adminOnly || isAdmin) &&
         (!item.oversightOnly || hasOversightAccess) &&
-        (!item.fleetMemberOnly || isAdmin || hasCustomerFleet)
+        (!item.fleetMemberOnly || isAdmin || hasCustomerFleet) &&
+        (!item.liveLinkOnly || hasLiveLinkAccess)
       );
     },
   );
