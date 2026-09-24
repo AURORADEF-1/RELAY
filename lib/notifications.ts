@@ -14,7 +14,8 @@ export type RelayNotificationType =
   | "front_counter_collection"
   | "part_collected"
   | "part_returned"
-  | "system_broadcast";
+  | "system_broadcast"
+  | "jcb_health";
 
 export type RelayNotificationRecord = {
   id: string;

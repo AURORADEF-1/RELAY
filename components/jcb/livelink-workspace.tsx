@@ -1,7 +1,9 @@
 "use client";
 import dynamic from "next/dynamic";
+import { FaultCards } from "./fault-cards";
+import "./health.css";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseAccessToken } from "@/lib/supabase";
 import { partsRequestUrl, positionAge, type JcbFleetResponse, type JcbFault, type Reading, type RegistryMachine } from "@/lib/integrations/jcb/types";
 
@@ -21,6 +23,7 @@ function Metric({ label, reading, unit = "" }: { label: string; reading?: Readin
 type Manage = { profiles: { id: string; full_name: string; role: string }[]; access: { user_id: string; enabled: boolean }[]; registry: RegistryMachine[] };
 
 export function LiveLinkWorkspace({ request = api }: { request?: typeof api }) {
+  const detailRef=useRef<HTMLElement>(null);
   const [fleet, setFleet] = useState<JcbFleetResponse | null>(null);
   const [error, setError] = useState(""); const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState(""); const [view, setView] = useState<"map" | "list">("map");
@@ -38,15 +41,16 @@ export function LiveLinkWorkspace({ request = api }: { request?: typeof api }) {
   useEffect(() => { const c = new AbortController(); void load(c.signal); return () => c.abort(); }, [load]);
   const machines = useMemo(() => fleet?.machines.filter(m => `${m.relay?.machine_number ?? ""} ${m.equipmentId} ${m.model} ${m.pin}`.toLowerCase().includes(query.toLowerCase().trim())) ?? [], [fleet, query]);
   const selected = fleet?.machines.find(m => m.pin === selectedPin) ?? null;
+  useEffect(()=>{if(selectedPin&&window.innerWidth<=1000)detailRef.current?.scrollIntoView({behavior:"smooth",block:"start"});},[selectedPin]);
   const selectMachine = useCallback((pin: string) => { setSelectedPin(pin); setMachineId(""); setFaultError(""); }, []);
   useEffect(() => {
-    if (!fleet?.admin || !selectedPin) return;
+    if (!fleet || !selectedPin) return;
     const c = new AbortController();
     void request<{ faults: JcbFault[]; checkedAt: string }>(`machine?${new URLSearchParams({ pin: selectedPin })}`, c.signal)
       .then(data => { if (!c.signal.aborted) setFaultData({ pin: selectedPin, ...data }); })
       .catch(e => { if (!c.signal.aborted) setFaultError(e.message || "Unable to load faults."); });
     return () => c.abort();
-  }, [selectedPin, fleet?.admin, request]);
+  }, [selectedPin, fleet, request]);
   const openManage = async () => {
     setNotice("");
     try { setManage(await request<Manage>("manage")); setManageOpen(true); }
@@ -76,17 +80,17 @@ export function LiveLinkWorkspace({ request = api }: { request?: typeof api }) {
       <div className="jcb-grid"><section className="jcb-results" aria-label="JCB machines">
         {view === "map" && <><FleetMap machines={machines} selectedPin={selectedPin} onSelect={selectMachine} /><p className="jcb-sync">Select a pin to raise a parts request. Amber pins have old or undated positions. {machines.filter(m => !m.position).length} machines have no map position.</p></>}
         <div className="jcb-machine-list">{machines.length ? machines.map(m => <button key={m.pin} className={`jcb-machine ${selectedPin === m.pin ? "selected" : ""}`} onClick={() => selectMachine(m.pin)} aria-pressed={selectedPin === m.pin}><strong>{m.relay?.machine_number || m.equipmentId || m.pin} · {m.model}</strong><span>{m.position ? positionAge(m.position.at) : "Position unavailable"}</span><small>{m.relay ? `RELAY linked · ${m.match}` : "Needs RELAY linking"}</small></button>) : <p>No matching machines.</p>}</div>
-      </section><section className="jcb-detail" aria-label="Selected machine" aria-live="polite">
+      </section><section ref={detailRef} className="jcb-detail" aria-label="Selected machine" aria-live="polite">
         {!selected ? <><h2>Select a machine</h2><p>Choose a map pin or machine from the list to view its position and raise a parts request.</p></> : <>
           <h2>{selected.relay?.machine_number || selected.equipmentId} · {selected.model}</h2><p className="jcb-sync">PIN {selected.pin}</p><h3>Last-known position</h3>
           {selected.position ? <><p>{selected.position.latitude.toFixed(6)}, {selected.position.longitude.toFixed(6)}</p><p>{date(selected.position.at)}</p><p className={positionAge(selected.position.at) !== "Reported within 24 hours" ? "jcb-warning" : "jcb-sync"}>{positionAge(selected.position.at)}. Confirm old locations before travelling.</p><a className="jcb-button" href={`https://www.google.com/maps/dir/?api=1&destination=${selected.position.latitude},${selected.position.longitude}`} target="_blank" rel="noreferrer">Directions to this position</a></> : <p>No position supplied by JCB.</p>}
           {requestHref ? <div className="jcb-actions"><Link className="jcb-button jcb-primary" href={requestHref}>Raise RELAY parts request</Link><Link className="jcb-button" href={fleet.admin ? `/fleet?machine=${encodeURIComponent(selected.relay!.machine_number)}` : "/requests"}>{fleet.admin ? "Machine history" : "My requests"}</Link></div> : <p className="jcb-warning">An admin must link this JCB machine to the RELAY register before a request can be prefilled.</p>}
-          {fleet.admin && <><h3>Reported condition</h3><dl className="jcb-metrics"><Metric label="Engine" reading={selected.engine} /><Metric label="Operating hours" reading={selected.hours} unit=" h" /><Metric label="Idle hours" reading={selected.idleHours} unit=" h" /><Metric label="Fuel" reading={selected.fuel} unit="%" /><Metric label="AdBlue" reading={selected.adblue} unit="%" /></dl><h3>Fault records</h3><p className="jcb-sync">Dated reports; JCB does not supply active/cleared status. No returned faults is not a mechanical inspection.</p>
-            {faultError ? <p role="alert" className="jcb-warning">{faultError}</p> : faultData?.pin !== selected.pin ? <p>Loading fault records…</p> : <><p className="jcb-sync">Faults fetched {date(faultData.checkedAt)}</p>{faultData.faults.length ? faultData.faults.map((f, i) => <article className="jcb-fault" key={`${f.code}-${f.at}-${i}`}><strong>{f.code} · {f.severity}</strong><p>{f.description}</p><small>{date(f.at)}</small>{selected.relay && <Link className="jcb-button" href={partsRequestUrl(selected, f.code)!}>Request parts / inspection</Link>}</article>) : <p>No faults returned.</p>}</>}
-          </>}
+          {fleet.admin && <><h3>Reported condition</h3><dl className="jcb-metrics"><Metric label="Engine" reading={selected.engine} /><Metric label="Operating hours" reading={selected.hours} unit=" h" /><Metric label="Idle hours" reading={selected.idleHours} unit=" h" /><Metric label="Fuel" reading={selected.fuel} unit="%" /><Metric label="AdBlue" reading={selected.adblue} unit="%" /></dl></>}
+          {faultError ? <p role="alert" className="jcb-warning">Fault records unavailable. {faultError}</p> : faultData?.pin !== selected.pin ? <p>Loading fault records…</p> : <FaultCards machine={selected} faults={faultData.faults} checkedAt={faultData.checkedAt} />}
+
         </>}
       </section></div>
     </>}
-    {manageOpen && manage && fleet?.admin && <section className="jcb-management"><div className="jcb-toolbar"><h2>Access &amp; machine linking</h2><button onClick={() => setManageOpen(false)}>Close settings</button></div><div className="jcb-grid"><div><h3>Fitter location access</h3><p>Only enable internal fitters who should see the company JCB fleet. Health and faults remain admin-only.</p><label>Account<select value={userId} onChange={e => setUserId(e.target.value)}><option value="">Select account</option>{manage.profiles.filter(p => p.role !== "admin").map(p => <option key={p.id} value={p.id}>{p.full_name || p.id} · {manage.access.some(a => a.user_id === p.id && a.enabled) ? "Enabled" : "Disabled"}</option>)}</select></label><div className="jcb-actions"><button disabled={!userId || saving} onClick={() => void save({ action: "access", userId, enabled: true })}>Enable location access</button><button disabled={!userId || saving} onClick={() => void save({ action: "access", userId, enabled: false })}>Remove access</button></div></div><div><h3>Link selected machine</h3>{selected ? <><p>{selected.equipmentId} · {selected.pin}</p><p>Check the full PIN against the machine record before linking.</p><label>RELAY machine<select value={machineId} onChange={e => setMachineId(e.target.value)}><option value="">Select verified machine</option>{manage.registry.map(m => <option key={m.id} value={m.id}>{m.machine_number} · {m.make} {m.model} · {m.serial_number || "No serial"}</option>)}</select></label><button disabled={!machineId || saving} onClick={() => void save({ action: "mapping", pin: selected.pin, machineId })}>Confirm machine link</button>{selected.match === "confirmed" && <button disabled={saving} onClick={() => void save({ action: "mapping", pin: selected.pin, machineId: null })}>Remove manual link</button>}</> : <p>Select a machine on the map or list first.</p>}</div></div></section>}
+    {manageOpen && manage && fleet?.admin && <section className="jcb-management"><div className="jcb-toolbar"><h2>Access &amp; machine linking</h2><button onClick={() => setManageOpen(false)}>Close settings</button></div><div className="jcb-grid"><div><h3>Fitter location access</h3><p>Only enable internal fitters who should see the company JCB fleet. Fitters can read machine faults. Fleet-wide health reports and alerts remain admin-only.</p><label>Account<select value={userId} onChange={e => setUserId(e.target.value)}><option value="">Select account</option>{manage.profiles.filter(p => p.role !== "admin").map(p => <option key={p.id} value={p.id}>{p.full_name || p.id} · {manage.access.some(a => a.user_id === p.id && a.enabled) ? "Enabled" : "Disabled"}</option>)}</select></label><div className="jcb-actions"><button disabled={!userId || saving} onClick={() => void save({ action: "access", userId, enabled: true })}>Enable location access</button><button disabled={!userId || saving} onClick={() => void save({ action: "access", userId, enabled: false })}>Remove access</button></div></div><div><h3>Link selected machine</h3>{selected ? <><p>{selected.equipmentId} · {selected.pin}</p><p>Check the full PIN against the machine record before linking.</p><label>RELAY machine<select value={machineId} onChange={e => setMachineId(e.target.value)}><option value="">Select verified machine</option>{manage.registry.map(m => <option key={m.id} value={m.id}>{m.machine_number} · {m.make} {m.model} · {m.serial_number || "No serial"}</option>)}</select></label><button disabled={!machineId || saving} onClick={() => void save({ action: "mapping", pin: selected.pin, machineId })}>Confirm machine link</button>{selected.match === "confirmed" && <button disabled={saving} onClick={() => void save({ action: "mapping", pin: selected.pin, machineId: null })}>Remove manual link</button>}</> : <p>Select a machine on the map or list first.</p>}</div></div></section>}
   </div>;
 }

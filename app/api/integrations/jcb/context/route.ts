@@ -7,7 +7,6 @@ export async function GET(request: NextRequest) {
     const pin = request.nextUrl.searchParams.get("pin");
     const faultCode = request.nextUrl.searchParams.get("fault");
     if (!pin || pin.length > 100 || (faultCode && faultCode.length > 100)) throw new JcbError("Select a valid machine.", 400);
-    if (faultCode && !auth.admin) throw new JcbError("Admin access is required for fault details.", 403);
     const fleet = await getLinkedFleet(auth);
     const machine = fleet.machines.find(m => m.pin === pin);
     if (!machine?.relay) throw new JcbError("This JCB machine needs linking to RELAY before a request can be prefilled.", 409);

@@ -1,0 +1,16 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+import {NextRequest,NextResponse} from 'next/server';
+const m=vi.hoisted(()=>({fleet:vi.fn(),faults:vi.fn(),rpc:vi.fn(),client:vi.fn()}));
+vi.mock('@/lib/integrations/jcb/client',()=>({getJcbFleet:m.fleet,getJcbFaults:m.faults}));
+vi.mock('@/lib/integrations/jcb/server',()=>({jcbJson:(data:unknown,status=200)=>NextResponse.json(data,{status})}));
+vi.mock('@supabase/supabase-js',()=>({createClient:m.client}));
+import {GET} from '@/app/api/cron/jcb-health/route';
+import {validCronAuthorization} from '@/lib/integrations/jcb/cron-auth';
+const req=(secret='secret')=>new NextRequest('http://localhost/api/cron/jcb-health',{headers:{authorization:`Bearer ${secret}`}});
+beforeEach(()=>{vi.clearAllMocks();vi.stubEnv('CRON_SECRET','secret');vi.stubEnv('JCB_HEALTH_ALERTS_ENABLED','true');vi.stubEnv('JCB_LIVELINK_ENABLED','true');vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL','https://example.test');vi.stubEnv('JCB_HEALTH_DATABASE_KEY','server-test-key');const chain={select:()=>chain,order:()=>chain,limit:()=>chain,maybeSingle:async()=>({data:null,error:null})};m.client.mockReturnValue({rpc:m.rpc,from:()=>chain});m.rpc.mockResolvedValue({data:2,error:null});m.fleet.mockResolvedValue({machines:[{pin:'P1',equipmentId:'1',model:'535',position:null}]});m.faults.mockResolvedValue({faults:[]});});
+afterEach(()=>vi.unstubAllEnvs());
+it('fails closed without a configured cron secret or matching bearer',async()=>{expect(validCronAuthorization('Bearer secret',undefined)).toBe(false);expect((await GET(req('wrong'))).status).toBe(401);expect(m.fleet).not.toHaveBeenCalled();});
+it('does not scan or send until monitoring is explicitly enabled',async()=>{vi.stubEnv('JCB_HEALTH_ALERTS_ENABLED','false');expect(await(await GET(req())).json()).toEqual({enabled:false});expect(m.client).not.toHaveBeenCalled();});
+it('passes only warning data to the database, never caller-selected recipients',async()=>{expect((await GET(req())).status).toBe(200);const params=m.rpc.mock.calls[0][1];expect(params.issues[0].key).toBe('P1:position');expect(params).not.toHaveProperty('recipients');expect(params.scanned).toBe(1);});
+it('reports upstream failure as a monitoring warning',async()=>{m.fleet.mockRejectedValue(new Error('offline'));expect((await GET(req())).status).toBe(200);expect(m.rpc.mock.calls[0][1].issues[0].key).toBe('feed-unavailable');});
+it('surfaces persistence failure rather than claiming delivery',async()=>{m.rpc.mockResolvedValue({error:{message:'unavailable'}});expect((await GET(req())).status).toBe(503);});

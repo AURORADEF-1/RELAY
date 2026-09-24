@@ -36,12 +36,12 @@ async function accessToken() {
   })().finally(() => { tokenPending = null; });
   return tokenPending;
 }
-async function request(url: string, retry = true): Promise<unknown> {
+async function request(url: string, retry = true, signal?: AbortSignal): Promise<unknown> {
   const safeUrl = validateJcbUrl(url);
   const bearer = await accessToken();
   const response = await fetch(safeUrl, { headers: { Authorization: `Bearer ${bearer}`, Accept: "application/json" },
-    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(20_000) });
-  if (response.status === 401 && retry) { if (token?.value === bearer) token = null; return request(url, false); }
+    cache: "no-store", redirect: "error", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000) });
+  if (response.status === 401 && retry) { if (token?.value === bearer) token = null; return request(url, false, signal); }
   if (response.status === 204) return null;
   if (response.status === 429) throw new JcbError("JCB is limiting requests. Please try again later.", 503);
   if (!response.ok) throw new JcbError("JCB could not return machine data. Please try again later.");
@@ -72,11 +72,12 @@ export const getJcbFleet = unstable_cache(fetchJcbFleet, ["jcb-fleet-v1"], { rev
 export async function fetchJcbFaults(pin: string): Promise<{ faults: JcbFault[]; checkedAt: string }> {
   let url: string | undefined = BASE + `Fleet/Equipment/${encodeURIComponent(pin)}/Faults/1`;
   const seen = new Set<string>(); const faults: JcbFault[] = [];
+  const deadline = AbortSignal.timeout(35_000);
   while (url) {
     const canonical = validateJcbUrl(url, `/Live/MixedFleetTelematicsService/Fleet/Equipment/${encodeURIComponent(pin)}/Faults`);
     if (seen.has(canonical) || seen.size >= 50) throw new JcbError("JCB fault pagination did not complete.");
     seen.add(canonical);
-    const raw = await request(canonical);
+    const raw = await request(canonical, true, deadline);
     if (raw === null) break;
     const parsed = faultsSchema.safeParse(raw);
     if (!parsed.success) throw new JcbError("JCB returned an invalid fault response.");
