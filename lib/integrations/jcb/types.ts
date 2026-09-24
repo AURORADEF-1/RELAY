@@ -8,12 +8,14 @@ export type JcbMachine = {
   position: { latitude: number; longitude: number; at: string | null } | null;
   hours: Reading<number> | null;
   idleHours: Reading<number> | null;
+  fuelUsed?: Reading<number> | null;
+  fuelUsed24h?: Reading<number> | null;
   fuel: Reading<number> | null;
   adblue: Reading<number> | null;
   engine: Reading<boolean> | null;
 };
 export type RegistryMachine = { id: string; machine_number: string; serial_number: string | null; make: string | null; model: string | null };
-export type LinkedJcbMachine = Pick<JcbMachine, "pin" | "equipmentId" | "model" | "position"> & Partial<Pick<JcbMachine, "hours" | "idleHours" | "fuel" | "adblue" | "engine">> & {
+export type LinkedJcbMachine = Pick<JcbMachine, "pin" | "equipmentId" | "model" | "position"> & Partial<Pick<JcbMachine, "hours" | "idleHours" | "fuel" | "adblue" | "engine" | "fuelUsed" | "fuelUsed24h">> & {
   source?: "jcb" | "trackunit";
   relay: RegistryMachine | null;
   match: "confirmed" | "exact" | "unmatched" | "ambiguous";
