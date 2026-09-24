@@ -645,8 +645,13 @@ export function NotificationProvider({
         );
         const nextUnreadIds = new Set(activeUnreadNotifications.map((notification) => notification.id));
 
+        // Fleet health stays in the admin inbox and reports, without pop-ups,
+        // sounds, desktop alerts or extension notifications.
+        const interruptiveNotifications = activeUnreadNotifications.filter(
+          (notification) => notification.type !== "jcb_health" && notification.type !== "trackunit_health",
+        );
         const toastableNotifications = adminUser
-          ? activeUnreadNotifications.filter(
+          ? interruptiveNotifications.filter(
               (notification) =>
                 notification.type === "job_assigned" ||
                 notification.type === "new_ticket" ||
@@ -654,7 +659,7 @@ export function NotificationProvider({
                 (notification.type === "jcb_health" || notification.type === "trackunit_health") ||
                 notification.type === SYSTEM_BROADCAST_TYPE,
             )
-          : activeUnreadNotifications;
+          : interruptiveNotifications;
         const shouldShowToasts = options?.showToasts && (
           unreadNotificationsInitializedRef.current ||
           toastableNotifications.some(
@@ -668,7 +673,7 @@ export function NotificationProvider({
         const extensionNotifications = adminUser
           && options?.showToasts
           && unreadNotificationsInitializedRef.current
-          ? activeUnreadNotifications.filter(
+          ? interruptiveNotifications.filter(
               (notification) => !knownUnreadIdsRef.current.has(notification.id),
             )
           : [];
