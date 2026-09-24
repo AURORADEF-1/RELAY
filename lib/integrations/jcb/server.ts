@@ -6,17 +6,18 @@ import { getJcbFleet, JcbError } from "./client";
 import { linkMachines, projectMachine } from "./normalize";
 import type { RegistryMachine } from "./types";
 
-export async function authorizeJcb(request: NextRequest, adminOnly = false) {
+export async function authorizeJcb(request: NextRequest, adminOnly = false, provider: "jcb" | "trackunit" = "jcb") {
   const auth = await authorizeRelayRequesterRoute(request);
   if (!auth.ok) throw new JcbError(auth.error, auth.status);
-  if (process.env.JCB_LIVELINK_ENABLED !== "true") throw new JcbError("JCB LiveLink is not enabled yet.", 503);
+  const enabled = provider === "jcb" ? process.env.JCB_LIVELINK_ENABLED : process.env.TRACKUNIT_ENABLED;
+  if (enabled !== "true") throw new JcbError(`${provider === "jcb" ? "JCB LiveLink" : "Manitou Track"} is not enabled yet.`, 503);
   const { data: profile, error } = await auth.supabase.from("profiles").select("role").eq("id", auth.user.id).single();
   if (error) throw new JcbError("Unable to check LiveLink access.", 503);
   const admin = profile.role === "admin";
   if (adminOnly && !admin) throw new JcbError("Admin access is required.", 403);
   if (!admin) {
     const access = await auth.supabase.from("jcb_livelink_access").select("user_id").eq("user_id", auth.user.id).eq("enabled", true).maybeSingle();
-    if (access.error || !access.data) throw new JcbError("Ask an administrator to enable your JCB LiveLink access.", 403);
+    if (access.error || !access.data) throw new JcbError("Ask an administrator to enable your internal fitter tracking access.", 403);
   }
   return { ...auth, admin };
 }

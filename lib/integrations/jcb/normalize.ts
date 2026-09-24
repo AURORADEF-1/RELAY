@@ -58,6 +58,6 @@ export function linkMachines(machines: JcbMachine[], registry: RegistryMachine[]
 }
 export function projectMachine(machine: LinkedJcbMachine, admin: boolean): LinkedJcbMachine {
   if (admin) return machine;
-  const { pin, equipmentId, model, position, relay, match } = machine;
-  return { pin, equipmentId, model, position, relay, match };
+  const { pin, equipmentId, model, position, relay, match, source } = machine;
+  return { pin, equipmentId, model, position, relay, match, ...(source ? { source } : {}) };
 }

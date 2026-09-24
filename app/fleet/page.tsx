@@ -734,6 +734,7 @@ function FleetWorkspace() {
           </button>
         }
       >
+        {access?.isAdmin && <div className="mb-4 flex flex-wrap gap-3"><Link href="/fleet/map" className="console-command-action">Combined fleet map · JCB &amp; Manitou</Link><Link href="/manitou" className="console-command-action">Manitou Track</Link></div>}
         <PageHeader
           title={access?.fleetName ? `${access.fleetName} Fleet` : "Fleet workspace"}
           description={

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { partsRequestUrl, positionAge, type LinkedJcbMachine } from "@/lib/integrations/jcb/types";
+import { machineKey, machineBrand, partsRequestUrl, positionAge, type LinkedJcbMachine } from "@/lib/integrations/jcb/types";
 
 export default function LiveLinkMap({ machines, selectedPin, onSelect }: { machines: LinkedJcbMachine[]; selectedPin: string | null; onSelect: (pin: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
@@ -33,18 +33,18 @@ export default function LiveLinkMap({ machines, selectedPin, onSelect }: { machi
       const { latitude, longitude, at } = machine.position;
       const name = machine.relay?.machine_number || machine.equipmentId || machine.pin;
       const old = !at || Date.now() - Date.parse(at) > 48 * 3_600_000;
-      const icon = L.divIcon({ className: "jcb-map-marker", html: `<span class="jcb-map-dot${old ? " jcb-map-dot-old" : ""}"></span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+      const icon = L.divIcon({ className: "jcb-map-marker", html: `<span class="jcb-map-dot${old ? " jcb-map-dot-old" : machine.source === "trackunit" ? " trackunit-map-dot" : ""}"></span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
       const marker = L.marker([latitude, longitude], { icon, title: `${name} · ${machine.model} · ${positionAge(at)}`, keyboard: true });
       const popup = document.createElement("div");
-      const title = document.createElement("strong"); title.textContent = `${name} · ${machine.model}`; popup.append(title);
+      const title = document.createElement("strong"); title.textContent = `${name} · ${machineBrand(machine)} ${machine.model}`; popup.append(title);
       const time = document.createElement("p"); time.textContent = `Last position: ${at ? new Date(at).toLocaleString() : "time unavailable"}`; popup.append(time);
       const button = document.createElement("button"); button.type = "button"; button.textContent = "View machine"; button.className = "jcb-popup-button";
-      button.onclick = () => select.current(machine.pin); popup.append(button);
+      button.onclick = () => select.current(machineKey(machine)); popup.append(button);
       const href = partsRequestUrl(machine);
       if (href) { const link = document.createElement("a"); link.href = href; link.textContent = "Raise RELAY parts request"; link.className = "jcb-popup-button"; popup.append(link); }
       else { const note = document.createElement("p"); note.textContent = "An admin must link this machine to RELAY before a parts request can be prefilled."; popup.append(note); }
-      marker.bindPopup(popup).on("click", () => select.current(machine.pin)).addTo(instance);
-      markers.current.set(machine.pin, marker); bounds.extend([latitude, longitude]);
+      marker.bindPopup(popup).on("click", () => select.current(machineKey(machine))).addTo(instance);
+      markers.current.set(machineKey(machine), marker); bounds.extend([latitude, longitude]);
     }
     if (bounds.isValid()) instance.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
   }, [machines]);
@@ -52,5 +52,5 @@ export default function LiveLinkMap({ machines, selectedPin, onSelect }: { machi
     const marker = selectedPin ? markers.current.get(selectedPin) : null;
     if (marker) { marker.openPopup(); map.current?.panTo(marker.getLatLng()); }
   }, [selectedPin, machines]);
-  return <div ref={container} className="jcb-map" aria-label="JCB fleet map. Select a machine marker to view it or raise a parts request." />;
+  return <div ref={container} className="jcb-map" aria-label="Fleet map. Select a machine marker to view it or raise a parts request." />;
 }

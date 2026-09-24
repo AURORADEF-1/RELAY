@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { HealthReport } from "@/components/jcb/health-report";
+import { FleetHealthReports } from "@/components/telematics/health-reports";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { ConsoleIcon } from "@/components/console/console-icon";
@@ -370,7 +370,7 @@ export default function ReportsPage() {
                       onExport={exportClosedJobs}
                     />
                   ) : null}
-                  {activeTab === "fleet" ? <><HealthReport /><FleetReport analytics={analytics} /></> : null}
+                  {activeTab === "fleet" ? <><FleetHealthReports /><FleetReport analytics={analytics} /></> : null}
                   {activeTab === "parts" ? (
                     <RankedReport
                       title="Most common parts requested"

@@ -15,7 +15,8 @@ export type RelayNotificationType =
   | "part_collected"
   | "part_returned"
   | "system_broadcast"
-  | "jcb_health";
+  | "jcb_health"
+  | "trackunit_health";
 
 export type RelayNotificationRecord = {
   id: string;
