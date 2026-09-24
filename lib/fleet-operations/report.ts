@@ -29,9 +29,9 @@ export function hireState(samples:Snapshot[],now:number){
     if(side!=='unknown'&&side===prior){lastKnown=side;lastKnownAt=points[i].at;}
   }
   const latest=points.at(-1),prior=points.at(-2);
-  const side=positionSide(latest??null,now);
+  const side=samples.at(-1)?.payload.position?positionSide(latest??null,now):'unknown';
   const status:HireStatus=side!=='unknown'&&prior&&positionSide(prior,now)===side?side:'unknown';
-  return {status,lastKnown,lastKnownAt,position:latest??null,reason:!latest?'No GPS reading':positionSide(latest,now)==='unknown'?'Stale, invalid or near yard boundary':status==='unknown'?'Awaiting two distinct GPS readings':'Confirmed by two distinct GPS readings'};
+  return {status,lastKnown,lastKnownAt,position:latest??null,reason:!samples.at(-1)?.payload.position?'No current GPS reading':!latest?'No GPS reading':positionSide(latest,now)==='unknown'?'Stale, invalid or near yard boundary':status==='unknown'?'Awaiting two distinct GPS readings':'Confirmed by two distinct GPS readings'};
 }
 type Metric = 'fuelUsed'|'hours'|'idleHours';
 type Interval = {start:number;end:number;value:number};
