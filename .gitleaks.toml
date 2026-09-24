@@ -1,0 +1,23 @@
+title = "RELAY credential protection"
+[extend]
+useDefault = true
+
+# These vendors do not all have a recognised provider-specific key format.
+# Detect literal credentials even when their entropy is too low for generic rules.
+[[rules]]
+id = "relay-fleet-credential"
+description = "Hard-coded fleet provider or database credential"
+regex = '''(?i)(?:JCB_LIVELINK_(?:PASSWORD|CLIENT_SECRET)|TRACKUNIT_API_KEY|TAKEUCHI_CLIENT_(?:ID|SECRET)|JCB_HEALTH_DATABASE_KEY)["']?\s*(?:=|:|,)\s*["']([^"'\r\n]{8,})["']'''
+secretGroup = 1
+[[rules.allowlists]]
+description = "Exact non-working unit-test fixtures only"
+regexes = ['''^(?:test-secret|test-password|test-database-key|server-test-key)$''']
+
+[[rules]]
+id = "relay-fleet-env-credential"
+description = "Fleet credential in an environment file"
+regex = '''(?im)^(?:JCB_LIVELINK_(?:PASSWORD|CLIENT_SECRET)|TRACKUNIT_API_KEY|TAKEUCHI_CLIENT_(?:ID|SECRET)|JCB_HEALTH_DATABASE_KEY)[ \t]*=[ \t]*([^\s"'\r\n#]{8,})'''
+secretGroup = 1
+[[rules.allowlists]]
+description = "Exact non-working unit-test fixtures only"
+regexes = ['''^(?:test-secret|test-password|test-database-key|server-test-key)$''']
