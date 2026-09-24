@@ -1,12 +1,11 @@
 import "server-only";
-import { unstable_cache } from "next/cache";
+import {cachedProvider, guardedFetch} from "../request-guard";
+import {JcbError} from "../provider-error";
+export {JcbError} from "../provider-error";
 import { fleetSchema, faultsSchema, normalizeEquipment, timestamp } from "./normalize";
 import type { JcbFault, JcbMachine } from "./types";
 
 const BASE = "https://www.jcbll.com/Live/MixedFleetTelematicsService/";
-export class JcbError extends Error {
-  constructor(message: string, public status = 502) { super(message); }
-}
 let token: { value: string; expires: number } | null = null;
 let tokenPending: Promise<string> | null = null;
 export function validateJcbUrl(value: string, prefix = "/Live/MixedFleetTelematicsService/Fleet") {
@@ -25,9 +24,9 @@ async function accessToken() {
     const password = process.env.JCB_LIVELINK_PASSWORD;
     const secret = process.env.JCB_LIVELINK_CLIENT_SECRET;
     if (!username || !password || !secret) throw new JcbError("JCB LiveLink has not been configured yet.", 503);
-    const response = await fetch(BASE + "GetToken", { method: "POST", redirect: "error", cache: "no-store",
+    const response = await guardedFetch("jcb", () => fetch(BASE + "GetToken", { method: "POST", redirect: "error", cache: "no-store",
       signal: AbortSignal.timeout(15_000), headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-      body: new URLSearchParams({ username, password, client_secret: secret, client_id: "RELAY", grant_type: "password" }) });
+      body: new URLSearchParams({ username, password, client_secret: secret, client_id: "RELAY", grant_type: "password" }) }));
     if (!response.ok) throw new JcbError("JCB authentication failed. Ask an administrator to check the connection.", 503);
     const data = await response.json();
     if (typeof data.access_token !== "string" || !data.access_token || !Number.isFinite(Number(data.expires_in))) throw new JcbError("JCB returned an invalid authentication response.");
@@ -39,8 +38,8 @@ async function accessToken() {
 async function request(url: string, retry = true, signal?: AbortSignal): Promise<unknown> {
   const safeUrl = validateJcbUrl(url);
   const bearer = await accessToken();
-  const response = await fetch(safeUrl, { headers: { Authorization: `Bearer ${bearer}`, Accept: "application/json" },
-    cache: "no-store", redirect: "error", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000) });
+  const response = await guardedFetch("jcb", () => fetch(safeUrl, { headers: { Authorization: `Bearer ${bearer}`, Accept: "application/json" },
+    cache: "no-store", redirect: "error", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000) }));
   if (response.status === 401 && retry) { if (token?.value === bearer) token = null; return request(url, false, signal); }
   if (response.status === 204) return null;
   if (response.status === 429) throw new JcbError("JCB is limiting requests. Please try again later.", 503);
@@ -48,7 +47,7 @@ async function request(url: string, retry = true, signal?: AbortSignal): Promise
   return response.json();
 }
 
-export async function fetchJcbFleet(): Promise<{ machines: JcbMachine[]; checkedAt: string }> {
+async function loadJcbFleet(): Promise<{ machines: JcbMachine[]; checkedAt: string }> {
   let url: string | undefined = BASE + "Fleet";
   const seen = new Set<string>(), pins = new Set<string>();
   const machines: JcbMachine[] = [];
@@ -67,9 +66,10 @@ export async function fetchJcbFleet(): Promise<{ machines: JcbMachine[]; checked
   }
   return { machines, checkedAt: new Date().toISOString() };
 }
-export const getJcbFleet = unstable_cache(fetchJcbFleet, ["jcb-fleet-v2-fuel"], { revalidate: 900 });
+export async function fetchJcbFleet() { return (await cachedProvider("jcb", "fleet", loadJcbFleet)).data; }
+export const getJcbFleet = fetchJcbFleet;
 
-export async function fetchJcbFaults(pin: string): Promise<{ faults: JcbFault[]; checkedAt: string }> {
+async function loadJcbFaults(pin: string): Promise<{ faults: JcbFault[]; checkedAt: string }> {
   let url: string | undefined = BASE + `Fleet/Equipment/${encodeURIComponent(pin)}/Faults/1`;
   const seen = new Set<string>(); const faults: JcbFault[] = [];
   const deadline = AbortSignal.timeout(35_000);
@@ -86,4 +86,5 @@ export async function fetchJcbFaults(pin: string): Promise<{ faults: JcbFault[];
   }
   return { faults, checkedAt: new Date().toISOString() };
 }
-export const getJcbFaults = unstable_cache(fetchJcbFaults, ["jcb-faults-v1"], { revalidate: 900 });
+export async function fetchJcbFaults(pin:string) { return (await cachedProvider("jcb", `faults:${pin}`, () => loadJcbFaults(pin))).data; }
+export const getJcbFaults = fetchJcbFaults;

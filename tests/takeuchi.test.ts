@@ -1,7 +1,8 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 vi.mock('next/cache',()=>({unstable_cache:(fn:unknown)=>fn}));
-const mock=vi.hoisted(()=>({from:vi.fn()}));
+const mock=vi.hoisted(()=>({rpc:vi.fn(),from:vi.fn()}));
+vi.mock('@supabase/supabase-js',()=>({createClient:()=>mock}));
 vi.mock('@/lib/fleet-operations/server',()=>({operationsDatabase:()=>({from:mock.from})}));
 import {normalizeTakeuchi,linkTakeuchiMachines,normalizeTakeuchiFault,takeuchiFleetSchema} from '@/lib/integrations/takeuchi/normalize';
 import {getTakeuchiFleet,cachedTakeuchi,safeTakeuchiPath} from '@/lib/integrations/takeuchi/client';
@@ -19,8 +20,8 @@ describe('Takeuchi AEMP normalization',()=>{
  it('rejects malformed equipment and foreign pagination destinations',()=>{expect(takeuchiFleetSchema.safeParse({equipment:[{}],links:[]}).success).toBe(false);expect(()=>safeTakeuchiPath('https://evil.example/Fleet/2','Fleet/')).toThrow();expect(()=>safeTakeuchiPath('https://iris.trackunit.com/another-api','Fleet/')).toThrow();});
 });
 describe('Takeuchi durable read cache',()=>{
- beforeEach(()=>{const chain={select:vi.fn(()=>chain),eq:vi.fn(()=>chain),maybeSingle:vi.fn(async()=>({data:{payload:[normalizeTakeuchi(raw)],checked_at:new Date().toISOString()},error:null}))};mock.from.mockReturnValue(chain);});
+ beforeEach(()=>{vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL','https://example.supabase.co');vi.stubEnv('JCB_HEALTH_DATABASE_KEY','test');mock.rpc.mockResolvedValue({data:{state:'cached',data:[normalizeTakeuchi(raw)],checkedAt:at},error:null});const chain={select:vi.fn(()=>chain),eq:vi.fn(()=>chain),maybeSingle:vi.fn(async()=>({data:{payload:[normalizeTakeuchi(raw)],checked_at:new Date().toISOString()},error:null}))};mock.from.mockReturnValue(chain);});
  it('reuses recent fleet snapshots without spending another provider request',async()=>{const f=vi.fn();vi.stubGlobal('fetch',f);const r=await getTakeuchiFleet();expect(r.machines).toHaveLength(1);expect(f).not.toHaveBeenCalled();});
- it('fails closed on storage failure before sending credentials',async()=>{mock.from.mockReturnValue({select:()=>({eq:()=>({maybeSingle:async()=>({error:{message:'failed'},data:null})})})});const load=vi.fn();await expect(cachedTakeuchi('fleet',load)).rejects.toThrow('cache');expect(load).not.toHaveBeenCalled();});
- it('does not fetch when another worker holds the provider request lease',async()=>{const chain={select:()=>chain,eq:()=>chain,lt:async()=>({select:()=>({data:[]})}),maybeSingle:async()=>({data:{payload:null,checked_at:null},error:null}),update:()=>chain};chain.lt=()=>({select:async()=>({data:[],error:null})}) as never;mock.from.mockReturnValue(chain);const load=vi.fn();await expect(cachedTakeuchi('fleet',load)).rejects.toThrow('updating');expect(load).not.toHaveBeenCalled();});
+ it('fails closed on storage failure before sending credentials',async()=>{mock.rpc.mockResolvedValue({error:{message:'failed'},data:null});const load=vi.fn();await expect(cachedTakeuchi('fleet',load)).rejects.toThrow('cache');expect(load).not.toHaveBeenCalled();});
+ it('does not fetch when another worker holds the provider request lease',async()=>{mock.rpc.mockResolvedValue({data:{state:'busy'},error:null});const load=vi.fn();await expect(cachedTakeuchi('fleet',load)).rejects.toThrow('updating');expect(load).not.toHaveBeenCalled();});
 });

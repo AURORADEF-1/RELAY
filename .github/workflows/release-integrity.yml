@@ -23,12 +23,29 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Use Node.js 20
         uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
+
+      - name: Check for committed credentials
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          node scripts/verify-secret-files.mjs
+          mkdir -p "$RUNNER_TEMP/relay-gitleaks"
+          cd "$RUNNER_TEMP/relay-gitleaks"
+          curl --fail --silent --show-error --location "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" --output gitleaks.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf gitleaks.tar.gz gitleaks
+          export GITLEAKS_BIN="$RUNNER_TEMP/relay-gitleaks/gitleaks"
+          cd "$GITHUB_WORKSPACE"
+          node scripts/verify-secret-scanner.mjs
+          "$GITLEAKS_BIN" git --log-opts="--all --full-history" --redact=100 --ignore-gitleaks-allow --no-banner --config .gitleaks.toml
 
       - name: Install dependencies
         run: npm ci

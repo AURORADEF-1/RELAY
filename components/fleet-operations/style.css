@@ -3,3 +3,8 @@
 .fo-workspace .leaflet-tooltip.fo-unchecked-pin{background:#fff3d6;color:#693d00;border:1px solid #b77713;font-weight:700;padding:5px 8px;box-shadow:0 2px 5px #0003}
 
 .fo-workspace .takeuchi-map-dot{background:#7c3aed}
+
+.fo-workspace tr.fo-has-request td:first-child{background:color-mix(in srgb,#d99213 11%,var(--fo-bg));border-left:3px solid #b77910;white-space:normal;min-width:190px;max-width:290px}
+.fo-workspace .fo-request-badge{display:inline-flex;align-items:center;min-height:44px;padding:8px 10px;margin-top:7px;box-sizing:border-box;border:1px solid #b77910;border-radius:8px;background:#fff3d6;color:#624000;font-size:12px;font-weight:650;white-space:normal;text-decoration:underline;cursor:pointer;max-width:260px}
+.fo-open-requests summary.fo-request-badge{display:list-item;list-style-position:inside}.fo-open-requests ul,.fo-attribution ul{padding-left:20px;white-space:normal}.fo-open-requests li a{display:inline-block;min-height:44px;padding:10px 0;text-decoration:underline}.fo-attribution summary{min-height:44px;padding:10px 0;cursor:pointer}.fo-attribution li{margin:8px 0}.fo-bar-row{grid-template-columns:minmax(90px,1.2fr) minmax(50px,2fr) minmax(50px,.7fr)}
+html[data-theme="dark"] .fo-workspace .fo-request-badge{background:#463513;color:#ffdb88}
