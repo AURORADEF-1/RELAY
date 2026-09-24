@@ -70,21 +70,39 @@ export function operationalReport(samples:Snapshot[],from:number,to:number){
   const aligned=(a:Interval[],b:Interval[])=>a.flatMap(x=>{const y=b.find(y=>y.start===x.start&&y.end===x.end);return y?[{a:x.value,b:y.value}]:[];});
   const fuelHours=aligned(fuel,hours),idleHours=aligned(idle,hours).filter(x=>x.a<=x.b);
   const denominator=fuelHours.reduce((n,p)=>n+p.b,0),idleDenominator=idleHours.reduce((n,p)=>n+p.b,0);
-  // Location allocation is conservative: every observed GPS point must support the same side,
-  // with recent observations before and after the entire counter interval.
-  let yardFuel=0,onHireFuel=0,unattributedFuel=0;
-  const positions=samples.flatMap(s=>s.payload.position?.at?[s.payload.position]:[]).sort((a,b)=>Date.parse(a.at!)-Date.parse(b.at!));
+  // GPS and counters are sampled independently. Prefer a complete bracket;
+  // permit a labelled estimate only with two distinct observations within 15
+  // minutes of the endpoints, no observed crossing and no long GPS gaps.
+  let yardFuel=0,onHireFuel=0,unattributedFuel=0,timingEstimatedFuel=0;
+  const unattributedReasons={missingStart:0,missingEnd:0,gpsGap:0,invalidPosition:0,crossing:0};
+  const positions=samples.flatMap(s=>s.payload.position?.at?[s.payload.position]:[])
+    .filter(p=>Number.isFinite(Date.parse(p.at!))&&Date.parse(p.at!)<=to).sort((a,b)=>Date.parse(a.at!)-Date.parse(b.at!));
   for(const f of fuel){
-    const before=positions.filter(p=>Date.parse(p.at!)<=f.start).at(-1),after=positions.find(p=>Date.parse(p.at!)>=f.end);
-    const points=positions.filter(p=>Date.parse(p.at!)>=f.start&&Date.parse(p.at!)<=f.end);
-    const side=before?positionSide(before,f.start):'unknown';
-    const bracket=before&&after&&f.start-Date.parse(before.at!)<=3600000&&Date.parse(after.at!)-f.end<=3600000;
-    const all=bracket?[before!,...points,after!]:[];
-    const sparse=all.some((p,i)=>i>0&&Date.parse(p.at!)-Date.parse(all[i-1].at!)>2*3600000);
-    if(!bracket||sparse||side==='unknown'||all.some(p=>positionSide(p,Date.parse(p.at!))!==side))unattributedFuel+=f.value;
-    else if(side==='off_hire')yardFuel+=f.value;else onHireFuel+=f.value;
+    const at=(p:NonNullable<LinkedJcbMachine['position']>)=>Date.parse(p.at!);
+    let before=positions.filter(p=>at(p)<=f.start).at(-1),after=positions.find(p=>at(p)>=f.end);
+    const bracket=before&&after&&f.start-at(before)<=3600000&&at(after)-f.end<=3600000;
+    const closest=(target:number)=>positions.reduce<typeof before>((best,p)=>!best||Math.abs(at(p)-target)<Math.abs(at(best)-target)?p:best,undefined);
+    let estimated=false;
+    if(!bracket){
+      const start=closest(f.start),end=closest(f.end);
+      if(start&&end&&at(start)<at(end)&&Math.abs(at(start)-f.start)<=15*60000&&Math.abs(at(end)-f.end)<=15*60000){before=start;after=end;estimated=true;}
+    }
+    let reason:keyof typeof unattributedReasons|null=null;
+    if(!bracket&&!estimated){
+      if(!before||f.start-at(before)>3600000)reason='missingStart';
+      else if(!after||at(after)-f.end>3600000)reason='missingEnd';
+      else reason='gpsGap';
+    }
+    const all=before&&after?positions.filter(p=>at(p)>=Math.min(at(before),f.start)&&at(p)<=Math.max(at(after),f.end)):[];
+    const sides=all.map(p=>positionSide(p,at(p))),side=sides[0];
+    if(!reason&&all.some((p,i)=>i>0&&at(p)-at(all[i-1])>2*3600000))reason='gpsGap';
+    if(!reason&&(!sides.length||sides.includes('unknown')))reason='invalidPosition';
+    if(!reason&&sides.some(s=>s!==side))reason='crossing';
+    if(reason){unattributedFuel+=f.value;unattributedReasons[reason]+=f.value;}
+    else {if(side==='off_hire')yardFuel+=f.value;else onHireFuel+=f.value;if(estimated)timingEstimatedFuel+=f.value;}
   }
-  return {fuelLitres:total(fuel),engineHours:total(hours),idleHours:total(idle),litresPerHour:denominator>0?fuelHours.reduce((n,p)=>n+p.a,0)/denominator:null,idlePercent:idleDenominator>0?idleHours.reduce((n,p)=>n+p.a,0)/idleDenominator*100:null,nonIdleHours:idleHours.length?idleHours.reduce((n,p)=>n+p.b-p.a,0):null,yardFuel:fuel.length?yardFuel:null,onHireFuel:fuel.length?onHireFuel:null,unattributedFuel:fuel.length?unattributedFuel:null,fuelIntervals:fuel.length,hoursIntervals:hours.length,fuelCoverageHours:fuel.reduce((n,p)=>n+(p.end-p.start)/3600000,0),firstObserved:samples[0]?.captured_at??null};
+  return {fuelLitres:total(fuel),engineHours:total(hours),idleHours:total(idle),litresPerHour:denominator>0?fuelHours.reduce((n,p)=>n+p.a,0)/denominator:null,idlePercent:idleDenominator>0?idleHours.reduce((n,p)=>n+p.a,0)/idleDenominator*100:null,nonIdleHours:idleHours.length?idleHours.reduce((n,p)=>n+p.b-p.a,0):null,yardFuel:fuel.length?yardFuel:null,onHireFuel:fuel.length?onHireFuel:null,unattributedFuel:fuel.length?unattributedFuel:null,timingEstimatedFuel,unattributedReasons,fuelIntervals:fuel.length,hoursIntervals:hours.length,fuelCoverageHours:fuel.reduce((n,p)=>n+(p.end-p.start)/3600000,0),firstObserved:samples[0]?.captured_at??null};
 }
-export type OperationRow={machine:LinkedJcbMachine;hire:ReturnType<typeof hireState>;report:ReturnType<typeof operationalReport>};
+export type OpenPartsRequest={id:string;jobNumber:string|null;status:string};
+export type OperationRow={openPartsRequests:OpenPartsRequest[]|null;machine:LinkedJcbMachine;hire:ReturnType<typeof hireState>;report:ReturnType<typeof operationalReport>};
 export function csvCell(value:unknown){const s=value===null||value===undefined?'':String(value);return '"'+(/^[\s]*[=+@-]/.test(s)?"'":'')+s.replaceAll('"','""')+'"';}

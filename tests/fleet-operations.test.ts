@@ -20,3 +20,28 @@ describe('Fleet Operations reporting',()=>{
  it('does not accept fuel percentages or ambiguous gallons as litres',()=>{const raw={EquipmentHeader:{Pin:'test'},FuelUsed:{FuelConsumed:123,FuelUnits:'litre',DateTime:new Date(now).toISOString()}};expect(normalizeEquipment(raw).fuelUsed?.value).toBe(123);expect(normalizeEquipment({...raw,FuelUsed:{...raw.FuelUsed,FuelUnits:'gallon'}}).fuelUsed).toBeNull();const telemetry=[{name:'Total Fuel Used',value:123,time:new Date(now).toISOString(),uoM:'L'}];expect(applyTelemetry(machine,telemetry).fuelUsed?.value).toBe(123);expect(applyTelemetry(machine,[{...telemetry[0],uoM:'%'}]).fuelUsed).toBeNull();});
  it('neutralizes CSV formulas and escapes quoted fields',()=>{expect(csvCell('=cmd()')).toBe('"\'=cmd()"');expect(csvCell('A"B')).toBe('"A""B"');expect(csvCell(null)).toBe('""');});
 });
+
+describe('Fuel location timing and uncertainty',()=>{
+ it('labels bounded GPS/counter timing differences as estimates without changing measured fuel',()=>{
+  const a=sample(now-3600000,100,10,4),b=sample(now,108,11,4.25);
+  a.payload.position.at=new Date(now-3600000+5*60000).toISOString();b.payload.position.at=new Date(now-5*60000).toISOString();
+  expect(operationalReport([a,b],now-DAY,now)).toMatchObject({fuelLitres:8,yardFuel:8,unattributedFuel:0,timingEstimatedFuel:8});
+ });
+ it('keeps missing opening history unconfirmed instead of applying the current location',()=>{
+  const a=sample(now-3600000,100,10,4),b=sample(now,108,11,4.25);a.payload.position.at=new Date(now-30*60000).toISOString();
+  expect(operationalReport([a,b],now-DAY,now)).toMatchObject({unattributedFuel:8,timingEstimatedFuel:0,unattributedReasons:{missingStart:8}});
+ });
+ it('does not estimate a crossing even when timestamps are close',()=>{
+  const a=sample(now-3600000,100,10,4),b=sample(now,108,11,4.25,52.4);a.payload.position.at=new Date(now-55*60000).toISOString();b.payload.position.at=new Date(now-5*60000).toISOString();
+  expect(operationalReport([a,b],now-DAY,now)).toMatchObject({unattributedFuel:8,timingEstimatedFuel:0,unattributedReasons:{crossing:8}});
+ });
+ it('does not let repeated GPS observations cover an entire interval or use future observations',()=>{
+  const a=sample(now-10*60000,100,10,4),b=sample(now,108,11,4.25);a.payload.position.at=b.payload.position.at=new Date(now-5*60000).toISOString();
+  expect(operationalReport([a,b],now-DAY,now).unattributedFuel).toBe(8);
+  b.payload.position.at=new Date(now+60000).toISOString();expect(operationalReport([a,b],now-DAY,now).unattributedFuel).toBe(8);
+ });
+ it('accounts for every unconfirmed litre and retains long-gap protection',()=>{
+  const result=operationalReport([sample(now-3*3600000,100,10,4),sample(now,108,11,4.25)],now-DAY,now);
+  expect(result.unattributedReasons.gpsGap).toBe(8);expect(Object.values(result.unattributedReasons).reduce((a,b)=>a+b,0)).toBe(result.unattributedFuel);
+ });
+});
