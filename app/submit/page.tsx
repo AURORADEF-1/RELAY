@@ -30,6 +30,7 @@ import {
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
 import { LiveLinkRequestContext } from "@/components/jcb/request-context";
+import { restoreLiveLinkRequestDraft } from "@/lib/integrations/jcb/request-draft";
 
 const departmentOptions = ["Onsite", "Yard"] as const;
 
@@ -137,9 +138,13 @@ export default function SubmitPage() {
     void loadRequesterOfflineDraft().then((draft) => {
       if (!isMounted) return;
       if (draft) {
-        setValues(draft.values);
-        setIsRetailSale(draft.isRetailSale);
-        setLocationDraft(draft.locationDraft);
+        const restored = restoreLiveLinkRequestDraft(draft, window.location.search);
+        setValues(restored.values);
+        setIsRetailSale(restored.isRetailSale);
+        setLocationDraft(restored.locationDraft);
+        if (restored !== draft) {
+          setOfflineStatusMessage({ type: "info", message: "Your saved draft has been restored with the machine selected in LiveLink. Check the job number and parts details before submitting." });
+        }
       }
       hasHydratedOfflineDraftRef.current = true;
     });
@@ -929,7 +934,7 @@ export default function SubmitPage() {
           {scannedMachineReference ? (
             <div className="aurora-alert aurora-alert-success">
               Machine reference <span className="font-semibold">{scannedMachineReference}</span>{" "}
-              captured from QR and prefilled below.
+              selected and prefilled below.
             </div>
           ) : null}
 
