@@ -29,6 +29,7 @@ import {
 } from "@/lib/requester-offline-submission";
 import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
+import { LiveLinkRequestContext } from "@/components/jcb/request-context";
 
 const departmentOptions = ["Onsite", "Yard"] as const;
 
@@ -952,6 +953,10 @@ export default function SubmitPage() {
           </div>
 
           <form onSubmit={handleSubmit} noValidate className="new-request-form">
+                <LiveLinkRequestContext onUse={(machineReference, text) => {
+                  setScannedMachineReference(machineReference);
+                  setValues(current => ({ ...current, machineReference, requestDetails: [current.requestDetails.trim(), text].filter(Boolean).join("\n\n") }));
+                }} />
                 <section className="new-request-form-panel">
                   <div className="new-request-panel-heading">
                     <div>

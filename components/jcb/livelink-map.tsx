@@ -1,0 +1,56 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { partsRequestUrl, positionAge, type LinkedJcbMachine } from "@/lib/integrations/jcb/types";
+
+export default function LiveLinkMap({ machines, selectedPin, onSelect }: { machines: LinkedJcbMachine[]; selectedPin: string | null; onSelect: (pin: string) => void }) {
+  const container = useRef<HTMLDivElement>(null);
+  const map = useRef<L.Map | null>(null);
+  const markers = useRef(new Map<string, L.Marker>());
+  const select = useRef(onSelect);
+  useEffect(() => { select.current = onSelect; }, [onSelect]);
+  useEffect(() => {
+    if (!container.current) return;
+    const instance = L.map(container.current, { scrollWheelZoom: false }).setView([52.5, 0.9], 8);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(instance);
+    map.current = instance;
+    const currentMarkers = markers.current;
+    const observer = new ResizeObserver(() => instance.invalidateSize());
+    observer.observe(container.current);
+    return () => { observer.disconnect(); instance.remove(); map.current = null; currentMarkers.clear(); };
+  }, []);
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    markers.current.forEach(marker => marker.remove()); markers.current.clear();
+    const bounds = L.latLngBounds([]);
+    for (const machine of machines) {
+      if (!machine.position) continue;
+      const { latitude, longitude, at } = machine.position;
+      const name = machine.relay?.machine_number || machine.equipmentId || machine.pin;
+      const old = !at || Date.now() - Date.parse(at) > 48 * 3_600_000;
+      const icon = L.divIcon({ className: "jcb-map-marker", html: `<span class="jcb-map-dot${old ? " jcb-map-dot-old" : ""}"></span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+      const marker = L.marker([latitude, longitude], { icon, title: `${name} · ${machine.model} · ${positionAge(at)}`, keyboard: true });
+      const popup = document.createElement("div");
+      const title = document.createElement("strong"); title.textContent = `${name} · ${machine.model}`; popup.append(title);
+      const time = document.createElement("p"); time.textContent = `Last position: ${at ? new Date(at).toLocaleString() : "time unavailable"}`; popup.append(time);
+      const button = document.createElement("button"); button.type = "button"; button.textContent = "View machine"; button.className = "jcb-popup-button";
+      button.onclick = () => select.current(machine.pin); popup.append(button);
+      const href = partsRequestUrl(machine);
+      if (href) { const link = document.createElement("a"); link.href = href; link.textContent = "Raise RELAY parts request"; link.className = "jcb-popup-button"; popup.append(link); }
+      else { const note = document.createElement("p"); note.textContent = "An admin must link this machine to RELAY before a parts request can be prefilled."; popup.append(note); }
+      marker.bindPopup(popup).on("click", () => select.current(machine.pin)).addTo(instance);
+      markers.current.set(machine.pin, marker); bounds.extend([latitude, longitude]);
+    }
+    if (bounds.isValid()) instance.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+  }, [machines]);
+  useEffect(() => {
+    const marker = selectedPin ? markers.current.get(selectedPin) : null;
+    if (marker) { marker.openPopup(); map.current?.panTo(marker.getLatLng()); }
+  }, [selectedPin, machines]);
+  return <div ref={container} className="jcb-map" aria-label="JCB fleet map. Select a machine marker to view it or raise a parts request." />;
+}
