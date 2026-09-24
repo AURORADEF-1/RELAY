@@ -1,3 +1,4 @@
+vi.mock('@/lib/integrations/request-guard',()=>({cachedProvider:async(_provider:string,_key:string,load:()=>Promise<unknown>)=>({data:await load(),checkedAt:new Date().toISOString()}),guardedFetch:async(_provider:string,load:()=>Promise<Response>)=>load()}));
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {normalizeUnit,linkTrackunitMachines,applyTelemetry,normalizeFault} from '@/lib/integrations/trackunit/normalize';
 import {partsRequestUrl,machineKey} from '@/lib/integrations/jcb/types';

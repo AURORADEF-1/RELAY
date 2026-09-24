@@ -1,3 +1,4 @@
+import {cachedProvider} from '@/lib/integrations/request-guard';
 import {getTakeuchiFleet} from '@/lib/integrations/takeuchi/client';
 import {linkTakeuchiMachines} from '@/lib/integrations/takeuchi/normalize';
 import 'server-only';
@@ -8,6 +9,9 @@ import {linkMachines} from '@/lib/integrations/jcb/normalize';
 import {linkTrackunitMachines,applyTelemetry} from '@/lib/integrations/trackunit/normalize';
 import {operationsDatabase,ownership,allRows,eligibleMachines} from './server';
 export async function collectOperations(provider:'jcb'|'trackunit'|'takeuchi'){
+ return (await cachedProvider(provider,'operations-collection',()=>runCollection(provider))).data;
+}
+async function runCollection(provider:'jcb'|'trackunit'|'takeuchi'){
  const started=Date.now(),db=operationsDatabase();
  if((provider==='takeuchi'?process.env.TAKEUCHI_ENABLED:provider==='jcb'?process.env.JCB_LIVELINK_ENABLED:process.env.TRACKUNIT_ENABLED)!=='true')throw new JcbError('Tracking provider is disabled.',503);
  const {registry,allowed}=await ownership(db);

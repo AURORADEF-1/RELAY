@@ -1,3 +1,4 @@
+vi.mock('@/lib/integrations/request-guard',()=>({cachedProvider:async(_provider:string,_key:string,load:()=>Promise<unknown>)=>({data:await load(),checkedAt:new Date().toISOString()}),guardedFetch:async(_provider:string,load:()=>Promise<Response>)=>load()}));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { equipmentSchema, linkMachines, normalizeEquipment, projectMachine } from "@/lib/integrations/jcb/normalize";
 import { partsRequestUrl, positionAge } from "@/lib/integrations/jcb/types";

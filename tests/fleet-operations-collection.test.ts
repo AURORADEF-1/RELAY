@@ -1,3 +1,4 @@
+vi.mock('@/lib/integrations/request-guard',()=>({cachedProvider:async(_provider:string,_key:string,load:()=>Promise<unknown>)=>({data:await load(),checkedAt:new Date().toISOString()}),guardedFetch:async(_provider:string,load:()=>Promise<Response>)=>load()}));
 import {afterEach,expect,it,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 const mocks=vi.hoisted(()=>({fresh:vi.fn(),cached:vi.fn(),upsert:vi.fn().mockResolvedValue({error:null}),insert:vi.fn().mockResolvedValue({error:null})}));
