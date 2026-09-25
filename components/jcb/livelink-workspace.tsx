@@ -1,5 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
+import {useFleetStatuses,FleetStatus,FleetStatusLegend} from "@/components/assets/fleet-status";
 import { FaultCards } from "./fault-cards";
 import "./health.css";
 import Link from "next/link";
@@ -25,6 +26,7 @@ type Manage = { profiles: { id: string; full_name: string; role: string }[]; acc
 export function LiveLinkWorkspace({ request = api }: { request?: typeof api }) {
   const detailRef=useRef<HTMLElement>(null);
   const [fleet, setFleet] = useState<JcbFleetResponse | null>(null);
+  const statuses=useFleetStatuses(fleet);
   const [error, setError] = useState(""); const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState(""); const [view, setView] = useState<"map" | "list">("map");
   const [selectedPin, setSelectedPin] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export function LiveLinkWorkspace({ request = api }: { request?: typeof api }) {
       <div className="jcb-toolbar"><label className="jcb-search">Find a machine<input placeholder="Fleet number, model or PIN" value={query} onChange={e => setQuery(e.target.value)} /></label><div className="jcb-actions"><button aria-pressed={view === "map"} onClick={() => setView("map")}>Map view</button><button aria-pressed={view === "list"} onClick={() => setView("list")}>List view</button></div></div>
       <div className="jcb-grid"><section className="jcb-results" aria-label="JCB machines">
         {view === "map" && <><FleetMap machines={machines} selectedPin={selectedPin ? `jcb:${selectedPin}` : null} onSelect={key => selectMachine(key.slice(4))} /><p className="jcb-sync">Select a pin to raise a parts request. Amber pins have old or undated positions. {machines.filter(m => !m.position).length} machines have no map position.</p></>}
-        <div className="jcb-machine-list">{machines.length ? machines.map(m => <button key={m.pin} className={`jcb-machine ${selectedPin === m.pin ? "selected" : ""}`} onClick={() => selectMachine(m.pin)} aria-pressed={selectedPin === m.pin}><strong>{m.relay?.machine_number || m.equipmentId || m.pin} · {m.model}</strong><span>{m.position ? positionAge(m.position.at) : "Position unavailable"}</span><small>{m.relay ? `RELAY linked · ${m.match}` : "Needs RELAY linking"}</small></button>) : <p>No matching machines.</p>}</div>
+        <FleetStatusLegend/><div className="jcb-machine-list">{machines.length ? machines.map(m => <button key={m.pin} className={`jcb-machine fleet-card-${statuses[`jcb:${m.pin}`]?.tone??'unknown'} ${selectedPin === m.pin ? "selected" : ""}`} onClick={() => selectMachine(m.pin)} aria-pressed={selectedPin === m.pin}><strong>{m.relay?.machine_number || m.equipmentId || m.pin} · {m.model}</strong><span>{m.position ? positionAge(m.position.at) : "Position unavailable"}</span><FleetStatus status={statuses[`jcb:${m.pin}`]}/><small>{m.relay ? `RELAY linked · ${m.match}` : "Needs RELAY linking"}</small></button>) : <p>No matching machines.</p>}</div>
       </section><section ref={detailRef} className="jcb-detail" aria-label="Selected machine" aria-live="polite">
         {!selected ? <><h2>Select a machine</h2><p>Choose a map pin or machine from the list to view its position and raise a parts request.</p></> : <>
           <h2>{selected.relay?.machine_number || selected.equipmentId} · {selected.model}</h2><p className="jcb-sync">PIN {selected.pin}</p><h3>Last-known position</h3>
