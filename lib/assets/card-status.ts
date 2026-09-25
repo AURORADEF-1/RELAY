@@ -3,7 +3,7 @@ import type {JcbFault,LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 export type CardStatus={tone:'fault'|'review'|'movement'|'running'|'unknown';label:string;detail:string;movement:string|null;checkedAt:string|null};
 export const fresh=(at:string|null|undefined,age:number,now:number)=>!!at&&Number.isFinite(Date.parse(at))&&Date.parse(at)<=now&&now-Date.parse(at)<=age;
 export function cardStatus(machine:LinkedJcbMachine,check:{faults:JcbFault[];checkedAt:string;complete?:boolean}|null,movement:{kind:string;occurred_at:string}|null,now=Date.now()):CardStatus{
- const move=movement&&fresh(movement.occurred_at,86400000,now)?({yard_arrival:'Yard arrival',yard_departure:'Yard departure',movement:'Movement recorded'}[movement.kind]??'Movement recorded'):null;
+ const move=movement&&fresh(movement.occurred_at,86400000,now)?({yard_arrival:'Returned to Yard',yard_departure:'Yard departure',movement:'Movement recorded'}[movement.kind]??'Movement recorded'):null;
  const base={movement:move,checkedAt:check?.checkedAt??null};
  const recent=check?.faults.some(f=>fresh(f.at,86400000,now));
  if(recent)return {...base,tone:'fault',label:'Fault reported',detail:'Fault reported within 24 hours. Check the machine for current status.'};

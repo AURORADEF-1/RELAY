@@ -16,10 +16,10 @@ export function movementEvents(machine:LinkedJcbMachine,history:Snapshot[],now=D
  // Confirm a boundary crossing with two distinct readings on the new side.
  const older=points.at(-2),before=older?positionSide(older,Date.parse(older.at!)):'unknown';
  let kind:AssetEvent['kind']|null=null;
- if(older&&side!=='unknown'&&side===old&&before!=='unknown'&&before!==side&&Date.parse(p!.at!)-Date.parse(older.at!)<=2*3600000)kind=side==='off_hire'?'yard_arrival':'yard_departure';
+ if(older&&side!=='unknown'&&side===old&&before!=='unknown'&&before!==side&&Date.parse(p!.at!)-Date.parse(previous.at!)<=2*3600000)kind=side==='off_hire'?'yard_arrival':'yard_departure';
  else if(side!=='unknown'&&side===old&&metres(previous,p!)>=300&&Date.parse(p!.at!)-Date.parse(previous.at!)<=2*3600000)kind='movement';
  if(!kind)return [];
- const titles={movement:'Movement recorded',yard_arrival:'Arrived at Garboldisham yard',yard_departure:'Left Garboldisham yard'};
+ const titles={movement:'Movement recorded',yard_arrival:'Returned to Yard',yard_departure:'Left Garboldisham yard'};
  return [{...base,event_key:`${key}:${kind}:${p!.at}`,kind,title:titles[kind],detail:kind==='movement'?`${Math.round(metres(previous,p!))} metres between reported positions; route not recorded.`:'Confirmed by two distinct GPS reports. Location-based hire status is an estimate.',occurred_at:p!.at!,payload:{from:previous,to:p}}];
 }
 export function faultEvents(machine:LinkedJcbMachine,faults:JcbFault[],now=Date.now()):AssetEvent[]{
