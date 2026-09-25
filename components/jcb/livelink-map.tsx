@@ -1,4 +1,5 @@
 "use client";
+import {currentTransit} from '@/lib/assets/transit';
 import {useEffect,useRef,useState} from 'react';
 import L from 'leaflet';
 import {locationViews} from '@/lib/fleet-map/location-views';
@@ -34,16 +35,16 @@ export default function LiveLinkMap({machines,selectedPin,onSelect,showYard=fals
     if(members.length>1){const bounds=L.latLngBounds(members.map(m=>[m.position!.latitude,m.position!.longitude] as [number,number]));const marker=L.marker(bounds.getCenter(),{icon:L.divIcon({className:'fleet-map-cluster',html:`<span>${members.length}</span>`,iconSize:[44,44]}),title:`${members.length} assets — select to expand`}).addTo(group);
      const content=document.createElement('div');content.className='fleet-cluster-list';for(const m of members){const b=document.createElement('button');b.textContent=m.relay?.machine_number||m.equipmentId;b.onclick=()=>select.current(machineKey(m));content.append(b);}marker.bindPopup(content);marker.on('click',()=>{if(zoom<18)instance!.fitBounds(bounds,{maxZoom:zoom+2,padding:[40,40]});});continue;
     }
-    const m=members[0],p=m.position!,name=m.relay?.machine_number||m.equipmentId||m.pin,age=p.at?Date.now()-Date.parse(p.at):NaN,old=!Number.isFinite(age)||age<0||age>86400000;
+    const m=members[0],p=m.position!,name=m.relay?.machine_number||m.equipmentId||m.pin,age=p.at?Date.now()-Date.parse(p.at):NaN,old=!Number.isFinite(age)||age<0||age>86400000,transit=!!currentTransit(m);
     const icon=L.divIcon({className:'jcb-map-marker',html:`<span class="jcb-map-dot ${old?'jcb-map-dot-old':m.source==='assetcare'?'assetcare-map-dot':m.source==='takeuchi'?'takeuchi-map-dot':m.source==='trackunit'?'trackunit-map-dot':''}"></span>`,iconSize:[36,36],iconAnchor:[18,18]});
-    const marker=L.marker([p.latitude,p.longitude],{icon,title:`${name} · ${old?'Not checked in':positionAge(p.at)}`}).addTo(group);
-    const popup=document.createElement('div'),title=document.createElement('strong');title.textContent=`${name} · ${machineBrand(m)} ${m.model}`;popup.append(title);
+    const marker=L.marker([p.latitude,p.longitude],{icon,title:`${name}${transit?' · In transit':''} · ${old?'Not checked in':positionAge(p.at)}`}).addTo(group);
+    const popup=document.createElement('div'),title=document.createElement('strong');title.textContent=`${name} · ${machineBrand(m)} ${m.model}${transit?' · In transit':''}`;popup.append(title);
     const time=document.createElement('p');time.textContent=`${old?'Not checked in — last known position. ':''}Last position: ${p.at?new Date(p.at).toLocaleString():'time unavailable'}`;popup.append(time);
     const button=document.createElement('button');button.type='button';button.textContent='View machine';button.className='jcb-popup-button';button.onclick=()=>select.current(machineKey(m));popup.append(button);
     for(const view of locationViews(p)){const a=document.createElement('a');a.href=view.href;a.textContent=`${view.label} ↗`;a.target='_blank';a.rel='noopener noreferrer';a.className='jcb-popup-button';popup.append(a);}
     const href=partsRequestUrl(m);if(href){const a=document.createElement('a');a.href=href;a.textContent='Raise RELAY parts request';a.className='jcb-popup-button';popup.append(a);}
     marker.bindPopup(popup,{autoPan:false}).on('click',()=>select.current(machineKey(m)));
-    if(labels||showYard&&old){const label=document.createElement('span');label.textContent=`${name}${old?' · Not checked in':''}`;marker.bindTooltip(label,{permanent:true,direction:'top'});}
+    if(labels||showYard&&old){const label=document.createElement('span');label.textContent=`${name}${transit?' · In transit':''}${old?' · Not checked in':''}`;marker.bindTooltip(label,{permanent:true,direction:'top'});}
     if(openSelection&&machineKey(m)===selectedPin){openSelection=false;marker.openPopup();}
    }
   }

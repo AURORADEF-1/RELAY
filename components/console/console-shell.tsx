@@ -86,6 +86,7 @@ const navigation: NavigationItem[] = [
   { href: "/settings", label: "Settings", icon: "settings" },
   { href: "/assets", label: "Asset Search", icon: "fleet", assetOnly: true },
   { href: "/assets/inbox", label: "Asset Inbox", icon: "fleet", adminOnly: true },
+  { href: "/fleet/scheduler", label: "Fleet Scheduler", icon: "fleet", adminOnly: true },
   { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
   { href: "/manitou", label: "Manitou Track", icon: "fleet", trackunitOnly: true },
   { href: "/takeuchi", label: "Takeuchi Track", icon: "fleet", takeuchiOnly: true },

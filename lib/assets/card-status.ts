@@ -1,13 +1,16 @@
+import {currentTransit} from './transit';
 import type {Telemetry} from '@/lib/integrations/trackunit/normalize';
 import type {JcbFault,LinkedJcbMachine} from '@/lib/integrations/jcb/types';
-export type CardStatus={tone:'fault'|'review'|'movement'|'running'|'unknown';label:string;detail:string;movement:string|null;checkedAt:string|null};
+export type CardStatus={tone:'fault'|'review'|'transit'|'movement'|'running'|'unknown';label:string;detail:string;movement:string|null;transit?:string|null;checkedAt:string|null};
 export const fresh=(at:string|null|undefined,age:number,now:number)=>!!at&&Number.isFinite(Date.parse(at))&&Date.parse(at)<=now&&now-Date.parse(at)<=age;
 export function cardStatus(machine:LinkedJcbMachine,check:{faults:JcbFault[];checkedAt:string;complete?:boolean}|null,movement:{kind:string;occurred_at:string}|null,now=Date.now()):CardStatus{
  const move=movement&&fresh(movement.occurred_at,86400000,now)?({yard_arrival:'Returned to Yard',yard_departure:'Yard departure',movement:'Movement recorded'}[movement.kind]??'Movement recorded'):null;
- const base={movement:move,checkedAt:check?.checkedAt??null};
+ const transit=currentTransit(machine,now);
+ const base={transit:transit?'In transit':null,movement:move,checkedAt:check?.checkedAt??null};
  const recent=check?.faults.some(f=>fresh(f.at,86400000,now));
  if(recent)return {...base,tone:'fault',label:'Fault reported',detail:'Fault reported within 24 hours. Check the machine for current status.'};
  if(check?.faults.length)return {...base,tone:'review',label:'Fault history — review',detail:'Older or undated fault reports. Resolution has not been confirmed.'};
+ if(transit)return {...base,tone:'transit',label:'In transit',detail:`Ignition off with ${transit.metres} m reported travel. Inferred from ${transit.basis.toLowerCase()}; not a live observation.`};
  if(move)return {...base,tone:'movement',label:move,detail:'Movement recorded within 24 hours; this does not confirm the machine is healthy.'};
  const position=machine.position,located=position&&Number.isFinite(position.latitude)&&Number.isFinite(position.longitude)&&Math.abs(position.latitude)<=90&&Math.abs(position.longitude)<=180&&(position.latitude!==0||position.longitude!==0)&&fresh(position.at,86400000,now);
  if(!located)return {...base,tone:'unknown',label:'Not checked in / no GPS',detail:'Position is missing, invalid or more than 24 hours old.'};

@@ -1,0 +1,16 @@
+import {beforeEach,it,expect,vi} from 'vitest';
+import {NextRequest} from 'next/server';
+vi.mock('server-only',()=>({}));
+const mocks=vi.hoisted(()=>({auth:vi.fn(),db:vi.fn(),ownership:vi.fn(),fleet:vi.fn(),existing:vi.fn(),insert:vi.fn()}));
+vi.mock('@/lib/assets/access',()=>({authorizeAssets:mocks.auth}));
+vi.mock('@/lib/fleet-operations/server',()=>({operationsDatabase:mocks.db,ownership:mocks.ownership}));
+vi.mock('@/lib/fleet-map/server',()=>({combinedFleet:mocks.fleet}));
+import {GET,POST} from '@/app/api/fleet/scheduler/route';
+import {JcbError} from '@/lib/integrations/jcb/client';
+const input={id:'00000000-0000-4000-8000-000000000001',machineId:'00000000-0000-4000-8000-000000000002',start:'2090-01-01',end:'2090-01-03',job:'J',site:'Site',notes:''};
+const req=(body:unknown=input)=>new NextRequest('https://relay.test/api/fleet/scheduler',{method:'POST',body:JSON.stringify(body)});
+beforeEach(()=>{vi.clearAllMocks();mocks.auth.mockResolvedValue({user:{id:'admin'},admin:true});mocks.existing.mockResolvedValue({data:null});mocks.ownership.mockResolvedValue({allowed:new Set([input.machineId])});mocks.insert.mockReturnValue({select:()=>({single:async()=>({data:{id:input.id},error:null})})});mocks.db.mockReturnValue({from:()=>({select:()=>({eq:()=>({maybeSingle:mocks.existing})}),insert:mocks.insert})});});
+it('requires admin before any scheduler reads or writes',async()=>{mocks.auth.mockRejectedValue(new JcbError('Admin only',403));expect((await GET(req())).status).toBe(403);expect((await POST(req())).status).toBe(403);expect(mocks.db).not.toHaveBeenCalled();});
+it('rejects invalid dates and non-MLP machines',async()=>{expect((await POST(req({...input,end:'bad'}))).status).toBe(400);mocks.ownership.mockResolvedValue({allowed:new Set()});expect((await POST(req())).status).toBe(400);expect(mocks.insert).not.toHaveBeenCalled();});
+it('records actor on the server and uses idempotent request IDs',async()=>{expect((await POST(req({...input,created_by:'other'}))).status).toBe(201);expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({created_by:'admin',id:input.id}));const saved=mocks.insert.mock.calls[0][0];mocks.existing.mockResolvedValue({data:saved});mocks.insert.mockClear();expect((await POST(req())).status).toBe(200);expect(mocks.insert).not.toHaveBeenCalled();});
+it('returns a conflict for overlapping reservations',async()=>{mocks.insert.mockReturnValue({select:()=>({single:async()=>({error:{code:'23P01'}})})});expect((await POST(req())).status).toBe(409);});

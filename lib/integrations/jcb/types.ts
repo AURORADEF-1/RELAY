@@ -17,6 +17,9 @@ export type JcbMachine = {
 export type RegistryMachine = { id: string; machine_number: string; serial_number: string | null; make: string | null; model: string | null };
 export type LinkedJcbMachine = Pick<JcbMachine, "pin" | "equipmentId" | "model" | "position"> & Partial<Pick<JcbMachine, "hours" | "idleHours" | "fuel" | "adblue" | "engine" | "fuelUsed" | "fuelUsed24h">> & {
   source?: "jcb" | "trackunit" | "takeuchi" | "assetcare";
+  ignition?: Reading<boolean> | null;
+  odometer?: Reading<number> | null;
+  transit?: import('@/lib/assets/transit').Transit | null;
   assetGroup?: string;
   assetCategory?: string;
   relay: RegistryMachine | null;
