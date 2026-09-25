@@ -143,7 +143,7 @@ export default function SubmitPage() {
         setIsRetailSale(restored.isRetailSale);
         setLocationDraft(restored.locationDraft);
         if (restored !== draft) {
-          setOfflineStatusMessage({ type: "info", message: "Your saved draft has been restored with the machine selected in LiveLink. Check the job number and parts details before submitting." });
+          setOfflineStatusMessage({ type: "info", message: "Your saved draft has been restored with the selected machine. Check the saved job number and parts details before submitting." });
         }
       }
       hasHydratedOfflineDraftRef.current = true;
