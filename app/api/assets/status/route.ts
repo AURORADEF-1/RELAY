@@ -1,3 +1,5 @@
+import {getAssetCareFleet} from '@/lib/integrations/assetcare/server';
+import {currentTransit} from '@/lib/assets/transit';
 import type {NextRequest} from 'next/server';
 import {z} from 'zod';
 import {authorizeAssets} from '@/lib/assets/access';
@@ -9,7 +11,7 @@ import {unitSchema,normalizeUnit,faultSchema,normalizeFault,telemetrySchema} fro
 import {machineKey,type JcbFault,type LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 const faultsSchema=z.array(z.object({code:z.string(),description:z.string(),severity:z.string(),at:z.string().nullable()}));
 export async function GET(request:NextRequest){try{
- await authorizeAssets(request);const db=operationsDatabase(),{allowed}=await ownership(db),now=Date.now();
+ const auth=await authorizeAssets(request);const db=operationsDatabase(),{allowed}=await ownership(db),now=Date.now();
  const [samples,cache,takeuchi,movements]=await Promise.all([
   db.rpc('fleet_operations_latest').limit(1000),
   db.from('fleet_api_cache').select('provider,cache_key,payload,checked_at,lease_until').or('cache_key.like.faults:%,cache_key.like.report/unitActiveFaults:%,cache_key.eq.unit:fleet,cache_key.like.GetUnitExtendedInfo:%').limit(1000),
@@ -32,6 +34,17 @@ export async function GET(request:NextRequest){try{
   const check=faults&&entry?.checked_at?{faults,checkedAt:entry.checked_at,complete:!!complete}:null;
   if(provider==='trackunit'){const telemetry=z.object({result:z.array(telemetrySchema)}).safeParse(cache.data.find(r=>r.provider==='trackunit'&&r.cache_key===`GetUnitExtendedInfo:${unitIds.get(m.pin)}`)?.payload);if(telemetry.success)m.engine=engineFromTelemetry(telemetry.data.result);}
   statuses[machineKey(m)]=cardStatus(m,check,movementRows.find(e=>e.machine_id===row.machine_id&&e.provider===provider)??null,now);
+ }
+ if(auth.admin&&process.env.ASSETCARE_ENABLED==='true'){try{
+  const fleet=await getAssetCareFleet();
+  for(const m of fleet.machines){
+   statuses[machineKey(m)]=cardStatus(m,null,null,now);
+   if(m.relay&&currentTransit(m,now)){for(const row of rows.filter(r=>r.machine_id===m.relay!.id)){
+    const key=machineKey(row.payload),old=statuses[key];
+    statuses[key]=old&&(old.tone==='fault'||old.tone==='review')?{...old,transit:'In transit'}:cardStatus({...row.payload,transit:m.transit},null,null,now);
+   }}
+  }
+ }catch{/* Preserve manufacturer assessments if Asset Care+ storage is unavailable. */}
  }
  return jcbJson({statuses,checkedAt:new Date(now).toISOString()});
  }catch(e){return jcbError(e);}}

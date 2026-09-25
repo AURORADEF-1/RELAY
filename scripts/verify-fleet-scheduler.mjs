@@ -1,0 +1,17 @@
+import {pathToFileURL} from 'node:url';
+const runtime=pathToFileURL(process.argv[2]);
+const {PGlite}=await import(runtime.href);
+const {btree_gist}=await import(new URL('./contrib/btree_gist.js',runtime).href);
+import fs from 'node:fs';
+const db=new PGlite({extensions:{btree_gist}});
+await db.exec("create schema extensions;create role anon;create role authenticated;create role service_role;create table public.machines(id uuid primary key);create table public.profiles(id uuid primary key);");
+await db.exec(fs.readFileSync(new URL('../supabase/migrations/20260925132903_fleet_scheduler.sql',import.meta.url),'utf8'));
+await db.exec("insert into machines values('00000000-0000-4000-8000-000000000001');insert into profiles values('00000000-0000-4000-8000-000000000002');");
+const insert=(id,start,end)=>db.query("insert into fleet_reservations(id,machine_id,starts_on,ends_on,job_reference,site,created_by) values($1,'00000000-0000-4000-8000-000000000001',$2,$3,'TEST','TEST','00000000-0000-4000-8000-000000000002')",[id,start,end]);
+await insert('00000000-0000-4000-8000-000000000003','2026-10-01','2026-10-03');
+let blocked=false;try{await insert('00000000-0000-4000-8000-000000000004','2026-10-03','2026-10-05');}catch(e){blocked=e.code==='23P01';}if(!blocked)throw Error('Overlap not blocked');
+await insert('00000000-0000-4000-8000-000000000005','2026-10-04','2026-10-05');
+await db.exec("update fleet_reservations set status='cancelled' where id='00000000-0000-4000-8000-000000000003'");
+await insert('00000000-0000-4000-8000-000000000006','2026-10-01','2026-10-03');
+const r=await db.query("select has_table_privilege('anon','fleet_reservations','select') a,has_table_privilege('authenticated','fleet_reservations','insert') b,has_table_privilege('service_role','fleet_reservations','insert') c");if(r.rows[0].a||r.rows[0].b||!r.rows[0].c)throw Error('Role privilege failure');
+console.log('Scheduler SQL: inclusive overlap blocked, adjacent dates allowed, cancellation frees dates, service-only privileges passed.');await db.close();

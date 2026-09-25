@@ -17,8 +17,10 @@ export function normalizeAssetCare(record:unknown,ownerId:string,now=Date.now())
  // the coordinate but mark its age unknown instead of inventing a fresh time.
  const positionAt=!trip&&number(location.age)!==null&&Number(location.age)>0?null:at;
  const valid=lat!==null&&lon!==null&&Math.abs(lat)<=90&&Math.abs(lon)<=180&&(lat!==0||lon!==0);
- const hours=number(object(row.counters).hours);
- return {asset_id:id,observed_at:at,name,machine:{source:'assetcare',pin:id,equipmentId:name||id,model:text(object(row.assetType).name),position:valid?{latitude:lat,longitude:lon,at:positionAt}:null,hours:hours!==null&&hours>=0?{value:hours,at}:null,engine:null,idleHours:null,fuel:null,adblue:null,relay:null,match:'unmatched'}};
+ const hours=number(object(row.counters).hours),telemetry=object(row.telemetry),ignition=telemetry.ignition;
+ const odo=number(object(row.counters).odometer)??number(telemetry.odometer);
+ const off=ignition===0||ignition===false,on=ignition===1||ignition===true;
+ return {asset_id:id,observed_at:at,name,machine:{source:'assetcare',pin:id,equipmentId:name||id,model:text(object(row.assetType).name),position:valid?{latitude:lat,longitude:lon,at:positionAt}:null,hours:hours!==null&&hours>=0?{value:hours,at}:null,ignition:!trip&&(off||on)?{value:on,at}:null,odometer:!trip&&odo!==null&&odo>=0?{value:odo,at}:null,engine:null,idleHours:null,fuel:null,adblue:null,relay:null,match:'unmatched'}};
 }
 export function linkAssetCare(machine:LinkedJcbMachine,registry:RegistryMachine[]):LinkedJcbMachine{
  // Accept an explicit numeric fleet prefix only, never a partial/driver-name match.
@@ -34,7 +36,7 @@ export function combineFleet(machines:LinkedJcbMachine[]){
  // Prefer the established manufacturer feed when both are linked to one asset.
  for(const m of [...machines.filter(m=>m.source!=='assetcare'),...machines.filter(m=>m.source==='assetcare')]){
   const key=m.relay?`relay:${m.relay.id}`:`${m.source}:${m.pin}`;
-  if(!seen.has(key)){seen.add(key);result.push(m);}
+  if(!seen.has(key)){seen.add(key);const secondary=m.relay?machines.find(a=>a.source==='assetcare'&&a.relay?.id===m.relay!.id):null;result.push(secondary?.transit?{...m,transit:secondary.transit}:m);}
  }
  return result;
 }
