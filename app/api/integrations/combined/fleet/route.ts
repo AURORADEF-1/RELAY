@@ -1,3 +1,4 @@
+import {groupedFleet} from '@/lib/fleet-map/group-store';
 import {getAssetCareFleet} from '@/lib/integrations/assetcare/server';
 import {combineFleet} from '@/lib/integrations/assetcare/normalize';
 import {authorizeTakeuchi,getLinkedTakeuchiFleet} from "@/lib/integrations/takeuchi/server";
@@ -21,5 +22,7 @@ export async function GET(request:NextRequest){
   try{const fleet=await getAssetCareFleet();machines=combineFleet([...machines,...fleet.machines]) as typeof machines;assetcareStatus=fleet.status;sources.push({provider:'assetcare',available:true,count:fleet.machines.length,checkedAt:fleet.checkedAt,stale:fleet.stale});}
   catch{sources.push({provider:'assetcare',available:false,count:0,checkedAt:null,stale:true});}
  }
- return jcbJson({machines,admin:true,sources,assetcareStatus},sources.every(s=>!s.available)?503:200);
+ let groupError=false;
+ try{machines=await groupedFleet(machines) as typeof machines;}catch{groupError=true;}
+ return jcbJson({machines,admin:true,sources,assetcareStatus,groupError},sources.every(s=>!s.available)?503:200);
 }
