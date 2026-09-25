@@ -1,12 +1,15 @@
 "use client";
 import {useEffect,useRef,useState} from 'react';
 import L from 'leaflet';
+import {locationViews} from '@/lib/fleet-map/location-views';
+import {LocationViews} from '@/components/telematics/location-views';
 import yard from '@/lib/fleet-operations/yard.json';
 import 'leaflet/dist/leaflet.css';
 import {machineKey,machineBrand,partsRequestUrl,positionAge,type LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 export default function LiveLinkMap({machines,selectedPin,onSelect,showYard=false,focusYard=false,labels=false,cluster=false,base='map'}:{machines:LinkedJcbMachine[];selectedPin:string|null;onSelect:(pin:string)=>void;showYard?:boolean;focusYard?:boolean;labels?:boolean;cluster?:boolean;base?:'map'|'satellite'}){
  const container=useRef<HTMLDivElement>(null),map=useRef<L.Map|null>(null),fitted=useRef(false),lastSelection=useRef<string|null>(null),select=useRef(onSelect);
- const [tileError,setTileError]=useState(false);
+ const [tileError,setTileError]=useState(false),[expanded,setExpanded]=useState(false);
+ const selected=machines.find(m=>machineKey(m)===selectedPin);
  useEffect(()=>{select.current=onSelect;},[onSelect]);
  useEffect(()=>{if(!container.current)return;const instance=L.map(container.current,{scrollWheelZoom:false}).setView([52.5,.9],8);map.current=instance;fitted.current=false;const observer=new ResizeObserver(()=>instance.invalidateSize());observer.observe(container.current);return()=>{observer.disconnect();instance.remove();map.current=null;};},[]);
  useEffect(()=>{
@@ -35,6 +38,7 @@ export default function LiveLinkMap({machines,selectedPin,onSelect,showYard=fals
     const popup=document.createElement('div'),title=document.createElement('strong');title.textContent=`${name} · ${machineBrand(m)} ${m.model}`;popup.append(title);
     const time=document.createElement('p');time.textContent=`${old?'Not checked in — last known position. ':''}Last position: ${p.at?new Date(p.at).toLocaleString():'time unavailable'}`;popup.append(time);
     const button=document.createElement('button');button.type='button';button.textContent='View machine';button.className='jcb-popup-button';button.onclick=()=>select.current(machineKey(m));popup.append(button);
+    for(const view of locationViews(p)){const a=document.createElement('a');a.href=view.href;a.textContent=`${view.label} ↗`;a.target='_blank';a.rel='noopener noreferrer';a.className='jcb-popup-button';popup.append(a);}
     const href=partsRequestUrl(m);if(href){const a=document.createElement('a');a.href=href;a.textContent='Raise RELAY parts request';a.className='jcb-popup-button';popup.append(a);}
     marker.bindPopup(popup).on('click',()=>select.current(machineKey(m)));
     if(labels||showYard&&old){const label=document.createElement('span');label.textContent=`${name}${old?' · Not checked in':''}`;marker.bindTooltip(label,{permanent:true,direction:'top'});}
@@ -44,5 +48,5 @@ export default function LiveLinkMap({machines,selectedPin,onSelect,showYard=fals
   draw();instance.on('moveend zoomend',draw);return()=>{instance.off('moveend zoomend',draw);group.remove();};
  },[machines,selectedPin,labels,cluster,showYard,focusYard]);
  useEffect(()=>{if(lastSelection.current===selectedPin)return;lastSelection.current=selectedPin;const m=machines.find(m=>machineKey(m)===selectedPin);if(m?.position)map.current?.panTo([m.position.latitude,m.position.longitude]);},[selectedPin,machines]); // preserve the user's map position on refresh
- return <><button className="jcb-button" onClick={fit}>Fit shown assets</button>{tileError&&<p role="status">Map imagery could not load. Asset readings remain available in the list.</p>}<div ref={container} className="jcb-map" aria-label="Fleet map. Select a pin or group to view assets."/></>;
+ return <><div className="jcb-actions" aria-label="Map views"><button className="jcb-button" onClick={fit}>Fleet overview</button><button className="jcb-button" onClick={()=>map.current?.fitBounds(L.latLngBounds(yard.geometry.coordinates[0].map(([lon,lat])=>[lat,lon] as [number,number])),{padding:[30,30],maxZoom:17})}>Yard view</button><button className="jcb-button" disabled={!selected?.position} onClick={()=>{if(selected?.position)map.current?.setView([selected.position.latitude,selected.position.longitude],17);}}>Selected machine</button><button className="jcb-button" aria-pressed={expanded} onClick={()=>setExpanded(v=>!v)}>{expanded?'Standard map':'Large map'}</button></div>{selected?.position&&<LocationViews position={selected.position}/>}{tileError&&<p role="status">Map imagery could not load. Asset readings remain available in the list.</p>}<div ref={container} className={`jcb-map${expanded?' jcb-map-expanded':''}`} aria-label="Fleet map. Select a pin or group to view assets."/></>;
 }

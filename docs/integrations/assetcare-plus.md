@@ -53,3 +53,7 @@ Requires a licensed, domain-restricted **public mapping key** in `NEXT_PUBLIC_MA
 - New source contains no supplied Asset Care credential; service key remains outside Git/browser bundles.
 - Desktop preview verified with 640 example assets: grouping, provider filtering and preference persistence. Preview: http://127.0.0.1:3018 (example data only).
 - Production needs explicit approval, migration application, sensitive environment setup, deployment, canonical-alias verification, one durable acknowledged cycle, and admin/fitter access verification. The seven-day keepalive is not running until deployment is completed.
+
+## Location views follow-up
+
+The shared map now offers fleet overview, yard focus, selected-machine zoom and a large-map toggle. Selected locations expose Google Street View, satellite and terrain links in the map, popup and detail panel, including the standalone JCB workspace. These open Google Maps using its official Maps URLs and do not need a mapping API key. Embedded satellite remains separately gated on the licensed mapping account. Street View requests nearby imagery; it does not imply coverage, a current photograph or a live camera. Invalid/missing GPS produces no external location links. URL validation tests and desktop preview checks passed.
