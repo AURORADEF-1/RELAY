@@ -43,7 +43,16 @@ it('paces backlog batches, caps requests and records durable progress',async()=>
  expect(result).toMatchObject({batches:40,drained:false,latestReceivedAt:at});expect(poll).toHaveBeenCalledTimes(80);expect(sleep).toHaveBeenCalledTimes(39);expect(sleep).toHaveBeenCalledWith(500);expect(ack).toHaveBeenLastCalledWith(result);
 });
 it('does not start another long poll when the remaining time is reserved for safe completion',async()=>{
- let time=now;const poll=vi.fn(async(_key:string,id?:string)=>{if(!id)time+=36000;return id?null:{id:'r',items:[row]};});
+ let time=now;const poll=vi.fn(async(_key:string,id?:string)=>{if(!id)time+=46000;return id?null:{id:'r',items:[row]};});
  const result=await collectCycle({key:'test',ownerId:'MLP',now:()=>time,poll,sleep:vi.fn(),save:vi.fn(),acknowledged:vi.fn()});expect(result.batches).toBe(1);expect(poll).toHaveBeenCalledTimes(2);
 });
 it('does not shorten a provider pause longer than a day',async()=>{await expect(streamRequest('test',undefined,vi.fn().mockResolvedValue(new Response('',{status:429,headers:{'Retry-After':'172800'}})))).rejects.toMatchObject({retryAfter:172800});});
+
+it('shortens later GET timeouts while reserving storage and acknowledgement time',async()=>{
+ let time=now;const poll=vi.fn(async(_key:string,id?:string)=>{if(!id)time+=22000;return id?null:{id:'r',items:[row]};});
+ await collectCycle({key:'test',ownerId:'MLP',now:()=>time,poll,sleep:vi.fn(),save:vi.fn(),acknowledged:vi.fn()});
+ expect(poll.mock.calls.filter(c=>!c[1])).toHaveLength(3);
+ expect(poll).toHaveBeenNthCalledWith(1,'test',undefined,undefined,50000);
+ expect(poll).toHaveBeenNthCalledWith(3,'test',undefined,undefined,38000);
+ expect(poll).toHaveBeenNthCalledWith(5,'test',undefined,undefined,16000);
+});

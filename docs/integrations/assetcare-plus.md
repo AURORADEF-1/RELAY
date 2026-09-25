@@ -65,3 +65,10 @@ Vendor sample review: the telemetry asset UUID is the stable identity (not the t
 The scheduled collector checks every minute. Each run remains a single sequential consumer fenced by the database's three-minute lease, with at most 40 batches / 80 vendor requests and 500 ms between batches. It starts no new long poll after 35 seconds of its 90-second collection budget, reserving time to save and acknowledge; the function limit is 120 seconds. A backlog run allows the next scheduled check after five seconds; a confirmed empty queue pauses for at least a minute. No self-triggering workers or parallel queue consumers are used.
 
 Every batch is stored durably before DELETE acknowledgement. Progress is saved after each acknowledged batch. Errors stop the run and retain the existing minimum five-minute cooldown (one hour for unauthorized responses); longer provider Retry-After values are honoured. The map reports incomplete draining and the latest processed provider receipt time, separately from GPS age. These receipt timestamps describe queue progress, not proof every machine has checked in.
+
+
+### Thirty-minute collection target
+
+The collector now starts batches during the first 45 seconds (previously 35), with GET timeout reduced to the remaining 90-second budget minus a 30-second completion reserve. The 40-batch/80-request cap, 500 ms pacing, single lease, durable save before DELETE, and provider cooldowns remain unchanged. A slow save can still run beyond the nominal budget; the 120-second function limit and retry-safe persistence remain the final safeguards.
+
+The admin map warns inline for acknowledged queue progress older than 30 minutes, no successful collection within 30 minutes, or collection errors. A confirmed empty response counts as a successful check, even if parked machines have old GPS timestamps. Missing receipt times are labelled unconfirmed. Warning age updates every minute without extra provider requests; refresh the view to load new collection state. This is a collection target, not a guarantee that every tracker reports within 30 minutes. Intake and yard-event projection remain transactional before acknowledgement.

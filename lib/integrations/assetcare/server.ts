@@ -1,4 +1,5 @@
 import 'server-only';
+import {collectionHealth} from './collection-health';
 import {allRows,operationsDatabase,ownership} from '@/lib/fleet-operations/server';
 import type {LinkedJcbMachine} from '../jcb/types';
 import {linkAssetCare} from './normalize';
@@ -9,5 +10,5 @@ export async function getAssetCareFleet(){
  if(state.error)throw new JcbError('Asset Care+ collection status unavailable.',503);
  const machines=assets.map(a=>linkAssetCare(a.machine,owners.registry)).filter(m=>!m.relay||owners.allowed.has(m.relay.id));
  const checkedAt=state.data.last_ack_at as string|null;
- return {machines,admin:true,checkedAt,stale:!checkedAt||Date.now()-Date.parse(checkedAt)>30*60000,status:state.data};
+ return {machines,admin:true,checkedAt,stale:collectionHealth(state.data).warning,status:state.data};
 }
