@@ -23,3 +23,12 @@
 .fleet-map-fullscreen.fleet-map-has-selection .jcb-detail{display:block}
 .fleet-close-detail{width:100%;margin-bottom:12px}
 @media(max-width:700px){.fleet-map-fullscreen{padding:8px}.fleet-fullscreen-toolbar>strong{display:none}.fleet-fullscreen-toolbar label{min-width:0;flex:1;font-size:0}.fleet-fullscreen-toolbar input{width:100%;font-size:14px}.fleet-map-fullscreen.fleet-map-has-selection>.jcb-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(220px,1fr) minmax(0,42%)}.fleet-map-fullscreen .jcb-machine-list{max-height:90px}.fleet-map-fullscreen .jcb-detail{font-size:13px}.fleet-map-fullscreen .jcb-actions .jcb-button{font-size:12px;padding:6px;flex-grow:0}}
+
+/* The map view uses a single selected-machine panel; cards belong to List view. */
+.fleet-map-focused>.jcb-grid{grid-template-columns:minmax(0,1fr)}
+.fleet-map-focused.fleet-map-has-selection>.jcb-grid{grid-template-columns:minmax(0,1fr) minmax(300px,360px)}
+.fleet-map-focused .jcb-detail{display:none}
+.fleet-map-focused.fleet-map-has-selection .jcb-detail{display:block;max-height:75vh;overflow:auto}
+.fleet-map-focused:not(.fleet-map-fullscreen) .jcb-map{height:72vh;min-height:480px}
+@media(max-width:1000px){.fleet-map-focused.fleet-map-has-selection>.jcb-grid{grid-template-columns:minmax(0,1fr)}.fleet-map-focused:not(.fleet-map-fullscreen) .jcb-map{height:65vh;min-height:360px}}
+.fleet-map-fullscreen .jcb-map{height:auto;flex:1}
