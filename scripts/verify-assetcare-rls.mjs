@@ -2,6 +2,8 @@ import {readFileSync} from 'node:fs';import assert from 'node:assert/strict';imp
 const {PGlite}=await import(pathToFileURL(process.argv[2]).href),db=new PGlite();
 await db.exec('create role anon;create role authenticated;create role service_role bypassrls;');
 await db.exec(readFileSync(new URL('../supabase/migrations/20260925095235_assetcare_stream.sql',import.meta.url),'utf8'));
+await db.exec("create table machines(id uuid primary key); insert into machines values('00000000-0000-0000-0000-000000000003'); create table asset_events(event_key text unique,machine_id uuid references machines(id),provider text constraint asset_events_provider_check check(provider in ('jcb','trackunit','takeuchi')),kind text,title text,detail text,occurred_at timestamptz,payload jsonb); grant all on asset_events to service_role;");
+await db.exec(readFileSync(new URL('../supabase/migrations/20260925123454_assetcare_yard_inbox.sql',import.meta.url),'utf8'));
 const owner='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
 for(const role of ['anon','authenticated']){await db.exec(`set role ${role}`);for(const table of ['assetcare_stream_state','assetcare_batches','assetcare_assets'])await assert.rejects(db.query(`select * from ${table}`),/permission denied/);await assert.rejects(db.query(`select claim_assetcare_stream('${owner}')`),/permission denied/);await assert.rejects(db.query(`select save_assetcare_batch('${owner}','hash','[]','[]')`),/permission denied/);await db.exec('reset role');}
 await db.exec('set role service_role');assert.equal((await db.query(`select claim_assetcare_stream('${owner}') as ok`)).rows[0].ok,true);assert.equal((await db.query(`select claim_assetcare_stream('${other}') as ok`)).rows[0].ok,false);
@@ -10,5 +12,12 @@ const assets=JSON.stringify([{asset_id:'a',name:'test',observed_at:'2026-09-25T1
 for(let i=0;i<2;i++)assert.equal((await db.query(`select save_assetcare_batch($1,'hash','[{}]',$2) as ok`,[owner,assets])).rows[0].ok,true);
 assert.equal((await db.query('select * from assetcare_batches')).rows.length,1);
 await db.query(`select save_assetcare_batch($1,'older','[]',$2)`,[owner,assets.replace('10:00:00','09:00:00')]);assert.equal(new Date((await db.query('select observed_at from assetcare_assets')).rows[0].observed_at).toISOString(),'2026-09-25T10:00:00.000Z');
+const event={event_key:'return',machine_id:'00000000-0000-0000-0000-000000000003',kind:'yard_arrival',title:'Returned to Yard',detail:'Confirmed',occurred_at:'2026-09-25T10:00:00Z',payload:{}};
+const withEvent=JSON.stringify([{...JSON.parse(assets)[0],position_history:[{latitude:52.392,longitude:.955,at:'2026-09-25T10:00:00Z'}],events:[event]}]);
+for(let i=0;i<2;i++)await db.query(`select save_assetcare_batch($1,'event','[]',$2)`,[owner,withEvent]);
+assert.equal((await db.query('select * from asset_events')).rows.length,1);
+assert.equal((await db.query('select position_history from assetcare_assets')).rows[0].position_history.length,1);
+await assert.rejects(db.query(`select save_assetcare_batch($1,'bad-event','[]',$2)`,[owner,withEvent.replace(event.machine_id,'00000000-0000-0000-0000-000000000004').replace('"return"','"bad"')]));
+assert.equal((await db.query("select * from assetcare_batches where content_hash='bad-event'")).rows.length,0);
 await db.exec(`update assetcare_stream_state set lease_until=now()-interval '1 second'`);assert.equal((await db.query(`select save_assetcare_batch('${owner}','expired','[]','[]') as ok`)).rows[0].ok,false);
 console.log('PASS: service-only queue storage, mutually exclusive collectors, lease fencing, replay deduplication and older readings cannot replace newer ones.');await db.close();
