@@ -14,3 +14,8 @@ it('requires admin before reading saved vehicle locations',async()=>{m.auth.mock
 it('never returns an empty fault list as a completed health check',async()=>{const data=await(await detail(new NextRequest('https://relay.test/api?pin=asset'))).json();expect(data.faultError).toBe(true);});
 it('rejects untrusted collection requests before using the database or key',async()=>{vi.stubEnv('CRON_SECRET','test-secret');expect((await cron(new NextRequest('https://relay.test/cron'))).status).toBe(401);expect(m.db).not.toHaveBeenCalled();expect(m.cycle).not.toHaveBeenCalled();});
 it('requires explicit collection enablement',async()=>{vi.stubEnv('CRON_SECRET','test-secret');const response=await cron(new NextRequest('https://relay.test/cron',{headers:{authorization:'Bearer test-secret'}}));expect(await response.json()).toEqual({enabled:false});expect(m.cycle).not.toHaveBeenCalled();});
+it('does not poll or acknowledge when another worker or cooldown owns collection',async()=>{
+ vi.stubEnv('CRON_SECRET','test-secret');vi.stubEnv('ASSETCARE_ENABLED','true');vi.stubEnv('ASSETCARE_API_KEY','test-key');vi.stubEnv('ASSETCARE_OWNER_ID','test-owner');
+ m.db.mockReturnValue({rpc:vi.fn().mockResolvedValue({data:false,error:null})});
+ const response=await cron(new NextRequest('https://relay.test/cron',{headers:{authorization:'Bearer test-secret'}}));expect(await response.json()).toEqual({paused:true});expect(m.cycle).not.toHaveBeenCalled();
+});
