@@ -1,0 +1,11 @@
+import {beforeEach,it,expect,vi} from 'vitest';
+import {NextRequest} from 'next/server';
+vi.mock('server-only',()=>({}));
+const mocks=vi.hoisted(()=>({authorize:vi.fn(),upsert:vi.fn()}));
+vi.mock('@/lib/assets/access',()=>({authorizeAssets:mocks.authorize}));
+import {GET,POST} from '@/app/api/assets/inbox/route';
+beforeEach(()=>{vi.clearAllMocks();mocks.upsert.mockResolvedValue({error:null});mocks.authorize.mockResolvedValue({user:{id:'admin'},supabase:{from:(table:string)=>table==='asset_events'?{select:()=>({eq:()=>({maybeSingle:async()=>({data:{id:'event'}})})})}:{upsert:mocks.upsert}}});});
+const id='00000000-0000-0000-0000-000000000020';
+it('mark read cannot overwrite a simultaneous acknowledgement',async()=>{const r=await POST(new NextRequest('https://relay.test/api/assets/inbox',{method:'POST',body:JSON.stringify({id,action:'read'})}));expect(r.status).toBe(200);expect(mocks.authorize).toHaveBeenCalledWith(expect.anything(),true);expect(mocks.upsert).toHaveBeenCalledWith(expect.not.objectContaining({acknowledged_at:expect.anything()}),{onConflict:'event_id,user_id',ignoreDuplicates:true});});
+it('acknowledgement is scoped to the authenticated administrator',async()=>{await POST(new NextRequest('https://relay.test/api/assets/inbox',{method:'POST',body:JSON.stringify({id,action:'acknowledge',user_id:'other'})}));expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({user_id:'admin',acknowledged_at:expect.any(String)}),expect.objectContaining({ignoreDuplicates:false}));});
+it('rejects invalid filters before reading event data',async()=>{expect((await GET(new NextRequest('https://relay.test/api/assets/inbox?kind=anything'))).status).toBe(400);});
