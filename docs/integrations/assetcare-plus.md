@@ -22,7 +22,7 @@ Production-only secrets/configuration required:
 - `ASSETCARE_ENABLED=true`: enable only after migration and production approval.
 - Existing `JCB_HEALTH_DATABASE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, and `CRON_SECRET`.
 
-Cron runs every five minutes, independently of browser use, to avoid the user-reported seven-day inactivity disablement. At most ten batches per invocation, 90-second cycle budget, 50-second GET/10-second DELETE timeouts, 25 MiB response limit and 10,000 records per batch. A shared three-minute database lease excludes overlapping workers; writes are owner-fenced and reject expired leases. The Vercel function limit is 120 seconds. Failed invocations leave queued records retryable. HTTP 429/503 pause at least five minutes and honour bounded Retry-After; HTTP 401 pauses for an hour. No tight retry loop.
+Cron runs every minute, independently of browser use, to avoid the user-reported seven-day inactivity disablement. At most 40 batches per invocation, 90-second cycle budget, deadline-aware GET (up to 50 seconds)/10-second DELETE timeouts, 25 MiB response limit and 10,000 records per batch. A shared three-minute database lease excludes overlapping workers; writes are owner-fenced and reject expired leases. The Vercel function limit is 120 seconds. Failed invocations leave queued records retryable. HTTP 429/503 pause at least five minutes and honour Retry-After; HTTP 401 pauses for an hour. No tight retry loop.
 
 Order is GET -> atomically save complete raw batch and supported asset projections -> DELETE that batch -> record acknowledgement -> stop on empty/limit/error. Unknown record formats are saved before acknowledgement so parsing changes do not destroy them. The batch content hash deduplicates exact replays; newer asset readings cannot be overwritten by older replayed messages. No browser request calls the export service.
 
@@ -62,6 +62,13 @@ Vendor sample review: the telemetry asset UUID is the stable identity (not the t
 
 ### Bounded backlog collection
 
-The scheduled collector checks every minute. Each run remains a single sequential consumer fenced by the database's three-minute lease, with at most 40 batches / 80 vendor requests and 500 ms between batches. It starts no new long poll after 35 seconds of its 90-second collection budget, reserving time to save and acknowledge; the function limit is 120 seconds. A backlog run allows the next scheduled check after five seconds; a confirmed empty queue pauses for at least a minute. No self-triggering workers or parallel queue consumers are used.
+The scheduled collector checks every minute. Each run remains a single sequential consumer fenced by the database's three-minute lease, with at most 40 batches / 80 vendor requests and 500 ms between batches. It starts no new long poll after 45 seconds of its 90-second collection budget, reserving time to save and acknowledge; the function limit is 120 seconds. A backlog run allows the next scheduled check after five seconds; a confirmed empty queue pauses for at least a minute. No self-triggering workers or parallel queue consumers are used.
 
 Every batch is stored durably before DELETE acknowledgement. Progress is saved after each acknowledged batch. Errors stop the run and retain the existing minimum five-minute cooldown (one hour for unauthorized responses); longer provider Retry-After values are honoured. The map reports incomplete draining and the latest processed provider receipt time, separately from GPS age. These receipt timestamps describe queue progress, not proof every machine has checked in.
+
+
+### Thirty-minute collection target
+
+The collector now starts batches during the first 45 seconds (previously 35), with GET timeout reduced to the remaining 90-second budget minus a 30-second completion reserve. The 40-batch/80-request cap, 500 ms pacing, single lease, durable save before DELETE, and provider cooldowns remain unchanged. A slow save can still run beyond the nominal budget; the 120-second function limit and retry-safe persistence remain the final safeguards.
+
+The admin map warns inline for acknowledged queue progress older than 30 minutes, no successful collection within 30 minutes, or collection errors. A confirmed empty response counts as a successful check, even if parked machines have old GPS timestamps. Missing receipt times are labelled unconfirmed. Warning age updates every minute without extra provider requests; refresh the view to load new collection state. This is a collection target, not a guarantee that every tracker reports within 30 minutes. Intake and yard-event projection remain transactional before acknowledgement.

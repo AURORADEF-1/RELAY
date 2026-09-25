@@ -19,3 +19,11 @@ it('does not poll or acknowledge when another worker or cooldown owns collection
  m.db.mockReturnValue({rpc:vi.fn().mockResolvedValue({data:false,error:null})});
  const response=await cron(new NextRequest('https://relay.test/cron',{headers:{authorization:'Bearer test-secret'}}));expect(await response.json()).toEqual({paused:true});expect(m.cycle).not.toHaveBeenCalled();
 });
+it('records a confirmed empty queue as a successful fresh check',async()=>{
+ vi.stubEnv('CRON_SECRET','test-secret');vi.stubEnv('ASSETCARE_ENABLED','true');vi.stubEnv('ASSETCARE_API_KEY','test-key');vi.stubEnv('ASSETCARE_OWNER_ID','test-owner');vi.stubEnv('ASSET_INBOX_ENABLED','false');
+ const update=vi.fn();const query={eq:vi.fn(),select:vi.fn().mockResolvedValue({data:[{id:true}],error:null})};query.eq.mockReturnValue(query);update.mockReturnValue(query);
+ m.db.mockReturnValue({rpc:vi.fn().mockResolvedValue({data:true,error:null}),from:vi.fn().mockReturnValue({update})});
+ m.cycle.mockResolvedValue({batches:0,records:0,drained:true,latestReceivedAt:null});
+ const response=await cron(new NextRequest('https://relay.test/cron',{headers:{authorization:'Bearer test-secret'}}));
+ expect(response.status).toBe(200);expect(update).toHaveBeenCalledWith(expect.objectContaining({last_ack_at:expect.any(String),last_error:null,last_cycle:expect.objectContaining({drained:true})}));
+});

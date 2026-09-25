@@ -4,8 +4,8 @@ import {normalizeAssetCare,type AssetCareSnapshot} from './normalize';
 const endpoint='https://export.eu1.kt1.io/v2/stream';
 export type Batch={items:unknown[];id:string|null};
 export class StreamError extends Error{constructor(public status:number,public retryAfter=300){super(`Asset Care+ collection unavailable (${status}).`);}}
-export async function streamRequest(key:string,id?:string,fetcher:typeof fetch=fetch):Promise<Batch|null>{
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),id?10000:50000);
+export async function streamRequest(key:string,id?:string,fetcher:typeof fetch=fetch,timeoutMs=50000):Promise<Batch|null>{
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),id?10000:Math.min(50000,Math.max(1000,timeoutMs)));
  try{
   const response=await fetcher(id?`${endpoint}/${encodeURIComponent(id)}`:endpoint,{method:id?'DELETE':'GET',headers:{'x-access-token':key,Accept:'application/json'},redirect:'error',cache:'no-store',signal:controller.signal});
   if(!response.ok){await response.body?.cancel();const retry=response.headers.get('Retry-After'),seconds=retry&&/^\d+$/.test(retry)?Number(retry):retry?Math.ceil((Date.parse(retry)-Date.now())/1000):300;throw new StreamError(response.status,Math.max(300,Number.isFinite(seconds)?seconds:300));}
@@ -24,8 +24,8 @@ export async function collectCycle(options:{key:string;ownerId:string;save:(hash
  const progress=(drained=false):CycleProgress=>({batches,records,drained,latestReceivedAt});
  const pause=options.sleep??(ms=>new Promise(resolve=>setTimeout(resolve,ms)));
  const limit=Math.min(40,Math.max(1,options.maxBatches??40));
- while(batches<limit&&now()<deadline-55000){
-  const batch=await poll(options.key);if(!batch||!batch.items.length)return progress(true);
+ while(batches<limit&&now()<deadline-45000){
+  const batch=await poll(options.key,undefined,undefined,Math.min(50000,deadline-now()-30000));if(!batch||!batch.items.length)return progress(true);
   const latest=new Map<string,AssetCareSnapshot>();
   for(const row of batch.items){const item=normalizeAssetCare(row,options.ownerId,now());if(item&&(!latest.has(item.asset_id)||latest.get(item.asset_id)!.observed_at<item.observed_at))latest.set(item.asset_id,item);}
   const hash=createHash('sha256').update(JSON.stringify(batch.items)).digest('hex');
