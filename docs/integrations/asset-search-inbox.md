@@ -13,7 +13,7 @@ Apply `20260925084829_asset_search_inbox.sql`, then set server-only `ASSET_INBOX
 - Yard crossings require two distinct GPS readings on the new side, following an opposite-side reading, within two hours.
 - General movement requires at least 300 metres between two fresh same-side reports within two hours.
 - Positions older than 24 hours generate a deduplicated not-checked-in event.
-- Dated faults deduplicate by provider, tracker, code and reported timestamp. Undated faults have one stable event per code and explicitly show first-observed time. No fault is inferred resolved from absence.
+- Dated faults deduplicate by provider, tracker, code and reported timestamp. The inbox groups stored fault events to the latest report per machine/provider/code, retaining the full ledger. A newer report is unread even if an earlier report was acknowledged. Undated faults have one stable event per code and explicitly show first-observed time. No fault is inferred resolved from absence.
 - Unavailable checks remain visible; empty results are not a fleet health guarantee.
 - Acknowledgement is personal and does not mean a fault is repaired.
 
