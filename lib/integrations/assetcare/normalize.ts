@@ -21,8 +21,9 @@ export function normalizeAssetCare(record:unknown,ownerId:string,now=Date.now())
  return {asset_id:id,observed_at:at,name,machine:{source:'assetcare',pin:id,equipmentId:name||id,model:text(object(row.assetType).name),position:valid?{latitude:lat,longitude:lon,at:positionAt}:null,hours:hours!==null&&hours>=0?{value:hours,at}:null,engine:null,idleHours:null,fuel:null,adblue:null,relay:null,match:'unmatched'}};
 }
 export function linkAssetCare(machine:LinkedJcbMachine,registry:RegistryMachine[]):LinkedJcbMachine{
- // Never fuzzy-match vehicle/driver names to a plant number.
- const candidates=registry.filter(r=>r.machine_number.trim().toUpperCase()===machine.equipmentId.trim().toUpperCase()||!!r.serial_number&&r.serial_number===machine.pin);
+ // Accept an explicit numeric fleet prefix only, never a partial/driver-name match.
+ const name=machine.equipmentId.trim(),fleetNumber=/^(\d{4,6})\s+[-–—]\s+\S/.exec(name)?.[1];
+ const candidates=registry.filter(r=>r.machine_number.trim().toUpperCase()===name.toUpperCase()||!!fleetNumber&&r.machine_number.trim()===fleetNumber||!!r.serial_number&&r.serial_number===machine.pin);
  return {...machine,relay:candidates.length===1?candidates[0]:null,match:candidates.length===1?'exact':candidates.length>1?'ambiguous':'unmatched'};
 }
 export function combineFleet(machines:LinkedJcbMachine[]){

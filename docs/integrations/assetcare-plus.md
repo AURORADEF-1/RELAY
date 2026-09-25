@@ -35,7 +35,7 @@ Run `node scripts/verify-assetcare-rls.mjs /path/to/@electric-sql/pglite/dist/in
 - Valid decimal-degree positions retain provider timestamps. A positive GPS age with undocumented units is shown with unknown age, never as a fresh fix.
 - Telemetry `active` / `ignition` is not equated with engine running. No fault-code coverage, idle-hour unit or fuel unit is inferred. Missing faults never create green healthy cards.
 - Trips/events are retained in raw queue storage; this release projects locations and explicitly documented operating hours. It does not yet add Asset Care+ trips to the separate Asset Search history, fuel reports, ROAM export or fault inbox.
-- Exact full fleet-number or serial matching only; no fuzzy matching driver/vehicle names to plant. Unlinked assets remain visible to admins but cannot prefill parts requests. Linked retired/customer machines are excluded. For confirmed duplicate RELAY identities, manufacturer data is preferred in the combined view.
+- Exact full fleet-number, explicit numeric fleet-number prefix (for example `25600 - 6T Mecalac Dumper`), or serial matching only; no fuzzy matching driver/vehicle names to plant. Unlinked assets remain visible to admins but cannot prefill parts requests. Linked retired/customer machines are excluded. For confirmed duplicate RELAY identities, manufacturer data is preferred in the combined view.
 
 ## Map
 
@@ -57,3 +57,5 @@ Requires a licensed, domain-restricted **public mapping key** in `NEXT_PUBLIC_MA
 ## Location views follow-up
 
 The shared map now offers fleet overview, yard focus, selected-machine zoom and a large-map toggle. Selected locations expose Google Street View, satellite and terrain links in the map, popup and detail panel, including the standalone JCB workspace. These open Google Maps using its official Maps URLs and do not need a mapping API key. Embedded satellite remains separately gated on the licensed mapping account. Street View requests nearby imagery; it does not imply coverage, a current photograph or a live camera. Invalid/missing GPS produces no external location links. URL validation tests and desktop preview checks passed.
+
+Vendor sample review: the telemetry asset UUID is the stable identity (not the tracker origin UUID); `date` is the measurement time (not `received`). Historical sample data stays historical. The vendor reference application uses a separate Fleet API user credential to bootstrap assets/devices before consuming the export queue. The supplied export key is not assumed to grant that inventory access. The user confirmed that the different token is an example only; retain the earlier tested credential.
