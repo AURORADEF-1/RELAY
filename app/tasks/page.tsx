@@ -1,5 +1,6 @@
 "use client";
 
+import {TaskDescription} from '@/components/assets/task-description';
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
@@ -162,7 +163,7 @@ export default function TasksPage() {
                       <div className="space-y-2">
                         <p className="text-lg font-semibold text-[color:var(--foreground-strong)]">{task.title}</p>
                         <p className="text-sm leading-7 text-[color:var(--foreground-muted)]">
-                          {task.description || "No task detail provided."}
+                          <TaskDescription text={task.description || "No task detail provided."}/>
                         </p>
                         <p className="text-xs font-medium uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
                           {task.status} {task.due_at ? `· Due ${formatDate(task.due_at)}` : ""}
