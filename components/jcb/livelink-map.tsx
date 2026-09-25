@@ -25,6 +25,8 @@ export default function LiveLinkMap({machines,selectedPin,onSelect,showYard=fals
   const valid=machines.filter(m=>m.position&&Number.isFinite(m.position.latitude)&&Math.abs(m.position.latitude)<=90&&Number.isFinite(m.position.longitude)&&Math.abs(m.position.longitude)<=180);
   if(!fitted.current&&valid.length){const bounds=L.latLngBounds([]);if(focusYard)yard.geometry.coordinates[0].forEach(([lon,lat])=>bounds.extend([lat,lon]));else valid.forEach(m=>bounds.extend([m.position!.latitude,m.position!.longitude]));instance.fitBounds(bounds,{padding:[40,40],maxZoom:focusYard?17:14});fitted.current=true;}
   const group=L.layerGroup().addTo(instance);
+  // Open once for an explicit selection, never again during pan/zoom redraws.
+  let openSelection=lastSelection.current!==selectedPin;
   function draw(){
    group.clearLayers();const bins=new Map<string,LinkedJcbMachine[]>(),zoom=instance!.getZoom();
    for(const m of valid){const p=m.position!,ll=L.latLng(p.latitude,p.longitude);if(!instance!.getBounds().pad(.2).contains(ll))continue;const px=instance!.project(ll,zoom);const key=cluster&&machineKey(m)!==selectedPin?`${Math.floor(px.x/54)}:${Math.floor(px.y/54)}`:machineKey(m);const bin=bins.get(key);if(bin)bin.push(m);else bins.set(key,[m]);}
@@ -40,9 +42,9 @@ export default function LiveLinkMap({machines,selectedPin,onSelect,showYard=fals
     const button=document.createElement('button');button.type='button';button.textContent='View machine';button.className='jcb-popup-button';button.onclick=()=>select.current(machineKey(m));popup.append(button);
     for(const view of locationViews(p)){const a=document.createElement('a');a.href=view.href;a.textContent=`${view.label} ↗`;a.target='_blank';a.rel='noopener noreferrer';a.className='jcb-popup-button';popup.append(a);}
     const href=partsRequestUrl(m);if(href){const a=document.createElement('a');a.href=href;a.textContent='Raise RELAY parts request';a.className='jcb-popup-button';popup.append(a);}
-    marker.bindPopup(popup).on('click',()=>select.current(machineKey(m)));
+    marker.bindPopup(popup,{autoPan:false}).on('click',()=>select.current(machineKey(m)));
     if(labels||showYard&&old){const label=document.createElement('span');label.textContent=`${name}${old?' · Not checked in':''}`;marker.bindTooltip(label,{permanent:true,direction:'top'});}
-    if(machineKey(m)===selectedPin)marker.openPopup();
+    if(openSelection&&machineKey(m)===selectedPin){openSelection=false;marker.openPopup();}
    }
   }
   draw();instance.on('moveend zoomend',draw);return()=>{instance.off('moveend zoomend',draw);group.remove();};
