@@ -330,6 +330,7 @@ export function ConsoleShell({
 
       return (
         !item.frontCounterOnly &&
+        !(isAdmin && (item.liveLinkOnly || item.trackunitOnly || item.takeuchiOnly)) &&
         (!item.adminOnly || isAdmin) &&
         (!item.assetOnly || isAdmin || hasLiveLinkAccess || hasTrackunitAccess || hasTakeuchiAccess) &&
         (!item.oversightOnly || hasOversightAccess) &&
