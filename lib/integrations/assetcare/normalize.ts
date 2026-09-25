@@ -1,0 +1,36 @@
+import type {LinkedJcbMachine,RegistryMachine} from '../jcb/types';
+type ObjectValue=Record<string,unknown>;
+const object=(v:unknown):ObjectValue=>v&&typeof v==='object'&&!Array.isArray(v)?v as ObjectValue:{};
+const text=(v:unknown)=>typeof v==='string'?v:'';
+const number=(v:unknown)=>typeof v==='number'&&Number.isFinite(v)?v:null;
+export type AssetCareSnapshot={asset_id:string;observed_at:string;name:string;machine:LinkedJcbMachine};
+export function normalizeAssetCare(record:unknown,ownerId:string,now=Date.now()):AssetCareSnapshot|null{
+ let row=object(record);
+ if(text(object(row.owner).id)!==ownerId)return null;
+ if(row.type==='event')row=object(object(row.details).telemetry);
+ if(row.type!=='telemetry'&&row.type!=='trip')return null;
+ if(text(object(row.owner).id)!==ownerId)return null;
+ const trip=row.type==='trip',asset=object(row.asset),id=text(asset.id),name=text(asset.name),at=text(trip?row.dateEnd:row.date);
+ if(!id||!at||!Number.isFinite(Date.parse(at))||Date.parse(at)>now+300000)return null;
+ const location=object(trip?row.end:row.location),lat=number(location.lat),lon=number(location.lon);
+ // A positive GPS age is not a new fix. Its unit is not documented, so retain
+ // the coordinate but mark its age unknown instead of inventing a fresh time.
+ const positionAt=!trip&&number(location.age)!==null&&Number(location.age)>0?null:at;
+ const valid=lat!==null&&lon!==null&&Math.abs(lat)<=90&&Math.abs(lon)<=180&&(lat!==0||lon!==0);
+ const hours=number(object(row.counters).hours);
+ return {asset_id:id,observed_at:at,name,machine:{source:'assetcare',pin:id,equipmentId:name||id,model:text(object(row.assetType).name),position:valid?{latitude:lat,longitude:lon,at:positionAt}:null,hours:hours!==null&&hours>=0?{value:hours,at}:null,engine:null,idleHours:null,fuel:null,adblue:null,relay:null,match:'unmatched'}};
+}
+export function linkAssetCare(machine:LinkedJcbMachine,registry:RegistryMachine[]):LinkedJcbMachine{
+ // Never fuzzy-match vehicle/driver names to a plant number.
+ const candidates=registry.filter(r=>r.machine_number.trim().toUpperCase()===machine.equipmentId.trim().toUpperCase()||!!r.serial_number&&r.serial_number===machine.pin);
+ return {...machine,relay:candidates.length===1?candidates[0]:null,match:candidates.length===1?'exact':candidates.length>1?'ambiguous':'unmatched'};
+}
+export function combineFleet(machines:LinkedJcbMachine[]){
+ const result:LinkedJcbMachine[]=[],seen=new Set<string>();
+ // Prefer the established manufacturer feed when both are linked to one asset.
+ for(const m of [...machines.filter(m=>m.source!=='assetcare'),...machines.filter(m=>m.source==='assetcare')]){
+  const key=m.relay?`relay:${m.relay.id}`:`${m.source}:${m.pin}`;
+  if(!seen.has(key)){seen.add(key);result.push(m);}
+ }
+ return result;
+}
