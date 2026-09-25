@@ -44,7 +44,7 @@ export default function LiveLinkMap({machines,selectedPin,onSelect,showYard=fals
     for(const view of locationViews(p)){const a=document.createElement('a');a.href=view.href;a.textContent=`${view.label} ↗`;a.target='_blank';a.rel='noopener noreferrer';a.className='jcb-popup-button';actions.append(a);}
     const href=partsRequestUrl(m);if(href){const a=document.createElement('a');a.href=href;a.textContent='Parts request';a.className='jcb-popup-button';actions.append(a);}
     if(!sidePanel)marker.bindPopup(popup,{autoPan:false,maxWidth:300,minWidth:220});marker.on('click',()=>select.current(machineKey(m)));
-    if(labels||showYard&&old){const label=document.createElement('span');label.textContent=`${name}${transit?' · In transit':''}${old?' · Not checked in':''}`;marker.bindTooltip(label,{permanent:true,direction:'top'});}
+    if(labels){const label=document.createElement('span');label.textContent=name;marker.bindTooltip(label,{permanent:true,direction:'top'});}
     if(!sidePanel&&openSelection&&machineKey(m)===selectedPin){openSelection=false;marker.openPopup();}
    }
   }
