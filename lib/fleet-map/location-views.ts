@@ -7,6 +7,6 @@ export function locationViews(position:MapPosition){
   {label:'Map pin',href:`https://www.google.com/maps/search/?${new URLSearchParams({api:'1',query:coordinates})}`},
   {label:'Street View',href:`https://www.google.com/maps/@?${new URLSearchParams({api:'1',map_action:'pano',viewpoint:coordinates})}`},
   {label:'Satellite',href:`https://www.google.com/maps?${new URLSearchParams({q:coordinates,t:'k',z:'18'})}`},
-  {label:'Terrain',href:`https://www.google.com/maps?${new URLSearchParams({q:coordinates,t:'p',z:'14'})}`},
+  {label:'Terrain',href:`https://www.google.com/maps/place/${encodeURIComponent(coordinates)}/@${coordinates},14z/data=!4m4!3m3!8m2!3d${position.latitude}!4d${position.longitude}!5m1!1e4`},
  ];
 }
