@@ -1,0 +1,6 @@
+'use client';
+import {useEffect,useRef} from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import type {movementHistory} from '@/lib/assets/events';
+export default function MovementMap({points}:{points:ReturnType<typeof movementHistory>}){const ref=useRef<HTMLDivElement>(null);useEffect(()=>{if(!ref.current||!points.length)return;const map=L.map(ref.current,{scrollWheelZoom:false});L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors'}).addTo(map);let segment:L.LatLngTuple[]=[];const bounds=L.latLngBounds([]);for(const p of points){const xy:L.LatLngTuple=[p.latitude,p.longitude];if(p.gapBefore){if(segment.length>1)L.polyline(segment,{color:'#176e70',dashArray:'5 8'}).addTo(map);segment=[];}segment.push(xy);bounds.extend(xy);const label=document.createElement('span');label.textContent=new Date(p.at!).toLocaleString('en-GB');L.circleMarker(xy,{radius:4}).bindPopup(label).addTo(map);}if(segment.length>1)L.polyline(segment,{color:'#176e70',dashArray:'5 8'}).addTo(map);map.fitBounds(bounds,{padding:[30,30],maxZoom:16});const o=new ResizeObserver(()=>map.invalidateSize());o.observe(ref.current);return()=>{o.disconnect();map.remove();};},[points]);return <div ref={ref} className="asset-map" aria-label="Recorded machine positions"/>;}

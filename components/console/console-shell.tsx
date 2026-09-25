@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { LogoutButton } from "@/components/logout-button";
+import { AssetInboxBadge } from '@/components/assets/inbox-badge';
 import { NotificationBadge } from "@/components/notification-badge";
 import { useNotifications } from "@/components/notification-provider";
 import { RelayLogo } from "@/components/relay-logo";
@@ -38,6 +39,7 @@ type NavigationItem = {
   adminOnly?: boolean;
   oversightOnly?: boolean;
   fleetMemberOnly?: boolean;
+  assetOnly?: boolean;
   liveLinkOnly?: boolean;
   trackunitOnly?: boolean;
   takeuchiOnly?: boolean;
@@ -82,6 +84,8 @@ const navigation: NavigationItem[] = [
   },
   { href: "/filters", label: "Filter Lookup", icon: "filter" },
   { href: "/settings", label: "Settings", icon: "settings" },
+  { href: "/assets", label: "Asset Search", icon: "fleet", assetOnly: true },
+  { href: "/assets/inbox", label: "Asset Inbox", icon: "fleet", adminOnly: true },
   { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
   { href: "/manitou", label: "Manitou Track", icon: "fleet", trackunitOnly: true },
   { href: "/takeuchi", label: "Takeuchi Track", icon: "fleet", takeuchiOnly: true },
@@ -326,6 +330,7 @@ export function ConsoleShell({
       return (
         !item.frontCounterOnly &&
         (!item.adminOnly || isAdmin) &&
+        (!item.assetOnly || isAdmin || hasLiveLinkAccess || hasTrackunitAccess || hasTakeuchiAccess) &&
         (!item.oversightOnly || hasOversightAccess) &&
         (!item.fleetMemberOnly || isAdmin || hasCustomerFleet) &&
         (!item.liveLinkOnly || hasLiveLinkAccess) &&
@@ -420,7 +425,7 @@ export function ConsoleShell({
                 title={isCollapsed && !isMobileOpen ? item.label : undefined}
               >
                 <ConsoleIcon name={item.icon} className="console-nav-icon" />
-                <span className="console-nav-label">{item.label}</span>
+                <span className="console-nav-label">{item.label}</span>{item.href === "/assets/inbox" && <AssetInboxBadge />}
                 {badgeCount > 0 ? (
                   <NotificationBadge count={badgeCount} />
                 ) : null}

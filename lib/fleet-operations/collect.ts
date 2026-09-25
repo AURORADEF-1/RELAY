@@ -1,3 +1,4 @@
+import {recordAssetEvents} from '@/lib/assets/store';
 import {cachedProvider} from '@/lib/integrations/request-guard';
 import {getTakeuchiFleet} from '@/lib/integrations/takeuchi/client';
 import {linkTakeuchiMachines} from '@/lib/integrations/takeuchi/normalize';
@@ -31,6 +32,7 @@ async function runCollection(provider:'jcb'|'trackunit'|'takeuchi'){
      const sample_key=createHash('sha256').update(JSON.stringify([machine.relay!.id,provider,machine])).digest('hex');
      const saved=await db.from('fleet_operation_samples').upsert({sample_key,machine_id:machine.relay!.id,provider,pin:machine.pin,payload:machine},{onConflict:'sample_key',ignoreDuplicates:true});
      if(saved.error)throw new Error('Storage unavailable');checked++;
+     try{await recordAssetEvents(db,machine);}catch{failures++;}
    }catch{failures++;}
  }}));
  const result={provider,checked,total:machines.length,failures,next_pin:cursor<sorted.length?sorted[cursor].pin:null};

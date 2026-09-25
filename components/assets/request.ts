@@ -1,0 +1,2 @@
+import {getSupabaseAccessToken} from '@/lib/supabase';
+export async function assetRequest<T>(url:string,signal?:AbortSignal,body?:unknown):Promise<T>{const token=await getSupabaseAccessToken();if(!token)throw Error('Sign in to view assets.');const r=await fetch(url,{signal,method:body?'POST':'GET',headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(d.error||'Asset information unavailable.');return d;}
