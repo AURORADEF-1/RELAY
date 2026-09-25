@@ -8,9 +8,10 @@ import {movementHistory} from '@/lib/assets/events';
 import {hireState,type Snapshot} from '@/lib/fleet-operations/report';
 import {fleetReference} from '@/lib/fleet-operations/parts-requests';
 export async function GET(request:NextRequest,{params}:{params:Promise<{id:string}>}){try{
- const auth=await authorizeAssets(request),{id}=await params,db=operationsDatabase(),{registry,allowed}=await ownership(db),machine=registry.find(m=>m.id===id);
+ const mode=request.nextUrl.searchParams.get('view');
+ const auth=await authorizeAssets(request,mode==='movements'),{id}=await params,db=operationsDatabase(),{registry,allowed}=await ownership(db),machine=registry.find(m=>m.id===id);
  if(!machine||!allowed.has(id))throw new JcbError('MLP asset not found.',404);
- const mode=request.nextUrl.searchParams.get('view'),days=Number(request.nextUrl.searchParams.get('days')??7),now=Date.now();
+ const days=Number(request.nextUrl.searchParams.get('days')??7),now=Date.now();
  if(![1,7,30].includes(days))throw new JcbError('Choose 1, 7 or 30 days.',400);
  const latest=await db.from('fleet_operation_samples').select('captured_at,payload').eq('machine_id',id).order('captured_at',{ascending:false}).limit(1);
  if(latest.error)throw new JcbError('Asset readings unavailable.',503);
