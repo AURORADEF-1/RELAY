@@ -41,4 +41,6 @@ export function partsRequestUrl(machine: LinkedJcbMachine, faultCode?: string) {
 }
 
 export const machineKey = (machine: LinkedJcbMachine) => `${machine.source ?? "jcb"}:${machine.pin}`;
-export const machineBrand = (machine: LinkedJcbMachine) => machine.source === "assetcare" ? "Asset Care+" : machine.source === "takeuchi" ? "Takeuchi" : machine.source === "trackunit" ? "Manitou" : "JCB";
+export const machineProvider = (machine: LinkedJcbMachine) => machine.source === "assetcare" ? "Asset Care+" : machine.source === "takeuchi" ? "Takeuchi" : machine.source === "trackunit" ? "Manitou" : "JCB";
+
+export const machineBrand = (machine: LinkedJcbMachine) => machine.source === "assetcare" ? machine.relay?.make?.trim() || machineProvider(machine) : machineProvider(machine);

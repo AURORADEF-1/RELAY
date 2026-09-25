@@ -24,7 +24,10 @@ export function linkAssetCare(machine:LinkedJcbMachine,registry:RegistryMachine[
  // Accept an explicit numeric fleet prefix only, never a partial/driver-name match.
  const name=machine.equipmentId.trim(),fleetNumber=/^(\d{4,6})\s+[-–—]\s+\S/.exec(name)?.[1];
  const candidates=registry.filter(r=>r.machine_number.trim().toUpperCase()===name.toUpperCase()||!!fleetNumber&&r.machine_number.trim()===fleetNumber||!!r.serial_number&&r.serial_number===machine.pin);
- return {...machine,relay:candidates.length===1?candidates[0]:null,match:candidates.length===1?'exact':candidates.length>1?'ambiguous':'unmatched'};
+ const relay=candidates.length===1?candidates[0]:null;
+ // The register owns machine identity; provider type labels such as Vehicle
+ // are not the machine model. Keep the original provider snapshot untouched.
+ return {...machine,model:relay?.model?.trim()||machine.model,relay,match:relay?'exact':candidates.length>1?'ambiguous':'unmatched'};
 }
 export function combineFleet(machines:LinkedJcbMachine[]){
  const result:LinkedJcbMachine[]=[],seen=new Set<string>();

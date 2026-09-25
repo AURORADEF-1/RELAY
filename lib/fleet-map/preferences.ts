@@ -1,6 +1,6 @@
 import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 import type {CardStatus} from '@/lib/assets/card-status';
-import {machineKey} from '@/lib/integrations/jcb/types';
+import {machineKey,machineBrand} from '@/lib/integrations/jcb/types';
 import {positionSide} from '@/lib/fleet-operations/report';
 export const providers=['jcb','trackunit','takeuchi','assetcare'] as const;
 export const providerNames={jcb:'JCB',trackunit:'Manitou',takeuchi:'Takeuchi',assetcare:'Asset Care+'};
@@ -11,7 +11,7 @@ export function readPreferences(value:string|null):Preferences{
 }
 export function filterFleet(machines:LinkedJcbMachine[],prefs:Preferences,query:string,statuses:Record<string,CardStatus>,now=Date.now()){
  const q=query.trim().toLowerCase();return machines.filter(m=>{
-  if(!prefs.providers.includes(m.source??'jcb')||!`${m.relay?.machine_number??''} ${m.equipmentId} ${m.model} ${m.pin}`.toLowerCase().includes(q))return false;
+  if(!prefs.providers.includes(m.source??'jcb')||!`${m.relay?.machine_number??''} ${m.equipmentId} ${machineBrand(m)} ${m.model} ${m.pin}`.toLowerCase().includes(q))return false;
   const age=m.position?.at?now-Date.parse(m.position.at):NaN,fresh=Number.isFinite(age)&&age>=0&&age<=86400000;
   if(prefs.freshness==='missing'&&m.position||prefs.freshness==='fresh'&&!fresh||prefs.freshness==='old'&&(!m.position||fresh))return false;
   const s=statuses[machineKey(m)];

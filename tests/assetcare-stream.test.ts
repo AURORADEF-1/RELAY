@@ -21,3 +21,18 @@ it('links an explicit fleet-number prefix and preserves historical provider time
  expect(linkAssetCare(machine,[...registry,{...registry[0],id:'duplicate'}]).match).toBe('ambiguous');
  for(const name of ['125600 - Other','Vehicle 25600','AB25 XYZ - Driver','25600A - Other'])expect(linkAssetCare({...machine,equipmentId:name},registry).relay).toBeNull();
 });
+
+
+it('uses RELAY identity for a unique Asset Care match without changing provider identity or readings',async()=>{
+ const {machineBrand,machineProvider,partsRequestUrl}=await import('@/lib/integrations/jcb/types');
+ const {filterFleet,defaults}=await import('@/lib/fleet-map/preferences');
+ const snapshot=normalizeAssetCare({...row,asset:{id:'tracker-26405',name:'26405 - XCMG XE135'},assetType:{name:'Vehicle'}},'MLP',now)!.machine;
+ const record={id:'relay-26405',machine_number:'26405',make:'XCMG',model:'XE135E EXCAVATOR BLADED',serial_number:'XUGB1355CTKA00163'};
+ const linked=linkAssetCare(snapshot,[record]);
+ expect(linked.model).toBe(record.model);expect(machineBrand(linked)).toBe('XCMG');expect(machineProvider(linked)).toBe('Asset Care+');
+ expect(linked.source).toBe('assetcare');expect(linked.pin).toBe(snapshot.pin);expect(linked.equipmentId).toBe(snapshot.equipmentId);expect(linked.position).toEqual(snapshot.position);expect(snapshot.model).toBe('Vehicle');
+ expect(partsRequestUrl(linked)).toContain('machineReference=26405');expect(filterFleet([linked],defaults,'XE135E',{},now)).toHaveLength(1);
+ expect(filterFleet([{...linked,equipmentId:'26405'}],defaults,'XCMG',{},now)).toHaveLength(1);
+ const ambiguous=linkAssetCare(snapshot,[record,{...record,id:'duplicate'}]);expect(ambiguous.model).toBe('Vehicle');expect(machineBrand(ambiguous)).toBe('Asset Care+');expect(ambiguous.relay).toBeNull();
+ const incomplete=linkAssetCare(snapshot,[{...record,make:' ',model:null}]);expect(incomplete.model).toBe('Vehicle');expect(machineBrand(incomplete)).toBe('Asset Care+');
+});
