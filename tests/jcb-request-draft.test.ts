@@ -12,6 +12,18 @@ describe("LiveLink prefill when an offline draft finishes loading", () => {
     expect(restored.values.jobNumber).toBe("DRAFT-JOB"); expect(restored.values.requestDetails).toBe("Unsaved parts notes");
     expect(restored.locationDraft).toBeNull(); expect(draft.values.machineReference).toBe("6");
   });
+  it("keeps an explicitly selected asset when restoring an unrelated saved draft", () => {
+    const restored = restoreLiveLinkRequestDraft(draft, "?machineReference=26072&asset=asset-id");
+    expect(restored.values.machineReference).toBe("26072");
+    expect(restored.values.requestDetails).toBe(draft.values.requestDetails);
+    expect(restored.values.jobNumber).toBe(draft.values.jobNumber);
+    expect(restored.locationDraft).toBeNull();
+    expect(restored.isRetailSale).toBe(false);
+    expect(draft.values.machineReference).toBe("6");
+  });
+  it("ignores incomplete asset links", () => {
+    expect(restoreLiveLinkRequestDraft(draft, "?asset=asset-id")).toBe(draft);
+  });
   it("leaves normal draft and QR restoration unchanged", () => {
     expect(restoreLiveLinkRequestDraft(draft, "")).toBe(draft);
     expect(restoreLiveLinkRequestDraft(draft, "?machineReference=26312")).toBe(draft);

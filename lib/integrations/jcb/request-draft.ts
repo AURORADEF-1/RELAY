@@ -5,7 +5,7 @@ import type { RequesterOfflineDraft } from "@/lib/requester-offline-submission";
 export function restoreLiveLinkRequestDraft(draft: RequesterOfflineDraft, search: string): RequesterOfflineDraft {
   const query = new URLSearchParams(search);
   const reference = query.get("machineReference")?.trim();
-  if (!query.get("livelink") || !reference) return draft;
+  if ((!query.get("livelink") && !query.get("asset")) || !reference) return draft;
   return {
     ...draft,
     isRetailSale: false,
