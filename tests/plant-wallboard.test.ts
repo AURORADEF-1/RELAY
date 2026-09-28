@@ -19,9 +19,18 @@ describe('director plant overview',()=>{
   const m=[machine('staff',inside,'People'),machine('van',inside,'Vehicles'),machine('unknown',inside,'Unclassified'),{...machine('orphan'),relay:null},machine('mixed'),machine('mixed',inside,'People')];
   expect(plantPositions(m,new Set(m.map(r=>r.pin)),now)).toEqual([]);
  });
- it('keeps stale, missing, invalid and conflicting GPS in the unclear count',()=>{
-  const m=[machine('old',{...inside,at:at(-25)}),machine('missing',null),machine('future',{...inside,at:at(1)}),machine('zero',{latitude:0,longitude:0,at:at(-1)}),machine('conflict',inside),machine('conflict',outside)];
+ it('keeps missing, invalid and conflicting GPS in the unclear count',()=>{
+  const m=[machine('missing',null),machine('future',{...inside,at:at(1)}),machine('zero',{latitude:0,longitude:0,at:at(-1)}),machine('conflict',inside),machine('conflict',outside)];
   expect(plantPositions(m,new Set(m.map(r=>r.pin)),now).every(r=>r.status==='unknown')).toBe(true);
+ });
+ it('uses old and undated coordinates while keeping their freshness explicit',()=>{
+  const result=plantPositions([machine('old',{...inside,at:at(-250)}),machine('undated',{...outside,at:null})],new Set(['old','undated']),now);
+  expect(result.map(r=>r.status)).toEqual(['yard','out']);expect(result.every(r=>r.lastKnownOnly)).toBe(true);
+  expect(result[0].reportedAt).toBe(at(-250));expect(result[1].reportedAt).toBeNull();
+ });
+ it('recovers the last usable position from history and prefers newer undated observations to old alternate feeds',()=>{
+  const result=plantPositions([{...machine('a',null),positionHistory:[{...inside,at:at(-60)}]},machine('b',{...inside,at:at(-100)}),{...machine('b',{...outside,at:null}),source:'assetcare',observedAt:at(-1)}],new Set(['a','b']),now);
+  expect(result.map(r=>r.status)).toEqual(['yard','out']);
  });
  it('uses UK day, Monday week and month boundaries across daylight saving',()=>{
   const dates=plantPeriodStarts(Date.parse('2026-09-27T23:30:00Z'));

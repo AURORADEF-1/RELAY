@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { JcbError } from '@/lib/integrations/jcb/client';
 vi.mock('server-only',()=>({}));
+vi.mock('@/lib/plant-wallboard/history',()=>({withPositionHistory:async (_db:unknown,machines:unknown)=>machines}));
 const m=vi.hoisted(()=>({auth:vi.fn(),db:vi.fn(),owners:vi.fn(),latest:vi.fn(),assetcare:vi.fn(),groups:vi.fn(),events:vi.fn()}));
 vi.mock('@/lib/assets/access',()=>({authorizeAssets:m.auth}));
 vi.mock('@/lib/fleet-operations/server',()=>({operationsDatabase:m.db,ownership:m.owners}));

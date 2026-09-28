@@ -6,6 +6,7 @@ import { groupedFleet } from '@/lib/fleet-map/group-store';
 import { jcbJson } from '@/lib/integrations/jcb/server';
 import { JcbError } from '@/lib/integrations/jcb/client';
 import { loadYardEvents } from '@/lib/yard-report';
+import { withPositionHistory } from '@/lib/plant-wallboard/history';
 import { plantBoardData } from '@/lib/plant-wallboard/model';
 import type { LinkedJcbMachine } from '@/lib/integrations/jcb/types';
 export const maxDuration = 60;
@@ -22,7 +23,8 @@ export async function GET(request: NextRequest) {
     const registry = new Map(owners.registry.map(m=>[m.id,m]));
     const manufacturer = latest.data.map((r: { machine_id: string; payload: LinkedJcbMachine })=>({ ...r.payload, relay: registry.get(r.machine_id) ?? null }));
     const machines = await groupedFleet([...manufacturer, ...(assetcare?.machines ?? [])]);
-    const data = plantBoardData(machines, owners.allowed, events, now);
+    const located = await withPositionHistory(db, machines.filter(m=>m.relay && owners.allowed.has(m.relay.id)), now);
+    const data = plantBoardData(located, owners.allowed, events, now);
     return jcbJson({ ...data, warning: assetcare?.stale ? 'Tracking collection is delayed. Some saved positions and movements may be behind.' : null });
   } catch (error) {
     return jcbJson({ error: error instanceof JcbError ? error.message : 'Plant wallboard could not refresh. Saved figures may be out of date.' }, error instanceof JcbError ? error.status : 503);
