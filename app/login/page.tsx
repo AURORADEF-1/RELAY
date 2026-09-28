@@ -95,7 +95,7 @@ export default function LoginPage() {
         </nav>
 
         <section className="mx-auto w-full space-y-8 sm:space-y-9">
-          <div className="space-y-6 text-center sm:space-y-8">
+          <div className="space-y-0 text-center">
             <div className="mx-auto flex max-w-[13rem] items-center justify-center sm:max-w-[15rem] lg:max-w-[16rem]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
