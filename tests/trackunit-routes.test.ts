@@ -6,6 +6,7 @@ vi.mock('@/lib/integrations/trackunit/server',()=>({authorizeTrackunit:m.auth,ge
 vi.mock('@/lib/integrations/trackunit/client',()=>({getTrackunitDetails:m.details}));
 vi.mock('@/lib/integrations/jcb/server',()=>({authorizeJcb:m.jcbAuth,getLinkedFleet:m.jcbFleet,jcbJson:(d:unknown,status=200)=>NextResponse.json(d,{status}),jcbError:(e:{message:string;status?:number})=>NextResponse.json({error:e.message},{status:e.status??503})}));
 vi.mock('@/lib/integrations/takeuchi/server',()=>({authorizeTakeuchi:vi.fn().mockResolvedValue({admin:true}),getLinkedTakeuchiFleet:vi.fn().mockResolvedValue({machines:[],checkedAt:'2026-09-24T10:00:00Z'})}));
+vi.mock('@/lib/integrations/rico/route-auth',()=>({authorizeRelayRequesterRoute:vi.fn(async()=>{const chain={select:()=>chain,eq:()=>chain,single:async()=>({data:{role:'admin'},error:null})};return {ok:true,user:{id:'admin'},supabase:{from:()=>chain}};})}));
 import {GET as detail} from '@/app/api/integrations/trackunit/machine/route';
 import {GET as context} from '@/app/api/integrations/trackunit/context/route';
 import {GET as combined} from '@/app/api/integrations/combined/fleet/route';
