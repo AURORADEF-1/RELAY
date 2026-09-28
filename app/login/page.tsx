@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { isLocalDemoMode } from "@/lib/demo-mode";
 import { sanitizeAuthError } from "@/lib/security";
 import { clearCurrentUserWithRoleCache, getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -20,6 +21,11 @@ export default function LoginPage() {
     let isMounted = true;
 
     async function checkExistingSession() {
+      if (isLocalDemoMode) {
+        router.replace("/console");
+        return;
+      }
+
       const supabase = getSupabaseClient();
       const nextValue = new URLSearchParams(window.location.search).get("next");
 
@@ -93,8 +99,8 @@ export default function LoginPage() {
             <div className="mx-auto flex max-w-[13rem] items-center justify-center sm:max-w-[15rem] lg:max-w-[16rem]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/aurora-logo-build.gif"
-                alt="Aurora Systems boot sequence"
+                src="/assetcare-plus-logo.png"
+                alt="AssetCare+"
                 className="h-auto w-full object-contain"
               />
             </div>

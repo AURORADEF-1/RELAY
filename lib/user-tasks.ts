@@ -113,6 +113,12 @@ export async function upsertUserPresence(
 
   const error = presenceResult.error ?? activityResult.error;
   if (error) {
+    // Presence is optional telemetry. Some legitimate accounts are deliberately
+    // read-only, so an RLS refusal here must not break the signed-in interface.
+    if (error.message.toLowerCase().includes("read-only access")) {
+      return;
+    }
+
     throw new Error(error.message);
   }
 }

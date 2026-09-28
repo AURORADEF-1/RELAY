@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "RELAY — Aurora Systems",
+    name: "RELAY — AssetCare+",
     short_name: "RELAY",
     description: "Parts requests, job updates and collection alerts for MLP fitters.",
     start_url: "/requests",
@@ -11,7 +11,7 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#071221",
     icons: [
       {
-        src: "/aurora-logo.png",
+        src: "/assetcare-plus-logo.png",
         sizes: "any",
         type: "image/png",
         purpose: "any",

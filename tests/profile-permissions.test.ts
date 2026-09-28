@@ -27,7 +27,7 @@ describe("RELAY profile permissions", () => {
 
     expect(migration).toContain("create trigger relay_user_profile_on_signup");
     expect(migration).toContain("after insert on auth.users");
-    expect(migration).toContain("'requester',\n    'standard'");
+    expect(migration.replace(/\r\n/g, "\n")).toContain("'requester',\n    'standard'");
     expect(migration).toContain("left join public.profiles profile on profile.id = users.id");
     expect(migration).toContain(
       "revoke all on function public.handle_new_relay_user() from public, anon, authenticated",

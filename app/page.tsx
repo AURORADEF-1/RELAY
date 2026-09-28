@@ -371,7 +371,7 @@ export default function Home() {
                     <>
                       <Link
                         href="/submit"
-                        className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        className="inline-flex h-12 items-center justify-center rounded-xl bg-[color:var(--accent)] px-6 text-sm font-semibold text-[color:var(--accent-foreground)] transition hover:bg-[color:var(--brand-primary-strong)]"
                       >
                         Submit Ticket
                       </Link>
@@ -390,7 +390,7 @@ export default function Home() {
                   ) : (
                     <Link
                       href="/login"
-                      className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      className="inline-flex h-12 items-center justify-center rounded-xl bg-[color:var(--accent)] px-6 text-sm font-semibold text-[color:var(--accent-foreground)] transition hover:bg-[color:var(--brand-primary-strong)]"
                     >
                       Login
                     </Link>
@@ -399,7 +399,7 @@ export default function Home() {
                     <>
                       <Link
                         href="/console"
-                        className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        className="inline-flex h-12 items-center justify-center rounded-xl bg-[color:var(--accent)] px-6 text-sm font-semibold text-[color:var(--accent-foreground)] transition hover:bg-[color:var(--brand-primary-strong)]"
                       >
                         Operations Console
                       </Link>
@@ -448,7 +448,7 @@ export default function Home() {
                     <button
                       type="submit"
                       disabled={isSearchLoading}
-                      className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      className="inline-flex h-12 items-center justify-center rounded-xl bg-[color:var(--accent)] px-5 text-sm font-semibold text-[color:var(--accent-foreground)] transition hover:bg-[color:var(--brand-primary-strong)]"
                     >
                       {isSearchLoading ? "Searching..." : "Search"}
                     </button>
@@ -507,6 +507,22 @@ export default function Home() {
 }
 
 function RequestUpdateItem({ update }: { update: HomepageUpdate }) {
+  const [relativeTime, setRelativeTime] = useState("recently");
+
+  useEffect(() => {
+    const refreshRelativeTime = () => {
+      setRelativeTime(formatRelativeTime(update.updated_at));
+    };
+
+    const initialTimer = window.setTimeout(refreshRelativeTime, 0);
+    const refreshTimer = window.setInterval(refreshRelativeTime, 60_000);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(refreshTimer);
+    };
+  }, [update.updated_at]);
+
   return (
     <article
       className={`rounded-2xl border bg-white px-4 py-4 shadow-[0_18px_40px_-36px_rgba(15,23,42,0.55)] ${
@@ -532,7 +548,7 @@ function RequestUpdateItem({ update }: { update: HomepageUpdate }) {
         </div>
       </div>
       <p className="mt-3 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-        Updated {formatRelativeTime(update.updated_at)}
+        Updated {relativeTime}
       </p>
     </article>
   );

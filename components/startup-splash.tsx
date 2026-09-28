@@ -38,8 +38,8 @@ export function StartupSplash({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-center px-6">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/aurora-logo-build.gif"
-              alt="Aurora Systems boot sequence"
+              src="/assetcare-plus-logo.png"
+              alt="AssetCare+"
               className="h-auto w-full max-w-[14rem] sm:max-w-[16rem] lg:max-w-[18rem]"
             />
           </div>

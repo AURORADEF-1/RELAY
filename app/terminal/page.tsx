@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { LogoutButton } from "@/components/logout-button";
+import { isLocalRolePreviewEnabled } from "@/lib/demo-mode";
 import {
   completeFrontCounterCollection,
   fetchFrontCounterCollectionQueue,
@@ -16,6 +18,7 @@ type TerminalMode = "home" | "collect" | "handover";
 type TerminalNotice = { tone: "success" | "error" | "info"; title: string; detail: string };
 
 export default function TerminalPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<TerminalMode>("home");
   const [identifier, setIdentifier] = useState("");
   const [queue, setQueue] = useState<FrontCounterCollectionRequest[]>([]);
@@ -97,6 +100,25 @@ export default function TerminalPage() {
               <h1 className="mt-1 text-xl font-black tracking-tight sm:text-2xl md:text-3xl">Parts Terminal</h1>
             </div>
             <div className="flex items-center gap-2">
+              {isLocalRolePreviewEnabled ? (
+                <label className="rounded-2xl border border-emerald-300/35 bg-emerald-400/12 px-3 py-2 text-xs font-bold uppercase tracking-[0.12em] text-emerald-100">
+                  <span className="sr-only">View as</span>
+                  <select
+                    value="front-counter"
+                    onChange={(event) => {
+                      const nextView = event.target.value;
+                      window.localStorage.setItem("relay-demo-access-view", nextView);
+                      router.push(nextView === "admin" ? "/console" : "/requests");
+                    }}
+                    aria-label="Preview access role"
+                    className="bg-transparent font-bold text-white outline-none"
+                  >
+                    <option value="admin" className="text-slate-900">Administrator</option>
+                    <option value="fitter" className="text-slate-900">Fitter</option>
+                    <option value="front-counter" className="text-slate-900">Front Counter</option>
+                  </select>
+                </label>
+              ) : null}
               <Link href="/wallboard" className="rounded-2xl border border-white/15 bg-white/8 px-3 py-2.5 text-sm font-bold sm:px-4 sm:py-3">Wallboard</Link>
               <LogoutButton />
             </div>

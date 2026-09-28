@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { LogoutButton } from "@/components/logout-button";
 import { AssetInboxBadge } from '@/components/assets/inbox-badge';
@@ -15,6 +15,7 @@ import {
 } from "@/components/console/console-icon";
 import { RelayAiPanel } from "@/components/console/relay-ai-panel";
 import type { SmartSearchResult } from "@/lib/admin-smart-search";
+import { isLocalRolePreviewEnabled } from "@/lib/demo-mode";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
 
@@ -48,6 +49,8 @@ type NavigationItem = {
   badge?: "admin" | "requester" | "tasks";
   external?: boolean;
 };
+
+type DemoAccessView = "admin" | "fitter" | "front-counter";
 
 const navigation: NavigationItem[] = [
   {
@@ -147,7 +150,8 @@ export function ConsoleShell({
   isRelayAiOpen = false,
 }: ConsoleShellProps) {
   const pathname = usePathname();
-  const { adminBadgeCount, isAdmin, requesterUnreadCount, taskUnreadCount } =
+  const router = useRouter();
+  const { adminBadgeCount, isAdmin: authenticatedIsAdmin, requesterUnreadCount, taskUnreadCount } =
     useNotifications();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -160,11 +164,18 @@ export function ConsoleShell({
   const [hasLiveLinkAccess, setHasLiveLinkAccess] = useState(false);
   const [hasOversightAccess, setHasOversightAccess] = useState(false);
   const [isFrontCounter, setIsFrontCounter] = useState(false);
+  const [demoAccessView, setDemoAccessView] = useState<DemoAccessView>("admin");
   const [commandMachineResults, setCommandMachineResults] = useState<
     SmartSearchResult[]
   >([]);
   const [isCommandSearchFocused, setIsCommandSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const isAdmin = isLocalRolePreviewEnabled
+    ? demoAccessView === "admin"
+    : authenticatedIsAdmin;
+  const effectiveIsFrontCounter = isLocalRolePreviewEnabled
+    ? demoAccessView === "front-counter"
+    : isFrontCounter;
 
   useEffect(() => {
     let isMounted = true;
@@ -224,6 +235,13 @@ export function ConsoleShell({
     const timeoutId = window.setTimeout(() => {
       const saved = window.localStorage.getItem("relay-console-sidebar");
       setIsCollapsed(saved === "collapsed");
+
+      if (isLocalRolePreviewEnabled) {
+        const savedView = window.localStorage.getItem("relay-demo-access-view");
+        if (savedView === "admin" || savedView === "fitter" || savedView === "front-counter") {
+          setDemoAccessView(savedView);
+        }
+      }
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
@@ -333,7 +351,7 @@ export function ConsoleShell({
 
   const visibleNavigation = navigation.filter(
     (item) => {
-      if (isFrontCounter) {
+      if (effectiveIsFrontCounter) {
         return item.frontCounterOnly;
       }
 
@@ -392,7 +410,7 @@ export function ConsoleShell({
           <span className="console-sidebar-user" title={signedInUserName}>
             <strong>{signedInUserName}</strong>
             <small>
-              {isFrontCounter
+              {effectiveIsFrontCounter
                 ? "Front Counter"
                 : isAdmin
                   ? "Administrator"
@@ -526,6 +544,31 @@ export function ConsoleShell({
           ) : null}
 
           <div className="console-command-actions">
+            {isLocalRolePreviewEnabled ? (
+              <label className="console-demo-view-select">
+                <span>View as</span>
+                <select
+                  value={demoAccessView}
+                  onChange={(event) => {
+                    const nextView = event.target.value as DemoAccessView;
+                    setDemoAccessView(nextView);
+                    window.localStorage.setItem("relay-demo-access-view", nextView);
+                    router.push(
+                      nextView === "admin"
+                        ? "/console"
+                        : nextView === "front-counter"
+                          ? "/terminal"
+                          : "/requests",
+                    );
+                  }}
+                  aria-label="Preview access role"
+                >
+                  <option value="admin">Administrator</option>
+                  <option value="fitter">Fitter</option>
+                  <option value="front-counter">Front Counter</option>
+                </select>
+              </label>
+            ) : null}
             {actions}
             <ThemeToggleButton />
             <LogoutButton />
