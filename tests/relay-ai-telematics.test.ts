@@ -17,3 +17,5 @@ it('matches wallboard totals for director summaries',()=>{const a=answerTelemati
 it('uses today’s events and preserves history caveats',()=>{const a=answerTelematics('Show today’s yard movements',snapshot);expect(a.text).toContain('1 departures and 0 returns');expect(a.text).toContain('earlier periods may be incomplete');});
 it('does not invent untracked identities or unsupported historical ranges',()=>{expect(answerTelematics('Where is machine 99999?',snapshot).text).toContain('No active, owned');expect(answerTelematics('yard movements yesterday',snapshot).text).toContain('another date range');});
 it('keeps tracking changes read-only and discloses source delays',()=>{expect(answerTelematics('Assign tracker 12345',snapshot).text).toContain('cannot assign');expect(answerTelematics('plant summary',{...snapshot,data:{...snapshot.data,warning:'Collection delayed'}}).sourceNote).toContain('Collection delayed');});
+
+it('does not route an admin to a conflicting location',()=>{const uncertain={...snapshot,positions:snapshot.positions.map(p=>({...p,status:'unknown' as const}))};expect(answerTelematics('Where is 12345?',uncertain).directions).toBeNull();});
