@@ -11,3 +11,10 @@ import {GET} from '@/app/api/staff/route';
 beforeEach(()=>vi.resetAllMocks());
 it('rejects non-admins before reading any staff positions',async()=>{m.auth.mockRejectedValue(new JcbError('Admin required',403));const result=await GET(new NextRequest('https://relay.test/api/staff'));expect(result.status).toBe(403);expect(m.auth).toHaveBeenCalledWith(expect.anything(),true);expect(m.fleet).not.toHaveBeenCalled();expect(m.db).not.toHaveBeenCalled();});
 it('returns only People assets with private no-store caching',async()=>{m.auth.mockResolvedValue({admin:true});m.fleet.mockResolvedValue({machines:[],stale:false});m.rows.mockResolvedValue([]);m.groups.mockResolvedValue([{pin:'p',equipmentId:'Example Person',assetCategory:'People',assetGroup:'Workshop'},{pin:'m',equipmentId:'Excavator',assetCategory:'Plant'}]);const result=await GET(new NextRequest('https://relay.test/api/staff'));expect((await result.json()).rows.map((r:{id:string})=>r.id)).toEqual(['p']);expect(result.headers.get('cache-control')).toBe('private, no-store');});
+
+it('adds daily history only to its matching staff vehicle and keeps failures unavailable',async()=>{
+ vi.stubEnv('ASSETCARE_OWNER_ID','owner');m.auth.mockResolvedValue({admin:true});m.fleet.mockResolvedValue({machines:[],stale:false});m.rows.mockResolvedValue([]);m.groups.mockResolvedValue([{pin:'p',equipmentId:'Example',assetCategory:'People'}]);
+ const rpc=vi.fn().mockResolvedValue({data:[{asset_id:'other',event_id:'e',kind:'arrival',occurred_at:new Date().toISOString()}],error:null});m.db.mockReturnValue({rpc});
+ const r=await GET(new NextRequest('https://relay.test/api/staff'));const d=await r.json();expect(d.rows[0].daily.available).toBe(true);expect(d.rows[0].daily.firstArrival).toBeNull();
+ rpc.mockResolvedValue({data:null,error:{message:'unavailable'}});const failed=await GET(new NextRequest('https://relay.test/api/staff'));expect((await failed.json()).rows[0].daily.available).toBe(false);vi.unstubAllEnvs();
+});
