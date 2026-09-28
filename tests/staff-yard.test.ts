@@ -1,0 +1,10 @@
+import {expect,it,vi} from 'vitest';
+vi.mock('server-only',()=>({}));
+import {staffRow} from '@/lib/staff/model';
+import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
+const now=Date.parse('2026-09-28T12:00:00Z'),at=(m:number)=>new Date(now+m*60000).toISOString();
+const inside={latitude:52.392,longitude:.955,at:at(-1)},outside={latitude:52,longitude:1,at:at(-1)};
+const machine={pin:'person',equipmentId:'DEMO VAN - Example Person',assetGroup:'Workshop',position:inside} as LinkedJcbMachine;
+it('reports vehicle presence and makes old or future GPS uncertain',()=>{expect(staffRow(machine,[],now).status).toBe('in');expect(staffRow({...machine,position:outside},[],now).status).toBe('out');expect(staffRow({...machine,position:{...inside,at:at(-31)}},[],now).status).toBe('unknown');expect(staffRow({...machine,position:{...inside,at:at(1)}},[],now).status).toBe('unknown');});
+it('requires a second distinct observation to confirm a crossing',()=>{expect(staffRow(machine,[{...outside,at:at(-3)}],now).status).toBe('unknown');const result=staffRow(machine,[{...outside,at:at(-3)},{...inside,at:at(-2)}],now);expect(result.status).toBe('in');expect(result.crossing).toEqual({label:'Vehicle arrived',at:at(-1)});expect(staffRow(machine,[{...outside,at:at(-3)},inside],now).status).toBe('unknown');});
+it('does not invent an arrival time from a single inside reading',()=>{expect(staffRow(machine,[],now).crossing).toBeNull();});
