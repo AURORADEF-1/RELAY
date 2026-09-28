@@ -50,9 +50,9 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
   return (
     <>
       <LegalTermsGate />
-      {isResolved && isFrontCounter ? <CupsPrintStation /> : <DymoPrintStation />}
-      <NotificationToasts />
-      {!isFrontCounter ? <GlobalTicketChat /> : null}
+      {pathname !== "/plant-wallboard" && (isResolved && isFrontCounter ? <CupsPrintStation /> : <DymoPrintStation />)}
+      {pathname !== "/plant-wallboard" ? <NotificationToasts /> : null}
+      {!isFrontCounter && pathname !== "/plant-wallboard" ? <GlobalTicketChat /> : null}
       {routeAllowed ? children : (
         <main className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/60">Opening Front Counter…</p>

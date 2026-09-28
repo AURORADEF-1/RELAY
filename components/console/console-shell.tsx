@@ -73,6 +73,7 @@ const navigation: NavigationItem[] = [
   { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", adminOnly: true },
   { href: "/scan", label: "Scan & Issue", icon: "parts", adminOnly: true },
   { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
+  { href: "/plant-wallboard", label: "Plant Wallboard", icon: "wallboard", adminOnly: true, external: true },
   { href: "/oversight", label: "Oversight", icon: "activity", oversightOnly: true },
   { href: "/submit", label: "New request", icon: "ticket" },
   { href: "/stores", label: "Stores Self-Service", icon: "parts" },

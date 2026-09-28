@@ -1,0 +1,16 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+import { JcbError } from '@/lib/integrations/jcb/client';
+vi.mock('server-only',()=>({}));
+const m=vi.hoisted(()=>({auth:vi.fn(),db:vi.fn(),owners:vi.fn(),latest:vi.fn(),assetcare:vi.fn(),groups:vi.fn(),events:vi.fn()}));
+vi.mock('@/lib/assets/access',()=>({authorizeAssets:m.auth}));
+vi.mock('@/lib/fleet-operations/server',()=>({operationsDatabase:m.db,ownership:m.owners}));
+vi.mock('@/lib/integrations/assetcare/server',()=>({getAssetCareFleet:m.assetcare}));
+vi.mock('@/lib/fleet-map/group-store',()=>({groupedFleet:m.groups}));
+vi.mock('@/lib/yard-report',async original=>({...await original<object>(),loadYardEvents:m.events}));
+import { GET } from '@/app/api/plant/wallboard/route';
+beforeEach(()=>{vi.resetAllMocks();vi.stubEnv('ASSETCARE_ENABLED','true');m.auth.mockResolvedValue({supabase:{}});m.db.mockReturnValue({rpc:()=>({limit:m.latest})});m.latest.mockResolvedValue({data:[],error:null});m.owners.mockResolvedValue({registry:[],allowed:new Set()});m.assetcare.mockResolvedValue({machines:[],stale:false});m.groups.mockResolvedValue([]);m.events.mockResolvedValue([]);});
+it.each([401,403])('rejects unauthorised access before any private reads (%s)',async status=>{m.auth.mockRejectedValue(new JcbError('Access denied',status));const r=await GET(new NextRequest('https://relay.test/api/plant/wallboard'));expect(r.status).toBe(status);expect(m.auth).toHaveBeenCalledWith(expect.anything(),true);expect(m.db).not.toHaveBeenCalled();});
+it('returns no-store read-only aggregates',async()=>{const r=await GET(new NextRequest('https://relay.test/api/plant/wallboard'));expect(r.status).toBe(200);expect(r.headers.get('cache-control')).toBe('private, no-store');expect((await r.json()).tracked).toBe(0);});
+it('fails closed on unavailable, truncated or incomplete source history',async()=>{m.latest.mockResolvedValue({data:Array(1000).fill({}),error:null});expect((await GET(new NextRequest('https://relay.test/api/plant/wallboard'))).status).toBe(503);m.latest.mockResolvedValue({data:[],error:null});m.events.mockRejectedValue(new Error('history unavailable'));expect((await GET(new NextRequest('https://relay.test/api/plant/wallboard'))).status).toBe(503);});
+it('shows saved collection delays as a warning',async()=>{m.assetcare.mockResolvedValue({machines:[],stale:true});const r=await GET(new NextRequest('https://relay.test/api/plant/wallboard'));expect((await r.json()).warning).toContain('delayed');});
