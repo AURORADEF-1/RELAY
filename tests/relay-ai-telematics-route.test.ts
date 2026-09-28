@@ -1,0 +1,11 @@
+import {beforeEach,expect,it,vi} from 'vitest';
+import {NextRequest} from 'next/server';
+import {JcbError} from '@/lib/integrations/jcb/client';
+vi.mock('server-only',()=>({}));
+const load=vi.hoisted(()=>vi.fn());
+vi.mock('@/lib/plant-wallboard/snapshot',()=>({loadPlantSnapshot:load}));
+import {GET} from '@/app/api/plant/ai/route';
+beforeEach(()=>vi.resetAllMocks());
+it.each([401,403])('preserves authorization failure %s without data',async status=>{load.mockRejectedValue(new JcbError('Access denied',status));const r=await GET(new NextRequest('https://relay.test/api/plant/ai?question=plant+summary'));expect(r.status).toBe(status);expect(await r.json()).toEqual({error:'Access denied'});});
+it('rejects oversized questions before any snapshot query',async()=>{const r=await GET(new NextRequest('https://relay.test/api/plant/ai?question='+encodeURIComponent('gps '+'x'.repeat(1000))));expect(r.status).toBe(400);expect(load).not.toHaveBeenCalled();});
+it('reports unavailable data without an invented answer',async()=>{load.mockRejectedValue(new Error('private failure'));const r=await GET(new NextRequest('https://relay.test/api/plant/ai?question=plant+summary'));expect(r.status).toBe(503);expect(JSON.stringify(await r.json())).not.toContain('private failure');});
