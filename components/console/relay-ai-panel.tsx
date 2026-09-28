@@ -59,6 +59,7 @@ type RelayAiMessage = {
       rows: Array<Array<string | number>>;
     };
   };
+  directions?: {url:string;label:string}|null;
   copyText?: string;
   copyLabel?: string;
   externalLookup?: RelayExternalLookupContext;
@@ -115,7 +116,7 @@ const STARTER_MESSAGE: RelayAiMessage = {
 const REQUESTER_STARTER_MESSAGE: RelayAiMessage = {
   id: "welcome",
   role: "assistant",
-  text: "Tell me the machine and what you need in normal workshop language. I’ll verify the machine, check compatible catalogue data, collect any missing ticket details, and show you a complete approval review before submitting anything.",
+  text: "Ask where a machine is and I’ll offer directions to its last-known position. Or tell me the machine and what you need in normal workshop language. I’ll verify the machine, check compatible catalogue data, collect any missing ticket details, and show you a complete approval review before submitting anything.",
 };
 
 const SUGGESTED_QUESTIONS = [
@@ -131,6 +132,9 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 const REQUESTER_SUGGESTED_QUESTIONS = [
+  "Where is machine 26227?",
+  "Give me directions to machine 26227",
+  "Show the fleet tracking summary",
   "Machine 22421, I need a 1000hr service kit",
   "Create a request for machine 23157",
   "Show machine 19592 make, model and serial",
@@ -469,7 +473,7 @@ export function RelayAiPanel({
       }
 
       const ticketDraft = parseRelayAiTicketDraft(question, {
-        allowLooseMachineRequest: accessMode === "requester",
+        allowLooseMachineRequest: accessMode === "requester" && !isTelematicsQuestion(question),
       });
       if (ticketDraft) {
         if (ticketDraft.missing.length > 0) {
@@ -616,14 +620,13 @@ export function RelayAiPanel({
       }
 
       if (isTelematicsQuestion(question)) {
-        if (accessMode !== "full") throw new Error("Plant tracking questions require administrator access.");
         const token=await getSupabaseAccessToken();
         if (!token) throw new Error("Sign in before asking about plant tracking.");
-        const response=await fetch(`/api/plant/ai?${new URLSearchParams({question})}`, {headers:{Authorization:`Bearer ${token}`},cache:'no-store',signal:AbortSignal.timeout(60000)});
+        const response=await fetch(`${accessMode === "requester" ? "/api/fleet/ai" : "/api/plant/ai"}?${new URLSearchParams({question})}`, {headers:{Authorization:`Bearer ${token}`},cache:'no-store',signal:AbortSignal.timeout(60000)});
         const answer=await response.json();
         if (!response.ok) throw new Error(answer.error??"Tracking records could not be read.");
         setSyncedAt(new Date());
-        setMessages(current=>[...current,{id:`assistant-${Date.now()}`,role:'assistant',text:answer.text,facts:answer.facts,sourceNote:answer.sourceNote,copyText:answer.copyText}]);
+        setMessages(current=>[...current,{id:`assistant-${Date.now()}`,role:'assistant',text:answer.text,facts:answer.facts,sourceNote:answer.sourceNote,copyText:answer.copyText,directions:answer.directions}]);
         return;
       }
 
@@ -978,7 +981,7 @@ export function RelayAiPanel({
             <ConsoleIcon name="message" className="h-5 w-5" />
           </div>
           <div className="relay-ai-heading">
-            <p>{accessMode === "requester" ? "Request assistant" : "Operations intelligence"}</p>
+            <p>{accessMode === "requester" ? "Fleet & request assistant" : "Operations intelligence"}</p>
             <h2 id="relay-ai-title">RELAY AI</h2>
           </div>
           <div className="relay-ai-header-actions">
@@ -1021,6 +1024,7 @@ export function RelayAiPanel({
                       {message.download.label || "Download CSV report"}
                     </button>
                   ) : null}
+                  {message.directions && <a className="relay-ai-download" href={message.directions.url} target="_blank" rel="noopener noreferrer">{message.directions.label}</a>}
                   {message.copyText ? (
                     <button
                       type="button"
@@ -1270,7 +1274,7 @@ export function RelayAiPanel({
                 }
               }}
               placeholder={accessMode === "requester"
-                ? "Example: Machine 22421, I need a 1000hr service kit"
+                ? "Ask where a machine is, get directions, or request parts"
                 : "Ask about a job, PO, report, or prepare a ticket..."}
               disabled={isThinking}
             />

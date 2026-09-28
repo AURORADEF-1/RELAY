@@ -59,3 +59,5 @@ it('retains the existing admin path',async()=>{
  mocks.profile.mockResolvedValue({data:{role:'admin'},error:null});mocks.admin.mockResolvedValue({admin:true});
  expect(await fleetForViewer(request)).toEqual({admin:true});expect(mocks.db).not.toHaveBeenCalled();
 });
+
+it('keeps the forced requester projection even for an admin caller',async()=>{mocks.profile.mockResolvedValue({data:{role:'admin'},error:null});const r=await fleetForViewer(request,true);expect(r.admin).toBe(false);expect(mocks.admin).not.toHaveBeenCalled();});
