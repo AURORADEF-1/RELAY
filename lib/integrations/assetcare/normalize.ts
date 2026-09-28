@@ -19,8 +19,11 @@ export function normalizeAssetCare(record:unknown,ownerId:string,now=Date.now())
  const valid=lat!==null&&lon!==null&&Math.abs(lat)<=90&&Math.abs(lon)<=180&&(lat!==0||lon!==0);
  const hours=number(object(row.counters).hours),telemetry=object(row.telemetry),ignition=telemetry.ignition;
  const odo=number(object(row.counters).odometer)??number(telemetry.odometer);
+ const speed=number(location.speed),heading=number(location.heading),gc=object(location.gc);
+ const road=(text(gc.rt)||text(gc.rd)).trim().slice(0,160)||null;
+ const travel=!trip&&valid?{heading:heading!==null&&heading>=0&&heading<=360?heading%360:null,speedMph:speed!==null&&speed>=0&&speed<=240?speed/1.609344:null,road,at:positionAt}:null;
  const off=ignition===0||ignition===false,on=ignition===1||ignition===true;
- return {asset_id:id,observed_at:at,name,machine:{source:'assetcare',pin:id,equipmentId:name||id,model:text(object(row.assetType).name),position:valid?{latitude:lat,longitude:lon,at:positionAt}:null,hours:hours!==null&&hours>=0?{value:hours,at}:null,ignition:!trip&&(off||on)?{value:on,at}:null,odometer:!trip&&odo!==null&&odo>=0?{value:odo,at}:null,engine:null,idleHours:null,fuel:null,adblue:null,relay:null,match:'unmatched'}};
+ return {asset_id:id,observed_at:at,name,machine:{source:'assetcare',pin:id,equipmentId:name||id,model:text(object(row.assetType).name),travel,position:valid?{latitude:lat,longitude:lon,at:positionAt}:null,hours:hours!==null&&hours>=0?{value:hours,at}:null,ignition:!trip&&(off||on)?{value:on,at}:null,odometer:!trip&&odo!==null&&odo>=0?{value:odo,at}:null,engine:null,idleHours:null,fuel:null,adblue:null,relay:null,match:'unmatched'}};
 }
 export function linkAssetCare(machine:LinkedJcbMachine,registry:RegistryMachine[]):LinkedJcbMachine{
  // Accept an explicit numeric fleet prefix only, never a partial/driver-name match.

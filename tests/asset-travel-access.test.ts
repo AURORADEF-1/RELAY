@@ -1,0 +1,20 @@
+import {expect,it,vi,beforeEach} from 'vitest';
+import {NextRequest} from 'next/server';
+import {JcbError} from '@/lib/integrations/jcb/client';
+vi.mock('server-only',()=>({}));
+const m=vi.hoisted(()=>({auth:vi.fn(),fleet:vi.fn(),db:vi.fn(),ownership:vi.fn()}));
+vi.mock('@/lib/assets/access',()=>({authorizeAssets:m.auth}));
+vi.mock('@/lib/integrations/assetcare/server',()=>({getAssetCareFleet:m.fleet}));
+vi.mock('@/lib/fleet-operations/server',()=>({operationsDatabase:m.db,ownership:m.ownership}));
+import {GET} from '@/app/api/assets/travel/route';
+beforeEach(()=>vi.resetAllMocks());
+it('denies non-admin access before reading people or saved GPS',async()=>{m.auth.mockRejectedValue(new JcbError('Admin required',403));expect((await GET(new NextRequest('https://relay.test/api/assets/travel?provider=assetcare&pin=a'))).status).toBe(403);expect(m.auth).toHaveBeenCalledWith(expect.anything(),true);expect(m.db).not.toHaveBeenCalled();expect(m.fleet).not.toHaveBeenCalled();});
+it('rejects invalid providers and unowned assets',async()=>{m.auth.mockResolvedValue({admin:true});expect((await GET(new NextRequest('https://relay.test/api/assets/travel?provider=invalid&pin=a'))).status).toBe(400);m.fleet.mockResolvedValue({machines:[]});expect((await GET(new NextRequest('https://relay.test/api/assets/travel?provider=assetcare&pin=a'))).status).toBe(404);});
+it('returns only an authorised asset summary with private caching and bounded history',async()=>{
+ m.auth.mockResolvedValue({admin:true});m.ownership.mockResolvedValue({allowed:new Set(['owned'])});
+ const chain={select:vi.fn(),eq:vi.fn(),gte:vi.fn(),order:vi.fn(),limit:vi.fn()};for(const key of ['select','eq','gte','order'] as const)chain[key].mockReturnValue(chain);
+ chain.limit.mockResolvedValue({data:[{machine_id:'other',payload:{pin:'a',travel:{heading:90,speedMph:80,road:'Private',at:new Date().toISOString()}}}],error:null});m.db.mockReturnValue({from:vi.fn(()=>chain)});
+ const url=new NextRequest('https://relay.test/api/assets/travel?provider=takeuchi&pin=a');expect((await GET(url)).status).toBe(404);
+ chain.limit.mockResolvedValue({data:[{machine_id:'owned',payload:{pin:'a',position:null,travel:{heading:90,speedMph:66,road:'A140',at:new Date().toISOString()}}}],error:null});
+ const response=await GET(url);expect(response.headers.get('cache-control')).toBe('private, no-store');expect((await response.json()).text).toContain('66 mph East');expect(chain.limit).toHaveBeenCalledWith(200);expect(chain.eq).toHaveBeenCalledWith('provider','takeuchi');expect(chain.eq).toHaveBeenCalledWith('pin','a');
+});
