@@ -239,6 +239,7 @@ function shouldTrackUserPresence(pathname: string) {
     pathname === "/login" ||
     pathname === "/legal" ||
     pathname === "/wallboard" ||
+    pathname === "/plant-wallboard" ||
     pathname.startsWith("/oversight")
   );
 }
@@ -401,6 +402,7 @@ export function NotificationProvider({
   }, []);
 
   const playNotificationSound = useCallback(() => {
+    if (pathnameRef.current === "/plant-wallboard") return;
     const now = Date.now();
 
     if (now - lastSoundAtRef.current < SOUND_COOLDOWN_MS) {
@@ -418,6 +420,7 @@ export function NotificationProvider({
       body: string;
       href?: string;
     }) => {
+      if (pathnameRef.current === "/plant-wallboard") return;
       if (typeof window === "undefined" || typeof Notification === "undefined") {
         return;
       }

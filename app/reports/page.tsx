@@ -251,7 +251,8 @@ export default function ReportsPage() {
         eyebrow="RELAY intelligence"
         title="Reports"
         contentClassName="console-content-reports"
-        actions={
+        actions={<>
+          <Link href="/plant-wallboard" className="console-command-action">Plant wallboard</Link>
           <button
             type="button"
             className="console-command-action"
@@ -261,7 +262,7 @@ export default function ReportsPage() {
             <ConsoleIcon name="refresh" className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             <span>{isRefreshing ? "Refreshing" : "Refresh"}</span>
           </button>
-        }
+        </>}
       >
         <header className="reports-page-header">
           <div>
