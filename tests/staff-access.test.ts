@@ -1,0 +1,13 @@
+import {beforeEach,expect,it,vi} from 'vitest';
+import {NextRequest} from 'next/server';
+import {JcbError} from '@/lib/integrations/jcb/client';
+vi.mock('server-only',()=>({}));
+const m=vi.hoisted(()=>({auth:vi.fn(),fleet:vi.fn(),groups:vi.fn(),rows:vi.fn(),db:vi.fn()}));
+vi.mock('@/lib/assets/access',()=>({authorizeAssets:m.auth}));
+vi.mock('@/lib/integrations/assetcare/server',()=>({getAssetCareFleet:m.fleet}));
+vi.mock('@/lib/fleet-map/group-store',()=>({groupedFleet:m.groups}));
+vi.mock('@/lib/fleet-operations/server',()=>({allRows:m.rows,operationsDatabase:m.db}));
+import {GET} from '@/app/api/staff/route';
+beforeEach(()=>vi.resetAllMocks());
+it('rejects non-admins before reading any staff positions',async()=>{m.auth.mockRejectedValue(new JcbError('Admin required',403));const result=await GET(new NextRequest('https://relay.test/api/staff'));expect(result.status).toBe(403);expect(m.auth).toHaveBeenCalledWith(expect.anything(),true);expect(m.fleet).not.toHaveBeenCalled();expect(m.db).not.toHaveBeenCalled();});
+it('returns only People assets with private no-store caching',async()=>{m.auth.mockResolvedValue({admin:true});m.fleet.mockResolvedValue({machines:[],stale:false});m.rows.mockResolvedValue([]);m.groups.mockResolvedValue([{pin:'p',equipmentId:'Example Person',assetCategory:'People',assetGroup:'Workshop'},{pin:'m',equipmentId:'Excavator',assetCategory:'Plant'}]);const result=await GET(new NextRequest('https://relay.test/api/staff'));expect((await result.json()).rows.map((r:{id:string})=>r.id)).toEqual(['p']);expect(result.headers.get('cache-control')).toBe('private, no-store');});
