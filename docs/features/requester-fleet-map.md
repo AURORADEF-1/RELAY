@@ -7,3 +7,5 @@ The combined fleet API authenticates the profile before privileged read-only ret
 Provider detail/management endpoints, scheduler, reports, staff views and database permissions are unchanged. The requester map uses its safe snapshot for details and does not call privileged status or detail endpoints. No new account or credentials are needed.
 
 Verification: requester authorization and denial, group failure/empty registry, People conflicts and duplicate identities, four provider coverage, partial provider outage, old position preservation, and the unchanged admin service are covered by tests. Actual requester browser sign-in requires an existing requester session; automated access tests do not substitute for that final account-level check.
+
+RELAY AI requester mode now uses `/api/fleet/ai`, which forces this same filtered projection even for an admin caller. Location and directions prompts produce a dated last-known location and a Google Maps directions button. Missing or ambiguous positions never produce directions. Director reports stay on the existing admin-only plant AI endpoint. Admin location answers also offer the directions button.

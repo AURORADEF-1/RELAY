@@ -11,12 +11,12 @@ import type {AssetGroup} from './groups';
 import {combinedFleet} from './server';
 import {requesterMachines} from './requester';
 
-export async function fleetForViewer(request:NextRequest){
+export async function fleetForViewer(request:NextRequest,requesterView=false){
  const auth=await authorizeRelayRequesterRoute(request);
  if(!auth.ok)throw new JcbError(auth.error,auth.status);
  const profile=await auth.supabase.from('profiles').select('role').eq('id',auth.user.id).single();
  if(profile.error||!profile.data)throw new JcbError('Unable to verify fleet access.',503);
- if(profile.data.role==='admin')return combinedFleet(request);
+ if(profile.data.role==='admin'&&!requesterView)return combinedFleet(request);
  // Privileged reads stay inside this authenticated, read-only projection.
  // Never reuse this context for a detail, management or mutation endpoint.
  const db=operationsDatabase(),context={...auth,supabase:db,admin:false};
