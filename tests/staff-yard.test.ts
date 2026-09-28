@@ -1,5 +1,6 @@
 import {expect,it,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
+import {positionSide} from '@/lib/fleet-operations/report';
 import {staffRow} from '@/lib/staff/model';
 import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 const now=Date.parse('2026-09-28T12:00:00Z'),at=(m:number)=>new Date(now+m*60000).toISOString();
@@ -12,3 +13,10 @@ it('does not invent an arrival time from a single inside reading',()=>{expect(st
 it('retains days-old locations with an explicit last-known label',()=>{for(const [position,status] of [[inside,'in'],[outside,'out']] as const){const row=staffRow({...machine,position:{...position,at:at(-4320)}},[],now);expect(row.status).toBe(status);expect(row.lastKnown).toBe(true);expect(row.reason).toContain('Not checked in');expect(row.position?.at).toBe(at(-4320));}});
 it('keeps undated coordinates without manufacturing a GPS time',()=>{const row=staffRow({...machine,position:{...inside,at:null}},[],now);expect(row.status).toBe('in');expect(row.lastKnown).toBe(true);expect(row.position?.at).toBeNull();expect(row.reason).toContain('GPS time unavailable');});
 it('falls back to valid stored GPS and leaves missing coordinates uncertain',()=>{const row=staffRow({...machine,position:{...inside,at:at(1)}},[{...outside,at:at(-3000)}],now);expect(row.status).toBe('out');expect(row.lastKnown).toBe(true);expect(staffRow({...machine,position:null},[],now).status).toBe('unknown');expect(staffRow({...machine,position:{latitude:0,longitude:0,at:null}},[],now).position).toBeNull();});
+
+it('counts both sides of the 20 metre boundary band as in yard for staff only',()=>{
+ const boundary={latitude:52.392995,longitude:.955,at:at(-1)};
+ for(const metres of [-10,0,10,19]){const position={...boundary,latitude:boundary.latitude+metres/111320};expect(staffRow({...machine,position},[],now).status).toBe('in');expect(staffRow({...machine,position:{...position,at:null}},[],now).status).toBe('in');}
+ expect(staffRow({...machine,position:{...boundary,latitude:boundary.latitude+25/111320}},[],now).status).toBe('out');
+ expect(positionSide({...boundary,latitude:boundary.latitude+10/111320},now)).toBe('unknown');
+});
