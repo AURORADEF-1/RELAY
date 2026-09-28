@@ -87,7 +87,21 @@ export async function getRelaySessionUserFromRequest(request: NextRequest) {
     return null;
   }
 
-  const payload = (await response.json()) as { id?: string; email?: string | null };
+  const payload = (await response.json()) as {
+    id?: string;
+    email?: string | null;
+    app_metadata?: { relay_read_only?: boolean };
+  };
+
+  // Read the current server-controlled account metadata, not a cached JWT claim
+  // or editable user_metadata. This also restricts sessions issued before the
+  // account was made read-only, including routes using a service-role client.
+  if (
+    payload.app_metadata?.relay_read_only === true &&
+    !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())
+  ) {
+    return null;
+  }
 
   return payload.id ? payload : null;
 }
