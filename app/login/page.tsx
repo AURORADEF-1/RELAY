@@ -106,7 +106,7 @@ export default function LoginPage() {
             </div>
             <div>
               <h1 className="text-4xl font-semibold tracking-[-0.085em] text-white sm:text-[3.35rem]">
-                RELAY
+                AssetCare+
               </h1>
             </div>
           </div>
