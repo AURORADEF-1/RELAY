@@ -44,6 +44,14 @@ describe('director plant overview',()=>{
   expect(result.today.departures).toBe(1);expect(result.week.returns).toBe(0);expect(result.week.turnaroundHours).toBe(71);expect(result.month.returns).toBe(1);
   expect(result.recent.every(r=>r.label==='a')).toBe(true);expect(JSON.stringify(result)).not.toContain('latitude');expect(JSON.stringify(result)).not.toContain('staff');
  });
+ it('shows only today’s movements newest first from UK midnight, retaining weekly and monthly totals',()=>{
+  const events=[event('yesterday','a','yard_arrival','2026-09-27T22:59:59Z'),event('midnight','a','yard_departure','2026-09-27T23:00:00Z'),event('later','a','yard_arrival','2026-09-28T09:00:00Z'),event('latest','a','yard_departure','2026-09-28T11:00:00Z')];
+  const report=plantBoardData([machine('a')],new Set(['a']),events.reverse(),now);
+  expect(report.recent.map(e=>e.id)).toEqual(['latest','later','midnight']);
+  expect(report.month.returns).toBe(2);expect(report.today.returns).toBe(1);
+  const tomorrow=plantBoardData([machine('a')],new Set(['a']),events,Date.parse('2026-09-28T23:00:00Z'));
+  expect(tomorrow.recent).toEqual([]);expect(tomorrow.today.departures).toBe(0);
+ });
  it('represents absent history as unknown rather than a zero turnaround',()=>{
   const result=plantBoardData([],new Set(),[],now);expect(result.historySince).toBeNull();expect(result.month.turnaroundHours).toBeNull();expect(result.month.redeploymentPercent).toBeNull();
  });
