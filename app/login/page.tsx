@@ -159,7 +159,7 @@ export default function LoginPage() {
               disabled={isSubmitting}
               className="inline-flex h-12 w-full items-center justify-center rounded-lg bg-white px-5 text-sm font-semibold uppercase tracking-[0.18em] text-black transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSubmitting ? "Authenticating..." : "Access Relay"}
+              {isSubmitting ? "Authenticating..." : "Login"}
             </button>
           </form>
         </section>
