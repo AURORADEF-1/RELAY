@@ -6,7 +6,7 @@ The board rotates every 25 seconds through:
 
 1. Plant at a glance: out of yard, in yard, location unclear; today's departures and returns.
 2. Plant activity: this week's and this month's departures, returns, average return-to-next-departure turnaround and returned-asset redeployment rate.
-3. Recent movements: six cards at a time, up to the latest 36 movements this month. Subsequent rotations advance the page.
+3. Recent movements: six cards at a time, up to the latest 36 movements today, newest first, using Europe/London midnight. Subsequent rotations advance through older movements from today only. The next data refresh after midnight starts the new day.
 
 Screen buttons and Pause rotation hold the current view/page. Data continues refreshing once a minute without resetting rotation. Full-screen mode is a browser capability; a message directs users to the browser command if unavailable. The board is responsive for a laptop, 1080p/4K TV and a narrow screen. It suppresses in-app chat, print stations, notification sounds and pop-ups only on this route.
 

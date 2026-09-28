@@ -48,7 +48,7 @@ export function plantBoardData(machines: BoardMachine[], allowed: Set<string>, e
     lastKnownOnly: positions.filter(m=>m.status!=='unknown'&&m.lastKnownOnly).length,
     yard: positions.filter(m=>m.status==='yard').length, unknown: positions.filter(m=>m.status==='unknown').length,
     today: summary(today), week: summary(week), month: summary(month),
-    recent: [...month.movements].reverse().slice(0,36).map(e=>({ id:e.id, label:e.machine?.machine_number ?? positions.find(p=>p.id===e.machine_id)?.label ?? e.machine_id,
+    recent: [...today.movements].sort((a,b)=>Date.parse(b.occurred_at)-Date.parse(a.occurred_at)||b.id.localeCompare(a.id)).slice(0,36).map(e=>({ id:e.id, label:e.machine?.machine_number ?? positions.find(p=>p.id===e.machine_id)?.label ?? e.machine_id,
       kind:e.kind, at:e.occurred_at, model:[e.machine?.make,e.machine?.model].filter(Boolean).join(' ') })),
   };
 }
