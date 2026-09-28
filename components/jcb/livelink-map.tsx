@@ -12,7 +12,7 @@ export default function LiveLinkMap({machines,selectedPin,onSelect,showYard=fals
  const [tileError,setTileError]=useState(false),[expanded,setExpanded]=useState(false);
  const selected=machines.find(m=>machineKey(m)===selectedPin);
  useEffect(()=>{select.current=onSelect;},[onSelect]);
- useEffect(()=>{if(!container.current)return;const instance=L.map(container.current,{scrollWheelZoom:false}).setView([52.5,.9],8);map.current=instance;fitted.current=false;const observer=new ResizeObserver(()=>instance.invalidateSize());observer.observe(container.current);return()=>{observer.disconnect();instance.remove();map.current=null;};},[]);
+ useEffect(()=>{if(!container.current)return;const instance=L.map(container.current,{scrollWheelZoom:true}).setView([52.5,.9],8);map.current=instance;fitted.current=false;const observer=new ResizeObserver(()=>instance.invalidateSize());observer.observe(container.current);return()=>{observer.disconnect();instance.remove();map.current=null;};},[]);
  useEffect(()=>{
   const instance=map.current;if(!instance)return;const key=process.env.NEXT_PUBLIC_MAPTILER_KEY;
   const satellite=base==='satellite'&&!!key;
