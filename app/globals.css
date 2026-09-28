@@ -928,6 +928,90 @@ select:focus-visible {
   overflow: hidden;
 }
 
+.console-nav-group {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.console-nav-category {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.console-nav-category-active:not(:hover) {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.console-nav-chevron {
+  width: 0.82rem;
+  height: 0.82rem;
+  flex: 0 0 auto;
+  transition: transform 160ms ease;
+}
+
+.console-nav-group-open .console-nav-chevron {
+  transform: rotate(90deg);
+}
+
+.console-nav-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.28rem;
+  padding: 0.12rem 0 0.45rem 1rem;
+  animation: console-tabs-in 160ms ease-out;
+}
+
+.console-nav-tab {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.42rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.42rem;
+  padding: 0.45rem 0.48rem;
+  background: rgba(2, 36, 56, 0.14);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.68rem;
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.console-nav-tab > span:not(.inline-flex) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.console-nav-tab:hover {
+  border-color: rgba(255, 255, 255, 0.44);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.console-nav-tab-active,
+.console-nav-tab-active:hover {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: var(--brand-primary-strong);
+  box-shadow: 0 8px 20px -14px rgba(2, 36, 56, 0.9);
+}
+
+.console-nav-tab-icon {
+  width: 0.88rem;
+  height: 0.88rem;
+  flex: 0 0 auto;
+}
+
+@keyframes console-tabs-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .console-shell-collapsed .console-sidebar-brand {
   justify-content: center;
   padding-inline: 0.5rem;
@@ -949,6 +1033,11 @@ select:focus-visible {
 .console-shell-collapsed .console-nav-item {
   justify-content: center;
   padding-inline: 0;
+}
+
+.console-shell-collapsed .console-nav-chevron,
+.console-shell-collapsed .console-nav-tabs {
+  display: none;
 }
 
 /* Shared new-shell treatment for Workshop and Parts Knowledge. */
