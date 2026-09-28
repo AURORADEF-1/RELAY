@@ -89,7 +89,7 @@ const navigation: NavigationItem[] = [
   { href: "/assets/inbox", label: "Asset Inbox", icon: "fleet", adminOnly: true },
   { href: "/staff", label: "Staff", icon: "fleet", adminOnly: true },
   { href: "/fleet/scheduler", label: "Fleet Scheduler", icon: "fleet", adminOnly: true },
-  { href: "/fleet", label: "Fleet", icon: "fleet", fleetMemberOnly: true },
+  { href: "/fleet", label: "Fleet", icon: "fleet" },
   { href: "/manitou", label: "Manitou Track", icon: "fleet", trackunitOnly: true },
   { href: "/takeuchi", label: "Takeuchi Track", icon: "fleet", takeuchiOnly: true },
   { href: "/livelink", label: "JCB LiveLink", icon: "fleet", liveLinkOnly: true },
