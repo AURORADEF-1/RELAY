@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isTelematicsQuestion } from "@/lib/relay-ai-telematics";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import { lookupMachineRegistryRecord } from "@/lib/machine-registry";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
@@ -108,7 +109,7 @@ const RELAY_EXTERNAL_LOOKUP_EVENT = "relay:external-lookup-result";
 const STARTER_MESSAGE: RelayAiMessage = {
   id: "welcome",
   role: "assistant",
-  text: "Ask me about jobs, PO numbers, delivery ETAs, suppliers, demand, spend, queues or admin performance. I can prepare tickets and job assignments, but I always show a confirmation review before changing RELAY data.",
+  text: "Ask me about plant locations, yard movements, tracker issues, director summaries, jobs, suppliers or admin performance. I can prepare tickets and job assignments, but I always show a confirmation review before changing RELAY data.",
 };
 
 const REQUESTER_STARTER_MESSAGE: RelayAiMessage = {
@@ -118,6 +119,10 @@ const REQUESTER_STARTER_MESSAGE: RelayAiMessage = {
 };
 
 const SUGGESTED_QUESTIONS = [
+  "Give me a director plant summary",
+  "Show today’s yard movements",
+  "Which trackers need attention?",
+  "Where is machine 26304?",
   "Show machine reference 19592 make, model and serial",
   "What is the oil filter for machine 24079?",
   "List Shred Station's fleet and request counts",
@@ -610,6 +615,18 @@ export function RelayAiPanel({
         return;
       }
 
+      if (isTelematicsQuestion(question)) {
+        if (accessMode !== "full") throw new Error("Plant tracking questions require administrator access.");
+        const token=await getSupabaseAccessToken();
+        if (!token) throw new Error("Sign in before asking about plant tracking.");
+        const response=await fetch(`/api/plant/ai?${new URLSearchParams({question})}`, {headers:{Authorization:`Bearer ${token}`},cache:'no-store',signal:AbortSignal.timeout(60000)});
+        const answer=await response.json();
+        if (!response.ok) throw new Error(answer.error??"Tracking records could not be read.");
+        setSyncedAt(new Date());
+        setMessages(current=>[...current,{id:`assistant-${Date.now()}`,role:'assistant',text:answer.text,facts:answer.facts,sourceNote:answer.sourceNote,copyText:answer.copyText}]);
+        return;
+      }
+
       const machineReference = parseRelayAiMachineReference(question);
       if (machineReference) {
         const supabase = getSupabaseClient();
@@ -980,7 +997,7 @@ export function RelayAiPanel({
           <i />
           <span>{syncedAt ? `Supabase synced ${syncedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Queries live data on first question"}</span>
           <i />
-          <span>5 min cache · bounded reads</span>
+          <span>Tracking reads on each question · other data cached 5 min</span>
         </div>
 
         <div className="relay-ai-conversation" aria-live="polite">
