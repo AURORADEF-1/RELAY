@@ -9721,3 +9721,13 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
     padding: 0.8rem 0.9rem;
   }
 }
+
+/* Yard report notes use the same inset as its heading and table. */
+.yard-movement-panel > p,
+.yard-movement-panel > h2 {
+  margin: 0.75rem 1rem;
+}
+.yard-movement-panel > p {
+  font-size: 0.85rem;
+  line-height: 1.5;
+}

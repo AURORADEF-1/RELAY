@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { getSupabaseClient } from '@/lib/supabase';
-import { buildYardReport, loadYardEvents, yardReportCsv, yardDayStart, type YardEvent, type YardPeriod } from '@/lib/yard-report';
+import { buildYardReport, loadYardEvents, yardReportCsv, yardDayStart, londonDate, type YardEvent, type YardPeriod } from '@/lib/yard-report';
 import type { ReportRange } from '@/lib/report-analytics';
 
 const date = (value: string) => new Date(value).toLocaleString('en-GB', { timeZone: 'Europe/London' });
@@ -33,13 +33,13 @@ export function YardMovementReport({ range, refreshVersion }: { range: ReportRan
   const movements = [...report.movements].reverse().slice(safePage * 50, safePage * 50 + 50);
   function download() {
     const url = URL.createObjectURL(new Blob([yardReportCsv(report, range.label, period, state.loadedAt)], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a'); link.href = url; link.download = `relay-yard-${period}-${range.start.toISOString().slice(0, 10)}.csv`;
+    const link = document.createElement('a'); link.href = url; link.download = `relay-yard-${period}-${londonDate(from)}.csv`;
     document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
   }
   if (state.loading || state.key !== requestKey) return <p role="status">Generating yard movement report…</p>;
   if (state.error) return <p className="reports-error" role="alert">{state.error} Use Refresh to try again.</p>;
   return <>
-    <article className="report-panel">
+    <article className="report-panel yard-movement-panel">
       <header className="report-heading"><p className="reports-kicker">Yard activity</p><h2>Deployments, returns &amp; turnaround</h2><p>{range.label} · Garboldisham yard · UK time</p></header>
       <div className="reports-filter-bar">
         <label><span>Group totals by</span><select value={period} onChange={e => setPeriod(e.target.value as YardPeriod)}><option value="week">Week (Monday–Sunday)</option><option value="month">Month</option></select></label>
@@ -61,7 +61,7 @@ export function YardMovementReport({ range, refreshVersion }: { range: ReportRan
         {!report.buckets.length && <tr><td colSpan={4}>No elapsed reporting period.</td></tr>}
       </tbody></table></div>
     </article>
-    <article className="report-panel"><h2>Asset movement detail</h2><p>Each confirmed departure or return is shown once. Repeated same-direction reports are combined until an opposite crossing is recorded. All rows are included in the download.</p>
+    <article className="report-panel yard-movement-panel"><h2>Asset movement detail</h2><p>Each confirmed departure or return is shown once. Repeated same-direction reports are combined until an opposite crossing is recorded. All rows are included in the download.</p>
       <div className="reports-table-wrap"><table className="reports-table"><thead><tr><th>Asset</th><th>Movement</th><th>Recorded at (UK)</th><th>Provider</th><th>Yard turnaround</th><th>Time away</th></tr></thead><tbody>
         {movements.map(e => <tr key={e.id}><td>{e.machine?.machine_number ?? e.machine_id}<br />{[e.machine?.make, e.machine?.model].filter(Boolean).join(' ')}</td><td>{e.kind === 'yard_departure' ? 'Deployed from yard' : 'Returned to yard'}</td><td>{date(e.occurred_at)}</td><td>{e.provider}</td><td>{e.kind === 'yard_departure' ? duration(e.yardHours) : '—'}</td><td>{e.kind === 'yard_arrival' ? duration(e.awayHours) : '—'}</td></tr>)}
         {!movements.length && <tr><td colSpan={6}>No recorded yard movements in this period. Check the history coverage above.</td></tr>}
