@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { YardMovementReport } from "@/components/reports/yard-movement-report";
 import { FleetHealthReports } from "@/components/telematics/health-reports";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
@@ -36,13 +37,14 @@ import {
   type RequesterAccountRecord,
 } from "@/lib/requester-accounts";
 
-type ReportTab = "overview" | "performance" | "fleet" | "parts" | "suppliers" | "requesters";
-type DatePreset = "THIS_MONTH" | "LAST_MONTH" | "LAST_30_DAYS" | "LAST_90_DAYS" | "CUSTOM";
+type ReportTab = "yard" | "overview" | "performance" | "fleet" | "parts" | "suppliers" | "requesters";
+type DatePreset = "THIS_WEEK" | "LAST_WEEK" | "THIS_MONTH" | "LAST_MONTH" | "LAST_30_DAYS" | "LAST_90_DAYS" | "CUSTOM";
 
 const REPORT_TABS: Array<{ id: ReportTab; label: string }> = [
   { id: "overview", label: "Operational overview" },
   { id: "performance", label: "Operator efficiency" },
   { id: "fleet", label: "Fleet Health" },
+  { id: "yard", label: "Yard movements" },
   { id: "parts", label: "Most common parts" },
   { id: "suppliers", label: "Supplier usage & spend" },
   { id: "requesters", label: "Requester profiles" },
@@ -285,6 +287,8 @@ export default function ReportsPage() {
               <label>
                 <span>Period</span>
                 <select value={datePreset} onChange={(event) => setDatePreset(event.target.value as DatePreset)}>
+                  <option value="THIS_WEEK">This week</option>
+                  <option value="LAST_WEEK">Last week</option>
                   <option value="THIS_MONTH">This month</option>
                   <option value="LAST_MONTH">Last month</option>
                   <option value="LAST_30_DAYS">Last 30 days</option>
@@ -326,12 +330,12 @@ export default function ReportsPage() {
               </section>
             ) : analytics && snapshot ? (
               <>
-                <section className="reports-metric-strip" aria-label="Reporting summary">
+                {activeTab !== "yard" ? <section className="reports-metric-strip" aria-label="Reporting summary">
                   <ReportMetric label="Jobs closed" value={visibleClosedJobs.length} detail={selectedOperator === "ALL" ? reportRange.label : selectedOperator} tone="blue" />
                   <ReportMetric label="POs raised" value={analytics.purchaseOrderCount} detail={formatCurrency(analytics.purchaseOrderValue)} tone="orange" />
                   <ReportMetric label="Average PO" value={formatCurrency(analytics.averagePurchaseOrderValue)} detail="Excludes cancelled POs" tone="green" />
                   <ReportMetric label="Requests raised" value={analytics.totalPeriodTickets} detail={reportRange.label} tone="slate" />
-                </section>
+                </section> : null}
 
                 <nav className="reports-tabs" role="tablist" aria-label="Report sections">
                   {REPORT_TABS.map((tab) => (
@@ -370,6 +374,7 @@ export default function ReportsPage() {
                       onExport={exportClosedJobs}
                     />
                   ) : null}
+                  {activeTab === "yard" ? <YardMovementReport range={reportRange} refreshVersion={refreshVersion} /> : null}
                   {activeTab === "fleet" ? <><FleetHealthReports /><FleetReport analytics={analytics} /></> : null}
                   {activeTab === "parts" ? (
                     <RankedReport
@@ -1120,6 +1125,13 @@ function buildDateRange(
 ): ReportRange {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (preset === "THIS_WEEK" || preset === "LAST_WEEK") {
+    const start = new Date(today);
+    start.setDate(start.getDate() - (start.getDay() + 6) % 7 - (preset === "LAST_WEEK" ? 7 : 0));
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return { start, end, label: `${preset === "THIS_WEEK" ? "This week" : "Last week"} · ${formatDateRange(start, new Date(end.getTime() - 1))}` };
+  }
   if (preset === "THIS_MONTH") {
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     return {
