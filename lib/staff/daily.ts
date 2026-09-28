@@ -7,7 +7,12 @@ export function staffDaily(events:StaffEvent[],now:number,available=true){
  const movements=sorted.filter(e=>e.kind!=='speeding'),arrivals=movements.filter(e=>e.kind==='arrival'),departures=movements.filter(e=>e.kind==='departure'),last=movements.at(-1);
  const conflicting=last&&movements.some(e=>e.occurred_at===last.occurred_at&&e.kind!==last.kind);
  const alerts=sorted.filter(e=>e.kind==='speeding');
- return {day,available,firstArrival:arrivals[0]?.occurred_at??null,lastDeparture:departures.at(-1)?.occurred_at??null,lastArrival:arrivals.at(-1)?.occurred_at??null,state:!available?'unavailable':conflicting?'uncertain':last?.kind==='departure'?'not_returned':last?.kind==='arrival'?'in_yard':'no_events',movements:movements.map(e=>({kind:e.kind,at:e.occurred_at})),speedingCount:alerts.length,drivingAlerts:alerts.slice(-20).reverse().map(e=>({at:e.occurred_at,speedKph:number(e.speed_kph),limitKph:number(e.limit_kph)}))};
+ const readings=alerts.map(e=>({speed:number(e.speed_kph),limit:number(e.limit_kph)}));
+ const speeds=readings.flatMap(e=>e.speed===null?[]:[e.speed]);
+ const excesses=readings.flatMap(e=>e.speed!==null&&e.limit!==null&&e.limit>0&&e.speed>e.limit?[e.speed-e.limit]:[]);
+ return {day,available,firstArrival:arrivals[0]?.occurred_at??null,lastDeparture:departures.at(-1)?.occurred_at??null,lastArrival:arrivals.at(-1)?.occurred_at??null,state:!available?'unavailable':conflicting?'uncertain':last?.kind==='departure'?'not_returned':last?.kind==='arrival'?'in_yard':'no_events',movements:movements.map(e=>({kind:e.kind,at:e.occurred_at})),speedingCount:alerts.length,
+ peakSpeedKph:speeds.length?Math.max(...speeds):null,
+ maxExcessKph:excesses.length?Math.max(...excesses):null,drivingAlerts:alerts.slice(-20).reverse().map(e=>({at:e.occurred_at,speedKph:number(e.speed_kph),limitKph:number(e.limit_kph)}))};
 }
 function number(v:string|null|undefined){return v!=null&&v.trim()!==''&&Number.isFinite(Number(v))&&Number(v)>=0?Number(v):null;}
 export type StaffDaily=ReturnType<typeof staffDaily>;
