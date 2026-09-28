@@ -1,5 +1,4 @@
-import { positionSide, DAY } from '@/lib/fleet-operations/report';
-import { metres, validPosition } from '@/lib/assets/events';
+import yard from '@/lib/fleet-operations/yard.json';
 import type { LinkedJcbMachine } from '@/lib/integrations/jcb/types';
 
 type Position = NonNullable<LinkedJcbMachine['position']>;
@@ -17,21 +16,17 @@ export function positionOrder(machine: BoardMachine): number {
   const time=Date.parse(machine.position?.at??machine.observedAt??'');
   return Number.isFinite(time)?time:0;
 }
-export function stationaryAtBoundary(machine: BoardMachine, now: number): boolean {
-  const p=machine.position;
-  if(!validPosition(p,now)||now-Date.parse(p!.at!)>DAY)return false;
-  // Ignition off alone is insufficient: an asset could be moving on a trailer.
-  const time=Date.parse(p!.at!);
-  if(machine.transit && Math.abs(Date.parse(machine.transit.at)-time)<=30*60000)return false;
-  const previous=[...(machine.positionHistory??[])].filter(q=>validPosition(q,now)&&Date.parse(q.at!)<time).sort((a,b)=>Date.parse(b.at!)-Date.parse(a.at!))[0];
-  if(!previous)return false;
-  const elapsed=time-Date.parse(previous.at!);
-  return elapsed>=60000 && elapsed<=30*60000 && metres(previous,p!)<=10;
-}
 export function lastKnownSide(machine: BoardMachine, now: number) {
   const p=machine.position;
   if(!usableCoordinates(p,now))return 'unknown';
-  // Use geometry without the live-reading freshness gate; never change the saved GPS time.
-  const side=positionSide({...p,at:new Date(now).toISOString()},now);
-  return side==='unknown' && stationaryAtBoundary(machine,now)?'off_hire':side;
+  const {longitude:x,latitude:y}=p;
+  const ring=yard.geometry.coordinates[0];let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const [ax,ay]=ring[j], [bx,by]=ring[i];
+    const cross=(x-ax)*(by-ay)-(y-ay)*(bx-ax);
+    // A point exactly on the yard outline belongs to the yard. No uncertainty band.
+    if(Math.abs(cross)<=1e-14 && x>=Math.min(ax,bx) && x<=Math.max(ax,bx) && y>=Math.min(ay,by) && y<=Math.max(ay,by))return 'off_hire';
+    if((ay>y)!==(by>y)&&x<(bx-ax)*(y-ay)/(by-ay)+ax)inside=!inside;
+  }
+  return inside?'off_hire':'on_hire';
 }
