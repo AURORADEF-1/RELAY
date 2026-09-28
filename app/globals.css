@@ -747,7 +747,7 @@ select:focus-visible {
   border-right: 1px solid rgba(255, 255, 255, 0.18);
   background:
     radial-gradient(circle at 20% 0%, rgba(72, 195, 239, 0.68), transparent 30%),
-    linear-gradient(180deg, var(--brand-primary) 0%, var(--brand-primary-strong) 100%);
+    linear-gradient(180deg, #087fc4 0%, #075f96 100%);
   box-shadow: 12px 0 36px -28px rgba(7, 95, 150, 0.75);
   overflow: hidden;
   backdrop-filter: blur(22px);
