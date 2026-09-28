@@ -358,7 +358,7 @@ export default function Home() {
                       </p>
                     ) : null}
                     <h1 className="text-8xl font-semibold tracking-[-0.12em] text-slate-950 sm:text-[7rem] lg:text-[9.5rem]">
-                      RELAY
+                      ASSETCARE+
                     </h1>
                     <p className="max-w-lg text-lg font-medium tracking-[-0.02em] text-slate-600">
                       Parts requests, updates, and operator activity in one view.
