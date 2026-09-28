@@ -266,7 +266,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <nav className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
+        <nav className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
           <RelayLogo />
           <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
             {!isLoggedIn ? (
@@ -342,7 +342,7 @@ export default function Home() {
           </div>
         </nav>
 
-        <div className="flex min-h-[calc(100vh-9rem)] items-center">
+        <div className="flex min-h-[calc(100vh-9rem)] items-start">
           <section className="w-full overflow-hidden rounded-[2rem] border border-white/80 bg-white/90 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur">
             <div className="grid gap-8 px-8 py-10 sm:px-10 sm:py-12 lg:grid-cols-[1.08fr_0.92fr] lg:px-12 lg:py-14">
               <div className="flex flex-col justify-between gap-8">
