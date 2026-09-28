@@ -1,16 +1,20 @@
 import {expect,it} from 'vitest';
-import {lastKnownSide,stationaryAtBoundary,type BoardMachine} from '@/lib/plant-wallboard/positions';
+import {lastKnownSide,type BoardMachine} from '@/lib/plant-wallboard/positions';
 import yard from '@/lib/fleet-operations/yard.json';
-const now=Date.parse('2026-09-28T12:00:00Z'), at=(minutes:number)=>new Date(now-minutes*60000).toISOString();
-const [longitude,latitude]=yard.geometry.coordinates[0][0];
-const machine:BoardMachine={pin:'a',equipmentId:'a',model:'a',relay:null,match:'unmatched',position:{latitude,longitude,at:at(1)}};
-it('includes a stationary yard-edge asset when two distinct GPS fixes agree',()=>{
- const m={...machine,positionHistory:[{latitude,longitude,at:at(6)}]};
- expect(stationaryAtBoundary(m,now)).toBe(true);expect(lastKnownSide(m,now)).toBe('off_hire');
+const now=Date.parse('2026-09-28T12:00:00Z');
+const machine:BoardMachine={pin:'a',equipmentId:'a',model:'a',relay:null,match:'unmatched',position:null};
+it('classifies both sides of a yard edge without a 20 metre uncertainty band',()=>{
+ const ring=yard.geometry.coordinates[0], [a,b]=[ring[0],ring[1]];
+ const x=(a[0]+b[0])/2,y=(a[1]+b[1])/2,dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),epsilon=.000001;
+ const sides=[-1,1].map(sign=>lastKnownSide({...machine,position:{longitude:x+sign*dy/length*epsilon,latitude:y-sign*dx/length*epsilon,at:null}},now));
+ expect(sides.sort()).toEqual(['off_hire','on_hire']);
+ expect(lastKnownSide({...machine,position:{longitude:x,latitude:y,at:null}},now)).toBe('off_hire');
 });
-it('does not treat missing motion evidence, repeated fixes, old fixes or ignition-off transport as stationary',()=>{
- for(const m of [machine,{...machine,ignition:{value:false,at:at(1)}},{...machine,positionHistory:[machine.position!]},{...machine,positionHistory:[{latitude,longitude,at:at(60)}]},{...machine,positionHistory:[{latitude:latitude+.001,longitude,at:at(6)}]},{...machine,positionHistory:[{latitude,longitude,at:at(6)}],transit:{at:at(1),metres:500,basis:'GPS movement' as const,provider:'assetcare'}}])expect(lastKnownSide(m,now)).toBe('unknown');
+it('uses old coordinates and does not require motion or ignition evidence',()=>{
+ expect(lastKnownSide({...machine,position:{latitude:52.392,longitude:.955,at:'2020-01-01T00:00:00Z'}},now)).toBe('off_hire');
+ expect(lastKnownSide({...machine,position:{latitude:52,longitude:1,at:null}},now)).toBe('on_hire');
 });
-it('never reclassifies moving assets outside the boundary band as in yard',()=>{
- expect(lastKnownSide({...machine,position:{latitude:52,longitude:1,at:at(1)},positionHistory:[{latitude:52,longitude:1,at:at(6)}]},now)).toBe('on_hire');
+it('retains unknown for missing or invalid coordinates',()=>{
+ expect(lastKnownSide(machine,now)).toBe('unknown');
+ expect(lastKnownSide({...machine,position:{latitude:0,longitude:0,at:null}},now)).toBe('unknown');
 });
