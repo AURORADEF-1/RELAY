@@ -1,0 +1,27 @@
+'use client';
+import {useCallback,useEffect,useState} from 'react';
+import {assetRequest} from './request';
+import {flagForMachine,type AssetFlag} from '@/lib/assets/flags';
+import {machineKey,type LinkedJcbMachine} from '@/lib/integrations/jcb/types';
+import './flags.css';
+export function useAssetFlags(enabled:boolean){
+ const [flags,setFlags]=useState<AssetFlag[]>([]),[error,setError]=useState(''),[ready,setReady]=useState(false),[version,setVersion]=useState(0);
+ const refresh=useCallback(()=>{setReady(false);setVersion(v=>v+1);},[]);
+ useEffect(()=>{if(!enabled)return;const c=new AbortController();let busy=false;
+ async function load(){if(busy)return;busy=true;try{const d=await assetRequest<{flags:AssetFlag[]}>('/api/assets/flags',c.signal);if(!c.signal.aborted){setFlags(d.flags);setError('');setReady(true);}}catch(e){if(!c.signal.aborted){setFlags([]);setReady(false);setError(e instanceof Error?e.message:'Flags unavailable');}}finally{busy=false;}}
+ void load();const timer=setInterval(()=>void load(),60000);return()=>{c.abort();clearInterval(timer);};},[enabled,version]);
+ return {flags:enabled?flags:[],error:enabled?error:'',ready:enabled&&ready,refresh};
+}
+const when=(at:string)=>new Date(at).toLocaleString('en-GB',{timeZone:'Europe/London'});
+export function FlagMachine({machine,flag,ready,onSaved}:{machine:LinkedJcbMachine;flag?:AssetFlag;ready:boolean;onSaved:()=>void}){
+ const [mode,setMode]=useState(false),[reason,setReason]=useState(''),[saving,setSaving]=useState(false),[error,setError]=useState('');
+ async function save(){setSaving(true);setError('');try{
+ await assetRequest('/api/assets/flags',undefined,flag?{action:'resolve',id:flag.id,resolution:reason}:{action:'flag',id:crypto.randomUUID(),provider:machine.source??'jcb',pin:machine.pin,reason});
+ setMode(false);setReason('');onSaved();
+ }catch(e){setError(e instanceof Error?e.message:'Flag could not be saved');onSaved();}finally{setSaving(false);}}
+ return <section className="asset-flag-control" aria-label="Machine flag">{flag&&<div className="asset-flag-notice"><strong>⚑ Flagged for review</strong><p>{flag.reason}</p><small>Flagged {when(flag.created_at)}</small></div>}{!ready?<p>Flag status unavailable or loading. Refresh before making changes.</p>:!mode?<button className="jcb-button" onClick={()=>{setReason('');setMode(true);}}>{flag?'Clear flag':'⚑ Flag machine'}</button>:<form onSubmit={e=>{e.preventDefault();void save();}}><label>{flag?'Why is this flag being cleared?':'Reason for flag'}<textarea maxLength={500} minLength={3} required value={reason} onChange={e=>setReason(e.target.value)} placeholder={flag?'Checked and confirmed authorised movement':'For example: moving outside expected working hours'}/></label><div className="jcb-actions"><button disabled={saving||reason.trim().length<3} className="jcb-button jcb-primary" type="submit">{saving?'Saving…':flag?'Confirm clear flag':'Save flag'}</button><button disabled={saving} className="jcb-button" type="button" onClick={()=>setMode(false)}>Cancel</button></div></form>}{error&&<p role="alert">{error}</p>}</section>;
+}
+export function FlaggedList({flags,machines,query,onSelect,ready,onRefresh}:{flags:AssetFlag[];machines:LinkedJcbMachine[];query:string;onSelect:(key:string)=>void;ready:boolean;onRefresh:()=>void}){
+ const shown=flags.filter(f=>`${f.label} ${f.reason}`.toLowerCase().includes(query.trim().toLowerCase()));
+ return <section className="fleet-flagged-list"><h2>Flagged machines</h2><p>Admin review list. Flags stay active until cleared, including when a tracker stops reporting. Provider and map layer filters do not hide this list.</p>{!ready?<p role="status">Flag list unavailable or loading. <button onClick={onRefresh}>Retry flags</button></p>:!shown.length?<p>{flags.length?'No flags match your search.':'No machines are currently flagged.'}</p>:shown.map(f=>{const m=machines.find(m=>flagForMachine([f],m));return <article key={f.id}><h3>⚑ {f.label}</h3><FlagMachine key={f.id} machine={m??{pin:f.pin,equipmentId:f.label,model:'',position:null,relay:null,match:'unmatched'}} flag={f} ready={ready} onSaved={onRefresh}/>{m?<><p>Last GPS: {m.position?.at?when(m.position.at):'Unavailable'}</p><button className="jcb-button" onClick={()=>onSelect(machineKey(m))}>View machine on map</button></>:<p>Tracker is not in the currently available fleet. Flag retained.</p>}</article>;})}</section>;
+}
