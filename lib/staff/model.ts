@@ -1,3 +1,4 @@
+import {travelSummary} from '@/lib/assets/travel';
 import {staffDaily} from './daily';
 import {positionSide} from '@/lib/fleet-operations/report';
 import {validPosition} from '@/lib/assets/events';
@@ -30,7 +31,7 @@ export function staffRow(machine:LinkedJcbMachine,history:Position[],now=Date.no
  }
  let crossing:{label:string;at:string}|null=null;
  if(points.length>=3){const last=points.slice(-3),sides=last.map(p=>staffSide(p,Date.parse(p.at!)));if(sides[0]!=='unknown'&&sides[1]!=='unknown'&&sides[0]!==sides[1]&&sides[1]===sides[2])crossing={label:sides[2]==='off_hire'?'Vehicle arrived':'Vehicle departed',at:last[2].at!};}
- return {id:machine.pin,label:machine.equipmentId,department:machine.assetGroup??'Ungrouped',status,reason,position:latest,lastKnown,crossing,daily:staffDaily([],now,false)};
+ return {id:machine.pin,label:machine.equipmentId,department:machine.assetGroup??'Ungrouped',status,reason,position:latest,lastKnown,crossing,travel:travelSummary(machine,history,now),daily:staffDaily([],now,false)};
 }
 export type StaffRow=ReturnType<typeof staffRow>;
 export type StaffData={rows:StaffRow[];checkedAt:string;warning:string|null};
