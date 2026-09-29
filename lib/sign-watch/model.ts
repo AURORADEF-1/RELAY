@@ -1,6 +1,6 @@
 export type SignWatchReading={status:string;calibrated:boolean;calibrated_at:string|null;sensor_age_ms:number;tilt_deg:number|null;pitch_deg:number|null;roll_deg:number|null;cone?:number[];gps:{fix:boolean;latitude:number|null;longitude:number|null;satellites:number;age_ms:number|null}};
 export type SignWatchFeed={stale:boolean;latest:{received_at:string;payload:SignWatchReading}|null};
-const names:Record<string,string>={uncalibrated:'Not calibrated',level:'Level',tilted:'Tilted',fallen:'Fallen over',moving:'Moving',offline:'Sensor offline',sensor_error:'Sensor error'};
+const names:Record<string,string>={uncalibrated:'Not calibrated',level:'Upright',tilted:'Upright',fallen:'Knocked over',moving:'Upright',offline:'Sensor offline',sensor_error:'Sensor error'};
 export function signWatchState(feed:SignWatchFeed|null,now=Date.now(),failed=false){
  const reading=feed?.latest?.payload;
  const stamp=Date.parse(feed?.latest?.received_at??'');
