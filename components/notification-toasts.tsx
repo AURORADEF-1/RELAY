@@ -125,7 +125,7 @@ export function NotificationToasts() {
                 </p>
                 {toast.href && isPanel ? (
                   <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
-                    {toast.href.startsWith("/reports?tab=fleet") ? "Open Fleet Health" : "Open ticket"}
+                    {toast.href === "/fleet/sign-watch" ? "Open Sign Watch" : toast.href.startsWith("/reports?tab=fleet") ? "Open Fleet Health" : "Open ticket"}
                   </p>
                 ) : null}
               </div>
