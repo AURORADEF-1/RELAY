@@ -1,0 +1,17 @@
+import {beforeEach,expect,it,vi} from 'vitest';
+import {NextRequest} from 'next/server';
+import {JcbError} from '@/lib/integrations/jcb/client';
+vi.mock('server-only',()=>({}));
+const m=vi.hoisted(()=>({auth:vi.fn(),fleet:vi.fn(),groups:vi.fn(),db:vi.fn(),rpc:vi.fn()}));
+vi.mock('@/lib/assets/access',()=>({authorizeAssets:m.auth}));
+vi.mock('@/lib/integrations/assetcare/server',()=>({getAssetCareFleet:m.fleet}));
+vi.mock('@/lib/fleet-map/group-store',()=>({groupedFleet:m.groups}));
+vi.mock('@/lib/fleet-operations/server',()=>({operationsDatabase:m.db}));
+import {GET} from '@/app/api/staff/history/route';
+const request=(extra='')=>new NextRequest(`https://relay.test/api/staff/history?id=a&from=2026-09-25&to=2026-09-25&format=csv${extra}`);
+beforeEach(()=>{vi.resetAllMocks();vi.stubEnv('ASSETCARE_OWNER_ID','owner');m.auth.mockResolvedValue({admin:true});m.fleet.mockResolvedValue({machines:[],stale:false});m.groups.mockResolvedValue([{pin:'a',equipmentId:'Test driver',assetCategory:'People',assetGroup:'Workshop'}]);m.db.mockReturnValue({rpc:m.rpc});m.rpc.mockResolvedValue({data:{events:[],archive_start:null,latest_saved:null},error:null});});
+it('rejects unauthorised callers before reading fleet or database',async()=>{m.auth.mockRejectedValue(new JcbError('Admin required',403));expect((await GET(request())).status).toBe(403);expect(m.auth).toHaveBeenCalledWith(expect.anything(),true);expect(m.fleet).not.toHaveBeenCalled();expect(m.db).not.toHaveBeenCalled();});
+it('rejects invalid ranges before data access',async()=>{expect((await GET(new NextRequest('https://relay.test/api/staff/history?id=a&format=pdf&from=bad&to=bad'))).status).toBe(400);expect(m.fleet).not.toHaveBeenCalled();});
+it('rejects a non-staff asset without querying archive',async()=>{m.groups.mockResolvedValue([{pin:'a',assetCategory:'Plant'}]);expect((await GET(request())).status).toBe(404);expect(m.rpc).not.toHaveBeenCalled();});
+it('downloads private history with exact owner and asset scope',async()=>{const r=await GET(request());expect(r.status).toBe(200);expect(r.headers.get('cache-control')).toBe('private, no-store');expect(r.headers.get('content-disposition')).toContain('.csv');expect(m.rpc).toHaveBeenCalledWith('staff_history_events',expect.objectContaining({p_id:'a',p_owner:'owner',p_start:'2026-09-24T23:00:00.000Z',p_end:'2026-09-25T23:00:00.000Z'}));expect(await r.text()).toContain('INCOMPLETE COVERAGE');});
+it('fails explicitly for unavailable or oversized history',async()=>{m.rpc.mockResolvedValue({error:{message:'fail'}});expect((await GET(request())).status).toBe(503);m.rpc.mockResolvedValue({data:{events:Array(10001).fill({})}});expect((await GET(request())).status).toBe(422);});
