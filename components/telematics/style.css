@@ -32,3 +32,5 @@
 .fleet-map-focused:not(.fleet-map-fullscreen) .jcb-map{height:72vh;min-height:480px}
 @media(max-width:1000px){.fleet-map-focused.fleet-map-has-selection>.jcb-grid{grid-template-columns:minmax(0,1fr)}.fleet-map-focused:not(.fleet-map-fullscreen) .jcb-map{height:65vh;min-height:360px}}
 .fleet-map-fullscreen .jcb-map{height:auto;flex:1}
+
+.signwatch-map-dot{background:#f97316!important;border:3px solid #fff;box-shadow:0 0 0 2px #b45309}

@@ -2,8 +2,8 @@ import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 import type {CardStatus} from '@/lib/assets/card-status';
 import {machineKey,machineBrand} from '@/lib/integrations/jcb/types';
 import {positionSide} from '@/lib/fleet-operations/report';
-export const providers=['jcb','trackunit','takeuchi','assetcare'] as const;
-export const providerNames={jcb:'JCB',trackunit:'Manitou',takeuchi:'Takeuchi',assetcare:'Asset Care+'};
+export const providers=['jcb','trackunit','takeuchi','assetcare','signwatch'] as const;
+export const providerNames={jcb:'JCB',trackunit:'Manitou',takeuchi:'Takeuchi',assetcare:'Asset Care+',signwatch:'Sign Watch'};
 export type Preferences={brand:string;category:string;group:string;providers:string[];yard:boolean;labels:boolean;cluster:boolean;base:'map'|'satellite';freshness:'all'|'fresh'|'old'|'missing';status:'all'|'fault'|'movement'|'transit'|'running'|'unknown';area:'all'|'yard'|'away'};
 export const defaults:Preferences={brand:'all',category:'all',group:'all',providers:[...providers],yard:true,labels:false,cluster:true,base:'map',freshness:'all',status:'all',area:'all'};
 export function readPreferences(value:string|null):Preferences{
