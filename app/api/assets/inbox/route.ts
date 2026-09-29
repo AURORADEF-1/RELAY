@@ -2,14 +2,14 @@ import type {NextRequest} from 'next/server';
 import {authorizeAssets} from '@/lib/assets/access';
 import {jcbJson,jcbError} from '@/lib/integrations/jcb/server';
 import {JcbError} from '@/lib/integrations/jcb/client';
-const kinds=['movement','yard_arrival','yard_departure','fault','not_checked_in','data_unavailable'];
+const kinds=['movement','yard_arrival','yard_departure','fault','not_checked_in','data_unavailable','sign_watch'];
 export async function GET(request:NextRequest){try{
  const auth=await authorizeAssets(request,true),kind=request.nextUrl.searchParams.get('kind'),offset=Number(request.nextUrl.searchParams.get('offset')??0),before=request.nextUrl.searchParams.get('before')??new Date().toISOString();
  if(kind&&!kinds.includes(kind)||!Number.isInteger(offset)||offset<0||offset>10000||!Number.isFinite(Date.parse(before)))throw new JcbError('Invalid inbox filter.',400);
  if(request.nextUrl.searchParams.get('summary')==='true'){const count=await auth.supabase.rpc('asset_inbox_unread_count');if(count.error)throw new JcbError('Inbox count unavailable.',503);return jcbJson({unread:Number(count.data)});}
  const r=await auth.supabase.rpc('asset_inbox_page',{p_kind:kind||null,p_unread:request.nextUrl.searchParams.get('unread')==='true',p_before:before,p_offset:offset});
  if(r.error)throw new JcbError('Asset Inbox is not ready. Please retry after setup completes.',503);
- const rows=r.data.slice(0,50),ids=[...new Set(rows.map((r:{machine_id:string})=>r.machine_id))];
+ const rows=r.data.slice(0,50),ids=[...new Set(rows.map((r:{machine_id:string})=>r.machine_id).filter(Boolean))];
  const machines=ids.length?await auth.supabase.from('machines').select('id,machine_number,make,model').in('id',ids):{data:[],error:null};
  if(machines.error)throw new JcbError('Machine identities unavailable.',503);
  return jcbJson({rows:rows.map((r:{machine_id:string})=>({...r,machine:machines.data?.find(m=>m.id===r.machine_id)})),next:r.data.length>50?offset+50:null,before,enabled:process.env.ASSET_INBOX_ENABLED==='true'});

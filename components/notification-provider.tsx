@@ -651,7 +651,7 @@ export function NotificationProvider({
         // Fleet health stays in the admin inbox and reports, without pop-ups,
         // sounds, desktop alerts or extension notifications.
         const interruptiveNotifications = activeUnreadNotifications.filter(
-          (notification) => notification.type !== "jcb_health" && notification.type !== "trackunit_health",
+          (notification) => notification.type !== "jcb_health" && notification.type !== "trackunit_health" && notification.type !== "sign_watch",
         );
         const toastableNotifications = adminUser
           ? interruptiveNotifications.filter(
