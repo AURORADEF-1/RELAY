@@ -5747,10 +5747,23 @@ select:focus-visible {
 }
 
 /* Unified operations workspace */
+.console-sidebar-brand {
+  min-height: 4.25rem;
+  height: 4.25rem;
+  background: #2aa4d8;
+}
+
 .console-command-bar {
   min-height: 4.25rem;
   grid-template-columns: minmax(12rem, 0.65fr) minmax(16rem, 1fr) auto;
+  border-bottom-color: rgba(255, 255, 255, 0.28);
+  background: #2aa4d8;
   padding: 0.6rem clamp(1rem, 1.6vw, 1.5rem);
+}
+
+.console-command-bar .console-command-title p,
+.console-command-bar .console-command-title h1 {
+  color: #ffffff;
 }
 
 .console-content {
