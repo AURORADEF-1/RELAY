@@ -117,7 +117,7 @@ const navigation: NavigationItem[] = [
   },
   { href: "/filters", label: "Filter Lookup", icon: "filter", category: "requests" },
   { href: "/settings", label: "Settings", icon: "settings", category: "administration" },
-  { href: "/assets", label: "Asset Search", icon: "fleet", category: "fleet", assetOnly: true },
+  { href: "/assets", label: "Overview", icon: "fleet", category: "fleet", assetOnly: true },
   { href: "/assets/inbox", label: "Alerts", icon: "fleet", category: "fleet", adminOnly: true },
   { href: "/staff", label: "Staff", icon: "fleet", category: "administration", adminOnly: true },
   { href: "/fleet/hours", label: "Asset Hours", icon: "fleet", category: "fleet", adminOnly: true },
