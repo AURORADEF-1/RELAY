@@ -1,4 +1,5 @@
 "use client";
+import {SignWatchFleetCard} from "@/components/sign-watch/fleet-card";
 import {useAssetFlags,FlagMachine,FlaggedList} from '@/components/assets/flags';
 import {flagForMachine} from '@/lib/assets/flags';
 import {AssetTravel} from '@/components/assets/travel-summary';
@@ -66,6 +67,7 @@ export function TrackingWorkspace({combined=false,request=api,provider="trackuni
  async function link(){if(!machine||!mapping)return;setSaving(true);try{await request(machine.source??provider,'manage',undefined,{action:'mapping',pin:machine.pin,machineId:mapping});setNotice('Machine link saved.');setRegistry(null);setVersion(v=>v+1);}catch(e){setNotice(e instanceof Error?e.message:'Unable to link machine.');}finally{setSaving(false);}}
  function exportCsv(){if(!fleet?.admin)return;const cell=(x:unknown)=>'"'+String(x??'').replace(/^[=+@\-\t\r]/,"'$&").replace(/"/g,'""')+'"';const rows:unknown[][]=[['Provider','RELAY machine','Fleet number','Machine reference','Model','Latitude','Longitude','Position reported','Make','Group','Asset type']];for(const m of machines)rows.push([machineProvider(m),m.relay?.machine_number,m.equipmentId,m.pin,m.model,m.position?.latitude,m.position?.longitude,m.position?.at,machineBrand(m),m.assetGroup,m.assetCategory]);const url=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='RELAY-fleet-positions.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
  return <div className="jcb-workspace"><header className="jcb-toolbar"><div><h1>{combined?'FLEET MAP':provider==='takeuchi'?'Takeuchi Track':'Manitou Track'}</h1><p>{combined?'Plant and vehicle tracking in one view.':'Machine positions, dated faults and RELAY parts requests.'}</p></div><div className="jcb-actions"><button disabled={loading} onClick={()=>setVersion(v=>v+1)}>{loading?'Loading…':'Refresh view'}</button>{fleet?.admin&&<><button onClick={exportCsv}>Export positions CSV</button><Link className="jcb-button" href="/fleet/scheduler">Fleet scheduler</Link><Link className="jcb-button" href="/reports?tab=fleet">Fleet Health</Link></>}{fleet&&<Link className="jcb-button" href="/fleet/register">Fleet register</Link>}</div></header>
+ {combined&&fleet?.admin&&<SignWatchFleetCard/>}
  {error&&<p role="alert" className="jcb-warning">{error} {fleet?'Showing previously loaded data.':''}</p>}
  {fleet?.admin&&flagState.error&&<p role="alert" className="jcb-warning">{flagState.error} <button onClick={flagState.refresh}>Retry flags</button></p>}
  {notice&&<p role="status" className="jcb-notice">{notice}</p>}
