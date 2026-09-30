@@ -40,7 +40,7 @@ export function combineFleet(machines:LinkedJcbMachine[]){
  // Prefer the established manufacturer feed when both are linked to one asset.
  for(const m of [...machines.filter(m=>m.source!=='assetcare'),...machines.filter(m=>m.source==='assetcare')]){
   const key=m.relay?`relay:${m.relay.id}`:`${m.source}:${m.pin}`;
-  if(!seen.has(key)){seen.add(key);const secondary=m.relay?machines.find(a=>a.source==='assetcare'&&a.relay?.id===m.relay!.id):null;result.push(secondary?.transit?{...m,transit:secondary.transit}:m);}
+  if(!seen.has(key)){seen.add(key);const secondary=m.relay?machines.find(a=>a.source==='assetcare'&&a.relay?.id===m.relay!.id):null;result.push(secondary?{...m,lastReportedAt:m.lastReportedAt??secondary.lastReportedAt,hours:m.hours??secondary.hours,ignition:m.ignition??secondary.ignition,odometer:m.odometer??secondary.odometer,transit:secondary.transit??m.transit,travel:m.travel??secondary.travel,batteryVoltage:m.batteryVoltage??secondary.batteryVoltage,position:m.position?{...m.position,address:m.position.address??secondary.position?.address}:secondary.position}:m);}
  }
  return result;
 }
