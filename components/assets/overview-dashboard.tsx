@@ -20,7 +20,6 @@ export function AssetOverviewDashboard(){
     <article className="is-total"><span>Tracked Assets</span><strong>{overview.total}</strong><small>Across all connected providers</small></article>
     <article className="is-yard"><span>Inside MLP Yard</span><strong>{overview.inside}</strong><small>Latest valid position is inside the geofence</small></article>
     <article className="is-away"><span>Outside MLP Yard</span><strong>{overview.outside}</strong><small>Latest valid position is outside the geofence</small></article>
-    <article className="is-unknown"><span>Location Unavailable</span><strong>{overview.unknown}</strong><small>No usable saved GPS position</small></article>
    </div>
    <div className="asset-overview-panels">
     <article><header><div><p className="asset-eyebrow">Tracker Coverage</p><h2>Latest Check-In</h2></div><span>{data?.stale?'Cached data':'Live snapshot'}</span></header><div className="asset-checkin-bars"><div><span>Within 24 hours</span><strong>{overview.checkedIn24h}</strong><i style={{width:`${overview.total?overview.checkedIn24h/overview.total*100:0}%`}}/></div><div><span>Over 24 hours</span><strong>{overview.over24h}</strong><i style={{width:`${overview.total?overview.over24h/overview.total*100:0}%`}}/></div><div><span>No check-in time</span><strong>{overview.neverCheckedIn}</strong><i style={{width:`${overview.total?overview.neverCheckedIn/overview.total*100:0}%`}}/></div></div><small>Snapshot updated {date(data?.checkedAt)}</small></article>
