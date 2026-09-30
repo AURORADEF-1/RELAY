@@ -1,4 +1,5 @@
 "use client";
+import {useOnHire} from "@/components/roam/use-on-hire";
 import {AssetHireLink} from "@/components/roam/asset-hire-link";
 import {useSignWatch} from "@/components/sign-watch/use-sign-watch";
 import {SignWatchAssetDetails} from "@/components/sign-watch/asset-details";
@@ -59,7 +60,9 @@ export function TrackingWorkspace({combined=false,request=api,provider="trackuni
  const signWatch=useSignWatch(combined&&!!fleet?.admin);
  const allMachines=useMemo(()=>[...(fleet?.machines??[]),...(signWatch.machine?[signWatch.machine]:[])],[fleet,signWatch.machine]);
  const flaggedKeys=useMemo(()=>(fleet?.machines??[]).filter(m=>flagForMachine(flagState.flags,m)).map(machineKey),[fleet,flagState.flags]);
- const machines=useMemo(()=>filterFleet(allMachines,combined?{...preferences,status:fleet?.admin?preferences.status:'all'}:{...preferences,providers:[provider],brand:'all',category:'all',group:'all'},query,statuses),[fleet,allMachines,query,preferences,combined,provider,statuses]);
+ const onHire=useOnHire(combined&&!!fleet?.admin&&preferences.status==='on_hire',version);
+ const unmatchedHires=onHire.unlinked+[...onHire.ids].filter(id=>!allMachines.some(m=>m.relay?.id===id)).length;
+ const machines=useMemo(()=>filterFleet(allMachines,combined?{...preferences,status:fleet?.admin?preferences.status:'all'}:{...preferences,status:preferences.status==='on_hire'?'all':preferences.status,providers:[provider],brand:'all',category:'all',group:'all'},query,statuses,Date.now(),onHire.ids),[fleet,allMachines,query,preferences,combined,provider,statuses,onHire.ids]);
  const shownPage=Math.min(page,Math.max(0,Math.ceil(machines.length/60)-1));
  const machine=allMachines.find(m=>machineKey(m)===selected);
  const choose=useCallback((key:string)=>{setSelected(key);setMapping('');setNotice('');},[]);
@@ -79,6 +82,7 @@ export function TrackingWorkspace({combined=false,request=api,provider="trackuni
  <div className="jcb-toolbar"><label className="jcb-search">Find a machine<input placeholder="Fleet number, model or PIN" value={query} onChange={e=>{setQuery(e.target.value);setPage(0);}}/></label><div className="jcb-actions"><button aria-pressed={view==='map'} onClick={()=>setView('map')}>Map view</button><button aria-pressed={view==='list'} onClick={()=>setView('list')}>List view</button>{fleet.admin&&<button aria-pressed={view==='flagged'} onClick={()=>{setView('flagged');setFullScreen(false);}}>⚑ Flagged ({flagState.ready?flagState.flags.length:'…'})</button>}</div></div>
  {fleet.groupError&&<p role="status" className="jcb-warning">Asset groups could not be loaded. Refresh to retry.</p>}
  {combined&&<MapPreferences showStatus={fleet.admin} value={preferences} onChange={updatePreferences} machines={allMachines}/>}
+ {combined&&fleet.admin&&preferences.status==='on_hire'&&<p role={onHire.error?'alert':'status'} className={onHire.error?'jcb-warning':'jcb-sync'}>{onHire.error||(!onHire.checkedAt?'Loading ROAM on-hire machines…':`ROAM on hire: ${onHire.ids.size} linked machines · checked ${date(onHire.checkedAt)} · updates every minute. ${unmatchedHires} hire records have no linked tracked machine.`)} <Link href="/fleet/hires">View all ROAM hires</Link></p>}
  {fleet.assetcareStatus&&<p className={fleet.assetcareStatus.last_error?'jcb-warning':'jcb-sync'}>Asset Care+ collection: last attempted {date(fleet.assetcareStatus.last_attempt_at)} · last saved and acknowledged {date(fleet.assetcareStatus.last_ack_at)}. {fleet.assetcareStatus.last_error} {(!fleet.assetcareStatus.last_ack_at||Date.now()-Date.parse(fleet.assetcareStatus.last_ack_at)>86400000)&&'Check collection: the export can disable after seven days without use.'}</p>}
  {fleet.admin&&fleet.assetcareStatus&&<CollectionHealth state={fleet.assetcareStatus}/>}
  {(!combined||fleet.admin)&&<FleetStatusLegend/>}{view==='flagged'&&fleet.admin?<FlaggedList flags={flagState.flags} machines={allMachines} query={query} ready={flagState.ready} onRefresh={flagState.refresh} onSelect={key=>{setQuery('');setPreferences(p=>({...defaults,base:p.base,cluster:p.cluster,labels:p.labels,yard:p.yard}));choose(key);setView('map');}}/>:<div ref={mapShell} tabIndex={-1} role={fullScreen?'dialog':undefined} aria-modal={fullScreen||undefined} aria-label={fullScreen?'Full screen fleet map':undefined} className={`fleet-map-shell${fullScreen?' fleet-map-fullscreen':''}${selected?' fleet-map-has-selection':''}${combined&&view==='map'?' fleet-map-focused':''}`}>
