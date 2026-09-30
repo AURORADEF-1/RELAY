@@ -69,19 +69,19 @@ export function NotificationToasts() {
       {showDesktopAlertControl ? (
         <div className="pointer-events-auto w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-[color:var(--brand-primary)] bg-[color:var(--brand-bright)] px-4 py-3 shadow-[var(--shadow-panel)] backdrop-blur">
           <div className="flex items-start justify-between gap-3">
-            <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
+            <p className="text-sm font-semibold text-[#06263a]">
               Enable RELAY desktop alerts
             </p>
             <button
               type="button"
               onClick={dismissDesktopAlertPrompt}
               aria-label="Dismiss desktop alert reminder"
-              className="min-h-11 shrink-0 rounded-full px-3 text-sm font-semibold text-[color:var(--foreground-subtle)] transition hover:bg-[color:var(--accent-soft)]"
+              className="min-h-11 shrink-0 rounded-full px-3 text-sm font-semibold text-[#164b66] transition hover:bg-[#06263a]/10"
             >
               Close
             </button>
           </div>
-          <p className="mt-1 text-sm leading-6 text-[color:var(--foreground-muted)]">
+          <p className="mt-1 text-sm leading-6 text-[#164b66]">
             {desktopNotificationPermission === "denied"
               ? "Desktop alerts are blocked. Allow notifications for this site in your browser settings, then reload RELAY."
               : "Get Chrome alerts for ticket updates, collection readiness, assigned tasks and RELAY announcements—even while the tab is in the background."}
@@ -113,18 +113,18 @@ export function NotificationToasts() {
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
                 {isPanel ? (
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--success)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#075f96]">
                     {toast.eyebrow ?? "Pending Job Alert"}
                   </p>
                 ) : null}
-                <p className={`${isPanel ? "mt-1.5 text-base" : "text-sm"} font-semibold text-[color:var(--foreground-strong)]`}>
+                <p className={`${isPanel ? "mt-1.5 text-base" : "text-sm"} font-semibold text-[#06263a]`}>
                   {toast.title}
                 </p>
-                <p className={`${isPanel ? "mt-1.5 text-sm leading-5" : "mt-1 text-sm leading-5"} text-[color:var(--foreground-muted)]`}>
+                <p className={`${isPanel ? "mt-1.5 text-sm leading-5" : "mt-1 text-sm leading-5"} text-[#164b66]`}>
                   {toast.description}
                 </p>
                 {toast.href && isPanel ? (
-                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
+                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#073b5c]">
                     {toast.href === "/fleet/sign-watch" ? "Open Sign Watch" : toast.href.startsWith("/reports?tab=fleet") ? "Open Fleet Health" : "Open ticket"}
                   </p>
                 ) : null}
@@ -136,7 +136,7 @@ export function NotificationToasts() {
                   event.stopPropagation();
                   void dismissToast(toast.id);
                 }}
-                className="rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)] transition hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--foreground-strong)]"
+                className="rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#164b66] transition hover:bg-[#06263a]/10 hover:text-[#06263a]"
                 aria-label="Dismiss notification"
               >
                 Close
