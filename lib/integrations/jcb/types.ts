@@ -53,3 +53,27 @@ export const machineKey = (machine: LinkedJcbMachine) => `${machine.source ?? "j
 export const machineProvider = (machine: LinkedJcbMachine) => machine.source === "roam" ? "ROAM" : machine.source === "signwatch" ? "Sign Watch" : machine.source === "assetcare" ? "Asset Care+" : machine.source === "takeuchi" ? "Takeuchi" : machine.source === "trackunit" ? "Manitou" : "JCB";
 
 export const machineBrand = (machine: LinkedJcbMachine) => machine.source === "roam" ? machine.relay?.make || machine.roamMake || "Unknown make" : machine.source === "assetcare" ? machine.relay?.make?.trim() || machineProvider(machine) : machineProvider(machine);
+
+const assetAcronyms=new Set([
+  'GPS','JCB','MLP','PIN','SR','XCMG',
+]);
+
+/**
+ * Formats human-readable asset names without damaging manufacturers and model
+ * codes. Words use title case, known letter-only acronyms stay uppercase, and
+ * any token containing both letters and numbers is treated as a model code.
+ */
+export function titleCaseAssetText(value:string){
+  return value.toLocaleLowerCase('en-GB').replace(/[a-z0-9]+(?:-[a-z0-9]+)*/g,token=>{
+    const upper=token.toLocaleUpperCase('en-GB');
+    if(assetAcronyms.has(upper)||(/[a-z]/i.test(token)&&/\d/.test(token)))return upper;
+    return token.split('-').map(part=>part?`${part[0].toLocaleUpperCase('en-GB')}${part.slice(1)}`:part).join('-');
+  });
+}
+
+export function titleCaseAssetLabel(value:string){
+  const separator=value.match(/^(.*?)(\s+[·-]\s+)(.+)$/);
+  if(separator)return `${separator[1]}${separator[2]}${titleCaseAssetText(separator[3])}`;
+  const identifier=value.match(/^(\S*\d\S*)(\s+)(.+)$/);
+  return identifier?`${identifier[1]}${identifier[2]}${titleCaseAssetText(identifier[3])}`:titleCaseAssetText(value);
+}
