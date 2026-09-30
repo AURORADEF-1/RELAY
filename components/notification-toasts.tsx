@@ -63,11 +63,11 @@ export function NotificationToasts() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 top-4 z-[90] flex flex-col items-end gap-3 px-4"
+      className="pointer-events-none fixed bottom-4 right-4 z-[90] flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2"
       aria-live="polite"
     >
       {showDesktopAlertControl ? (
-        <div className="pointer-events-auto w-[min(34rem,calc(100vw-2rem))] rounded-[1.5rem] border border-amber-400/30 bg-[color:var(--background-elevated)] px-5 py-4 shadow-[var(--shadow-panel)] backdrop-blur">
+        <div className="pointer-events-auto w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-amber-400/30 bg-[color:var(--background-elevated)] px-4 py-3 shadow-[var(--shadow-panel)] backdrop-blur">
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
               Enable RELAY desktop alerts
@@ -102,29 +102,29 @@ export function NotificationToasts() {
         const isPanel = toast.variant === "panel";
         const content = (
           <div
-            className={`pointer-events-auto rounded-[1.75rem] border shadow-[var(--shadow-panel)] backdrop-blur ${
-              isPanel ? "px-6 py-5" : "px-4 py-4"
+            className={`pointer-events-auto rounded-2xl border shadow-[var(--shadow-panel)] backdrop-blur ${
+              isPanel ? "px-4 py-3" : "px-3 py-3"
             } ${
               toast.tone === "success"
                 ? "border-[color:rgba(4,120,87,0.24)] bg-[color:var(--background-elevated)]"
                 : "border-[color:var(--border)] bg-[color:var(--background-elevated)]"
-            } ${isPanel ? "w-[min(52rem,calc(100vw-2rem))]" : "w-[min(34rem,calc(100vw-2rem))]"}`}
+            } ${isPanel ? "w-[min(24rem,calc(100vw-2rem))]" : "w-[min(22rem,calc(100vw-2rem))]"}`}
           >
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
                 {isPanel ? (
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--success)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--success)]">
                     {toast.eyebrow ?? "Pending Job Alert"}
                   </p>
                 ) : null}
-                <p className={`${isPanel ? "mt-2 text-lg" : "text-sm"} font-semibold text-[color:var(--foreground-strong)]`}>
+                <p className={`${isPanel ? "mt-1.5 text-base" : "text-sm"} font-semibold text-[color:var(--foreground-strong)]`}>
                   {toast.title}
                 </p>
-                <p className={`${isPanel ? "mt-2 text-base leading-7" : "mt-1 text-sm leading-6"} text-[color:var(--foreground-muted)]`}>
+                <p className={`${isPanel ? "mt-1.5 text-sm leading-5" : "mt-1 text-sm leading-5"} text-[color:var(--foreground-muted)]`}>
                   {toast.description}
                 </p>
                 {toast.href && isPanel ? (
-                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-subtle)]">
+                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--foreground-subtle)]">
                     {toast.href === "/fleet/sign-watch" ? "Open Sign Watch" : toast.href.startsWith("/reports?tab=fleet") ? "Open Fleet Health" : "Open ticket"}
                   </p>
                 ) : null}
@@ -150,12 +150,12 @@ export function NotificationToasts() {
             key={toast.id}
             href={toast.href}
             onClick={() => void dismissToast(toast.id)}
-            className={`block transition hover:translate-y-[-1px] ${isPanel ? "self-center" : ""}`}
+            className="block transition hover:translate-y-[-1px]"
           >
             {content}
           </Link>
         ) : (
-          <div key={toast.id} className={isPanel ? "self-center" : ""}>{content}</div>
+          <div key={toast.id}>{content}</div>
         );
       })}
     </div>
