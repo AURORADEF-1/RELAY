@@ -4,6 +4,7 @@ import {useEffect,useMemo,useState} from 'react';
 import {buildFleetOverview} from '@/lib/assets/overview';
 import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 import {assetRequest} from './request';
+import './workspace.css';
 
 type FleetResponse={machines:LinkedJcbMachine[];checkedAt?:string;stale?:boolean};
 const date=(value?:string)=>value?new Date(value).toLocaleString('en-GB',{timeZone:'Europe/London'}):'Time unavailable';
