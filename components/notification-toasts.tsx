@@ -67,7 +67,7 @@ export function NotificationToasts() {
       aria-live="polite"
     >
       {showDesktopAlertControl ? (
-        <div className="pointer-events-auto w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-amber-400/30 bg-[color:var(--background-elevated)] px-4 py-3 shadow-[var(--shadow-panel)] backdrop-blur">
+        <div className="pointer-events-auto w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-[color:var(--brand-primary)] bg-[color:var(--brand-bright)] px-4 py-3 shadow-[var(--shadow-panel)] backdrop-blur">
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
               Enable RELAY desktop alerts
@@ -106,8 +106,8 @@ export function NotificationToasts() {
               isPanel ? "px-4 py-3" : "px-3 py-3"
             } ${
               toast.tone === "success"
-                ? "border-[color:rgba(4,120,87,0.24)] bg-[color:var(--background-elevated)]"
-                : "border-[color:var(--border)] bg-[color:var(--background-elevated)]"
+                ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-bright)]"
+                : "border-[color:var(--brand-primary)] bg-[color:var(--brand-bright)]"
             } ${isPanel ? "w-[min(24rem,calc(100vw-2rem))]" : "w-[min(22rem,calc(100vw-2rem))]"}`}
           >
             <div className="flex items-start gap-3">
