@@ -1,6 +1,7 @@
 import {beforeEach,expect,it,vi} from 'vitest';
 import {NextRequest,NextResponse} from 'next/server';
 const m=vi.hoisted(()=>({auth:vi.fn(),fleet:vi.fn(),db:vi.fn(),cycle:vi.fn()}));
+vi.mock('@/lib/integrations/assetcare/readings-server',()=>({savedAssetCareReadings:async()=>[{name:'External supply voltage',value:12.9,time:'2026-09-25T09:00:00Z',uoM:'V'}]}));
 vi.mock('server-only',()=>({}));
 vi.mock('@/lib/assets/access',()=>({authorizeAssets:m.auth}));
 vi.mock('@/lib/integrations/assetcare/server',()=>({getAssetCareFleet:m.fleet}));
@@ -11,7 +12,7 @@ import {GET as detail} from '@/app/api/integrations/assetcare/machine/route';
 import {GET as cron} from '@/app/api/cron/assetcare/route';
 beforeEach(()=>{vi.clearAllMocks();vi.unstubAllEnvs();m.auth.mockResolvedValue({admin:true});m.fleet.mockResolvedValue({machines:[{pin:'asset'}],checkedAt:'2026-09-25T09:00:00Z'});});
 it('requires admin before reading saved vehicle locations',async()=>{m.auth.mockRejectedValue({status:403});expect((await detail(new NextRequest('https://relay.test/api?pin=asset'))).status).toBe(403);expect(m.auth).toHaveBeenCalledWith(expect.anything(),true);expect(m.fleet).not.toHaveBeenCalled();});
-it('never returns an empty fault list as a completed health check',async()=>{const data=await(await detail(new NextRequest('https://relay.test/api?pin=asset'))).json();expect(data.faultError).toBe(true);});
+it('never returns an empty fault list as a completed health check',async()=>{const data=await(await detail(new NextRequest('https://relay.test/api?pin=asset'))).json();expect(data.faultError).toBe(true);expect(data.telemetry[0].value).toBe(12.9);});
 it('rejects untrusted collection requests before using the database or key',async()=>{vi.stubEnv('CRON_SECRET','test-secret');expect((await cron(new NextRequest('https://relay.test/cron'))).status).toBe(401);expect(m.db).not.toHaveBeenCalled();expect(m.cycle).not.toHaveBeenCalled();});
 it('requires explicit collection enablement',async()=>{vi.stubEnv('CRON_SECRET','test-secret');const response=await cron(new NextRequest('https://relay.test/cron',{headers:{authorization:'Bearer test-secret'}}));expect(await response.json()).toEqual({enabled:false});expect(m.cycle).not.toHaveBeenCalled();});
 it('does not poll or acknowledge when another worker or cooldown owns collection',async()=>{

@@ -18,3 +18,9 @@ it('uses every report in a batch and does not infer returns for initial yard sig
  expect(projectYardInbox([row(5,true),row(0,true)],'MLP',[],registry,new Set(['relay']),now)[0].events).toEqual([]);
  expect(projectYardInbox(reports,'OTHER',[],registry,new Set(['relay']),now)).toEqual([]);
 });
+it('retains dated telemetry when a later trip summary has no sensor readings',()=>{
+ const first=projectYardInbox([{...row(5,true),telemetry:{power_voltage:12.9,ignition:0}}],'MLP',[],registry,new Set(['relay']),now);
+ const next=projectYardInbox([{type:'trip',owner:{id:'MLP'},asset:{id:'a'},dateEnd:new Date(now).toISOString(),end:{lat:52.392,lon:.955}}],'MLP',first,registry,new Set(['relay']),now);
+ expect(next[0].machine.assetcareReadings).toEqual(first[0].machine.assetcareReadings);
+ expect(next[0].machine.assetcareReadings?.find(r=>r.name.includes('External supply'))?.time).toBe(row(5,true).date);
+});
