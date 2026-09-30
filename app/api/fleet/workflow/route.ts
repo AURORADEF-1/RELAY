@@ -4,6 +4,7 @@ import {workflowAction,mayAct} from '@/lib/fleet-workflow/model';
 import {jcbJson,jcbError} from '@/lib/integrations/jcb/server';
 import {JcbError} from '@/lib/integrations/jcb/client';
 import {z} from 'zod';
+import {addHoldReasons} from '@/lib/fleet-workflow/hold-evidence';
 export const maxDuration=60;
 export async function GET(request:NextRequest){try{
  const {db,access,user}=await authorizeWorkflow(request),machine=request.nextUrl.searchParams.get('machine');
@@ -18,7 +19,7 @@ export async function GET(request:NextRequest){try{
  const receipts=messages.data.length?await db.from('fleet_workflow_receipts').select('message_id').eq('user_id',user.id).in('message_id',messages.data.map(m=>m.id)):{data:[],error:null};
  if(receipts.error)throw new JcbError('Inbox status unavailable.',503);
  const audit=machine?await db.from('fleet_workflow_audit').select('id,action,reason,actor_id,created_at,payload').eq('machine_id',machine).order('created_at',{ascending:false}).limit(50):{data:[],error:null};if(audit.error)throw new JcbError('Audit history unavailable.',503);
- return jcbJson({rows,access,messages:messages.data.map(m=>({...m,read:receipts.data?.some(r=>r.message_id===m.id)})),audit:audit.data,truncated:machines.data.length>100,checkedAt:new Date().toISOString()});
+ return jcbJson({rows:await addHoldReasons(db,rows),access,messages:messages.data.map(m=>({...m,read:receipts.data?.some(r=>r.message_id===m.id)})),audit:audit.data,truncated:machines.data.length>100,checkedAt:new Date().toISOString()});
  }catch(e){return jcbError(e)}}
 export async function POST(request:NextRequest){try{
  const {db,access,user}=await authorizeWorkflow(request),body=await request.json().catch(()=>null);
