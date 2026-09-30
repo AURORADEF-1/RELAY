@@ -37,6 +37,7 @@ type NavigationItem = {
   label: string;
   icon: ConsoleIconName;
   adminOnly?: boolean;
+  workflowOnly?: boolean;
   oversightOnly?: boolean;
   fleetMemberOnly?: boolean;
   assetOnly?: boolean;
@@ -90,6 +91,7 @@ const navigation: NavigationItem[] = [
   { href: "/staff", label: "Staff", icon: "fleet", adminOnly: true },
   { href: "/fleet/hires", label: "ROAM Hires", icon: "fleet", adminOnly: true },
   { href: "/fleet/scheduler", label: "Fleet Scheduler", icon: "fleet", adminOnly: true },
+  { href: "/fleet/workflow", label: "Return to hire", icon: "fleet", workflowOnly: true },
   { href: "/fleet", label: "Fleet", icon: "fleet" },
   { href: "/manitou", label: "Manitou Track", icon: "fleet", trackunitOnly: true },
   { href: "/takeuchi", label: "Takeuchi Track", icon: "fleet", takeuchiOnly: true },
@@ -153,6 +155,7 @@ export function ConsoleShell({
   const [hasCustomerFleet, setHasCustomerFleet] = useState(false);
   const [hasTakeuchiAccess,setHasTakeuchiAccess] = useState(false);
   const [hasTrackunitAccess, setHasTrackunitAccess] = useState(false);
+  const [hasWorkflowAccess,setHasWorkflowAccess]=useState(false);
   const [hasLiveLinkAccess, setHasLiveLinkAccess] = useState(false);
   const [hasOversightAccess, setHasOversightAccess] = useState(false);
   const [isFrontCounter, setIsFrontCounter] = useState(false);
@@ -181,6 +184,7 @@ export function ConsoleShell({
         setIsFrontCounter(accessIsFrontCounter);
 
         if (!user) {
+          setHasWorkflowAccess(false);
           setHasLiveLinkAccess(false);
           setHasTrackunitAccess(false); setHasTakeuchiAccess(false);
           setHasCustomerFleet(false);
@@ -191,6 +195,7 @@ export function ConsoleShell({
         // The server checks explicit fitter access; customer-fleet membership is not enough.
         void getSupabaseAccessToken().then(async (token) => {
           if (!token) return;
+          void fetch('/api/fleet/workflow/access', {headers:{Authorization:`Bearer ${token}`}}).then(r=>{if(isMounted)setHasWorkflowAccess(r.ok)}).catch(()=>{if(isMounted)setHasWorkflowAccess(false)});
           const [jcb, trackunit, takeuchi] = await Promise.allSettled(["jcb", "trackunit", "takeuchi"].map(provider => fetch(`/api/integrations/${provider}/access`, { headers: { Authorization: `Bearer ${token}` } })));
           if (isMounted) { setHasLiveLinkAccess(jcb.status === "fulfilled" && jcb.value.ok); setHasTrackunitAccess(trackunit.status === "fulfilled" && trackunit.value.ok); setHasTakeuchiAccess(takeuchi.status === "fulfilled" && takeuchi.value.ok); }
         }).catch(() => { if (isMounted) { setHasLiveLinkAccess(false); setHasTrackunitAccess(false); setHasTakeuchiAccess(false); } });
@@ -335,6 +340,7 @@ export function ConsoleShell({
         !item.frontCounterOnly &&
         !(isAdmin && (item.liveLinkOnly || item.trackunitOnly || item.takeuchiOnly)) &&
         (!item.adminOnly || isAdmin) &&
+        (!item.workflowOnly || isAdmin || hasWorkflowAccess) &&
         (!item.assetOnly || isAdmin || hasLiveLinkAccess || hasTrackunitAccess || hasTakeuchiAccess) &&
         (!item.oversightOnly || hasOversightAccess) &&
         (!item.fleetMemberOnly || isAdmin || hasCustomerFleet) &&

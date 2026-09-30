@@ -1,3 +1,4 @@
+import {recordedAssessments} from '@/lib/fleet-workflow/server';
 import type {NextRequest} from 'next/server';
 import {authorizeAssets} from '@/lib/assets/access';
 import {combinedFleet} from '@/lib/fleet-map/server';
@@ -12,7 +13,9 @@ export async function GET(request:NextRequest){try{
  if(!p.success)throw new JcbError('Choose a valid date range of up to one year.',400);
  const db=operationsDatabase(),[fleet,owners,result]=await Promise.all([combinedFleet(request),ownership(db),db.from('fleet_reservations').select('*').eq('status','reserved').lte('starts_on',p.data.end).gte('ends_on',p.data.start).order('starts_on').limit(5001)]);
  if(result.error||(result.data?.length??0)>5000)throw new JcbError('Reservations unavailable. Choose a shorter date range.',503);
- return jcbJson({...fleet,machines:fleet.machines.filter(m=>!m.relay||owners.allowed.has(m.relay.id)),bookingMachines:owners.registry.filter(m=>result.data.some(b=>b.machine_id===m.id)),bookings:result.data,period:p.data,checkedAt:new Date().toISOString()});
+ const workflowEnabled=process.env.FLEET_WORKFLOW_ENABLED==='true';
+ const clearances=workflowEnabled?await recordedAssessments(db):[];
+ return jcbJson({...fleet,workflowEnabled,clearances,machines:fleet.machines.filter(m=>!m.relay||owners.allowed.has(m.relay.id)),bookingMachines:owners.registry.filter(m=>result.data.some(b=>b.machine_id===m.id)),bookings:result.data,period:p.data,checkedAt:new Date().toISOString()});
  }catch(e){return jcbError(e);}}
 export async function POST(request:NextRequest){try{
  const auth=await authorizeAssets(request,true),raw=await request.json().catch(()=>null),db=operationsDatabase();
