@@ -13,9 +13,12 @@ export type JcbMachine = {
   fuel: Reading<number> | null;
   adblue: Reading<number> | null;
   engine: Reading<boolean> | null;
+  batteryVoltage?: Reading<number> | null;
 };
 export type RegistryMachine = { id: string; machine_number: string; serial_number: string | null; make: string | null; model: string | null };
-export type LinkedJcbMachine = Pick<JcbMachine, "pin" | "equipmentId" | "model" | "position"> & Partial<Pick<JcbMachine, "hours" | "idleHours" | "fuel" | "adblue" | "engine" | "fuelUsed" | "fuelUsed24h">> & {
+export type LinkedJcbMachine = Pick<JcbMachine, "pin" | "equipmentId" | "model" | "position"> & Partial<Pick<JcbMachine, "hours" | "idleHours" | "fuel" | "adblue" | "engine" | "fuelUsed" | "fuelUsed24h" | "batteryVoltage">> & {
+  lastReportedAt?: string | null;
+  nameOverride?: string;
   source?: "jcb" | "trackunit" | "takeuchi" | "assetcare" | "signwatch" | "roam";
   roamHire?: {id:string;reference:string;site:string;locationType:'site'|'delivery';fleet:string};
   roamMake?:string;

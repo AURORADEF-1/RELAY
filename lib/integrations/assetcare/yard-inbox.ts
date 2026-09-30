@@ -14,6 +14,7 @@ export function projectYardInbox(items:unknown[],ownerId:string,saved:SavedAsset
   const prior=result.get(asset.asset_id),stored=previous.get(asset.asset_id);
   const previousMachine=prior?.machine??stored?.machine;
   if(!asset.machine.assetcareReadings?.length&&previousMachine?.assetcareReadings)asset.machine.assetcareReadings=previousMachine.assetcareReadings;
+  if(!asset.machine.batteryVoltage&&previousMachine?.batteryVoltage)asset.machine.batteryVoltage=previousMachine.batteryVoltage;
   asset.machine.transit=detectTransit(asset.machine,previousMachine,now);
   if(previousMachine?.ignition?.value===false&&asset.machine.ignition?.value===false&&previousMachine.ignition.at===asset.machine.ignition.at)asset.machine.transit=previousMachine.transit??null;
   const history=prior?.position_history??(stored?.position_history?.length?stored.position_history:stored?.machine.position?[stored.machine.position]:[]);
