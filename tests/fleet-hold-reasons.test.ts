@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {holdReasons,type HoldEvidence} from '@/lib/fleet-workflow/hold-reasons';
+import {holdReasons,queueHoldReasons,type HoldEvidence} from '@/lib/fleet-workflow/hold-reasons';
 import type {HireAssessment} from '@/lib/fleet-workflow/model';
 const evidence:HoldEvidence={tickets:[],faults:[],jobs:[],flags:[]};
 const row=(blockers:string[]):HireAssessment=>({machine_id:'demo',status:'on_hold',available:false,version:1,blockers});
@@ -27,4 +27,11 @@ describe('clearance hold explanations',()=>{
  it('retains missing evidence and manual flag reasons',()=>{
  const r=holdReasons(row(['Fault requires review: absent','Active fleet flag: flag']),{...evidence,flags:[{id:'flag',reason:'Fictional damage'}]});expect(r.map(x=>x.detail).join()).toContain('Fictional damage');expect(r).toHaveLength(2);
  });
+});
+
+it('only queues evidenced parts requests, faults and overdue service',()=>{
+ const r=row(['Workshop inspection required','Parts check required','Service schedule not recorded','Current service hours need checking','Active fleet flag: f','Open workshop job: w']);
+ r.holdReasons=holdReasons(r,{...evidence,flags:[{id:'f',reason:'Manual flag'}]});expect(queueHoldReasons(r)).toEqual([]);
+ const due=row(['Service due by hours','Open parts request: a']);due.holdReasons=holdReasons(due,{...evidence,tickets:[{id:'a',job_number:'TEST',status:'COMPLETED',request_summary:null}]});expect(queueHoldReasons(due).map(r=>r.key)).toEqual(['Service due by hours']);
+ const fault=row(['Fault requires review: f']);fault.holdReasons=holdReasons(fault,{...evidence,faults:[{id:'f',provider:'jcb',detail:'Test',occurred_at:'2026-01-01T00:00:00Z',payload:{code:'TEST',severity:'Critical'}}]});expect(queueHoldReasons(fault)).toHaveLength(1);
 });

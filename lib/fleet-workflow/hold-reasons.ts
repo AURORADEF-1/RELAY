@@ -37,3 +37,12 @@ export function holdReasons(row:HireAssessment,evidence:HoldEvidence):HoldReason
  }
  return reasons.sort((a,b)=>({critical:0,warning:1,check:2}[a.tone]-{critical:0,warning:1,check:2}[b.tone]));
 }
+
+/** The yard issue queue is evidence-led; absent telemetry/plans are not issues. */
+export function queueHoldReasons(row:HireAssessment):HoldReason[]{
+ return (row.holdReasons??[]).filter(r=>r.category==='issue'&&(
+  r.key.startsWith('Open parts request: ')||
+  r.key==='Service due by date'||r.key==='Service due by hours'||
+  r.title.startsWith('Priority fault report · ')||r.title.startsWith('Fault report · ')
+ ));
+}
