@@ -2,7 +2,8 @@ import {machineKey,machineLastReportedAt,type LinkedJcbMachine} from '@/lib/inte
 import {lastKnownSide,usableCoordinates} from '@/lib/plant-wallboard/positions';
 
 export type FleetOverviewGroup={name:string;total:number;inside:number;outside:number;unknown:number};
-export type FleetOverview={total:number;inside:number;outside:number;unknown:number;checkedIn24h:number;over24h:number;neverCheckedIn:number;groups:FleetOverviewGroup[]};
+export type FleetOverviewAsset={id:string|null;key:string;label:string;model:string;group:string;reportedAt:string|null};
+export type FleetOverview={total:number;inside:number;outside:number;unknown:number;checkedIn24h:number;over24h:number;neverCheckedIn:number;groups:FleetOverviewGroup[];coverage:{recent:FleetOverviewAsset[];stale:FleetOverviewAsset[];missing:FleetOverviewAsset[]}};
 
 export function buildFleetOverview(machines:LinkedJcbMachine[],now=Date.now()):FleetOverview{
  const grouped=new Map<string,LinkedJcbMachine[]>();
@@ -11,6 +12,7 @@ export function buildFleetOverview(machines:LinkedJcbMachine[],now=Date.now()):F
   grouped.set(id,[...(grouped.get(id)??[]),machine]);
  }
  const groups=new Map<string,FleetOverviewGroup>();
+ const coverage:FleetOverview['coverage']={recent:[],stale:[],missing:[]};
  let inside=0,outside=0,unknown=0,checkedIn24h=0,over24h=0,neverCheckedIn=0;
  for(const candidates of grouped.values()){
   const latest=[...candidates].sort((a,b)=>Date.parse(machineLastReportedAt(b)??'')-Date.parse(machineLastReportedAt(a)??''))[0];
@@ -18,11 +20,13 @@ export function buildFleetOverview(machines:LinkedJcbMachine[],now=Date.now()):F
   const side=positioned?lastKnownSide(positioned,now):'unknown';
   if(side==='off_hire')inside++;else if(side==='on_hire')outside++;else unknown++;
   const reportedAt=candidates.map(machineLastReportedAt).filter((at):at is string=>!!at&&Number.isFinite(Date.parse(at))).sort((a,b)=>Date.parse(b)-Date.parse(a))[0];
-  if(!reportedAt)neverCheckedIn++;else if(now-Date.parse(reportedAt)<=86400000)checkedIn24h++;else over24h++;
   const name=latest.assetGroup?.trim()||'Unmatched';
+  const asset={id:latest.relay?.id??null,key:machineKey(latest),label:latest.relay?.machine_number||latest.equipmentId,model:latest.relay?.model||latest.model,group:name,reportedAt:reportedAt??null};
+  if(!reportedAt){neverCheckedIn++;coverage.missing.push(asset);}else if(now-Date.parse(reportedAt)<=86400000){checkedIn24h++;coverage.recent.push(asset);}else{over24h++;coverage.stale.push(asset);}
   const row=groups.get(name)??{name,total:0,inside:0,outside:0,unknown:0};row.total++;
   if(side==='off_hire')row.inside++;else if(side==='on_hire')row.outside++;else row.unknown++;
   groups.set(name,row);
  }
- return {total:grouped.size,inside,outside,unknown,checkedIn24h,over24h,neverCheckedIn,groups:[...groups.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name))};
+ for(const assets of Object.values(coverage))assets.sort((a,b)=>(Date.parse(b.reportedAt??'')||0)-(Date.parse(a.reportedAt??'')||0)||a.label.localeCompare(b.label,undefined,{numeric:true}));
+ return {total:grouped.size,inside,outside,unknown,checkedIn24h,over24h,neverCheckedIn,groups:[...groups.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name)),coverage};
 }
