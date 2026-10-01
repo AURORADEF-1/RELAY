@@ -23,11 +23,12 @@ export async function hireUsage(h:RoamHire):Promise<HireUsage>{
  if(candidates.length===1){
   const asset=candidates[0],m=asset.machine as LinkedJcbMachine;
   // Indexed receipt-time window; bounded query only when an individual hire is opened.
-  const batches=await db.from('assetcare_batches').select('items').gte('received_at',new Date(delivery-15*60000).toISOString()).lte('received_at',new Date(delivery+45*60000).toISOString()).order('received_at').limit(501);
-  if(batches.error)throw Error('Unable to read delivery-time telematics.');
+  const batchQuery=()=>db.from('assetcare_batches').select('items').contains('items',[{asset:{id:asset.asset_id}}]);
+  const [batches,recent]=await Promise.all([batchQuery().gte('received_at',new Date(delivery-15*60000).toISOString()).lte('received_at',new Date(delivery+45*60000).toISOString()).order('received_at').limit(501),batchQuery().gte('received_at',new Date(Date.now()-24*3600000).toISOString()).order('received_at',{ascending:false}).limit(200)]);
+  if(batches.error||recent.error)throw Error('Unable to read delivery-time telematics.');
   if((batches.data?.length??0)<=500){
    const readings:UsageReading[]=m.hours?.at?[{value:m.hours.value,at:m.hours.at}]:[];
-   for(const batch of batches.data??[])for(const raw of batch.items??[]){const r=raw.type==='event'?raw.details?.telemetry:raw;if(r?.type==='telemetry'&&r.asset?.id===asset.asset_id&&typeof r.counters?.hours==='number'&&typeof r.date==='string')readings.push({value:r.counters.hours,at:r.date});}
+   for(const batch of [...(batches.data??[]),...(recent.data??[])])for(const raw of batch.items??[]){const r=raw.type==='event'?raw.details?.telemetry:raw;if(r?.type==='telemetry'&&r.asset?.id===asset.asset_id&&typeof r.counters?.hours==='number'&&typeof r.date==='string')readings.push({value:r.counters.hours,at:r.date});}
    groups.set('Asset Care+',readings);
   }
  }
