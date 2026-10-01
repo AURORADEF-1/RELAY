@@ -2,8 +2,8 @@ import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 import type {CardStatus} from '@/lib/assets/card-status';
 import {machineKey,machineBrand} from '@/lib/integrations/jcb/types';
 import {positionSide} from '@/lib/fleet-operations/report';
-export const providers=['jcb','trackunit','takeuchi','assetcare','signwatch'] as const;
-export const providerNames={jcb:'JCB',trackunit:'Manitou',takeuchi:'Takeuchi',assetcare:'Asset Care+',signwatch:'Sign Watch'};
+export const providers=['jcb','trackunit','takeuchi','assetcare','signwatch','roam'] as const;
+export const providerNames={jcb:'JCB',trackunit:'Manitou',takeuchi:'Takeuchi',assetcare:'Asset Care+',signwatch:'Sign Watch',roam:'ROAM hires'};
 export type Preferences={brand:string;category:string;group:string;providers:string[];yard:boolean;labels:boolean;cluster:boolean;base:'map'|'satellite';freshness:'all'|'fresh'|'old'|'missing';status:'all'|'on_hire'|'fault'|'movement'|'transit'|'running'|'unknown';area:'all'|'yard'|'away'};
 export const defaults:Preferences={brand:'all',category:'all',group:'all',providers:[...providers],yard:true,labels:false,cluster:true,base:'map',freshness:'all',status:'all',area:'all'};
 export function readPreferences(value:string|null):Preferences{
@@ -15,7 +15,7 @@ export function filterFleet(machines:LinkedJcbMachine[],prefs:Preferences,query:
   if(prefs.brand!=='all'&&fleetBrand(m)!==prefs.brand||prefs.category!=='all'&&(m.assetCategory??'Unclassified')!==prefs.category||prefs.group!=='all'&&(m.assetGroup??'Ungrouped')!==prefs.group)return false;
   const age=m.position?.at?now-Date.parse(m.position.at):NaN,fresh=Number.isFinite(age)&&age>=0&&age<=86400000;
   if(prefs.freshness==='missing'&&m.position||prefs.freshness==='fresh'&&!fresh||prefs.freshness==='old'&&(!m.position||fresh))return false;
-  if(prefs.status==='on_hire'&&(!m.relay||!onHireIds.has(m.relay.id)))return false;
+  if(prefs.status==='on_hire'&&!m.roamHire&&(!m.relay||!onHireIds.has(m.relay.id)))return false;
   const s=statuses[machineKey(m)];
   if(prefs.status==='transit'&&!s?.transit)return false;
   if(prefs.status==='fault'&&s?.tone!=='fault'&&s?.tone!=='review'||prefs.status==='movement'&&!s?.movement||prefs.status==='running'&&s?.tone!=='running'||prefs.status==='unknown'&&s&&s.tone!=='unknown')return false;
