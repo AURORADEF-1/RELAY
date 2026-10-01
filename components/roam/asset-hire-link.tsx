@@ -35,5 +35,5 @@ export function AssetHireLink({machineId}:{machineId:string}) {
   const timer=setInterval(()=>{if(!document.hidden)void refresh()},60000);
   return()=>{controller.abort();clearInterval(timer)};
  },[machineId]);
- return <div aria-label="ROAM hire">{state&&<p role="status" className="jcb-sync">{state}</p>}{hires.map(h=><p key={h.id}><span>On hire · {String(h.customer.recorded_name||h.customer.name||h.hire_reference)} </span><Link className="jcb-button jcb-primary" href={'/fleet/hires/'+encodeURIComponent(h.id)}>View hire{hires.length>1?' · '+h.hire_reference:''}</Link></p>)}</div>;
+ return <div aria-label="ROAM hire"><Link className="jcb-button" href={'/fleet/hours?machineId='+encodeURIComponent(machineId)}>Hour readings / export</Link>{state&&<p role="status" className="jcb-sync">{state}</p>}{hires.map(h=><p key={h.id}><span>On hire · {String(h.customer.recorded_name||h.customer.name||h.hire_reference)} </span><Link className="jcb-button jcb-primary" href={'/fleet/hires/'+encodeURIComponent(h.id)}>View hire{hires.length>1?' · '+h.hire_reference:''}</Link></p>)}</div>;
 }
