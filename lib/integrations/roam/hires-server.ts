@@ -1,7 +1,7 @@
 import 'server-only';
 import {z} from 'zod';
 import {JcbError} from '@/lib/integrations/jcb/client';
-import {hirePageSchema,hireDetailSchema,photoLinkSchema} from './hires';
+import {hirePageSchema,hireDetailSchema,photoLinkSchema,hireSchema} from './hires';
 const BASE='https://roam-henna.vercel.app/api/partners/relay/hires';
 async function read<T>(suffix:string,schema:z.ZodType<T>):Promise<T>{
  const token=process.env.ROAM_RELAY_HIRES_TOKEN;if(!token)throw new JcbError('ROAM hire connection is not configured.',503);
@@ -13,3 +13,11 @@ async function read<T>(suffix:string,schema:z.ZodType<T>):Promise<T>{
 export function readRoamHires(cursor?:string){if(cursor&&(!/^[\w-]+$/.test(cursor)||cursor.length>1000))throw new JcbError('Invalid hire page.',400);return read('?limit=50'+(cursor?'&cursor='+encodeURIComponent(cursor):''),hirePageSchema)}
 export function readRoamHire(id:string){return read('/'+encodeURIComponent(id),hireDetailSchema)}
 export function readRoamPhoto(id:string,photoId:string){return read('/'+encodeURIComponent(id)+'/photos/'+encodeURIComponent(photoId),photoLinkSchema)}
+
+export async function readRoamLifecycle(){
+ const schema=z.object({schema_version:z.literal(1),scope:z.literal('lifecycle'),revision:z.string(),items:z.array(hireSchema),next_offset:z.number().int().nonnegative().nullable()});
+ const token=process.env.ROAM_RELAY_HIRES_TOKEN;if(!token)throw new JcbError('ROAM connection is not configured.',503);
+ const rows:z.infer<typeof hireSchema>[]=[];let offset:number|null=0,revision:string|undefined;
+ do{const r=await fetch('https://roam-henna.vercel.app/api/partners/relay/hire-lifecycle?offset='+offset,{headers:{Authorization:`Bearer ${token}`},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(25000)});if(!r.ok)throw new JcbError('ROAM collection status is unavailable.',503);const page=schema.parse(await r.json());if(revision&&revision!==page.revision)throw new JcbError('ROAM hires changed. Refresh to retry.',503);revision=page.revision;rows.push(...page.items);if(rows.length>50000||page.next_offset!==null&&page.next_offset<=offset)throw new JcbError('Invalid lifecycle page.',503);offset=page.next_offset;}while(offset!==null);
+ return rows;
+}

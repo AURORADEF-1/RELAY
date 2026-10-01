@@ -18,14 +18,14 @@ export async function hireUsage(h:RoamHire):Promise<HireUsage>{
  if(assets.error||samples.error)throw Error('Unable to read saved telematics hours.');
  // Keep every provider counter separate. A fallback never combines two devices.
  const groups=new Map<string,UsageReading[]>();
- for(const row of samples.data??[]){const m=row.payload as LinkedJcbMachine;if(m.hours?.at){const key=`${m.source??'jcb'}:${m.pin}`;groups.set(key,[...(groups.get(key)??[]),{value:m.hours.value,at:m.hours.at}]);}}
+ for(const row of samples.data??[]){const m=row.payload as LinkedJcbMachine;if(m.hours?.at){const key=`${m.source??'jcb'}:${m.pin}`;groups.set(key,[...(groups.get(key)??[]),{value:m.hours.value,at:m.hours.at,ignition:m.ignition?.at===m.hours.at?m.ignition.value:null}]);}}
  const candidates=(assets.data??[]).filter(a=>linkAssetCare(a.machine as LinkedJcbMachine,owners.registry).relay?.id===id);
  if(candidates.length===1){
   const asset=candidates[0],m=asset.machine as LinkedJcbMachine;
   // Return only this asset's numeric counters; never transfer whole multi-asset batches.
-  const history=await db.rpc('roam_hire_counter_readings',{p_asset_id:asset.asset_id,p_delivery:direct.deliveryAt});
+  const history=await db.rpc('roam_hire_usage_readings',{p_asset_id:asset.asset_id,p_delivery:direct.deliveryAt,p_collection:typeof h.collection.collected_at==='string'?h.collection.collected_at:null});
   if(history.error)throw Error('Unable to read delivery-time telematics.');
-  const readings:UsageReading[]=m.hours?.at?[{value:m.hours.value,at:m.hours.at}]:[];
+  const readings:UsageReading[]=m.hours?.at?[{value:m.hours.value,at:m.hours.at,ignition:m.ignition?.at===m.hours.at?m.ignition.value:null}]:[];
   for(const row of history.data??[])if(typeof row.value==='number'&&typeof row.at==='string')readings.push(row);
   groups.set('Asset Care+',readings);
  }
