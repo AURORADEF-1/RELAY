@@ -21,12 +21,7 @@ export function lastKnownSide(machine: BoardMachine, now: number) {
   if(!usableCoordinates(p,now))return 'unknown';
   const at=p.at?Date.parse(p.at):now;
   const side=positionSide({...p,at:new Date(at).toISOString()},at);
-  if(side!=='unknown')return side;
-  if(machine.confirmedYardSide && Date.parse(machine.confirmedYardAt??'')<=at)return machine.confirmedYardSide;
-  const history=[...(machine.positionHistory??[])].filter(v=>usableCoordinates(v,now)&&v.at&&Date.parse(v.at)<=at).sort((a,b)=>Date.parse(b.at!)-Date.parse(a.at!));
-  for(const position of history){
-    const previous=positionSide(position,Date.parse(position.at!));
-    if(previous!=='unknown')return previous;
-  }
-  return 'unknown';
+  // Coordinates and timestamp are valid here, so unknown means the 20 m
+  // boundary band. For last-reported wallboard totals, near the yard is in yard.
+  return side==='unknown'?'off_hire':side;
 }
