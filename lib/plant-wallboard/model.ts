@@ -1,8 +1,10 @@
-import { DAY, positionSide } from '@/lib/fleet-operations/report';
+import { positionSide } from '@/lib/fleet-operations/report';
 import { lastKnown, lastKnownSide, positionOrder, usableCoordinates, type BoardMachine } from './positions';
 import { buildYardReport, londonDate, yardBucket, type YardEvent } from '@/lib/yard-report';
 
-export type PlantPosition = { id: string; label: string; model: string; status: 'out' | 'yard' | 'unknown'; reportedAt: string | null; lastKnownOnly: boolean };
+export const RECENT_POSITION_MS = 30 * 60_000;
+export type LocationQuality = 'recent' | 'stale' | 'undated' | 'boundary' | 'conflict' | 'missing';
+export type PlantPosition = { id: string; label: string; model: string; status: 'out' | 'yard' | 'unknown'; reportedAt: string | null; lastKnownOnly: boolean; quality: LocationQuality };
 export function plantPositions(machines: BoardMachine[], allowed: Set<string>, now: number): PlantPosition[] {
   const byId = new Map<string, BoardMachine[]>();
   for (const m of machines) {
@@ -16,10 +18,17 @@ export function plantPositions(machines: BoardMachine[], allowed: Set<string>, n
     const located = plant.filter(m => usableCoordinates(m.position, now)).sort((a,b) => positionOrder(b)-positionOrder(a));
     const latest = located[0] ?? plant[0];
     const side = lastKnownSide(latest, now);
-    const conflict = located.some(m => positionOrder(m) === positionOrder(latest) && lastKnownSide(m, now) !== side);
+    const recent = (m: BoardMachine) => !!m.position?.at && now-Date.parse(m.position.at)<=RECENT_POSITION_MS;
+    const directSide = (m: BoardMachine) => m.position?.at ? positionSide(m.position,Date.parse(m.position.at)) : 'unknown';
+    const conflict = located.some(m =>
+      (positionOrder(m) === positionOrder(latest) && lastKnownSide(m,now)!==side) ||
+      (recent(m) && recent(latest) && directSide(m)!=='unknown' && directSide(latest)!=='unknown' && directSide(m)!==directSide(latest)));
+    const quality:LocationQuality = !usableCoordinates(latest.position,now) ? 'missing' : conflict ? 'conflict'
+      : !latest.position.at ? 'undated' : directSide(latest)==='unknown' ? 'boundary'
+      : !recent(latest) ? 'stale' : 'recent';
     return [{ id, label: latest.relay!.machine_number, model: latest.relay!.model ?? latest.model,
       status: conflict || side === 'unknown' ? 'unknown' as const : side === 'on_hire' ? 'out' as const : 'yard' as const,
-      reportedAt: latest.position?.at ?? null, lastKnownOnly: !!latest.position && (!latest.position.at || now-Date.parse(latest.position.at)>DAY || positionSide(latest.position,Date.parse(latest.position.at))==='unknown') }];
+      reportedAt: latest.position?.at ?? null, lastKnownOnly: usableCoordinates(latest.position,now) && quality!=='recent', quality }];
   });
 }
 export function ukMidnight(day: string) {
@@ -47,9 +56,13 @@ export function plantBoardData(machines: BoardMachine[], allowed: Set<string>, e
     .sort((a,b)=>Date.parse(b.occurred_at)-Date.parse(a.occurred_at)||b.id.localeCompare(a.id)).slice(0,1000)
     .map(e=>({id:e.id,label:e.machine?.machine_number??positions.find(p=>p.id===e.machine_id)?.label??e.machine_id,kind:e.kind,at:e.occurred_at,model:[e.machine?.make,e.machine?.model].filter(Boolean).join(' ')}));
   return { checkedAt: new Date(now).toISOString(), starts, historySince: earliest,
-    tracked: positions.length, out: positions.filter(m=>m.status==='out').length,
+    tracked: positions.length, recentMinutes:RECENT_POSITION_MS/60000, out: positions.filter(m=>m.quality==='recent'&&m.status==='out').length,
     lastKnownOnly: positions.filter(m=>m.status!=='unknown'&&m.lastKnownOnly).length,
-    yard: positions.filter(m=>m.status==='yard').length, unknown: positions.filter(m=>m.status==='unknown').length,
+    yard: positions.filter(m=>m.quality==='recent'&&m.status==='yard').length, unknown: positions.filter(m=>m.quality!=='recent').length,
+    lastKnown: {yard:positions.filter(m=>m.quality!=='recent'&&m.status==='yard').length,
+      out:positions.filter(m=>m.quality!=='recent'&&m.status==='out').length,
+      unclear:positions.filter(m=>m.quality!=='recent'&&m.status==='unknown').length},
+    locationReasons:Object.fromEntries((['stale','undated','boundary','conflict','missing'] as const).map(reason=>[reason,positions.filter(m=>m.quality===reason).length])) as Record<Exclude<LocationQuality,'recent'>,number>,
     today: summary(today), week: summary(week), month: summary(month),
     recent: recentRows(today),
     recentByPeriod: {today:recentRows(today),week:recentRows(week),month:recentRows(month)},
