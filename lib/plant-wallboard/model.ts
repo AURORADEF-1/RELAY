@@ -56,9 +56,9 @@ export function plantBoardData(machines: BoardMachine[], allowed: Set<string>, e
     .sort((a,b)=>Date.parse(b.occurred_at)-Date.parse(a.occurred_at)||b.id.localeCompare(a.id)).slice(0,1000)
     .map(e=>({id:e.id,label:e.machine?.machine_number??positions.find(p=>p.id===e.machine_id)?.label??e.machine_id,kind:e.kind,at:e.occurred_at,model:[e.machine?.make,e.machine?.model].filter(Boolean).join(' ')}));
   return { checkedAt: new Date(now).toISOString(), starts, historySince: earliest,
-    tracked: positions.length, recentMinutes:RECENT_POSITION_MS/60000, out: positions.filter(m=>m.quality==='recent'&&m.status==='out').length,
+    tracked: positions.length, recentMinutes:RECENT_POSITION_MS/60000, out: positions.filter(m=>m.status==='out').length,
     lastKnownOnly: positions.filter(m=>m.status!=='unknown'&&m.lastKnownOnly).length,
-    yard: positions.filter(m=>m.quality==='recent'&&m.status==='yard').length, unknown: positions.filter(m=>m.quality!=='recent').length,
+    yard: positions.filter(m=>m.status==='yard').length, unknown: positions.filter(m=>m.status==='unknown').length,
     lastKnown: {yard:positions.filter(m=>m.quality!=='recent'&&m.status==='yard').length,
       out:positions.filter(m=>m.quality!=='recent'&&m.status==='out').length,
       unclear:positions.filter(m=>m.quality!=='recent'&&m.status==='unknown').length},
