@@ -59,3 +59,29 @@ describe('director plant overview',()=>{
   expect([0,25000,50000,75000,85000,100000].map(t=>boardSlide(now,now+t))).toEqual([0,1,2,0,0,1]);
  });
 });
+
+describe('recent location confidence',()=>{
+ it('separates stale and undated last-known positions from recent totals',()=>{
+  const rows=[machine('fresh',{...inside,at:at(-.25)}),machine('edge-age',{...outside,at:at(-.5)}),machine('stale',{...inside,at:at(-.5-1/3600)}),machine('undated',{...outside,at:null}),machine('missing',null)];
+  const data=plantBoardData(rows,new Set(rows.map(m=>m.pin)),[],now);
+  expect([data.yard,data.out,data.unknown]).toEqual([1,1,3]);
+  expect(data.lastKnown).toEqual({yard:1,out:1,unclear:1});
+  expect(data.locationReasons).toEqual({stale:1,undated:1,boundary:0,conflict:0,missing:1});
+  expect(data.yard+data.out+data.unknown).toBe(data.tracked);
+ });
+ it('retains boundary-held yard evidence without treating it as a recent clear fix',()=>{
+  const row={...machine('edge',{latitude:52.3920966667,longitude:.95433,at:at(-.1)}),confirmedYardSide:'off_hire' as const,confirmedYardAt:at(-2)};
+  const data=plantBoardData([row],new Set(['edge']),[],now);
+  expect([data.yard,data.out,data.unknown]).toEqual([0,0,1]);expect(data.lastKnown.yard).toBe(1);expect(data.locationReasons.boundary).toBe(1);
+ });
+ it('does not claim a recent location when recent providers disagree',()=>{
+  const rows=[machine('mixed',{...inside,at:at(-.1)}),{...machine('mixed',{...outside,at:at(-.2)}),source:'assetcare' as const}];
+  const data=plantBoardData(rows,new Set(['mixed']),[],now);
+  expect(data.tracked).toBe(1);expect(data.unknown).toBe(1);expect(data.locationReasons.conflict).toBe(1);expect(data.lastKnown.unclear).toBe(1);
+ });
+ it('ages a position into needs confirmation without losing movement history',()=>{
+  const rows=[machine('a',{...inside,at:at(-.25)})],events=[event('left','a','yard_departure',at(-2))];
+  const fresh=plantBoardData(rows,new Set(['a']),events,now),later=plantBoardData(rows,new Set(['a']),events,now+16*60000);
+  expect(fresh.yard).toBe(1);expect(later.yard).toBe(0);expect(later.lastKnown.yard).toBe(1);expect(later.today.departures).toBe(fresh.today.departures);
+ });
+});
