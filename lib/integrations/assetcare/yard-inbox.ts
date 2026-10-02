@@ -1,3 +1,4 @@
+import {positionSide} from '@/lib/fleet-operations/report';
 import {detectTransit} from '@/lib/assets/transit';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {LinkedJcbMachine,RegistryMachine} from '../jcb/types';
@@ -25,7 +26,7 @@ export function projectYardInbox(items:unknown[],ownerId:string,saved:SavedAsset
    if(machine.relay&&allowed.has(machine.relay.id))events.push(...movementEvents(machine,valid.map(p=>({captured_at:p.at!,payload:{...machine,position:p}})),now).filter(e=>e.kind==='yard_arrival'||e.kind==='yard_departure'));
    valid.push(position!);
   }
-  result.set(asset.asset_id,{...asset,position_history:valid.slice(-3),events});
+  result.set(asset.asset_id,{...asset,position_history:[...new Map([...valid.filter(p=>positionSide(p,Date.parse(p.at!))!=='unknown').slice(-1),...valid.slice(-3)].map(p=>[p.at,p])).values()].sort((a,b)=>Date.parse(a.at!)-Date.parse(b.at!)),events});
  }
  return [...result.values()];
 }

@@ -1,4 +1,4 @@
-import { DAY } from '@/lib/fleet-operations/report';
+import { DAY, positionSide } from '@/lib/fleet-operations/report';
 import { lastKnown, lastKnownSide, positionOrder, usableCoordinates, type BoardMachine } from './positions';
 import { buildYardReport, londonDate, yardBucket, type YardEvent } from '@/lib/yard-report';
 
@@ -19,7 +19,7 @@ export function plantPositions(machines: BoardMachine[], allowed: Set<string>, n
     const conflict = located.some(m => positionOrder(m) === positionOrder(latest) && lastKnownSide(m, now) !== side);
     return [{ id, label: latest.relay!.machine_number, model: latest.relay!.model ?? latest.model,
       status: conflict || side === 'unknown' ? 'unknown' as const : side === 'on_hire' ? 'out' as const : 'yard' as const,
-      reportedAt: latest.position?.at ?? null, lastKnownOnly: !!latest.position && (!latest.position.at || now-Date.parse(latest.position.at)>DAY) }];
+      reportedAt: latest.position?.at ?? null, lastKnownOnly: !!latest.position && (!latest.position.at || now-Date.parse(latest.position.at)>DAY || positionSide(latest.position,Date.parse(latest.position.at))==='unknown') }];
   });
 }
 export function ukMidnight(day: string) {
@@ -43,13 +43,16 @@ export function plantBoardData(machines: BoardMachine[], allowed: Set<string>, e
   const week = buildYardReport(history, starts.week, now, 'week');
   const month = buildYardReport(history, starts.month, now, 'month');
   const earliest = history.map(e => e.occurred_at).filter(t => Number.isFinite(Date.parse(t)) && Date.parse(t) < now).sort((a,b)=>Date.parse(a)-Date.parse(b))[0] ?? null;
+  const recentRows = (report: ReturnType<typeof buildYardReport>) => [...report.movements]
+    .sort((a,b)=>Date.parse(b.occurred_at)-Date.parse(a.occurred_at)||b.id.localeCompare(a.id)).slice(0,1000)
+    .map(e=>({id:e.id,label:e.machine?.machine_number??positions.find(p=>p.id===e.machine_id)?.label??e.machine_id,kind:e.kind,at:e.occurred_at,model:[e.machine?.make,e.machine?.model].filter(Boolean).join(' ')}));
   return { checkedAt: new Date(now).toISOString(), starts, historySince: earliest,
     tracked: positions.length, out: positions.filter(m=>m.status==='out').length,
     lastKnownOnly: positions.filter(m=>m.status!=='unknown'&&m.lastKnownOnly).length,
     yard: positions.filter(m=>m.status==='yard').length, unknown: positions.filter(m=>m.status==='unknown').length,
     today: summary(today), week: summary(week), month: summary(month),
-    recent: [...today.movements].sort((a,b)=>Date.parse(b.occurred_at)-Date.parse(a.occurred_at)||b.id.localeCompare(a.id)).slice(0,36).map(e=>({ id:e.id, label:e.machine?.machine_number ?? positions.find(p=>p.id===e.machine_id)?.label ?? e.machine_id,
-      kind:e.kind, at:e.occurred_at, model:[e.machine?.make,e.machine?.model].filter(Boolean).join(' ') })),
+    recent: recentRows(today),
+    recentByPeriod: {today:recentRows(today),week:recentRows(week),month:recentRows(month)},
   };
 }
 export type PlantBoardData = ReturnType<typeof plantBoardData> & { warning: string | null };
