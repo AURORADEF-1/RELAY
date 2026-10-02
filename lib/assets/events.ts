@@ -12,15 +12,17 @@ export function movementEvents(machine:LinkedJcbMachine,history:Snapshot[],now=D
  if(now-Date.parse(p!.at!)>DAY)return [{...base,event_key:`${key}:stale:${p!.at}`,kind:'not_checked_in',title:'Tracker not checked in',detail:'Last reported position is more than 24 hours old.',occurred_at:new Date(Date.parse(p!.at!)+DAY).toISOString()}];
  const points=[...new Map(history.flatMap(s=>validPosition(s.payload.position,now)?[[s.payload.position!.at!,s.payload.position!] as const]:[])).values()].filter(x=>Date.parse(x.at!)<Date.parse(p!.at!)).sort((a,b)=>Date.parse(a.at!)-Date.parse(b.at!));
  const previous=points.at(-1);if(!previous)return [];
- const side=positionSide(p,Date.parse(p!.at!)),old=positionSide(previous,Date.parse(previous.at!));
- // Confirm a boundary crossing with two distinct readings on the new side.
- const older=points.at(-2),before=older?positionSide(older,Date.parse(older.at!)):'unknown';
+ const side=positionSide(p,Date.parse(p!.at!));
+ // Retain the last clear side through boundary noise; one clear opposite fix
+ // records the observed crossing, including short visits between hourly fixes.
+ const confirmed=[...points].reverse().find(point=>positionSide(point,Date.parse(point.at!))!=='unknown');
+ const old=confirmed?positionSide(confirmed,Date.parse(confirmed.at!)):'unknown';
  let kind:AssetEvent['kind']|null=null;
- if(older&&side!=='unknown'&&side===old&&before!=='unknown'&&before!==side&&Date.parse(p!.at!)-Date.parse(previous.at!)<=2*3600000)kind=side==='off_hire'?'yard_arrival':'yard_departure';
+ if(side!=='unknown'&&old!=='unknown'&&side!==old)kind=side==='off_hire'?'yard_arrival':'yard_departure';
  else if(side!=='unknown'&&side===old&&metres(previous,p!)>=300&&Date.parse(p!.at!)-Date.parse(previous.at!)<=2*3600000)kind='movement';
  if(!kind)return [];
  const titles={movement:'Movement recorded',yard_arrival:'Returned to Yard',yard_departure:'Left Garboldisham yard'};
- return [{...base,event_key:`${key}:${kind}:${p!.at}`,kind,title:titles[kind],detail:kind==='movement'?`${Math.round(metres(previous,p!))} metres between reported positions; route not recorded.`:'Confirmed by two distinct GPS reports. Location-based hire status is an estimate.',occurred_at:p!.at!,payload:{from:previous,to:p}}];
+ return [{...base,event_key:`${key}:${kind}:${p!.at}`,kind,title:titles[kind],detail:kind==='movement'?`${Math.round(metres(previous,p!))} metres between reported positions; route not recorded.`:'Observed change from the last clear GPS yard status. Crossing time is the first clear report; location does not confirm a hire.',occurred_at:p!.at!,payload:{from:previous,to:p}}];
 }
 export function faultEvents(machine:LinkedJcbMachine,faults:JcbFault[],now=Date.now()):AssetEvent[]{
  if(!machine.relay)return [];return faults.filter(f=>!f.at||(Number.isFinite(Date.parse(f.at))&&Date.parse(f.at)<=now)).map(f=>({event_key:`${machine.source??'jcb'}:${machine.pin}:fault:${f.code}:${f.at??'undated'}`,machine_id:machine.relay!.id,provider:machine.source??'jcb',kind:'fault',title:`Reported fault ${f.code}`,detail:f.description+(!f.at?' Provider did not supply a fault timestamp; time shown is first observed by RELAY.':''),occurred_at:f.at??new Date(now).toISOString(),payload:{code:f.code,severity:f.severity,providerTimestamp:f.at}}));
