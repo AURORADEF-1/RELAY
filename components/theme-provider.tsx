@@ -26,8 +26,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<RelayTheme>("dark");
 
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    setThemeState(storedTheme === "light" ? "light" : "dark");
+    const timer = window.setTimeout(() => {
+      const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+      setThemeState(storedTheme === "light" ? "light" : "dark");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
