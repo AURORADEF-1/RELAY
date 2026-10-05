@@ -5,7 +5,7 @@ export type JcbMachine = {
   pin: string;
   equipmentId: string;
   model: string;
-  position: { latitude: number; longitude: number; at: string | null } | null;
+  position: { latitude: number; longitude: number; at: string | null; address?: string | null } | null;
   hours: Reading<number> | null;
   idleHours: Reading<number> | null;
   fuelUsed?: Reading<number> | null;
@@ -53,6 +53,11 @@ export function partsRequestUrl(machine: LinkedJcbMachine, faultCode?: string) {
 }
 
 export const machineKey = (machine: LinkedJcbMachine) => `${machine.source ?? "jcb"}:${machine.pin}`;
+export function machineLastReportedAt(machine:LinkedJcbMachine){
+  const times=[machine.lastReportedAt,machine.position?.at,machine.travel?.at,machine.batteryVoltage?.at,machine.hours?.at,machine.idleHours?.at,machine.fuel?.at,machine.adblue?.at,machine.engine?.at,machine.ignition?.at,machine.odometer?.at]
+    .filter((at):at is string=>typeof at==='string'&&Number.isFinite(Date.parse(at)));
+  return times.sort((a,b)=>Date.parse(b)-Date.parse(a))[0]??null;
+}
 export const machineProvider = (machine: LinkedJcbMachine) => machine.source === "roam" ? "ROAM" : machine.source === "signwatch" ? "Sign Watch" : machine.source === "assetcare" ? "Asset Care+" : machine.source === "takeuchi" ? "Takeuchi" : machine.source === "trackunit" ? "Manitou" : "JCB";
 
 export const machineBrand = (machine: LinkedJcbMachine) => machine.source === "roam" ? machine.relay?.make || machine.roamMake || "Unknown make" : machine.source === "assetcare" ? machine.relay?.make?.trim() || machineProvider(machine) : machineProvider(machine);
