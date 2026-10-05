@@ -89,8 +89,8 @@ describe("RELAY fitter mobile workspace", () => {
       "utf8",
     );
 
-    expect(shell).toContain('{ href: "/filters", label: "Filter Lookup", icon: "filter" }');
-    expect(shell).toContain('{ href: "/settings", label: "Settings", icon: "settings" }');
+    expect(shell).toContain('{ href: "/filters", label: "Filter Lookup", icon: "filter", category: "requests" }');
+    expect(shell).toContain('{ href: "/settings", label: "Settings", icon: "settings", category: "administration" }');
     expect(filtersPage).toContain("<AuthGuard>");
     expect(filtersPage).not.toContain('requiredRole="admin"');
     expect(filterWorkspace).toContain("onTicket={isAdmin ?");
