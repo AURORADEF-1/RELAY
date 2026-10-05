@@ -24,3 +24,10 @@ it('retains dated telemetry when a later trip summary has no sensor readings',()
  expect(next[0].machine.assetcareReadings).toEqual(first[0].machine.assetcareReadings);
  expect(next[0].machine.assetcareReadings?.find(r=>r.name.includes('External supply'))?.time).toBe(row(5,true).date);
 });
+it('retains dated telemetry and voltage when a later trip summary has no sensor readings',()=>{
+ const first=projectYardInbox([{...row(5,true),telemetry:{power_voltage:12.9,ignition:0}}],'MLP',[],registry,new Set(['relay']),now);
+ const next=projectYardInbox([{type:'trip',owner:{id:'MLP'},asset:{id:'a'},dateEnd:new Date(now).toISOString(),end:{lat:52.392,lon:.955}}],'MLP',first,registry,new Set(['relay']),now);
+ expect(next[0].machine.assetcareReadings).toEqual(first[0].machine.assetcareReadings);
+ expect(next[0].machine.batteryVoltage).toEqual(first[0].machine.batteryVoltage);
+ expect(next[0].machine.assetcareReadings?.find(r=>r.name.includes('External supply'))?.time).toBe(row(5,true).date);
+});

@@ -5,7 +5,7 @@ export type JcbMachine = {
   pin: string;
   equipmentId: string;
   model: string;
-  position: { latitude: number; longitude: number; at: string | null } | null;
+  position: { latitude: number; longitude: number; at: string | null; address?: string | null } | null;
   hours: Reading<number> | null;
   idleHours: Reading<number> | null;
   fuelUsed?: Reading<number> | null;
@@ -13,9 +13,12 @@ export type JcbMachine = {
   fuel: Reading<number> | null;
   adblue: Reading<number> | null;
   engine: Reading<boolean> | null;
+  batteryVoltage?: Reading<number> | null;
 };
 export type RegistryMachine = { id: string; machine_number: string; serial_number: string | null; make: string | null; model: string | null };
-export type LinkedJcbMachine = Pick<JcbMachine, "pin" | "equipmentId" | "model" | "position"> & Partial<Pick<JcbMachine, "hours" | "idleHours" | "fuel" | "adblue" | "engine" | "fuelUsed" | "fuelUsed24h">> & {
+export type LinkedJcbMachine = Pick<JcbMachine, "pin" | "equipmentId" | "model" | "position"> & Partial<Pick<JcbMachine, "hours" | "idleHours" | "fuel" | "adblue" | "engine" | "fuelUsed" | "fuelUsed24h" | "batteryVoltage">> & {
+  lastReportedAt?: string | null;
+  nameOverride?: string;
   source?: "jcb" | "trackunit" | "takeuchi" | "assetcare" | "signwatch" | "roam";
   roamHire?: {id:string;reference:string;site:string;locationType:'site'|'delivery';fleet:string};
   roamMake?:string;
@@ -50,6 +53,35 @@ export function partsRequestUrl(machine: LinkedJcbMachine, faultCode?: string) {
 }
 
 export const machineKey = (machine: LinkedJcbMachine) => `${machine.source ?? "jcb"}:${machine.pin}`;
+export function machineLastReportedAt(machine:LinkedJcbMachine){
+  const times=[machine.lastReportedAt,machine.position?.at,machine.travel?.at,machine.batteryVoltage?.at,machine.hours?.at,machine.idleHours?.at,machine.fuel?.at,machine.adblue?.at,machine.engine?.at,machine.ignition?.at,machine.odometer?.at]
+    .filter((at):at is string=>typeof at==='string'&&Number.isFinite(Date.parse(at)));
+  return times.sort((a,b)=>Date.parse(b)-Date.parse(a))[0]??null;
+}
 export const machineProvider = (machine: LinkedJcbMachine) => machine.source === "roam" ? "ROAM" : machine.source === "signwatch" ? "Sign Watch" : machine.source === "assetcare" ? "Asset Care+" : machine.source === "takeuchi" ? "Takeuchi" : machine.source === "trackunit" ? "Manitou" : "JCB";
 
 export const machineBrand = (machine: LinkedJcbMachine) => machine.source === "roam" ? machine.relay?.make || machine.roamMake || "Unknown make" : machine.source === "assetcare" ? machine.relay?.make?.trim() || machineProvider(machine) : machineProvider(machine);
+
+const assetAcronyms=new Set([
+  'GPS','HSR','JCB','MLP','PIN','SR','VCW','XCMG',
+]);
+
+/**
+ * Formats human-readable asset names without damaging manufacturers and model
+ * codes. Words use title case, known letter-only acronyms stay uppercase, and
+ * any token containing both letters and numbers is treated as a model code.
+ */
+export function titleCaseAssetText(value:string){
+  return value.toLocaleLowerCase('en-GB').replace(/[a-z0-9]+(?:-[a-z0-9]+)*/g,token=>{
+    const upper=token.toLocaleUpperCase('en-GB');
+    if(assetAcronyms.has(upper)||(/[a-z]/i.test(token)&&/\d/.test(token)))return upper;
+    return token.split('-').map(part=>{const partUpper=part.toLocaleUpperCase('en-GB');return assetAcronyms.has(partUpper)||(/[a-z]/i.test(part)&&/\d/.test(part))?partUpper:part?`${part[0].toLocaleUpperCase('en-GB')}${part.slice(1)}`:part;}).join('-');
+  });
+}
+
+export function titleCaseAssetLabel(value:string){
+  const separator=value.match(/^(.*?)(\s+[·-]\s+)(.+)$/);
+  if(separator)return `${separator[1]}${separator[2]}${titleCaseAssetText(separator[3])}`;
+  const identifier=value.match(/^(\S*\d\S*)(\s+)(.+)$/);
+  return identifier?`${identifier[1]}${identifier[2]}${titleCaseAssetText(identifier[3])}`:titleCaseAssetText(value);
+}

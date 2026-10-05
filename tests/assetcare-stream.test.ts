@@ -13,6 +13,12 @@ it('uses a header, refuses redirects, closes responses and enforces provider pau
 it('rejects malformed batches rather than acknowledging missing data',async()=>{await expect(streamRequest('test',undefined,vi.fn().mockResolvedValue(new Response('{"items":[{}],"id":null}')))).rejects.toThrow();});
 it('keeps manufacturer feed once when multiple trackers link to one RELAY asset',()=>{const m=normalizeAssetCare(row,'MLP',now)!.machine,relay={id:'relay',machine_number:'100',make:'JCB',model:null,serial_number:null};const result=combineFleet([{...m,relay},{...m,source:'jcb',relay}]);expect(result).toHaveLength(1);expect(result[0].source).toBe('jcb');});
 
+it('reads voltage from documented free-form telemetry and IO containers',()=>{
+ expect(normalizeAssetCare({...row,telemetry:{powerVoltage:12.7}},'MLP',now)?.machine.batteryVoltage?.value).toBe(12.7);
+ expect(normalizeAssetCare({...row,io:{battery_voltage:'12.8'}},'MLP',now)?.machine.batteryVoltage?.value).toBe(12.8);
+ expect(normalizeAssetCare({...row,io:{inputs:[{name:'External power voltage',value:'13.1'}]}},'MLP',now)?.machine.batteryVoltage?.value).toBe(13.1);
+});
+
 it('links an explicit fleet-number prefix and preserves historical provider time',()=>{
  const sample={...row,asset:{id:'asset-uuid',name:'25600 - 6T Mecalac Dumper'},origin:{id:'tracker-uuid'},date:'2026-01-19T10:37:53.000Z',received:'2026-01-19T10:37:55.000Z',location:{lat:52.067818,lon:-.636815,age:0},counters:{hours:42.230746}};
  const machine=normalizeAssetCare(sample,'MLP',now)!.machine;
