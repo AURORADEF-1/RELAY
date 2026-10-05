@@ -18,7 +18,7 @@ import {useFleetStatuses,FleetStatus,FleetStatusLegend} from "@/components/asset
 import Link from "next/link";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {getSupabaseAccessToken} from "@/lib/supabase";
-import {machineKey,machineBrand,machineProvider,partsRequestUrl,positionAge,titleCaseAssetLabel,titleCaseAssetText,type LinkedJcbMachine,type JcbFault,type RegistryMachine} from "@/lib/integrations/jcb/types";
+import {machineKey,machineBrand,machineProvider,partsRequestUrl,positionAge,type LinkedJcbMachine,type JcbFault,type RegistryMachine} from "@/lib/integrations/jcb/types";
 import {FaultCards} from "@/components/jcb/fault-cards";
 import type {Telemetry} from "@/lib/integrations/trackunit/normalize";
 import "@/app/livelink/style.css";
