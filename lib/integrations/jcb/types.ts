@@ -63,7 +63,7 @@ export const machineProvider = (machine: LinkedJcbMachine) => machine.source ===
 export const machineBrand = (machine: LinkedJcbMachine) => machine.source === "roam" ? machine.relay?.make || machine.roamMake || "Unknown make" : machine.source === "assetcare" ? machine.relay?.make?.trim() || machineProvider(machine) : machineProvider(machine);
 
 const assetAcronyms=new Set([
-  'GPS','HSR','JCB','MLP','PIN','SR','XCMG',
+  'GPS','HSR','JCB','MLP','PIN','SR','VCW','XCMG',
 ]);
 
 /**
@@ -75,7 +75,7 @@ export function titleCaseAssetText(value:string){
   return value.toLocaleLowerCase('en-GB').replace(/[a-z0-9]+(?:-[a-z0-9]+)*/g,token=>{
     const upper=token.toLocaleUpperCase('en-GB');
     if(assetAcronyms.has(upper)||(/[a-z]/i.test(token)&&/\d/.test(token)))return upper;
-    return token.split('-').map(part=>part?`${part[0].toLocaleUpperCase('en-GB')}${part.slice(1)}`:part).join('-');
+    return token.split('-').map(part=>{const partUpper=part.toLocaleUpperCase('en-GB');return assetAcronyms.has(partUpper)||(/[a-z]/i.test(part)&&/\d/.test(part))?partUpper:part?`${part[0].toLocaleUpperCase('en-GB')}${part.slice(1)}`:part;}).join('-');
   });
 }
 

@@ -7,6 +7,7 @@ describe('asset title casing',()=>{
     expect(titleCaseAssetText('takeuchi tb216 mini excavator sr')).toBe('Takeuchi TB216 Mini Excavator SR');
     expect(titleCaseAssetText('XCMG XE135E excavator bladed')).toBe('XCMG XE135E Excavator Bladed');
     expect(titleCaseAssetText('Doosan DX170W-7 excavator Hsr')).toBe('Doosan DX170W-7 Excavator HSR');
+    expect(titleCaseAssetText('FL22 Vcw-Spare')).toBe('FL22 VCW-Spare');
   });
 
   it('keeps readable model punctuation and formats asset labels',()=>{
