@@ -629,8 +629,8 @@ export default function WallboardPage() {
               <div className="flex items-center gap-5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/aurora-logo-build.gif"
-                  alt="Aurora Systems"
+                  src="/assetcare-plus-logo.png"
+                  alt="AssetCare+"
                   className="h-20 w-20 object-contain"
                 />
                 <div className="space-y-2">

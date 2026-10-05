@@ -83,7 +83,7 @@ export function LegalTermsGate() {
             <button
               type="button"
               onClick={handleAccept}
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-[color:var(--accent)] px-5 text-sm font-semibold text-[color:var(--accent-foreground)] transition hover:bg-[color:var(--brand-primary-strong)]"
             >
               Accept and Continue
             </button>

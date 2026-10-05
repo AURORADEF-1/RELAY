@@ -173,12 +173,12 @@ requireText(
 );
 requireText(
   "components/console/console-shell.tsx",
-  '{ href: "/filters", label: "Filter Lookup", icon: "filter" }',
+  '{ href: "/filters", label: "Filter Lookup", icon: "filter", category: "requests" }',
   "requester Filter Lookup navigation",
 );
 requireText(
   "components/console/console-shell.tsx",
-  '{ href: "/settings", label: "Settings", icon: "settings" }',
+  '{ href: "/settings", label: "Settings", icon: "settings", category: "administration" }',
   "requester Settings navigation",
 );
 forbidText(

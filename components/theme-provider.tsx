@@ -18,19 +18,21 @@ type ThemeContextValue = {
 const THEME_STORAGE_KEY = "relay-theme";
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "light",
+  theme: "dark",
   setTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<RelayTheme>(() => {
-    if (typeof window === "undefined") {
-      return "light";
-    }
+  const [theme, setThemeState] = useState<RelayTheme>("dark");
 
-    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return storedTheme === "dark" ? "dark" : "light";
-  });
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+      setThemeState(storedTheme === "light" ? "light" : "dark");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

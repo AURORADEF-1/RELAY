@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { LogoutButton } from "@/components/logout-button";
 import { AssetInboxBadge } from '@/components/assets/inbox-badge';
@@ -15,6 +15,7 @@ import {
 } from "@/components/console/console-icon";
 import { RelayAiPanel } from "@/components/console/relay-ai-panel";
 import type { SmartSearchResult } from "@/lib/admin-smart-search";
+import { isLocalRolePreviewEnabled } from "@/lib/demo-mode";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
 
@@ -36,6 +37,7 @@ type NavigationItem = {
   href: string;
   label: string;
   icon: ConsoleIconName;
+  category: NavigationCategoryId;
   adminOnly?: boolean;
   workflowOnly?: boolean;
   oversightOnly?: boolean;
@@ -49,85 +51,124 @@ type NavigationItem = {
   external?: boolean;
 };
 
+type DemoAccessView = "admin" | "fitter" | "front-counter";
+
+type NavigationCategoryId =
+  | "operations"
+  | "requests"
+  | "fleet"
+  | "workshop"
+  | "front-counter"
+  | "administration";
+
+type NavigationCategory = {
+  id: NavigationCategoryId;
+  label: string;
+  icon: ConsoleIconName;
+};
+
+const navigationCategories: NavigationCategory[] = [
+  { id: "operations", label: "Operations", icon: "console" },
+  { id: "requests", label: "Requests & Parts", icon: "parts" },
+  { id: "fleet", label: "Fleet & Assets", icon: "fleet" },
+  { id: "workshop", label: "Workshop", icon: "workshop" },
+  { id: "front-counter", label: "Front Counter", icon: "wallboard" },
+  { id: "administration", label: "Administration", icon: "settings" },
+];
+
 const navigation: NavigationItem[] = [
   {
     href: "/terminal",
     label: "Terminal",
     icon: "console",
+    category: "front-counter",
     frontCounterOnly: true,
   },
   {
     href: "/wallboard",
     label: "Wallboard",
     icon: "wallboard",
+    category: "front-counter",
     frontCounterOnly: true,
     external: true,
   },
-  { href: "/console", label: "Operations", icon: "console", adminOnly: true },
-  { href: "/my-jobs", label: "My Jobs", icon: "clipboard", adminOnly: true },
+  { href: "/console", label: "Live Queue", icon: "console", category: "operations", adminOnly: true },
+  { href: "/my-jobs", label: "Assigned Jobs", icon: "clipboard", category: "operations", adminOnly: true },
   {
     href: "/completed",
     label: "Completed Jobs",
     icon: "clipboard",
+    category: "operations",
     adminOnly: true,
   },
-  { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", adminOnly: true },
-  { href: "/scan", label: "Scan & Issue", icon: "parts", adminOnly: true },
-  { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
-  { href: "/plant-wallboard", label: "Plant Wallboard", icon: "wallboard", adminOnly: true, external: true },
-  { href: "/oversight", label: "Oversight", icon: "activity", oversightOnly: true },
-  { href: "/submit", label: "New request", icon: "ticket" },
-  { href: "/stores", label: "Stores Self-Service", icon: "parts" },
+  { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", category: "requests", adminOnly: true },
+  { href: "/scan", label: "Scan & Issue", icon: "parts", category: "requests", adminOnly: true },
+  { href: "/reports", label: "Reports", icon: "reports", category: "operations", adminOnly: true },
+  { href: "/plant-wallboard", label: "Plant Wallboard", icon: "wallboard", category: "operations", adminOnly: true, external: true },
+  { href: "/oversight", label: "Oversight", icon: "activity", category: "administration", oversightOnly: true },
+  { href: "/submit", label: "New Request", icon: "ticket", category: "requests" },
+  { href: "/stores", label: "Stores Self-Service", icon: "parts", category: "requests" },
   {
     href: "/requests",
-    label: "My requests",
+    label: "Requests",
     icon: "clipboard",
+    category: "requests",
     badge: "requester",
   },
-  { href: "/filters", label: "Filter Lookup", icon: "filter" },
-  { href: "/settings", label: "Settings", icon: "settings" },
-  { href: "/assets", label: "Asset Search", icon: "fleet", assetOnly: true },
-  { href: "/assets/inbox", label: "Asset Inbox", icon: "fleet", adminOnly: true },
-  { href: "/staff", label: "Staff", icon: "fleet", adminOnly: true },
-  { href: "/fleet/hours", label: "Asset Hours", icon: "fleet", adminOnly: true },
-  { href: "/fleet/hires", label: "ROAM Hires", icon: "fleet", adminOnly: true },
-  { href: "/fleet/scheduler", label: "Fleet Scheduler", icon: "fleet", adminOnly: true },
-  { href: "/fleet/workflow", label: "Return to hire", icon: "fleet", workflowOnly: true },
-  { href: "/fleet", label: "Fleet", icon: "fleet" },
-  { href: "/manitou", label: "Manitou Track", icon: "fleet", trackunitOnly: true },
-  { href: "/takeuchi", label: "Takeuchi Track", icon: "fleet", takeuchiOnly: true },
-  { href: "/livelink", label: "JCB LiveLink", icon: "fleet", liveLinkOnly: true },
+  { href: "/filters", label: "Filter Lookup", icon: "filter", category: "requests" },
+  { href: "/settings", label: "Settings", icon: "settings", category: "administration" },
+  { href: "/assets", label: "Overview", icon: "fleet", category: "fleet", assetOnly: true },
+  { href: "/assets/inbox", label: "Alerts", icon: "fleet", category: "fleet", adminOnly: true },
+  { href: "/staff", label: "Staff", icon: "fleet", category: "administration", adminOnly: true },
+  { href: "/fleet/hours", label: "Asset Hours", icon: "fleet", category: "fleet", adminOnly: true },
+  { href: "/fleet/hires", label: "ROAM Hires", icon: "fleet", category: "fleet", adminOnly: true },
+  { href: "/fleet/scheduler", label: "Reports", icon: "fleet", category: "fleet", adminOnly: true },
+  { href: "/fleet/workflow", label: "Return to Hire", icon: "fleet", category: "fleet", workflowOnly: true },
+  { href: "/fleet", label: "Fleet Map", icon: "fleet", category: "fleet" },
+  { href: "/manitou", label: "Manitou", icon: "fleet", category: "fleet", trackunitOnly: true },
+  { href: "/takeuchi", label: "Takeuchi", icon: "fleet", category: "fleet", takeuchiOnly: true },
+  { href: "/livelink", label: "JCB", icon: "fleet", category: "fleet", liveLinkOnly: true },
   {
     href: "/parts-knowledge",
     label: "Parts Knowledge",
     icon: "parts",
+    category: "requests",
     adminOnly: true,
   },
   {
     href: "/admin",
-    label: "Parts control",
+    label: "Parts Control",
     icon: "parts",
+    category: "requests",
     adminOnly: true,
     badge: "admin",
   },
-  { href: "/incidents", label: "Workshop", icon: "workshop", adminOnly: true },
+  { href: "/incidents", label: "Dashboard", icon: "workshop", category: "workshop", adminOnly: true },
+  { href: "/incidents/damage/new", label: "Report Damage", icon: "ticket", category: "workshop", adminOnly: true },
+  { href: "/incidents/tyres/new", label: "Tyre Breakdown", icon: "ticket", category: "workshop", adminOnly: true },
+  { href: "/incidents/tasks", label: "Workshop Tasks", icon: "activity", category: "workshop", adminOnly: true },
+  { href: "/incidents/tasks/completed", label: "Completed Tasks", icon: "clipboard", category: "workshop", adminOnly: true },
+  { href: "/incidents/closed", label: "Closed Incidents", icon: "clipboard", category: "workshop", adminOnly: true },
   {
     href: "/front-counter",
-    label: "Front Counter",
+    label: "Counter",
     icon: "wallboard",
+    category: "front-counter",
     adminOnly: true,
   },
-  { href: "/tasks", label: "Tasks", icon: "activity", badge: "tasks" },
+  { href: "/tasks", label: "Tasks", icon: "activity", category: "operations", badge: "tasks" },
   {
     href: "/control",
-    label: "Administration",
+    label: "Users & Access",
     icon: "settings",
+    category: "administration",
     adminOnly: true,
   },
   {
     href: "/wallboard",
     label: "Wallboard",
     icon: "wallboard",
+    category: "front-counter",
     adminOnly: true,
     external: true,
   },
@@ -147,10 +188,12 @@ export function ConsoleShell({
   isRelayAiOpen = false,
 }: ConsoleShellProps) {
   const pathname = usePathname();
-  const { adminBadgeCount, isAdmin, requesterUnreadCount, taskUnreadCount } =
+  const router = useRouter();
+  const { adminBadgeCount, isAdmin: authenticatedIsAdmin, requesterUnreadCount, taskUnreadCount } =
     useNotifications();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [openCategory, setOpenCategory] = useState<NavigationCategoryId | null>("operations");
   const [isInternalRelayAiOpen, setIsInternalRelayAiOpen] = useState(false);
   const [signedInUserName, setSignedInUserName] = useState("Signed in");
   const [hasCustomerFleet, setHasCustomerFleet] = useState(false);
@@ -160,11 +203,18 @@ export function ConsoleShell({
   const [hasLiveLinkAccess, setHasLiveLinkAccess] = useState(false);
   const [hasOversightAccess, setHasOversightAccess] = useState(false);
   const [isFrontCounter, setIsFrontCounter] = useState(false);
+  const [demoAccessView, setDemoAccessView] = useState<DemoAccessView>("admin");
   const [commandMachineResults, setCommandMachineResults] = useState<
     SmartSearchResult[]
   >([]);
   const [isCommandSearchFocused, setIsCommandSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const isAdmin = isLocalRolePreviewEnabled
+    ? demoAccessView === "admin"
+    : authenticatedIsAdmin;
+  const effectiveIsFrontCounter = isLocalRolePreviewEnabled
+    ? demoAccessView === "front-counter"
+    : isFrontCounter;
 
   useEffect(() => {
     let isMounted = true;
@@ -224,6 +274,13 @@ export function ConsoleShell({
     const timeoutId = window.setTimeout(() => {
       const saved = window.localStorage.getItem("relay-console-sidebar");
       setIsCollapsed(saved === "collapsed");
+
+      if (isLocalRolePreviewEnabled) {
+        const savedView = window.localStorage.getItem("relay-demo-access-view");
+        if (savedView === "admin" || savedView === "fitter" || savedView === "front-counter") {
+          setDemoAccessView(savedView);
+        }
+      }
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
@@ -333,7 +390,7 @@ export function ConsoleShell({
 
   const visibleNavigation = navigation.filter(
     (item) => {
-      if (isFrontCounter) {
+      if (effectiveIsFrontCounter) {
         return item.frontCounterOnly;
       }
 
@@ -350,6 +407,25 @@ export function ConsoleShell({
       );
     },
   );
+  const isNavigationItemActive = (item: NavigationItem) =>
+    pathname === item.href ||
+    (item.href === "/fleet" && ["/fleet/map", "/fleet/register", "/fleet/operations"].some((path)=>pathname.startsWith(path))) ||
+    (item.href === "/incidents" && pathname.startsWith("/incidents/") && !navigation.some((candidate)=>candidate.href!=="/incidents"&&pathname.startsWith(candidate.href))) ||
+    (!["/", "/fleet", "/incidents"].includes(item.href) && pathname.startsWith(`${item.href}/`)) ||
+    (item.href === "/console" && pathname.startsWith("/tickets/"));
+  const visibleCategories = navigationCategories
+    .map((category) => ({
+      ...category,
+      items: visibleNavigation.filter((item) => item.category === category.id),
+    }))
+    .filter((category) => category.items.length > 0);
+
+  useEffect(() => {
+    const activeCategory = navigation.find((item) => isNavigationItemActive(item))?.category;
+    if (activeCategory) setOpenCategory(activeCategory);
+  // Opening follows navigation; user-controlled accordion changes do not retrigger it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
   const effectiveRelayAiOpen = onOpenRelayAi
     ? isRelayAiOpen
     : isInternalRelayAiOpen;
@@ -392,7 +468,7 @@ export function ConsoleShell({
           <span className="console-sidebar-user" title={signedInUserName}>
             <strong>{signedInUserName}</strong>
             <small>
-              {isFrontCounter
+              {effectiveIsFrontCounter
                 ? "Front Counter"
                 : isAdmin
                   ? "Administrator"
@@ -413,36 +489,51 @@ export function ConsoleShell({
               setIsMobileOpen(false);
             }}
             className={`console-nav-item ${effectiveRelayAiOpen ? "console-nav-item-active" : ""}`}
-            title={isCollapsed && !isMobileOpen ? "RELAY AI" : undefined}
+            title={isCollapsed && !isMobileOpen ? "AssetCare AI" : undefined}
             aria-pressed={effectiveRelayAiOpen}
           >
             <ConsoleIcon name="message" className="console-nav-icon" />
-            <span className="console-nav-label">RELAY AI</span>
+            <span className="console-nav-label">AssetCare AI</span>
           </button>
-          {visibleNavigation.map((item) => {
-            const active =
-              pathname === item.href ||
-              (item.href !== "/" && pathname.startsWith(`${item.href}/`)) ||
-              (item.href === "/console" && pathname.startsWith("/tickets/"));
-            const badgeCount = getBadgeCount(item);
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                target={item.external ? "_blank" : undefined}
-                rel={item.external ? "noreferrer" : undefined}
-                onClick={() => setIsMobileOpen(false)}
-                className={`console-nav-item ${active ? "console-nav-item-active" : ""}`}
-                title={isCollapsed && !isMobileOpen ? item.label : undefined}
+          {visibleCategories.map((category) => {
+            const categoryActive = category.items.some(isNavigationItemActive);
+            const categoryOpen = openCategory === category.id && !isCollapsed;
+            const categoryBadgeCount = category.items.reduce((total,item)=>total+getBadgeCount(item),0);
+            return <div className={`console-nav-group ${categoryOpen ? "console-nav-group-open" : ""}`} key={category.id}>
+              <button
+                type="button"
+                className={`console-nav-item console-nav-category ${categoryActive ? "console-nav-category-active" : ""}`}
+                aria-expanded={categoryOpen}
+                aria-controls={`console-nav-${category.id}`}
+                title={isCollapsed && !isMobileOpen ? category.label : undefined}
+                onClick={()=>{
+                  if(isCollapsed){setIsCollapsed(false);window.localStorage.setItem("relay-console-sidebar","expanded");setOpenCategory(category.id);}
+                  else setOpenCategory(current=>current===category.id?null:category.id);
+                }}
               >
-                <ConsoleIcon name={item.icon} className="console-nav-icon" />
-                <span className="console-nav-label">{item.label}</span>{item.href === "/assets/inbox" && <AssetInboxBadge />}
-                {badgeCount > 0 ? (
-                  <NotificationBadge count={badgeCount} />
-                ) : null}
-              </Link>
-            );
+                <ConsoleIcon name={category.icon} className="console-nav-icon"/>
+                <span className="console-nav-label">{category.label}</span>
+                {categoryBadgeCount>0?<NotificationBadge count={categoryBadgeCount}/>:null}
+                <ConsoleIcon name="chevron" className="console-nav-chevron"/>
+              </button>
+              {categoryOpen?<div id={`console-nav-${category.id}`} className="console-nav-tabs">
+                {category.items.map((item)=>{
+                  const active=isNavigationItemActive(item),badgeCount=getBadgeCount(item);
+                  return <Link
+                    key={`${item.href}-${item.label}`}
+                    href={item.href}
+                    target={item.external?"_blank":undefined}
+                    rel={item.external?"noreferrer":undefined}
+                    onClick={()=>setIsMobileOpen(false)}
+                    className={`console-nav-tab ${active?"console-nav-tab-active":""}`}
+                  >
+                    <ConsoleIcon name={item.icon} className="console-nav-tab-icon"/>
+                    <span>{item.label}</span>{item.href==="/assets/inbox"&&<AssetInboxBadge/>}
+                    {badgeCount>0?<NotificationBadge count={badgeCount}/>:null}
+                  </Link>;
+                })}
+              </div>:null}
+            </div>;
           })}
         </nav>
 
@@ -526,6 +617,31 @@ export function ConsoleShell({
           ) : null}
 
           <div className="console-command-actions">
+            {isLocalRolePreviewEnabled ? (
+              <label className="console-demo-view-select">
+                <span>View as</span>
+                <select
+                  value={demoAccessView}
+                  onChange={(event) => {
+                    const nextView = event.target.value as DemoAccessView;
+                    setDemoAccessView(nextView);
+                    window.localStorage.setItem("relay-demo-access-view", nextView);
+                    router.push(
+                      nextView === "admin"
+                        ? "/console"
+                        : nextView === "front-counter"
+                          ? "/terminal"
+                          : "/requests",
+                    );
+                  }}
+                  aria-label="Preview access role"
+                >
+                  <option value="admin">Administrator</option>
+                  <option value="fitter">Fitter</option>
+                  <option value="front-counter">Front Counter</option>
+                </select>
+              </label>
+            ) : null}
             {actions}
             <ThemeToggleButton />
             <LogoutButton />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { recordAdminHealthEvent } from "@/lib/admin-health";
+import { isLocalDemoMode, isLocalRolePreviewEnabled } from "@/lib/demo-mode";
 import {
   clearCurrentUserWithRoleCache,
   getCurrentUserWithRole,
@@ -25,6 +26,11 @@ export function AuthGuard({
     let isMounted = true;
 
     async function checkSession() {
+      if (isLocalDemoMode) {
+        setIsChecking(false);
+        return;
+      }
+
       const supabase = getSupabaseClient();
 
       if (!supabase) {
@@ -53,17 +59,31 @@ export function AuthGuard({
           return;
         }
 
-        if (requiredRole === "admin" && !isAdmin) {
+        const previewRole = isLocalRolePreviewEnabled
+          ? window.localStorage.getItem("relay-demo-access-view")
+          : null;
+        const effectiveIsAdmin = previewRole
+          ? previewRole === "admin"
+          : isAdmin;
+        const effectiveIsFrontCounter = previewRole
+          ? previewRole === "front-counter"
+          : isFrontCounter;
+
+        if (requiredRole === "admin" && !effectiveIsAdmin) {
           router.replace("/");
           return;
         }
 
-        if (requiredRole === "front-counter" && !isFrontCounter) {
-          router.replace(isAdmin ? "/console" : "/requests");
+        if (requiredRole === "front-counter" && !effectiveIsFrontCounter) {
+          router.replace(effectiveIsAdmin ? "/console" : "/requests");
           return;
         }
 
-        if (requiredRole === "admin-or-front-counter" && !isAdmin && !isFrontCounter) {
+        if (
+          requiredRole === "admin-or-front-counter" &&
+          !effectiveIsAdmin &&
+          !effectiveIsFrontCounter
+        ) {
           router.replace("/requests");
           return;
         }

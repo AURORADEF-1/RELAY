@@ -266,7 +266,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#f8fafc_0%,#eef2f7_48%,#e2e8f0_100%)] px-6 py-8 text-slate-900 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <nav className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
+        <nav className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-5 py-4 shadow-[0_18px_55px_-34px_rgba(15,23,42,0.35)] backdrop-blur">
           <RelayLogo />
           <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
             {!isLoggedIn ? (
@@ -342,7 +342,7 @@ export default function Home() {
           </div>
         </nav>
 
-        <div className="flex min-h-[calc(100vh-9rem)] items-center">
+        <div className="flex min-h-[calc(100vh-9rem)] items-start">
           <section className="w-full overflow-hidden rounded-[2rem] border border-white/80 bg-white/90 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur">
             <div className="grid gap-8 px-8 py-10 sm:px-10 sm:py-12 lg:grid-cols-[1.08fr_0.92fr] lg:px-12 lg:py-14">
               <div className="flex flex-col justify-between gap-8">
@@ -358,7 +358,7 @@ export default function Home() {
                       </p>
                     ) : null}
                     <h1 className="text-8xl font-semibold tracking-[-0.12em] text-slate-950 sm:text-[7rem] lg:text-[9.5rem]">
-                      RELAY
+                      ASSETCARE+
                     </h1>
                     <p className="max-w-lg text-lg font-medium tracking-[-0.02em] text-slate-600">
                       Parts requests, updates, and operator activity in one view.
@@ -371,7 +371,7 @@ export default function Home() {
                     <>
                       <Link
                         href="/submit"
-                        className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        className="inline-flex h-12 items-center justify-center rounded-xl bg-[color:var(--accent)] px-6 text-sm font-semibold text-[color:var(--accent-foreground)] transition hover:bg-[color:var(--brand-primary-strong)]"
                       >
                         Submit Ticket
                       </Link>
@@ -390,7 +390,7 @@ export default function Home() {
                   ) : (
                     <Link
                       href="/login"
-                      className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      className="inline-flex h-12 items-center justify-center rounded-xl bg-[color:var(--accent)] px-6 text-sm font-semibold text-[color:var(--accent-foreground)] transition hover:bg-[color:var(--brand-primary-strong)]"
                     >
                       Login
                     </Link>
@@ -399,7 +399,7 @@ export default function Home() {
                     <>
                       <Link
                         href="/console"
-                        className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        className="inline-flex h-12 items-center justify-center rounded-xl bg-[color:var(--accent)] px-6 text-sm font-semibold text-[color:var(--accent-foreground)] transition hover:bg-[color:var(--brand-primary-strong)]"
                       >
                         Operations Console
                       </Link>
@@ -448,7 +448,7 @@ export default function Home() {
                     <button
                       type="submit"
                       disabled={isSearchLoading}
-                      className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      className="inline-flex h-12 items-center justify-center rounded-xl bg-[color:var(--accent)] px-5 text-sm font-semibold text-[color:var(--accent-foreground)] transition hover:bg-[color:var(--brand-primary-strong)]"
                     >
                       {isSearchLoading ? "Searching..." : "Search"}
                     </button>
@@ -507,6 +507,22 @@ export default function Home() {
 }
 
 function RequestUpdateItem({ update }: { update: HomepageUpdate }) {
+  const [relativeTime, setRelativeTime] = useState("recently");
+
+  useEffect(() => {
+    const refreshRelativeTime = () => {
+      setRelativeTime(formatRelativeTime(update.updated_at));
+    };
+
+    const initialTimer = window.setTimeout(refreshRelativeTime, 0);
+    const refreshTimer = window.setInterval(refreshRelativeTime, 60_000);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(refreshTimer);
+    };
+  }, [update.updated_at]);
+
   return (
     <article
       className={`rounded-2xl border bg-white px-4 py-4 shadow-[0_18px_40px_-36px_rgba(15,23,42,0.55)] ${
@@ -532,7 +548,7 @@ function RequestUpdateItem({ update }: { update: HomepageUpdate }) {
         </div>
       </div>
       <p className="mt-3 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-        Updated {formatRelativeTime(update.updated_at)}
+        Updated {relativeTime}
       </p>
     </article>
   );
