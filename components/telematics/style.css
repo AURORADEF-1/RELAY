@@ -76,7 +76,7 @@
 .fleet-filter-rail .fleet-preferences-footer{align-items:stretch;flex-direction:column}
 .fleet-filter-rail .fleet-preferences-footer button{width:100%}
 .fleet-map-split>.jcb-grid{grid-template-columns:minmax(0,1fr);gap:0}
-.fleet-map-split .jcb-results{display:grid;grid-template-columns:minmax(300px,36%) minmax(0,64%);grid-template-rows:auto minmax(528px,72vh) auto;min-height:620px;border:1px solid var(--border-strong);border-radius:12px;overflow:hidden;background:var(--background-panel)}
+.fleet-map-split .jcb-results{display:grid;grid-template-columns:fit-content(32rem) minmax(0,1fr);grid-template-rows:auto minmax(528px,72vh) auto;min-height:620px;border:1px solid var(--border-strong);border-radius:12px;overflow:hidden;background:var(--background-panel)}
 .fleet-map-split .jcb-results>.jcb-actions{grid-column:2;grid-row:1;margin:0;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--background-panel-strong)}
 .fleet-map-split .jcb-results>.jcb-actions button{min-height:32px;padding:5px 9px;font-size:.68rem}
 .fleet-map-split .jcb-results>.jcb-actions .fleet-map-expand{margin-left:auto}
@@ -109,7 +109,7 @@
 .fleet-map-split.fleet-map-has-selection>.jcb-grid{grid-template-columns:minmax(0,1fr) minmax(290px,340px);gap:10px}
 .fleet-map-split .jcb-detail{display:none}
 .fleet-map-split.fleet-map-has-selection .jcb-detail{display:block;max-height:calc(72vh + 42px);overflow:auto}
-@media(max-width:1200px){.fleet-map-split .jcb-results{grid-template-columns:minmax(260px,42%) minmax(0,58%)}}
+@media(max-width:1200px){.fleet-map-split .jcb-results{grid-template-columns:fit-content(28rem) minmax(0,1fr)}}
 @media(max-width:800px){.fleet-control-room-combined{display:block}.fleet-filter-rail .fleet-preferences{height:auto;margin-bottom:8px}.fleet-map-split .jcb-results{display:flex;flex-direction:column;min-height:0}.fleet-map-split .jcb-results>.jcb-actions{order:1}.fleet-map-split .jcb-results>.jcb-map{order:2;min-height:380px;height:52vh}.fleet-map-split .jcb-results>p{order:3;border-right:0}.fleet-map-split .jcb-machine-list{order:4;height:auto;max-height:42vh;border-right:0}.fleet-map-split .jcb-results>nav.jcb-actions{order:5;border-right:0}.fleet-map-split.fleet-map-has-selection>.jcb-grid{grid-template-columns:1fr}.fleet-map-split.fleet-map-has-selection .jcb-detail{max-height:none}}
 .fleet-map-fullscreen .jcb-map{height:auto;flex:1}
 
