@@ -9,6 +9,7 @@ describe('asset title casing',()=>{
     expect(titleCaseAssetText('Doosan DX170W-7 excavator Hsr')).toBe('Doosan DX170W-7 Excavator HSR');
     expect(titleCaseAssetText('JCB 535-125 Lb')).toBe('JCB 535-125 LB');
     expect(titleCaseAssetText('JCB 9T-1 cabbed dumper (Sh)')).toBe('JCB 9T-1 Cabbed Dumper (SH)');
+    expect(titleCaseAssetText('XCMG XE135E excavator bladed Rt')).toBe('XCMG XE135E Excavator Bladed RT');
     expect(titleCaseAssetText('FL22 Vcw-Spare')).toBe('FL22 VCW-Spare');
   });
 
