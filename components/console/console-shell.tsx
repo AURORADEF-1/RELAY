@@ -51,7 +51,18 @@ type NavigationItem = {
   external?: boolean;
 };
 
-type DemoAccessView = "admin" | "fitter" | "front-counter";
+type DemoAccessView = "admin" | "fitter" | "workshop" | "transport" | "office" | "parts" | "front-counter" | "assetcare";
+
+const previewProfileLabels: Record<DemoAccessView, string> = {
+  admin: "Admin",
+  fitter: "Fitter",
+  workshop: "Workshop",
+  transport: "Transport",
+  office: "Office",
+  parts: "Parts",
+  "front-counter": "Front Counter",
+  assetcare: "AssetCare+ User",
+};
 
 type NavigationCategoryId =
   | "operations"
@@ -207,12 +218,14 @@ export function ConsoleShell({
   >([]);
   const [isCommandSearchFocused, setIsCommandSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const isAdmin = isLocalRolePreviewEnabled
+  const canPreviewRole = isLocalRolePreviewEnabled || authenticatedIsAdmin;
+  const isAdmin = canPreviewRole
     ? demoAccessView === "admin"
     : authenticatedIsAdmin;
-  const effectiveIsFrontCounter = isLocalRolePreviewEnabled
+  const effectiveIsFrontCounter = canPreviewRole
     ? demoAccessView === "front-counter"
     : isFrontCounter;
+  const isAssetCarePreview = canPreviewRole && demoAccessView === "assetcare";
 
   useEffect(() => {
     let isMounted = true;
@@ -273,11 +286,9 @@ export function ConsoleShell({
       const saved = window.localStorage.getItem("relay-console-sidebar");
       setIsCollapsed(saved === "collapsed");
 
-      if (isLocalRolePreviewEnabled) {
-        const savedView = window.localStorage.getItem("relay-demo-access-view");
-        if (savedView === "admin" || savedView === "fitter" || savedView === "front-counter") {
-          setDemoAccessView(savedView);
-        }
+      const savedView = window.localStorage.getItem("relay-demo-access-view");
+      if (savedView && savedView in previewProfileLabels) {
+        setDemoAccessView(savedView as DemoAccessView);
       }
     }, 0);
 
@@ -388,6 +399,10 @@ export function ConsoleShell({
 
   const visibleNavigation = navigation.filter(
     (item) => {
+      if (isAssetCarePreview) {
+        return item.href === "/fleet";
+      }
+
       if (effectiveIsFrontCounter) {
         return item.frontCounterOnly;
       }
@@ -414,6 +429,7 @@ export function ConsoleShell({
   const visibleCategories = navigationCategories
     .map((category) => ({
       ...category,
+      label: isAssetCarePreview && category.id === "fleet" ? "Fleet" : category.label,
       items: visibleNavigation.filter((item) => item.category === category.id),
     }))
     .filter((category) => category.items.length > 0);
@@ -467,17 +483,21 @@ export function ConsoleShell({
           <span className="console-sidebar-user" title={signedInUserName}>
             <strong>{signedInUserName}</strong>
             <small>
-              {effectiveIsFrontCounter
+              {isAssetCarePreview
+                ? "AssetCare+ User"
+                : effectiveIsFrontCounter
                 ? "Front Counter"
                 : isAdmin
                   ? "Administrator"
-                  : "Fitter access"}
+                  : canPreviewRole
+                    ? previewProfileLabels[demoAccessView]
+                    : "Fitter access"}
             </small>
           </span>
         </div>
 
         <nav className="console-navigation" aria-label="Primary navigation">
-          <button
+          {!isAssetCarePreview ? <button
             type="button"
             onClick={() => {
               if (onOpenRelayAi) {
@@ -493,7 +513,7 @@ export function ConsoleShell({
           >
             <ConsoleIcon name="message" className="console-nav-icon" />
             <span className="console-nav-label">AssetCare AI</span>
-          </button>
+          </button> : null}
           {visibleCategories.map((category) => {
             const categoryActive = category.items.some(isNavigationItemActive);
             const categoryOpen = openCategory === category.id && !isCollapsed;
@@ -618,7 +638,7 @@ export function ConsoleShell({
           ) : null}
 
           <div className="console-command-actions">
-            {isLocalRolePreviewEnabled ? (
+            {canPreviewRole ? (
               <label className="console-demo-view-select">
                 <span>View as</span>
                 <select
@@ -632,14 +652,21 @@ export function ConsoleShell({
                         ? "/console"
                         : nextView === "front-counter"
                           ? "/terminal"
+                          : nextView === "assetcare"
+                            ? "/fleet/map"
                           : "/requests",
                     );
                   }}
                   aria-label="Preview access role"
                 >
-                  <option value="admin">Administrator</option>
                   <option value="fitter">Fitter</option>
+                  <option value="workshop">Workshop</option>
+                  <option value="transport">Transport</option>
+                  <option value="office">Office</option>
+                  <option value="parts">Parts</option>
+                  <option value="admin">Admin</option>
                   <option value="front-counter">Front Counter</option>
+                  <option value="assetcare">AssetCare+ User</option>
                 </select>
               </label>
             ) : null}
