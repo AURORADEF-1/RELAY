@@ -1,0 +1,77 @@
+export const accessGroupIds = [
+  "admin",
+  "front_counter",
+  "parts",
+  "workshop",
+  "office",
+  "transport",
+  "fitter",
+  "assetcare",
+] as const;
+
+export type AccessGroupId = (typeof accessGroupIds)[number];
+
+export const accessGroupLabels: Record<AccessGroupId, string> = {
+  admin: "Admin",
+  front_counter: "Front Counter",
+  parts: "Parts",
+  workshop: "Workshop",
+  office: "Office",
+  transport: "Transport",
+  fitter: "Fitter",
+  assetcare: "AssetCare+ User",
+};
+
+export function normalizeAccessGroup(
+  value: unknown,
+  fallback: AccessGroupId = "fitter",
+): AccessGroupId {
+  return typeof value === "string" && accessGroupIds.includes(value as AccessGroupId)
+    ? (value as AccessGroupId)
+    : fallback;
+}
+
+export const accessGroupDescriptions: Record<AccessGroupId, string> = {
+  admin: "All RELAY areas and access administration.",
+  front_counter: "Counter terminal and wallboard only.",
+  parts: "Requests, pre-pick, scan and issue, Parts Knowledge, Parts Control and RELAY AI.",
+  workshop: "Requests, workshop work, Fleet Map, reports and RELAY AI.",
+  office: "Live Queue, requests, Fleet Dashboard, reports and RELAY AI.",
+  transport: "Live Queue, requests, Fleet Map, Fleet Register, Trip History, reports and RELAY AI.",
+  fitter: "New requests, own requests, assigned tasks, Fleet Map and RELAY AI.",
+  assetcare: "Fleet dashboard, Fleet Map and Fleet Register.",
+};
+
+const exactGroupRoutes: Partial<Record<AccessGroupId, string[]>> = {
+  front_counter: ["/terminal", "/wallboard"],
+  fitter: ["/fleet"],
+  workshop: ["/fleet"],
+  transport: ["/console", "/requests", "/fleet", "/fleet/map", "/fleet/register", "/fleet/trips", "/reports"],
+  office: ["/console", "/requests", "/assets", "/fleet", "/reports"],
+  assetcare: ["/assets", "/fleet", "/fleet/map", "/fleet/register"],
+};
+
+const prefixGroupRoutes: Partial<Record<AccessGroupId, string[]>> = {
+  fitter: ["/submit", "/requests", "/tasks", "/tickets/", "/fleet/map"],
+  workshop: ["/requests", "/tickets/", "/incidents", "/fleet/map", "/reports"],
+  parts: ["/requests", "/tickets/", "/pre-pick", "/scan", "/parts-knowledge", "/admin"],
+};
+
+export function canAccessPath(group: AccessGroupId, pathname: string) {
+  if (group === "admin") return true;
+  if (pathname === "/" || pathname === "/login") return true;
+  if (exactGroupRoutes[group]?.includes(pathname)) return true;
+  return Boolean(prefixGroupRoutes[group]?.some((prefix) =>
+    pathname === prefix || (prefix.endsWith("/") ? pathname.startsWith(prefix) : pathname.startsWith(`${prefix}/`)),
+  ));
+}
+
+export function accessGroupHome(group: AccessGroupId) {
+  if (group === "admin") return "/console";
+  if (group === "front_counter") return "/terminal";
+  if (group === "assetcare" || group === "transport") return "/fleet/map";
+  if (group === "office") return "/assets";
+  if (group === "workshop") return "/incidents";
+  if (group === "parts") return "/admin";
+  return "/requests";
+}

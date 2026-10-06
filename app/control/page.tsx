@@ -8,12 +8,14 @@ import { AdminOperatorManagementPanel } from "@/components/admin-operator-manage
 import { AdminOversightAccessPanel } from "@/components/admin-oversight-access-panel";
 import { AdminOperationsOverview } from "@/components/admin-operations-overview";
 import { AdminSessionControlPanel } from "@/components/admin-session-control-panel";
+import { AdminAccessGroupsPanel } from "@/components/admin-access-groups-panel";
 import { ConsoleIcon } from "@/components/console/console-icon";
 import { ConsoleShell } from "@/components/console/console-shell";
 import { PageHeader } from "@/components/layout/page-header";
 
 const controlSections = [
   { href: "#overview", label: "Operations overview" },
+  { href: "#access-groups", label: "Access groups" },
   { href: "#broadcasts", label: "User announcements" },
   { href: "/front-counter", label: "Front Counter" },
   { href: "#operators", label: "Operator names" },
@@ -63,6 +65,9 @@ export default function ControlPage() {
           </nav>
 
           <div className="admin-control-workspace">
+            <div id="access-groups" className="admin-control-section-anchor">
+              <AdminAccessGroupsPanel />
+            </div>
             <div id="overview" className="admin-control-section-anchor">
               <AdminOperationsOverview />
             </div>
