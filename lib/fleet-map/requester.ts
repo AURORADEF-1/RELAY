@@ -6,7 +6,7 @@ import {applyAssetGroups,assetGroupKeys,type AssetGroup} from './groups';
 // Classify before deduplication: a People alias must never disappear behind a
 // manufacturer record for the same asset. Conflicting People matches also deny.
 export function requesterMachines(machines:LinkedJcbMachine[],groups:AssetGroup[]){
- const peopleKeys=new Set(groups.filter(g=>g.category.trim().toLowerCase()==='people').map(g=>g.lookup_hash));
+ const peopleKeys=new Set(groups.filter(g=>g.category?.trim().toLowerCase()==='people').map(g=>g.lookup_hash));
  const keys=(m:LinkedJcbMachine)=>[...assetGroupKeys(m.equipmentId),...(m.relay?assetGroupKeys(m.relay.machine_number):[])];
  const identities=(m:LinkedJcbMachine)=>[`${m.source}:${m.pin}`,...keys(m),...(m.relay?[`relay:${m.relay.id}`]:[])];
  const blocked=new Set<string>();
