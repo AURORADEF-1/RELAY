@@ -1,6 +1,6 @@
 const colours:Record<string,string>={
- 'Hydraulic Services':'#0ea5e9','Non Shared':'#64748b',Operators:'#f97316',Plant:'#22c55e',
- 'Plant Office':'#a855f7',Stock:'#eab308',Transport:'#ef4444',Workshop:'#14b8a6',Yard:'#ec4899',Unmatched:'#94a3b8',
+ 'Hydraulic Services':'#8b5cf6','Non Shared':'#808000',Operators:'#2563eb',Plant:'#ef4444',
+ 'Plant Office':'#64748b',Stock:'#eab308',Transport:'#f97316',Workshop:'#ec4899',Yard:'#38bdf8',Unmatched:'#94a3b8',
 };
 const fallback=['#2563eb','#16a34a','#dc2626','#9333ea','#ca8a04','#0891b2','#c026d3','#4f46e5'];
 export function costCentreColour(group:string|null|undefined){
