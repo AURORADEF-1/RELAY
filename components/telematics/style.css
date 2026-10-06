@@ -42,6 +42,10 @@
 .console-content-fleet-map{padding:clamp(1rem,1.6vw,1.5rem)}
 .console-shell-collapsed .console-content-fleet-map{width:100%;max-width:none;margin-inline:0}
 .fleet-workspace-combined{box-sizing:border-box;width:100%;max-width:none;margin:0;padding:0}
+.fleet-workspace-combined .fleet-machine-select>.fleet-status,
+.fleet-workspace-combined .fleet-machine-select>.fleet-status+small,
+.fleet-workspace-combined .jcb-detail>.fleet-status,
+.fleet-workspace-combined .jcb-detail>.fleet-status+small{display:none}
 .fleet-page-header{min-height:48px;margin-bottom:8px;gap:10px}
 .fleet-page-header h1{margin:0;font-size:22px;line-height:1.1}
 .fleet-page-header p{margin:3px 0 0;font-size:13px}
