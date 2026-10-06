@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 export type AssetGroup={lookup_hash:string;cost_centre:string;category?:string};
 export const normaliseLabel=(value:string)=>value.trim().replace(/\s+/g,' ').toUpperCase();
+export const hasFiveDigitFleetNumber=(value:string)=>/^\d{5}(?:$|\s+[-–—]\s+)/.test(normaliseLabel(value));
 export function assetGroupKeys(label:string){
  const name=normaliseLabel(label),keys=[`label:${name}`];
  const fleet=/^(\d{4,6})(?:$|\s+[-–—]\s+|\s+\(HIDDEN\)$)/.exec(name)?.[1];
@@ -16,6 +17,7 @@ export function applyAssetGroups(machines:LinkedJcbMachine[],groups:AssetGroup[]
   const matches=keys.flatMap(k=>byKey.has(k)?[byKey.get(k)!]:[]);
   const unique=[...new Set(matches.map(g=>`${g.cost_centre}\0${g.category??''}`))];
   const g=unique.length===1?matches[0]:null;
+  if(matches.length===0&&(hasFiveDigitFleetNumber(m.equipmentId)||!!m.relay&&hasFiveDigitFleetNumber(m.relay.machine_number)))return {...m,assetGroup:'Plant',assetCategory:'Plant'};
   return {...m,assetGroup:g?.cost_centre??(m.source==='assetcare'?'Unmatched':'Ungrouped'),assetCategory:g?.category??(m.source!=='assetcare'?'Plant':'Unclassified')};
  });
 }
