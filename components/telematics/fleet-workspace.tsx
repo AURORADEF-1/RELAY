@@ -1,5 +1,6 @@
 "use client";
 import {useAssetFlags,FlagMachine,FlaggedList} from '@/components/assets/flags';
+import {assetRequest} from '@/components/assets/request';
 import {flagForMachine} from '@/lib/assets/flags';
 import {AssetTravel} from '@/components/assets/travel-summary';
 import {CollectionHealth} from './collection-health';
@@ -53,7 +54,7 @@ const machineTitle=(machine:LinkedJcbMachine)=>machine.source==='assetcare'&&!ma
 const costCentres=['Hydraulic Services','Non Shared','Operators','Plant','Plant Office','Stock','Transport','Workshop','Yard'];
 function CostCentreAssignment({machine,onSaved}:{machine:LinkedJcbMachine;onSaved:()=>void}){
  const [costCentre,setCostCentre]=useState(''),[saving,setSaving]=useState(false),[error,setError]=useState('');
- async function save(){if(!costCentre)return;setSaving(true);setError('');try{const token=await getSupabaseAccessToken();if(!token)throw new Error('Sign in required.');const response=await fetch('/api/assets/cost-centre',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({label:machine.equipmentId,costCentre})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Unable to save cost centre.');onSaved();}catch(e){setError(e instanceof Error?e.message:'Unable to save cost centre.');}finally{setSaving(false);}}
+ async function save(){if(!costCentre)return;setSaving(true);setError('');try{await assetRequest('/api/assets/cost-centre',undefined,{label:machine.equipmentId,costCentre});onSaved();}catch(e){setError(e instanceof Error?e.message:'Unable to save cost centre.');}finally{setSaving(false);}}
  return <div className="fleet-cost-centre" onClick={e=>e.stopPropagation()}><select aria-label={`Cost centre for ${machine.equipmentId}`} value={costCentre} onChange={e=>setCostCentre(e.target.value)}><option value="">Choose cost centre</option>{costCentres.map(option=><option key={option}>{option}</option>)}</select><button type="button" disabled={!costCentre||saving} onClick={()=>void save()}>{saving?'Saving…':'Save'}</button>{error&&<small role="alert">{error}</small>}</div>;
 }
 export function TrackingWorkspace({combined=false,request=api,provider="trackunit"}:{combined?:boolean;request?:typeof api;provider?:"trackunit"|"takeuchi"}){
