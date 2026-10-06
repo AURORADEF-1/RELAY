@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   title: "AssetCare+",
   description: "MLP Parts Request Workflow",
   applicationName: "AssetCare+",
+  icons: {
+    icon: [{ url: "/assetcare-plus-logo.png", type: "image/png" }],
+    shortcut: "/assetcare-plus-logo.png",
+    apple: "/assetcare-plus-logo.png",
+  },
   robots: {
     index: false,
     follow: false,
