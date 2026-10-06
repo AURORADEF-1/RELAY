@@ -11,6 +11,10 @@ it('groups five-digit fleet numbers as Plant like the tested fleet map',()=>{
  expect(hasFiveDigitFleetNumber('25325 - Takeuchi TB230 Mini Excavator')).toBe(true);
  expect(applyAssetGroups([{...machine,equipmentId:'25325 - Takeuchi TB230 Mini Excavator'}],[])[0]).toMatchObject({assetGroup:'Plant',assetCategory:'Plant'});
 });
+it('groups otherwise unmapped provider machines as Plant without hiding unmatched AssetCare records',()=>{
+ expect(applyAssetGroups([{...machine,source:'jcb',equipmentId:'SERIAL-ONLY'}],[])[0]).toMatchObject({assetGroup:'Plant',assetCategory:'Plant'});
+ expect(applyAssetGroups([{...machine,equipmentId:'ASSET WITHOUT A COST CENTRE'}],[])[0]).toMatchObject({assetGroup:'Unmatched',assetCategory:'Unclassified'});
+});
 it('normalizes registrations, avoids ambiguous matches and preserves unknown classification',()=>{
  expect(assetGroupKeys(' AB12 CDE - Driver A ')[1]).toBe(assetGroupKeys('ab12cde - Driver B')[1]);
  const groups=[{lookup_hash:assetGroupKeys(machine.equipmentId)[0],cost_centre:'Stock',category:'Stock'},{lookup_hash:assetGroupKeys(machine.equipmentId)[1],cost_centre:'Plant',category:'Plant'}];

@@ -18,6 +18,6 @@ export function applyAssetGroups(machines:LinkedJcbMachine[],groups:AssetGroup[]
   const unique=[...new Set(matches.map(g=>`${g.cost_centre}\0${g.category??''}`))];
   const g=unique.length===1?matches[0]:null;
   if(matches.length===0&&(hasFiveDigitFleetNumber(m.equipmentId)||!!m.relay&&hasFiveDigitFleetNumber(m.relay.machine_number)))return {...m,assetGroup:'Plant',assetCategory:'Plant'};
-  return {...m,assetGroup:g?.cost_centre??(m.source==='assetcare'?'Unmatched':'Ungrouped'),assetCategory:g?.category??(m.source!=='assetcare'?'Plant':'Unclassified')};
+  return {...m,assetGroup:g?.cost_centre??(m.source==='assetcare'?'Unmatched':'Plant'),assetCategory:g?.category??(m.source!=='assetcare'?'Plant':'Unclassified')};
  });
 }
