@@ -42,10 +42,9 @@
 .console-content-fleet-map{padding:clamp(1rem,1.6vw,1.5rem)}
 .console-shell-collapsed .console-content-fleet-map{width:100%;max-width:none;margin-inline:0}
 .fleet-workspace-combined{box-sizing:border-box;width:100%;max-width:none;margin:0;padding:0}
-.fleet-workspace-combined .fleet-machine-select>.fleet-status,
 .fleet-workspace-combined .fleet-machine-select>.fleet-status+small,
 .fleet-workspace-combined .jcb-detail>.fleet-status,
-.fleet-workspace-combined .jcb-detail>.fleet-status+small{display:none}
+.fleet-workspace-combined .jcb-detail>.fleet-status+small{display:none!important}
 .fleet-page-header{min-height:48px;margin-bottom:8px;gap:10px}
 .fleet-page-header h1{margin:0;font-size:22px;line-height:1.1}
 .fleet-page-header p{margin:3px 0 0;font-size:13px}
@@ -102,7 +101,9 @@
 .fleet-map-split .jcb-machine small{grid-column:1/-1;margin:2px 0 0;font-size:.62rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fleet-map-split .jcb-machine .fleet-last-reported{grid-column:1;margin-top:3px;color:var(--foreground-subtle);font-size:.58rem;font-weight:500;line-height:1.2}
 .fleet-map-split .jcb-machine .fleet-current-location{grid-column:1;color:var(--foreground);font-size:.62rem;font-weight:600;line-height:1.25}
-.fleet-map-split .jcb-machine .fleet-battery-voltage{display:flex;grid-column:2;grid-row:1/5;align-self:center;align-items:flex-end;flex-direction:column;margin-left:10px;color:var(--foreground)}
+.fleet-map-split .fleet-machine-select>.fleet-status{grid-column:2;grid-row:1;align-self:start;justify-self:end;margin:0 0 2px 10px;padding:2px 6px;border-radius:5px;font-size:.56rem!important;line-height:1.15;white-space:nowrap}
+.fleet-map-split .fleet-machine-select>.fleet-status~.fleet-status{display:none!important}
+.fleet-map-split .jcb-machine .fleet-battery-voltage{display:flex;grid-column:2;grid-row:2/5;align-self:start;align-items:flex-end;flex-direction:column;margin-left:10px;color:var(--foreground)}
 .fleet-map-split .jcb-machine .fleet-battery-voltage small{margin:0;font-size:.55rem;font-weight:500;color:var(--foreground-subtle)}
 .fleet-map-split .jcb-machine .fleet-battery-voltage b{font-size:.68rem;white-space:nowrap}
 .fleet-map-split .fleet-flag-badge{grid-column:1;grid-row:auto;justify-self:start;margin-top:2px;font-size:.6rem}
