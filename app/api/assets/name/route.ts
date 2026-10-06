@@ -5,7 +5,7 @@ import {JcbError} from '@/lib/integrations/jcb/client';
 import {jcbError,jcbJson} from '@/lib/integrations/jcb/server';
 
 export async function POST(request:NextRequest){try{
- await authorizeAssets(request,true);
+ await authorizeAssets(request,true,['admin','transport','office','workshop']);
  const body=await request.json().catch(()=>null) as {pin?:unknown;name?:unknown}|null;
  if(!body||typeof body.pin!=='string'||!body.pin.trim()||body.pin.length>250||typeof body.name!=='string')throw new JcbError('Enter a valid asset name.',400);
  const name=body.name.trim();

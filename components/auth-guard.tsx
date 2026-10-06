@@ -9,6 +9,7 @@ import {
   getCurrentUserWithRole,
 } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
+import { accessGroupHome, canAccessPath } from "@/lib/access-groups";
 
 export function AuthGuard({
   children,
@@ -45,7 +46,7 @@ export function AuthGuard({
       }
 
       try {
-        const { user, isAdmin, isFrontCounter } = await getCurrentUserWithRole(supabase, {
+        const { user, isAdmin, isFrontCounter, accessGroup } = await getCurrentUserWithRole(supabase, {
           forceFresh: true,
         });
 
@@ -69,18 +70,25 @@ export function AuthGuard({
           ? previewRole === "front-counter"
           : isFrontCounter;
 
-        if (requiredRole === "admin" && !effectiveIsAdmin) {
+        if (!previewRole && accessGroup && !canAccessPath(accessGroup, pathname)) {
+          router.replace(accessGroupHome(accessGroup));
+          return;
+        }
+
+        const groupControlsRoute = !previewRole && accessGroup !== null && accessGroup !== "admin";
+
+        if (!groupControlsRoute && requiredRole === "admin" && !effectiveIsAdmin) {
           router.replace("/");
           return;
         }
 
-        if (requiredRole === "front-counter" && !effectiveIsFrontCounter) {
+        if (!groupControlsRoute && requiredRole === "front-counter" && !effectiveIsFrontCounter) {
           router.replace(effectiveIsAdmin ? "/console" : "/requests");
           return;
         }
 
         if (
-          requiredRole === "admin-or-front-counter" &&
+          !groupControlsRoute && requiredRole === "admin-or-front-counter" &&
           !effectiveIsAdmin &&
           !effectiveIsFrontCounter
         ) {

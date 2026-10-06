@@ -18,6 +18,7 @@ import type { SmartSearchResult } from "@/lib/admin-smart-search";
 import { isLocalRolePreviewEnabled } from "@/lib/demo-mode";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
+import { accessGroupLabels, type AccessGroupId } from "@/lib/access-groups";
 
 type ConsoleShellProps = {
   children: React.ReactNode;
@@ -49,6 +50,7 @@ type NavigationItem = {
   frontCounterOnly?: boolean;
   badge?: "admin" | "requester" | "tasks";
   external?: boolean;
+  groups?: AccessGroupId[];
 };
 
 type DemoAccessView = "admin" | "fitter" | "workshop" | "transport" | "office" | "parts" | "front-counter" | "assetcare";
@@ -103,7 +105,7 @@ const navigation: NavigationItem[] = [
     frontCounterOnly: true,
     external: true,
   },
-  { href: "/console", label: "Live Queue", icon: "console", category: "operations", adminOnly: true },
+  { href: "/console", label: "Live Queue", icon: "console", category: "operations", adminOnly: true, groups: ["admin", "office", "transport"] },
   { href: "/my-jobs", label: "Assigned Jobs", icon: "clipboard", category: "operations", adminOnly: true },
   {
     href: "/completed",
@@ -183,6 +185,27 @@ const navigation: NavigationItem[] = [
   },
 ];
 
+const navigationGroups: Partial<Record<string, AccessGroupId[]>> = {
+  "/submit": ["fitter"],
+  "/console": ["office", "transport"],
+  "/requests": ["fitter", "workshop", "transport", "office", "parts"],
+  "/tasks": ["fitter", "workshop"],
+  "/pre-pick": ["parts"],
+  "/scan": ["parts"],
+  "/parts-knowledge": ["parts"],
+  "/admin": ["parts"],
+  "/incidents": ["workshop"],
+  "/incidents/damage/new": ["workshop"],
+  "/incidents/tyres/new": ["workshop"],
+  "/incidents/tasks": ["workshop"],
+  "/incidents/tasks/completed": ["workshop"],
+  "/incidents/closed": ["workshop"],
+  "/assets": ["office", "assetcare"],
+  "/fleet": ["fitter", "workshop", "transport", "office", "assetcare"],
+  "/fleet/trips": ["transport"],
+  "/reports": ["workshop", "transport", "office"],
+};
+
 export function ConsoleShell({
   children,
   contentClassName = "",
@@ -212,6 +235,7 @@ export function ConsoleShell({
   const [hasLiveLinkAccess, setHasLiveLinkAccess] = useState(false);
   const [hasOversightAccess, setHasOversightAccess] = useState(false);
   const [isFrontCounter, setIsFrontCounter] = useState(false);
+  const [assignedAccessGroup, setAssignedAccessGroup] = useState<AccessGroupId | null>(null);
   const [demoAccessView, setDemoAccessView] = useState<DemoAccessView>("admin");
   const [commandMachineResults, setCommandMachineResults] = useState<
     SmartSearchResult[]
@@ -219,13 +243,17 @@ export function ConsoleShell({
   const [isCommandSearchFocused, setIsCommandSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const canPreviewRole = isLocalRolePreviewEnabled || authenticatedIsAdmin;
-  const isAdmin = canPreviewRole
-    ? demoAccessView === "admin"
-    : authenticatedIsAdmin;
-  const effectiveIsFrontCounter = canPreviewRole
+  const hasAssignedAccessGroup = assignedAccessGroup !== null;
+  const effectiveAccessGroup: AccessGroupId = canPreviewRole
     ? demoAccessView === "front-counter"
-    : isFrontCounter;
-  const isAssetCarePreview = canPreviewRole && demoAccessView === "assetcare";
+      ? "front_counter"
+      : demoAccessView
+    : assignedAccessGroup ?? (authenticatedIsAdmin ? "admin" : isFrontCounter ? "front_counter" : "fitter");
+  const isAdmin = hasAssignedAccessGroup || canPreviewRole
+    ? effectiveAccessGroup === "admin"
+    : authenticatedIsAdmin;
+  const effectiveIsFrontCounter = effectiveAccessGroup === "front_counter" || isFrontCounter;
+  const isAssetCarePreview = effectiveAccessGroup === "assetcare";
 
   useEffect(() => {
     let isMounted = true;
@@ -236,7 +264,7 @@ export function ConsoleShell({
     }
 
     void getCurrentUserWithRole(supabase)
-      .then(async ({ user, profile, isFrontCounter: accessIsFrontCounter }) => {
+      .then(async ({ user, profile, isFrontCounter: accessIsFrontCounter, accessGroup }) => {
         if (!isMounted) {
           return;
         }
@@ -244,6 +272,7 @@ export function ConsoleShell({
         const displayName = profile?.display_name?.trim();
         setSignedInUserName(displayName || user?.email?.trim() || "Signed in");
         setIsFrontCounter(accessIsFrontCounter);
+        setAssignedAccessGroup(accessGroup);
 
         if (!user) {
           setHasWorkflowAccess(false);
@@ -407,10 +436,19 @@ export function ConsoleShell({
         return item.frontCounterOnly;
       }
 
+      if ((hasAssignedAccessGroup || canPreviewRole) && effectiveAccessGroup !== "admin") {
+        const allowedGroups = navigationGroups[item.href];
+        if (!allowedGroups?.includes(effectiveAccessGroup)) return false;
+      }
+
+      if (item.groups && !item.groups.includes(effectiveAccessGroup)) {
+        return false;
+      }
+
       return (
         !item.frontCounterOnly &&
         !(isAdmin && (item.liveLinkOnly || item.trackunitOnly || item.takeuchiOnly)) &&
-        (!item.adminOnly || isAdmin) &&
+        (!item.adminOnly || isAdmin || item.groups?.includes(effectiveAccessGroup)) &&
         (!item.workflowOnly || isAdmin || hasWorkflowAccess) &&
         (!item.assetOnly || isAdmin || hasLiveLinkAccess || hasTrackunitAccess || hasTakeuchiAccess) &&
         (!item.oversightOnly || hasOversightAccess) &&
@@ -489,9 +527,7 @@ export function ConsoleShell({
                 ? "Front Counter"
                 : isAdmin
                   ? "Administrator"
-                  : canPreviewRole
-                    ? previewProfileLabels[demoAccessView]
-                    : "Fitter access"}
+                  : accessGroupLabels[effectiveAccessGroup]}
             </small>
           </span>
         </div>

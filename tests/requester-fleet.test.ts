@@ -33,6 +33,11 @@ it('removes People, conflicting People aliases and unclassified Asset Care recor
  expect(safe[0]).not.toHaveProperty('hours');
  expect(safe[0].position).toEqual(rows[2].position);
 });
+it('allows only the explicitly authorised People group for office viewers',()=>{
+ const groups=[{lookup_hash:assetGroupKeys('private')[0],cost_centre:'Non Shared',category:'People'},{lookup_hash:assetGroupKeys('operator')[0],cost_centre:'Operators',category:'People'}];
+ const safe=requesterMachines([machine('private'),machine('operator')],groups,{allowedPeopleGroups:['Non Shared']});
+ expect(safe.map(m=>[m.pin,m.assetGroup])).toEqual([['private','Non Shared']]);
+});
 it.each([401,403])('rejects denied authentication %s before privileged reads',async status=>{
  mocks.auth.mockResolvedValue({ok:false,status,error:'Denied'});
  await expect(fleetForViewer(request)).rejects.toMatchObject({status});expect(mocks.db).not.toHaveBeenCalled();
@@ -57,7 +62,7 @@ it('shows surviving sources on a provider outage',async()=>{
 });
 it('retains the existing admin path',async()=>{
  mocks.profile.mockResolvedValue({data:{role:'admin'},error:null});mocks.admin.mockResolvedValue({admin:true});
- expect(await fleetForViewer(request)).toEqual({admin:true});expect(mocks.db).not.toHaveBeenCalled();
+ expect(await fleetForViewer(request)).toEqual({admin:true,accessGroup:'admin',canRenameOrAssignCostCentre:true,canViewReports:true,canViewNonShared:true});expect(mocks.db).not.toHaveBeenCalled();
 });
 
 it('keeps the forced requester projection even for an admin caller',async()=>{mocks.profile.mockResolvedValue({data:{role:'admin'},error:null});const r=await fleetForViewer(request,true);expect(r.admin).toBe(false);expect(mocks.admin).not.toHaveBeenCalled();});

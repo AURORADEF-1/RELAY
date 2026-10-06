@@ -11,7 +11,7 @@ const categories:Record<(typeof costCentres)[number],string>={
 };
 
 export async function POST(request:NextRequest){try{
- await authorizeAssets(request,true);
+ await authorizeAssets(request,true,['admin','transport','office','workshop']);
  const body=await request.json().catch(()=>null) as {label?:unknown;costCentre?:unknown}|null;
  if(!body||typeof body.label!=='string'||body.label.trim().length<1||body.label.length>250||typeof body.costCentre!=='string'||!costCentres.includes(body.costCentre as (typeof costCentres)[number]))throw new JcbError('Choose a valid cost centre.',400);
  const costCentre=body.costCentre as (typeof costCentres)[number],rows=assetGroupKeys(body.label).map(lookup_hash=>({lookup_hash,cost_centre:costCentre,category:categories[costCentre],imported_at:new Date().toISOString()}));
