@@ -16,6 +16,17 @@ function suppliedVoltage(value:unknown,depth=0):number|null{
  return null;
 }
 export type AssetCareSnapshot={asset_id:string;observed_at:string;name:string;machine:LinkedJcbMachine};
+export type AssetCareIdentity={asset_id:string;name:string};
+export function assetCareIdentity(record:unknown,ownerId:string):AssetCareIdentity|null{
+ const row=object(record),details=object(row.details),payload=object(row.payload),data=object(row.data);
+ const candidates=[row,details,object(details.telemetry),payload,object(payload.telemetry),data,object(data.telemetry)];
+ for(const candidate of candidates){
+  const owner=text(object(candidate.owner).id)||text(object(row.owner).id);
+  const asset=object(candidate.asset),id=text(asset.id).trim(),name=text(asset.name).trim();
+  if(owner===ownerId&&id&&name)return {asset_id:id,name};
+ }
+ return null;
+}
 export function normalizeAssetCare(record:unknown,ownerId:string,now=Date.now()):AssetCareSnapshot|null{
  let row=object(record);
  if(text(object(row.owner).id)!==ownerId)return null;

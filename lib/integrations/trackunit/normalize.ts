@@ -36,7 +36,7 @@ export function applyTelemetry<T extends JcbMachine | LinkedJcbMachine>(machine:
   };
   const idleWith=reading(['idle hours with operator'],['h','hr','hours','hour']);
   const idleWithout=reading(['idle hours without operator'],['h','hr','hours','hour']);
-  return {...machine,fuelUsed:reading(['total fuel used','engine total fuel used'],['l','litre','litres','liter','liters']),idleHours:idleWith?.at && idleWith.at===idleWithout?.at ? {value:idleWith.value+idleWithout.value,at:idleWith.at}:null,hours:reading(['total machine hours','engine total hours of operation'],['h','hr','hours','hour']),fuel:reading(['fuel level'],['%','percent'],100),adblue:reading(['adblue level','diesel exhaust fluid tank level'],['%','percent'],100)};
+  return {...machine,fuelUsed:reading(['total fuel used','engine total fuel used'],['l','litre','litres','liter','liters']),idleHours:idleWith?.at && idleWith.at===idleWithout?.at ? {value:idleWith.value+idleWithout.value,at:idleWith.at}:null,hours:reading(['total machine hours','engine total hours of operation'],['h','hr','hours','hour']),fuel:reading(['fuel level'],['%','percent'],100),adblue:reading(['adblue level','diesel exhaust fluid tank level'],['%','percent'],100),batteryVoltage:reading(['battery voltage','power voltage','external voltage','supply voltage'],['v','volt','volts'],100)};
 }
 export const faultSchema=z.object({time:z.string().nullish(),spn:z.number().int().nonnegative(),fmi:z.number().int().nonnegative(),description:z.string().nullish(),name:z.string().nullish(),occurrenceCount:z.number().nullish()});
 export function normalizeFault(raw:z.infer<typeof faultSchema>):JcbFault {
