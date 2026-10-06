@@ -1404,9 +1404,9 @@ select:focus-visible {
   align-items: center;
   gap: 0.5rem;
   border: 1px solid color-mix(in srgb, var(--brand-primary) 42%, var(--border));
-  border-radius: 0.45rem;
-  background: color-mix(in srgb, var(--brand-mist) 68%, var(--background-panel-strong));
-  padding: 0 0.65rem;
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--brand-mist) 52%, var(--background-panel-strong));
+  padding: 0.28rem 0.32rem 0.28rem 0.7rem;
   color: var(--brand-primary-strong);
   font-size: 0.7rem;
   font-weight: 750;
@@ -1415,8 +1415,11 @@ select:focus-visible {
 }
 
 .console-demo-view-select select {
-  border: 0;
-  background: transparent;
+  min-height: 1.9rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 34%, var(--border));
+  border-radius: 0.4rem;
+  background: var(--background-panel-strong);
+  padding: 0.2rem 1.7rem 0.2rem 0.5rem;
   color: var(--foreground-strong);
   font: inherit;
   letter-spacing: 0;
@@ -3613,6 +3616,16 @@ select:focus-visible {
 
 .console-sidebar-scrim {
   display: none;
+}
+
+.console-demo-view-select option {
+  background: var(--background-panel-strong);
+  color: var(--foreground-strong);
+}
+
+html[data-theme="dark"] .console-demo-view-select option {
+  background: #08283a;
+  color: #e7f5fb;
 }
 
 .console-mobile-menu-button {
