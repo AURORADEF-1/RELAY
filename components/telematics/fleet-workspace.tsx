@@ -113,7 +113,8 @@ export function TrackingWorkspace({combined=false,request=api,provider="trackuni
    const found:Record<string,string|null>={};
    for(let index=0;index<entries.length;index+=50){
     const batch=entries.slice(index,index+50);
-    const response=await fetch('/api/maps/reverse-geocode',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({points:batch.map(([,point])=>point)}),signal:controller.signal});
+    const points=batch.map(([,point])=>`${point.longitude},${point.latitude}`).join(';');
+    const response=await fetch(`/api/maps/reverse-geocode?${new URLSearchParams({points})}`,{headers:{Authorization:`Bearer ${token}`},signal:controller.signal});
     if(!response.ok)continue;
     const data=await response.json() as {addresses?:Array<string|null>};
     batch.forEach(([key],offset)=>{found[key]=data.addresses?.[offset]??null;});
