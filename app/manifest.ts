@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "RELAY — AssetCare+",
-    short_name: "RELAY",
+    name: "AssetCare+",
+    short_name: "AssetCare+",
     description: "Parts requests, job updates and collection alerts for MLP fitters.",
     start_url: "/requests",
     display: "standalone",
