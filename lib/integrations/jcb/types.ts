@@ -63,7 +63,7 @@ export const machineProvider = (machine: LinkedJcbMachine) => machine.source ===
 export const machineBrand = (machine: LinkedJcbMachine) => machine.source === "roam" ? machine.relay?.make || machine.roamMake || "Unknown make" : machine.source === "assetcare" ? machine.relay?.make?.trim() || machineProvider(machine) : machineProvider(machine);
 
 const assetAcronyms=new Set([
-  'GPS','HSR','JCB','LB','MLP','PIN','SH','SR','VCW','XCMG',
+  'GPS','HSR','JCB','LB','MLP','PIN','RT','SH','SR','VCW','XCMG',
 ]);
 
 /**
