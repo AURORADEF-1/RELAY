@@ -84,6 +84,7 @@ export function TrackingWorkspace({combined=false,request=api,provider="trackuni
  useEffect(()=>{const c=new AbortController();setLoading(true);setError('');void request<Fleet>(combined?'combined':provider,'fleet',c.signal).then(d=>{if(!c.signal.aborted)setFleet(d);}).catch(e=>{if(!c.signal.aborted)setError(e.message);}).finally(()=>{if(!c.signal.aborted)setLoading(false);});return()=>c.abort();},[combined,provider,version,request]);
  const flagState=useAssetFlags(!!fleet?.admin);
  const allMachines=useMemo(()=>fleet?.machines??[],[fleet]);
+ useEffect(()=>{const shell=mapShell.current;if(!shell)return;const context=document.createElement('canvas').getContext('2d');let titleWidth=0;if(context){const rootSize=Number.parseFloat(getComputedStyle(document.documentElement).fontSize)||16;context.font=`700 ${rootSize*.74}px ${getComputedStyle(shell).fontFamily}`;for(const machine of allMachines)titleWidth=Math.max(titleWidth,context.measureText(machineTitle(machine)).width);}const width=Math.min(512,Math.max(320,Math.ceil(titleWidth+112)));shell.style.setProperty('--fleet-register-width',`${width}px`);},[allMachines]);
  const flaggedKeys=useMemo(()=>allMachines.filter(m=>flagForMachine(flagState.flags,m)).map(machineKey),[allMachines,flagState.flags]);
  const unmatched=useMemo(()=>allMachines.filter(m=>m.assetGroup==='Unmatched'),[allMachines]);
  const machines=useMemo(()=>{
