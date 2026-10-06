@@ -20,13 +20,19 @@ function address(collection:FeatureCollection|undefined){
  return typeof value==='string'&&value.trim()?value.trim().slice(0,240):null;
 }
 
-export async function POST(request:NextRequest){try{
+function requestedPoints(request:NextRequest):unknown[]{
+ const value=request.nextUrl.searchParams.get('points');
+ if(!value)return [];
+ return value.split(';').map(pair=>{const [longitude,latitude,...extra]=pair.split(',');return extra.length?null:{latitude:Number(latitude),longitude:Number(longitude)};});
+}
+
+export async function GET(request:NextRequest){try{
  await authorizeAssets(request,false);
- const body=await request.json().catch(()=>null) as {points?:unknown}|null;
- if(!body||!Array.isArray(body.points)||body.points.length<1||body.points.length>50||!body.points.every(valid))throw new JcbError('Choose between 1 and 50 valid map positions.',400);
+ const requested=requestedPoints(request);
+ if(requested.length<1||requested.length>50||!requested.every(valid))throw new JcbError('Choose between 1 and 50 valid map positions.',400);
  const key=process.env.MAPTILER_KEY??process.env.NEXT_PUBLIC_MAPTILER_KEY;
  if(!key)throw new JcbError('Address lookup is not configured.',503);
- const points=body.points as Point[],query=points.map(point=>`${point.longitude.toFixed(5)},${point.latitude.toFixed(5)}`).join(';');
+ const points=requested as Point[],query=points.map(point=>`${point.longitude.toFixed(5)},${point.latitude.toFixed(5)}`).join(';');
  const url=`https://api.maptiler.com/geocoding/${query}.json?${new URLSearchParams({key,language:'en',country:'gb'})}`;
  const response=await fetch(url,{headers:{Accept:'application/json'},next:{revalidate:2592000}});
  if(!response.ok)throw new JcbError('Address lookup is temporarily unavailable.',503);
