@@ -445,6 +445,7 @@ export function ConsoleShell({
       ) : null}
 
       <aside
+        id="console-navigation-panel"
         className={`console-sidebar ${isMobileOpen ? "console-sidebar-mobile-open" : ""}`}
       >
         <div className="console-sidebar-brand">
@@ -564,9 +565,11 @@ export function ConsoleShell({
           <div className="console-command-title">
             <button
               type="button"
-              className="console-icon-button lg:hidden"
-              onClick={() => setIsMobileOpen(true)}
-              aria-label="Open navigation"
+              className="console-icon-button console-mobile-menu-button lg:hidden"
+              onClick={() => setIsMobileOpen((open) => !open)}
+              aria-label={isMobileOpen ? "Close navigation" : "Open navigation"}
+              aria-controls="console-navigation-panel"
+              aria-expanded={isMobileOpen}
             >
               <ConsoleIcon name="menu" className="h-5 w-5" />
             </button>

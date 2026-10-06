@@ -3615,6 +3615,13 @@ select:focus-visible {
   display: none;
 }
 
+.console-mobile-menu-button {
+  display: none !important;
+  position: relative;
+  z-index: 1;
+  touch-action: manipulation;
+}
+
 @media (max-width: 1180px) {
   .console-command-bar {
     grid-template-columns: minmax(11rem, 0.7fr) minmax(15rem, 1fr) auto;
@@ -3667,6 +3674,10 @@ select:focus-visible {
 }
 
 @media (max-width: 1023px) {
+  .console-mobile-menu-button {
+    display: inline-flex !important;
+  }
+
   .relay-ai-panel {
     width: min(42rem, 100vw);
   }
@@ -3723,7 +3734,7 @@ select:focus-visible {
     justify-content: center;
   }
 
-  .console-sidebar-mobile-open {
+  .console-sidebar.console-sidebar-mobile-open {
     transform: translateX(0);
   }
 

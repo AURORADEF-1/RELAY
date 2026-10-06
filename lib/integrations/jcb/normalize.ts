@@ -32,10 +32,15 @@ function fuelReading(raw: Record<string, unknown> | null | undefined) {
 }
 export function normalizeEquipment(raw: z.infer<typeof equipmentSchema>): JcbMachine {
   const lat = number(raw.Location?.Latitude), lon = number(raw.Location?.Longitude);
+  const address = [raw.Location?.FormattedAddress, raw.Location?.Address, raw.Location?.LocationDescription, raw.Location?.Road]
+    .find(value => typeof value === "string" && value.trim()) as string | undefined;
+  const postcode = [raw.Location?.Postcode, raw.Location?.PostalCode, raw.Location?.ZipCode]
+    .find(value => typeof value === "string" && value.trim()) as string | undefined;
+  const locationAddress = [address?.trim(), postcode?.trim() && !address?.toUpperCase().includes(postcode.trim().toUpperCase()) ? postcode.trim() : null].filter(Boolean).join(", ") || null;
   return {
     pin: raw.EquipmentHeader.Pin, equipmentId: raw.EquipmentHeader.EquipmentId ?? "", model: raw.EquipmentHeader.Model ?? "JCB",
     position: lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
-      ? { latitude: lat, longitude: lon, at: timestamp(raw.Location?.DateTime) } : null,
+      ? { latitude: lat, longitude: lon, at: timestamp(raw.Location?.DateTime), address: locationAddress } : null,
     hours: numericReading(raw.CumulativeOperatingHours, "Hour"), idleHours: numericReading(raw.CumulativeIdleHours, "Hour"),
     fuelUsed: fuelReading(raw.FuelUsed), fuelUsed24h: fuelReading(raw.FuelUsedLast24),
     fuel: numericReading(raw.FuelRemaining, "Percent", 100), adblue: numericReading(raw.DEFRemaining, "Percent", 100),
