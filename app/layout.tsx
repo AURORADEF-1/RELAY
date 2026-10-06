@@ -6,9 +6,9 @@ import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RELAY",
+  title: "AssetCare+",
   description: "MLP Parts Request Workflow",
-  applicationName: "RELAY",
+  applicationName: "AssetCare+",
   robots: {
     index: false,
     follow: false,
