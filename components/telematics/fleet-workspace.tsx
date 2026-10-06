@@ -97,6 +97,8 @@ export function TrackingWorkspace({combined=false,request=api,provider="trackuni
   });
  },[allMachines,query,preferences,combined,provider,statuses,fleet?.admin]);
  const shownPage=Math.min(page,Math.max(0,Math.ceil(machines.length/60)-1));
+ const previousShownPage=useRef(shownPage);
+ useEffect(()=>{if(previousShownPage.current===shownPage)return;previousShownPage.current=shownPage;const list=mapShell.current?.querySelector<HTMLElement>('.jcb-machine-list');if(list)list.scrollTop=0;},[shownPage]);
  useEffect(()=>{
   const attempted=attemptedAddresses.current;
   const missing=new Map<string,{latitude:number;longitude:number}>();
