@@ -124,6 +124,8 @@
 .fleet-map-shell .jcb-detail section[aria-label="Travel status"] small{display:block;margin:0;color:var(--foreground-subtle);font-size:.64rem;line-height:1.5}
 .fleet-map-shell .jcb-detail .asset-flag-control{margin:10px 0 4px;padding:8px 10px;border-color:color-mix(in srgb,var(--warning,#d49a17) 42%,var(--border));border-radius:7px;background:color-mix(in srgb,var(--warning,#d49a17) 7%,transparent)}
 .fleet-map-shell .jcb-detail .asset-flag-control>p{margin:0;color:var(--foreground-muted);font-size:.66rem;line-height:1.45}
+.fleet-map-shell .jcb-detail>.fleet-status-unknown,.fleet-map-shell .jcb-detail>.fleet-status-unknown+small{display:none!important}
+.fleet-map-shell .jcb-detail .asset-flag-control>.jcb-button{min-height:28px;margin:0;padding:4px 8px;border-radius:6px;font-size:.68rem;line-height:1.1}
 .fleet-map-shell .fleet-edit-name{position:absolute;top:9px;right:45px;z-index:2;display:grid!important;width:30px!important;height:30px;min-height:30px!important;place-items:center;margin:0!important;padding:0!important;border-color:var(--border-strong)!important;border-radius:7px!important;background:var(--background-panel-strong)!important;color:var(--foreground)!important}
 .fleet-map-shell .fleet-edit-name svg{display:block;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .fleet-map-shell .fleet-name-editor{display:grid;gap:7px;margin:4px 0 10px;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--background-panel-strong)}
