@@ -4,7 +4,7 @@ type ObjectValue=Record<string,unknown>;
 const object=(v:unknown):ObjectValue=>v&&typeof v==='object'&&!Array.isArray(v)?v as ObjectValue:{};
 const text=(v:unknown)=>typeof v==='string'?v:'';
 const number=(v:unknown)=>typeof v==='number'&&Number.isFinite(v)?v:null;
-const numeric=(v:unknown)=>{if(typeof v==='number'&&Number.isFinite(v))return v;if(typeof v==='string'&&v.trim()&&Number.isFinite(Number(v)))return Number(v);return null;};
+const numeric=(v:unknown)=>{if(typeof v==='number'&&Number.isFinite(v))return v;if(typeof v==='string'){const match=/^\s*(-?\d+(?:\.\d+)?)\s*(?:v|volts?)?\s*$/i.exec(v);if(match)return Number(match[1]);}return null;};
 const voltageKey=(value:string)=>['voltage','batteryvoltage','powervoltage','externalvoltage','externalpowervoltage','mainvoltage','mainpowervoltage','supplyvoltage','inputvoltage','vehiclevoltage'].includes(value.replace(/[^a-z]/gi,'').toLowerCase());
 function suppliedVoltage(value:unknown,depth=0):number|null{
  if(!value||typeof value!=='object'||depth>4)return null;

@@ -15,6 +15,7 @@ it('keeps manufacturer feed once when multiple trackers link to one RELAY asset'
 
 it('reads voltage from documented free-form telemetry and IO containers',()=>{
  expect(normalizeAssetCare({...row,telemetry:{powerVoltage:12.7}},'MLP',now)?.machine.batteryVoltage?.value).toBe(12.7);
+ expect(normalizeAssetCare({...row,telemetry:{powerVoltage:'12.7 V'}},'MLP',now)?.machine.batteryVoltage?.value).toBe(12.7);
  expect(normalizeAssetCare({...row,io:{battery_voltage:'12.8'}},'MLP',now)?.machine.batteryVoltage?.value).toBe(12.8);
  expect(normalizeAssetCare({...row,io:{inputs:[{name:'External power voltage',value:'13.1'}]}},'MLP',now)?.machine.batteryVoltage?.value).toBe(13.1);
 });
