@@ -123,6 +123,7 @@ const navigation: NavigationItem[] = [
   { href: "/fleet/hours", label: "Asset Hours", icon: "fleet", category: "fleet", adminOnly: true },
   { href: "/fleet/hires", label: "ROAM Hires", icon: "fleet", category: "fleet", adminOnly: true },
   { href: "/fleet/scheduler", label: "Reports", icon: "fleet", category: "fleet", adminOnly: true },
+  { href: "/fleet/trips", label: "Trip History", icon: "fleet", category: "fleet", adminOnly: true },
   { href: "/fleet/workflow", label: "Return to Hire", icon: "fleet", category: "fleet", workflowOnly: true },
   { href: "/fleet", label: "Fleet Map", icon: "fleet", category: "fleet" },
   { href: "/manitou", label: "Manitou", icon: "fleet", category: "fleet", trackunitOnly: true },
