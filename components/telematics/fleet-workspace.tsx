@@ -64,8 +64,8 @@ export function TrackingWorkspace({combined=false,request=api,provider="trackuni
  const [preferences,setPreferences]=useState<Preferences>(defaults),[page,setPage]=useState(0);
  const [resolvedAddresses,setResolvedAddresses]=useState<Record<string,string|null>>({});
  const attemptedAddresses=useRef(new Set<string>());
- useEffect(()=>{const id=setTimeout(()=>{try{const saved=localStorage.getItem('relay:fleet-map:v3')??localStorage.getItem('relay:fleet-map:v2');setPreferences({...readPreferences(saved),freshness:'all',labels:true,providers:[...defaults.providers]});}catch{}},0);return()=>clearTimeout(id);},[]);
- function updatePreferences(p:Preferences){const next={...p,freshness:'all' as const,labels:true,providers:[...defaults.providers]};setPreferences(next);setPage(0);try{localStorage.setItem('relay:fleet-map:v3',JSON.stringify(next));}catch{}}
+ useEffect(()=>{const id=setTimeout(()=>{try{const saved=localStorage.getItem('relay:fleet-map:v3')??localStorage.getItem('relay:fleet-map:v2');const preferences=readPreferences(saved);setPreferences({...preferences,group:preferences.group.filter(group=>group!=='Stock'),freshness:'all',labels:true,providers:[...defaults.providers]});}catch{}},0);return()=>clearTimeout(id);},[]);
+ function updatePreferences(p:Preferences){const next={...p,group:p.group.filter(group=>group!=='Stock'),freshness:'all' as const,labels:true,providers:[...defaults.providers]};setPreferences(next);setPage(0);try{localStorage.setItem('relay:fleet-map:v3',JSON.stringify(next));}catch{}}
  useEffect(()=>{if(!combined)return;const openAsset=()=>{if(window.location.hash==='#signwatch:sign-watch-test'){setSelected('signwatch:sign-watch-test');setPreferences({...defaults,labels:true});setQuery('');setView('map');}};openAsset();window.addEventListener('hashchange',openAsset);return()=>window.removeEventListener('hashchange',openAsset);},[combined]);
  const panel=useRef<HTMLElement>(null),mapShell=useRef<HTMLDivElement>(null),fullScreenButton=useRef<HTMLButtonElement>(null);
  const [fullScreen,setFullScreen]=useState(false);
