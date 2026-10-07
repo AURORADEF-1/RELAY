@@ -20,8 +20,11 @@ export async function fleetForViewer(request:NextRequest,requesterView=false){
  if(!auth.ok)throw new JcbError(auth.error,auth.status);
  const profile=await auth.supabase.from('profiles').select('role,access_group').eq('id',auth.user.id).single();
  if(profile.error||!profile.data)throw new JcbError('Unable to verify fleet access.',503);
- const accessGroup=typeof profile.data.access_group==='string'?normalizeAccessGroup(profile.data.access_group):null;
  const allowed=['admin','assetcare','fitter','workshop','transport','office'];
+ const assignedAccessGroup=typeof profile.data.access_group==='string'?normalizeAccessGroup(profile.data.access_group):null;
+ const previewHeader=request.headers.get('x-relay-preview-access-group');
+ const requestedPreview=profile.data.role==='admin'&&previewHeader?normalizeAccessGroup(previewHeader):null;
+ const accessGroup=requestedPreview&&allowed.includes(requestedPreview)?requestedPreview:assignedAccessGroup;
  if(accessGroup&&!allowed.includes(accessGroup))throw new JcbError('Fleet access is not enabled for this group.',403);
  if(profile.data.role==='admin'&&!requesterView&&(!accessGroup||accessGroup==='admin')){const fleet=await combinedFleet(request);return {...fleet,accessGroup:'admin' as const,canRenameOrAssignCostCentre:true,canViewReports:true,canViewNonShared:true};}
  // Privileged reads stay inside this authenticated, read-only projection.
