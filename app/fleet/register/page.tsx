@@ -128,7 +128,7 @@ function FleetPageFallback() {
   return (
     <AuthGuard>
       <ConsoleShell title="Fleet">
-        <div className="fleet-state-panel">Loading Fleet workspace...</div>
+        <div className="fleet-state-panel">Loading Fleet Workspace...</div>
       </ConsoleShell>
     </AuthGuard>
   );
@@ -736,7 +736,7 @@ function FleetWorkspace() {
       >
         {access?.isAdmin && <div className="mb-4 flex flex-wrap gap-3"><Link href="/fleet/operations" className="console-command-action">Fleet Operations &amp; Error Codes</Link><Link href="/fleet/map" className="console-command-action">FLEET MAP</Link></div>}
         <PageHeader
-          title={access?.fleetName ? `${access.fleetName} Fleet` : "Fleet workspace"}
+          title={access?.fleetName ? `${access.fleetName} Fleet` : "Fleet Workspace"}
           description={
             access?.isAdmin
               ? "Search the verified machine registry and inspect every linked RELAY request, part, order and workshop event."
