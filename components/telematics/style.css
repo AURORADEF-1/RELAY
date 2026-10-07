@@ -119,11 +119,11 @@
 .fleet-map-shell .jcb-detail{border-color:var(--border-strong);border-radius:10px;background:var(--background-panel);padding:14px;color:var(--foreground);box-shadow:none}
 .fleet-map-shell .jcb-detail>h2{margin:0;padding:0 34px 10px 0;border-bottom:1px solid var(--border);font-size:1rem;line-height:1.25}
 .fleet-map-shell .jcb-detail>p{margin:8px 0;color:var(--foreground-muted);font-size:.72rem;line-height:1.45}
-.fleet-detail-header{position:relative;display:grid;gap:10px;padding:2px 0 12px;border-bottom:1px solid var(--border)}
-.fleet-detail-header>div:first-child{min-width:0;padding-right:112px}
-.fleet-detail-header>div:first-child>span,.fleet-detail-section-label{display:block;margin-bottom:5px;color:var(--brand-primary);font-size:.6rem;font-weight:850;letter-spacing:.12em;text-transform:uppercase}
+.fleet-detail-header{display:grid;gap:8px;padding:2px 0 12px;border-bottom:1px solid var(--border)}
+.fleet-detail-titlebar{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:8px}
+.fleet-detail-titlebar>span,.fleet-detail-section-label{display:block;color:var(--brand-primary);font-size:.6rem;font-weight:850;letter-spacing:.12em;text-transform:uppercase}
 .fleet-detail-header h2{min-width:0;margin:0;overflow:hidden;color:var(--foreground-strong);font-size:1rem;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
-.fleet-detail-window-actions{position:absolute;top:0;right:0;z-index:4;display:flex;gap:5px;align-items:flex-start}
+.fleet-detail-window-actions{position:relative;z-index:4;display:flex;flex:0 0 auto;gap:5px;align-items:flex-start}
 .fleet-detail-primary-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .fleet-map-shell .jcb-detail .fleet-detail-primary-actions>.jcb-button{display:flex;min-height:34px;align-items:center;justify-content:center;margin:0;padding:6px 8px;text-align:center;font-size:.68rem}
 .fleet-detail-location,.fleet-detail-management{margin-top:10px;border:1px solid var(--border);border-radius:9px;background:color-mix(in srgb,var(--background-panel-strong) 72%,transparent);padding:11px}
@@ -138,7 +138,7 @@
 .fleet-detail-management>.asset-flag-control{margin:0!important;padding:0!important;border:0!important;background:transparent!important}
 .fleet-detail-management>.jcb-button{width:100%;min-height:32px;margin:7px 0 0!important;justify-content:center}
 .fleet-map-shell .fleet-close-detail{top:9px;right:9px;border-color:var(--border-strong)!important;background:var(--background-panel-strong)!important;color:var(--foreground)!important}
-.fleet-detail-window-actions .fleet-close-detail{position:static!important;width:30px;height:30px;min-height:30px;margin:0!important}
+.fleet-detail-window-actions .fleet-close-detail{position:relative!important;top:auto!important;right:auto!important;width:30px;height:30px;min-height:30px;margin:0!important}
 .fleet-detail-window-actions .asset-flag-control-compact{position:static;display:flex;gap:5px;margin:0!important;padding:0!important;border:0!important;background:transparent!important}
 .fleet-detail-window-actions .asset-flag-control-compact>.jcb-button,.fleet-detail-window-actions .asset-flag-control-compact>.fleet-flagged-state{display:flex;min-height:30px;align-items:center;margin:0;padding:4px 7px;border-radius:7px;font-size:.61rem;line-height:1}
 .fleet-detail-window-actions .asset-flag-control-compact>.fleet-edit-name{position:static!important}
