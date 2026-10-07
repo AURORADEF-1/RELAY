@@ -12,6 +12,7 @@ describe("access groups", () => {
     expect(canAccessPath("fitter", "/fleet/map")).toBe(true);
     expect(canAccessPath("fitter", "/fleet/register")).toBe(false);
     expect(canAccessPath("workshop", "/incidents/tasks/completed")).toBe(true);
+    expect(canAccessPath("workshop", "/console")).toBe(true);
     expect(canAccessPath("workshop", "/admin")).toBe(false);
     expect(canAccessPath("parts", "/parts-knowledge")).toBe(true);
     expect(canAccessPath("parts", "/admin")).toBe(false);
@@ -49,6 +50,7 @@ describe("access groups", () => {
     expect(canUsePage(false, "office", "/console")).toBe(true);
     expect(canUsePage(false, "transport", "/reports")).toBe(true);
     expect(canUsePage(false, "workshop", "/reports")).toBe(true);
+    expect(canUsePage(false, "workshop", "/console")).toBe(true);
     expect(canUsePage(false, "fitter", "/console")).toBe(false);
     expect(canUsePage(true, "admin", "/control")).toBe(true);
   });
