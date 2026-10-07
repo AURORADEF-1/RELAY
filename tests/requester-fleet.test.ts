@@ -73,8 +73,8 @@ it('fails closed when groups cannot be verified',async()=>{
  mocks.rows.mockRejectedValue(new Error('Storage unavailable'));
  await expect(fleetForViewer(request)).rejects.toThrow();expect(mocks.jcb).not.toHaveBeenCalled();
 });
-it('rejects an empty group registry',async()=>{
- mocks.rows.mockResolvedValue([]);await expect(fleetForViewer(request)).rejects.toMatchObject({status:503});
+it('uses the imported fleet registry when the database registry is empty',async()=>{
+ mocks.rows.mockResolvedValue([]);expect((await fleetForViewer(request)).machines.map(m=>m.equipmentId)).toEqual(['jcb','trackunit','takeuchi']);
 });
 it('provides all four feeds without fitter grants and strips People counts and collector details',async()=>{
  mocks.assetcare.mockResolvedValue({machines:[machine('person'),machine('vehicle')],checkedAt:'now',stale:false,status:{last_error:'private'}});
