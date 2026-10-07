@@ -7,6 +7,7 @@ import { ConsoleIcon } from "@/components/console/console-icon";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { canUsePage } from "@/lib/access-groups";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type OnsiteTicket = {
@@ -90,10 +91,10 @@ export default function WorkshopControlMapPage() {
         return;
       }
 
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
+      const { user, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase);
 
-      if (!user || !isAdmin) {
-        setErrorMessage("Admin access is required to view the onsite map.");
+      if (!user || !canUsePage(isAdmin, accessGroup, "/incidents/map")) {
+        setErrorMessage("Workshop access is required to view the onsite map.");
         setIsLoading(false);
         setIsRefreshing(false);
         return;

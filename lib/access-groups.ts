@@ -80,6 +80,14 @@ export function canAccessPath(group: AccessGroupId, pathname: string) {
   ));
 }
 
+export function canUsePage(
+  isAdmin: boolean,
+  accessGroup: AccessGroupId | null,
+  pathname: string,
+) {
+  return isAdmin || Boolean(accessGroup && canAccessPath(accessGroup, pathname));
+}
+
 export function accessGroupHome(group: AccessGroupId) {
   if (group === "admin") return "/console";
   if (group === "front_counter") return "/terminal";

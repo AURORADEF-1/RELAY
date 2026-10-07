@@ -8,6 +8,7 @@ import { ConsoleIcon } from "@/components/console/console-icon";
 import { ConsoleShell } from "@/components/console/console-shell";
 import { StatusBadge } from "@/components/status-badge";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { canUsePage } from "@/lib/access-groups";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -57,14 +58,14 @@ export default function CompletedPage() {
       return;
     }
 
-    const { user, isAdmin } = await getCurrentUserWithRole(supabase);
+    const { user, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase);
 
     if (!user) {
       router.replace("/login?next=/completed");
       return;
     }
 
-    if (!isAdmin) {
+    if (!canUsePage(isAdmin, accessGroup, "/completed")) {
       router.replace("/");
       return;
     }

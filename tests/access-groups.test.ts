@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accessGroupHome, canAccessPath, normalizeAccessGroup } from "@/lib/access-groups";
+import { accessGroupHome, canAccessPath, canUsePage, normalizeAccessGroup } from "@/lib/access-groups";
 
 describe("access groups", () => {
   it("normalizes stored groups safely", () => {
@@ -40,5 +40,14 @@ describe("access groups", () => {
     expect(accessGroupHome("workshop")).toBe("/incidents");
     expect(accessGroupHome("parts")).toBe("/admin");
     expect(accessGroupHome("fitter")).toBe("/requests");
+  });
+
+  it("keeps page-level checks aligned with the route matrix", () => {
+    expect(canUsePage(false, "parts", "/console")).toBe(true);
+    expect(canUsePage(false, "office", "/console")).toBe(true);
+    expect(canUsePage(false, "transport", "/reports")).toBe(true);
+    expect(canUsePage(false, "workshop", "/reports")).toBe(true);
+    expect(canUsePage(false, "fitter", "/console")).toBe(false);
+    expect(canUsePage(true, "admin", "/control")).toBe(true);
   });
 });

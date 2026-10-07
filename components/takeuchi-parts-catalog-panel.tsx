@@ -3,6 +3,7 @@
 import * as XLSX from "xlsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { canUsePage } from "@/lib/access-groups";
 import {
   buildTakeuchiCatalogKey,
   fetchTakeuchiPartsCatalog,
@@ -48,13 +49,13 @@ export function TakeuchiPartsCatalogPanel() {
     setErrorMessage("");
 
     try {
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase, {
+      const { user, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase, {
         forceFresh: true,
       });
 
-      if (!user || !isAdmin) {
+      if (!user || !canUsePage(isAdmin, accessGroup, "/parts-knowledge")) {
         setCatalog([]);
-        setErrorMessage("Admin access is required for the Takeuchi catalogue.");
+        setErrorMessage("Parts access is required for the Takeuchi catalogue.");
         return;
       }
 
@@ -152,14 +153,14 @@ export function TakeuchiPartsCatalogPanel() {
       return;
     }
 
-    const { user, isAdmin } = await getCurrentUserWithRole(supabase, {
+    const { user, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase, {
       forceFresh: true,
     });
 
-    if (!user || !isAdmin) {
+    if (!user || !canUsePage(isAdmin, accessGroup, "/parts-knowledge")) {
       setNotice({
         type: "error",
-        message: "Admin access is required to import the catalogue.",
+        message: "Parts access is required to import the catalogue.",
       });
       return;
     }

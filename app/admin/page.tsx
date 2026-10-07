@@ -88,6 +88,7 @@ import {
   getCurrentUserWithRole,
 } from "@/lib/profile-access";
 import { fetchRequesterAccounts } from "@/lib/requester-accounts";
+import { canUsePage } from "@/lib/access-groups";
 import {
   extractRequesterReturnReason,
   isRequesterCollectedComment,
@@ -675,10 +676,10 @@ export default function AdminPage() {
       throw new Error("Supabase environment variables are not configured.");
     }
 
-    const { user, isAdmin } = await getCurrentUserWithRole(supabase);
+    const { user, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase);
 
-    if (!user || !isAdmin) {
-      throw new Error("Admin access is required for this action.");
+    if (!user || !canUsePage(isAdmin, accessGroup, "/admin")) {
+      throw new Error("Parts Control access is required for this action.");
     }
 
     return supabase;
@@ -947,14 +948,14 @@ export default function AdminPage() {
       return;
     }
 
-    const { user, isAdmin, profile } = await getCurrentUserWithRole(supabase);
+    const { user, isAdmin, profile, accessGroup } = await getCurrentUserWithRole(supabase);
 
     if (!user) {
       router.replace("/login?next=/admin");
       return;
     }
 
-    if (!isAdmin) {
+    if (!canUsePage(isAdmin, accessGroup, "/admin")) {
       router.replace("/");
       return;
     }

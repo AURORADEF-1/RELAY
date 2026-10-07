@@ -445,7 +445,7 @@ export function ConsoleShell({
 
       if ((hasAssignedAccessGroup || canPreviewRole) && effectiveAccessGroup !== "admin") {
         const allowedGroups = navigationGroups[item.href];
-        if (!allowedGroups?.includes(effectiveAccessGroup)) return false;
+        return Boolean(allowedGroups?.includes(effectiveAccessGroup));
       }
 
       if (item.groups && !item.groups.includes(effectiveAccessGroup)) {
