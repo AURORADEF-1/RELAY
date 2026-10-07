@@ -443,7 +443,10 @@ export function ConsoleShell({
         return item.frontCounterOnly;
       }
 
-      if ((hasAssignedAccessGroup || canPreviewRole) && effectiveAccessGroup !== "admin") {
+      if (
+        (hasAssignedAccessGroup || canPreviewRole || (!authenticatedIsAdmin && !effectiveIsFrontCounter)) &&
+        effectiveAccessGroup !== "admin"
+      ) {
         const allowedGroups = navigationGroups[item.href];
         return Boolean(allowedGroups?.includes(effectiveAccessGroup));
       }

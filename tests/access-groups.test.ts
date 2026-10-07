@@ -50,4 +50,10 @@ describe("access groups", () => {
     expect(canUsePage(false, "fitter", "/console")).toBe(false);
     expect(canUsePage(true, "admin", "/control")).toBe(true);
   });
+
+  it("keeps the Fleet Map in the Fitter permission set", () => {
+    expect(canUsePage(false, "fitter", "/fleet")).toBe(true);
+    expect(canUsePage(false, "fitter", "/fleet/map")).toBe(true);
+    expect(canUsePage(false, "fitter", "/fleet/register")).toBe(false);
+  });
 });
