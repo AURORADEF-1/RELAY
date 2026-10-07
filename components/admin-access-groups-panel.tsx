@@ -75,7 +75,7 @@ export function AdminAccessGroupsPanel() {
   }
 
   return (
-    <section className="relay-card">
+    <section className="relay-card admin-access-brand">
       <div className="relay-section-heading">
         <div>
           <p className="relay-eyebrow">Users &amp; access</p>

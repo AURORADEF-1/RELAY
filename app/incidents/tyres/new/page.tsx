@@ -125,8 +125,8 @@ export default function NewTyreIncidentPage() {
         </nav>
 
         <AuthGuard requiredRole="admin">
-          <section className="workshop-secondary-page rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
-            <div className="space-y-5">
+          <section className="workshop-secondary-page workshop-damage-brand rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
+            <div className="workshop-damage-brand-hero space-y-5">
               <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
                 Tyre Breakdown Intake
               </div>
@@ -148,7 +148,7 @@ export default function NewTyreIncidentPage() {
               </div>
             ) : null}
 
-            <form onSubmit={handleSubmit} className="mt-8 grid gap-6 lg:grid-cols-2">
+            <form onSubmit={handleSubmit} className="workshop-damage-brand-form mt-8 grid gap-6 lg:grid-cols-2">
               <Field label="Reported By" value={formState.reported_by} onChange={(value) => setFormState((current) => ({ ...current, reported_by: value }))} />
               <Field label="Machine Reference" value={formState.machine_reference} onChange={(value) => setFormState((current) => ({ ...current, machine_reference: value }))} />
               <Field label="Job Number" value={formState.job_number} onChange={(value) => setFormState((current) => ({ ...current, job_number: value }))} />
@@ -178,7 +178,7 @@ export default function NewTyreIncidentPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="workshop-damage-brand-action inline-flex h-12 items-center justify-center rounded-xl px-6 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSubmitting ? "Saving..." : "Create Tyre Breakdown"}
                 </button>

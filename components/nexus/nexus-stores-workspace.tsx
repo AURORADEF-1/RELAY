@@ -250,21 +250,21 @@ export function NexusStoresWorkspace() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="nexus-fleet-lookup-brand rounded-2xl border p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
-              Verified fleet lookup
+            <p className="nexus-fleet-lookup-kicker text-xs font-bold uppercase tracking-[0.16em]">
+              AssetCare+ · verified fleet lookup
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-slate-950">
+            <h2 className="mt-1 text-xl font-semibold text-white">
               Find machine-specific parts
             </h2>
-            <p className="mt-1 max-w-2xl text-sm text-slate-600">
+            <p className="nexus-fleet-lookup-copy mt-1 max-w-2xl text-sm">
               Enter a RELAY fleet number. NEXUS will return only parts
               associated with the verified make and model.
             </p>
           </div>
-          <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+          <span className="nexus-fleet-lookup-badge rounded-md px-2.5 py-1 text-xs font-semibold text-white">
             Requester access
           </span>
         </div>
@@ -300,7 +300,7 @@ export function NexusStoresWorkspace() {
                     ? `${suggestionListId}-${highlightedSuggestion}`
                     : undefined
                 }
-                className="h-11 w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-24 text-sm text-slate-950 outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
+                className="nexus-fleet-lookup-input h-11 w-full rounded-lg border bg-white py-2 pl-10 pr-24 text-sm text-slate-950 outline-none transition"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
                 Press Enter
@@ -353,7 +353,7 @@ export function NexusStoresWorkspace() {
               ) : null}
             </div>
           ) : null}
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="nexus-fleet-lookup-help mt-2 text-xs">
             Choose a predictive result, or type the complete fleet number and
             press Enter.
           </p>

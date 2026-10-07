@@ -1837,6 +1837,86 @@ select:focus-visible {
   color: #fff !important;
 }
 
+.scan-brand-hero {
+  border: 1px solid rgb(112 231 255 / 48%);
+  background:
+    radial-gradient(circle at 92% 8%, rgb(120 244 220 / 30%), transparent 32%),
+    linear-gradient(118deg, #06769d 0%, #159bc3 54%, #35b7dc 100%);
+  box-shadow: 0 18px 38px rgb(3 67 90 / 24%);
+}
+
+.scan-brand-kicker {
+  color: #8ff5da;
+}
+
+.scan-brand-copy {
+  color: #e4faff;
+}
+
+.scan-brand-icon {
+  border: 1px solid rgb(255 255 255 / 28%);
+  background: rgb(255 255 255 / 15%);
+  backdrop-filter: blur(8px);
+}
+
+.scan-brand-input:focus {
+  border-color: #1aa8c9;
+  box-shadow: 0 0 0 4px rgb(55 190 220 / 18%);
+}
+
+.scan-brand-action {
+  background: linear-gradient(135deg, #087e91, #0c9f9a);
+}
+
+.scan-brand-action:not(:disabled):hover {
+  background: linear-gradient(135deg, #066b7d, #087f7c);
+}
+
+.scan-brand-context {
+  border-color: #b7e5ef;
+  background: linear-gradient(135deg, #f3fcfe, #e9f8fb);
+}
+
+.scan-brand-step {
+  border-color: #c8e8ef;
+}
+
+.scan-brand-step-number {
+  background: linear-gradient(135deg, #159bc3, #087e91);
+}
+
+.nexus-fleet-lookup-brand {
+  border-color: rgb(112 231 255 / 42%);
+  background:
+    radial-gradient(circle at 94% 12%, rgb(120 244 220 / 25%), transparent 28%),
+    linear-gradient(118deg, #07506d 0%, #087fa5 54%, #21a8cc 100%);
+  box-shadow: 0 16px 34px rgb(2 48 68 / 18%);
+}
+
+.nexus-fleet-lookup-kicker {
+  color: #8ff5da;
+}
+
+.nexus-fleet-lookup-copy,
+.nexus-fleet-lookup-help {
+  color: #d8f6ff;
+}
+
+.nexus-fleet-lookup-badge {
+  border: 1px solid rgb(255 255 255 / 28%);
+  background: rgb(255 255 255 / 15%);
+  backdrop-filter: blur(8px);
+}
+
+.nexus-fleet-lookup-input {
+  border-color: rgb(183 229 239 / 90%);
+}
+
+.nexus-fleet-lookup-input:focus {
+  border-color: #69d8ef;
+  box-shadow: 0 0 0 3px rgb(105 216 239 / 22%);
+}
+
 .request-ticket-card {
   min-width: 0;
   max-width: 100%;
@@ -10020,4 +10100,322 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 .yard-movement-panel > p {
   font-size: 0.85rem;
   line-height: 1.5;
+}
+
+/* AssetCare+ treatment for the workshop damage intake workflow. */
+.workshop-secondary-page.workshop-damage-brand {
+  display: grid;
+  gap: 1rem;
+}
+
+.workshop-damage-brand-hero {
+  border: 1px solid rgb(112 231 255 / 42%);
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(circle at 92% 8%, rgb(120 244 220 / 26%), transparent 30%),
+    linear-gradient(118deg, #07506d 0%, #087fa5 54%, #21a8cc 100%);
+  padding: clamp(1.25rem, 2.5vw, 2rem);
+  box-shadow: 0 16px 34px rgb(2 48 68 / 18%);
+}
+
+.workshop-secondary-page.workshop-damage-brand .workshop-damage-brand-hero .inline-flex {
+  border-color: rgb(255 255 255 / 28%);
+  background: rgb(255 255 255 / 15%);
+  color: #8ff5da;
+}
+
+.workshop-secondary-page.workshop-damage-brand .workshop-damage-brand-hero h1 {
+  color: #fff;
+}
+
+.workshop-secondary-page.workshop-damage-brand .workshop-damage-brand-hero p {
+  color: #d8f6ff;
+}
+
+.workshop-damage-brand-form {
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background: var(--background-panel-strong);
+  padding: clamp(1rem, 2vw, 1.5rem);
+  box-shadow: 0 12px 28px rgb(2 48 68 / 10%);
+}
+
+.workshop-damage-brand-form input:focus,
+.workshop-damage-brand-form select:focus,
+.workshop-damage-brand-form textarea:focus {
+  border-color: #1aa8c9;
+  box-shadow: 0 0 0 3px rgb(55 190 220 / 18%);
+}
+
+.workshop-damage-brand-action {
+  background: linear-gradient(135deg, #087e91, #0c9f9a);
+}
+
+.workshop-damage-brand-action:not(:disabled):hover {
+  background: linear-gradient(135deg, #066b7d, #087f7c);
+}
+
+/* AssetCare+ Workshop Task Manager */
+.workshop-secondary-page.workshop-tasks-brand {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding-inline: 0 !important;
+}
+
+.workshop-tasks-brand-hero {
+  border: 1px solid rgba(143, 245, 218, 0.24);
+  border-radius: 1.75rem;
+  background: linear-gradient(118deg, #07506d 0%, #087fa5 54%, #21a8cc 100%);
+  box-shadow: 0 24px 55px -30px rgba(8, 127, 165, 0.8);
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  color: #fff;
+}
+
+.workshop-tasks-brand-hero h1 {
+  color: #fff !important;
+}
+
+.workshop-tasks-brand-hero > p {
+  color: #d8f6ff !important;
+}
+
+.workshop-tasks-brand-kicker {
+  border: 1px solid rgba(143, 245, 218, 0.42);
+  background: rgba(2, 48, 68, 0.28);
+  color: #8ff5da;
+}
+
+.workshop-tasks-brand-panel {
+  border-color: rgba(8, 127, 165, 0.2) !important;
+  box-shadow: 0 22px 55px -38px rgba(2, 48, 68, 0.6);
+}
+
+.workshop-tasks-brand-selected,
+.workshop-tasks-brand-action {
+  background: linear-gradient(135deg, #087e91, #0c9f9a) !important;
+  box-shadow: 0 12px 24px -16px rgba(8, 126, 145, 0.9);
+  color: #fff !important;
+}
+
+.workshop-tasks-brand-action:hover {
+  filter: brightness(1.06);
+}
+
+.workshop-tasks-brand-outline {
+  border: 1px solid rgba(8, 127, 165, 0.35);
+  background: #f2fbfd;
+  color: #07506d;
+}
+
+.workshop-tasks-brand-outline:hover {
+  border-color: #087fa5;
+  background: #e6f7fa;
+}
+
+.workshop-tasks-brand input:focus,
+.workshop-tasks-brand textarea:focus,
+.workshop-tasks-brand select:focus {
+  border-color: #1aa8c9 !important;
+  box-shadow: 0 0 0 3px rgba(26, 168, 201, 0.14);
+}
+
+.workshop-task-archive-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(8, 127, 165, 0.2) !important;
+  box-shadow: 0 20px 48px -38px rgba(2, 48, 68, 0.62) !important;
+}
+
+.workshop-task-archive-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.35rem;
+  background: linear-gradient(180deg, #21a8cc, #0c9f9a);
+  content: "";
+}
+
+.workshop-closed-table {
+  border-color: rgba(8, 127, 165, 0.22) !important;
+  box-shadow: 0 24px 56px -38px rgba(2, 48, 68, 0.68) !important;
+}
+
+.workshop-closed-table thead {
+  background: linear-gradient(90deg, #eaf8fb, #f2fbf8) !important;
+}
+
+.workshop-closed-table thead tr {
+  color: #07506d !important;
+}
+
+.workshop-closed-row:hover {
+  background: #f2fbfd;
+}
+
+.workshop-closed-status {
+  border: 1px solid rgba(12, 159, 154, 0.28);
+  background: #e9faf5;
+  color: #087f7c;
+}
+
+/* AssetCare+ administration workspace */
+.admin-control-page .relay-page-header {
+  margin-bottom: 1rem;
+  border: 1px solid rgba(143, 245, 218, 0.24);
+  border-radius: 1.5rem;
+  background: linear-gradient(118deg, #07506d 0%, #087fa5 54%, #21a8cc 100%);
+  box-shadow: 0 24px 55px -30px rgba(8, 127, 165, 0.8);
+  padding: clamp(1.4rem, 2.5vw, 2.25rem);
+}
+
+.admin-control-page .relay-page-header-copy::before {
+  display: block;
+  margin-bottom: 0.6rem;
+  color: #8ff5da;
+  content: "ASSETCARE+ · SECURE ADMINISTRATION";
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.2em;
+}
+
+.admin-control-page .relay-page-header h1,
+.admin-control-page .relay-page-header-copy > p,
+.admin-control-page .relay-page-header-meta {
+  color: #fff !important;
+}
+
+.admin-control-page .relay-page-header-copy > p {
+  color: #d8f6ff !important;
+}
+
+.admin-control-page .relay-page-header-meta {
+  opacity: 0.94;
+}
+
+.admin-control-page .relay-page-header-actions .relay-button {
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
+.admin-control-page .relay-page-header-actions .relay-button-secondary {
+  background: rgba(2, 48, 68, 0.34);
+  color: #fff;
+}
+
+.admin-control-subnav {
+  border: 1px solid rgba(8, 127, 165, 0.22);
+  border-radius: 0.9rem;
+  background: linear-gradient(90deg, rgba(7, 80, 109, 0.12), rgba(12, 159, 154, 0.07));
+  padding-inline: 0.35rem;
+}
+
+.admin-control-subnav a:hover,
+.admin-control-subnav a:focus-visible {
+  border-bottom-color: #21a8cc;
+  color: #21a8cc;
+}
+
+.admin-access-brand {
+  overflow: hidden;
+  border-color: rgba(8, 127, 165, 0.22) !important;
+  box-shadow: 0 22px 55px -42px rgba(2, 48, 68, 0.75) !important;
+}
+
+.admin-access-brand .relay-section-heading {
+  border-bottom: 1px solid rgba(8, 127, 165, 0.16);
+  background: linear-gradient(90deg, #eaf8fb, #f2fbf8);
+  padding: 1.2rem;
+}
+
+.admin-access-brand .relay-eyebrow,
+.admin-access-brand .relay-section-heading h2 {
+  color: #07506d;
+}
+
+.admin-access-brand input:focus,
+.admin-access-brand select:focus {
+  border-color: #1aa8c9 !important;
+  box-shadow: 0 0 0 3px rgba(26, 168, 201, 0.14);
+  outline: none;
+}
+
+.admin-access-brand table thead {
+  background: rgba(8, 127, 165, 0.08);
+  color: #07506d;
+}
+
+.admin-access-brand table tbody tr:hover {
+  background: rgba(33, 168, 204, 0.06);
+}
+
+/* AssetCare+ AI assistant */
+.relay-ai-header {
+  border-bottom-color: rgba(143, 245, 218, 0.2);
+  background: linear-gradient(118deg, #063f58 0%, #087b9f 62%, #16a0bd 100%);
+  box-shadow: 0 18px 40px -28px rgba(8, 127, 165, 0.85);
+}
+
+.relay-ai-heading p {
+  color: #8ff5da;
+}
+
+.relay-ai-heading h2 {
+  color: #fff;
+}
+
+.relay-ai-brand-mark {
+  border-color: rgba(143, 245, 218, 0.5);
+  background: rgba(2, 48, 68, 0.32);
+  color: #fff;
+}
+
+.relay-ai-header-button {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(2, 48, 68, 0.3);
+  color: #fff;
+}
+
+.relay-ai-header-button:hover {
+  border-color: #8ff5da;
+  background: rgba(2, 48, 68, 0.48);
+  color: #fff;
+}
+
+.relay-ai-status-bar {
+  border-bottom-color: rgba(8, 127, 165, 0.22);
+  background: linear-gradient(90deg, rgba(7, 80, 109, 0.16), rgba(12, 159, 154, 0.08));
+  color: #69d7e9;
+}
+
+.relay-ai-message-avatar {
+  border-color: rgba(12, 159, 154, 0.48);
+  background: linear-gradient(145deg, rgba(8, 126, 145, 0.2), rgba(12, 159, 154, 0.12));
+}
+
+.relay-ai-suggestions > p {
+  color: #43c9e8;
+}
+
+.relay-ai-suggestions button {
+  border-color: rgba(8, 127, 165, 0.34);
+  background: linear-gradient(135deg, rgba(7, 80, 109, 0.14), rgba(12, 159, 154, 0.07));
+}
+
+.relay-ai-suggestions button:hover {
+  border-color: #21a8cc;
+  background: linear-gradient(135deg, rgba(8, 126, 145, 0.24), rgba(12, 159, 154, 0.14));
+}
+
+.relay-ai-composer {
+  border-color: rgba(33, 168, 204, 0.72);
+  box-shadow: 0 0 0 3px rgba(12, 159, 154, 0.12), 0 18px 45px -30px rgba(8, 127, 165, 0.75);
+}
+
+.relay-ai-composer:focus-within {
+  border-color: #8ff5da;
+  box-shadow: 0 0 0 3px rgba(143, 245, 218, 0.16), 0 18px 45px -28px rgba(8, 127, 165, 0.82);
+}
+
+.relay-ai-composer > button {
+  background: linear-gradient(135deg, #087e91, #0c9f9a);
+  color: #fff;
 }

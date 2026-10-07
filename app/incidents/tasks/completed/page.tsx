@@ -171,16 +171,16 @@ export default function CompletedTasksPage() {
         </nav>
 
         <AuthGuard>
-          <section className="workshop-secondary-page rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
-            <div className="space-y-5">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-                Task Archive
+          <section className="workshop-secondary-page workshop-tasks-brand workshop-task-archive-brand rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
+            <div className="workshop-tasks-brand-hero space-y-5">
+              <div className="workshop-tasks-brand-kicker inline-flex rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em]">
+                AssetCare+ · Task archive
               </div>
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              <h1 className="text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
                 Completed Tasks
               </h1>
-              <p className="max-w-3xl text-base leading-8 text-slate-600">
-                Completed user tasks are archived here for admin review, export, and cleanup.
+              <p className="max-w-3xl text-base leading-8">
+                Review, export and manage the completed workshop task archive.
               </p>
             </div>
 
@@ -192,7 +192,7 @@ export default function CompletedTasksPage() {
               <button
                 type="button"
                 onClick={handleExportTasks}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                className="workshop-tasks-brand-outline inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition"
               >
                 Export CSV
               </button>
@@ -200,7 +200,7 @@ export default function CompletedTasksPage() {
                 type="button"
                 onClick={() => void loadTasks()}
                 disabled={isLoading}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="workshop-tasks-brand-action inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? "Refreshing..." : "Refresh"}
               </button>
@@ -218,7 +218,7 @@ export default function CompletedTasksPage() {
                 tasks.map((task) => (
                   <article
                     key={task.id}
-                    className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+                    className="workshop-task-archive-card rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-2">

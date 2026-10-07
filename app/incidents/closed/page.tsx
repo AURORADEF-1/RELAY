@@ -239,16 +239,16 @@ export default function ClosedIncidentsPage() {
         </nav>
 
         <AuthGuard requiredRole="admin">
-          <section className="workshop-secondary-page rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
-            <div className="space-y-5">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-                Archive
+          <section className="workshop-secondary-page workshop-tasks-brand workshop-closed-brand rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
+            <div className="workshop-tasks-brand-hero space-y-5">
+              <div className="workshop-tasks-brand-kicker inline-flex rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em]">
+                AssetCare+ · Incident archive
               </div>
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              <h1 className="text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
                 Closed Incident Jobs
               </h1>
-              <p className="max-w-3xl text-base leading-8 text-slate-600">
-                Closed damage reports and tyre breakdowns are archived here, newest first, so the live incident board stays focused on open work.
+              <p className="max-w-3xl text-base leading-8">
+                Review, export or re-open completed damage reports and tyre breakdowns.
               </p>
             </div>
 
@@ -261,7 +261,7 @@ export default function ClosedIncidentsPage() {
                 type="button"
                 onClick={handleExportIncidents}
                 disabled={isLoading || incidents.length === 0}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="workshop-tasks-brand-outline inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Export CSV
               </button>
@@ -269,7 +269,7 @@ export default function ClosedIncidentsPage() {
                 type="button"
                 onClick={() => void loadIncidents()}
                 disabled={isLoading}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="workshop-tasks-brand-action inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? "Refreshing..." : "Refresh"}
               </button>
@@ -293,7 +293,7 @@ export default function ClosedIncidentsPage() {
               </div>
             ) : null}
 
-            <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.4)]">
+            <div className="workshop-closed-table mt-8 overflow-hidden rounded-3xl border border-slate-200 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.4)]">
               <div className="hidden overflow-x-auto lg:block">
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
@@ -323,7 +323,7 @@ export default function ClosedIncidentsPage() {
                       </tr>
                     ) : (
                       incidents.map((incident) => (
-                        <tr key={incident.id}>
+                        <tr key={incident.id} className="workshop-closed-row transition-colors">
                           <td className="px-6 py-5 text-sm text-slate-500">
                             {formatDate(incident.updated_at)}
                           </td>
@@ -345,7 +345,9 @@ export default function ClosedIncidentsPage() {
                             {incident.assigned_to || "-"}
                           </td>
                           <td className="px-6 py-5 text-sm text-slate-700">
-                            CLOSED
+                            <span className="workshop-closed-status inline-flex rounded-full px-3 py-1 text-[11px] font-semibold tracking-[0.12em]">
+                              CLOSED
+                            </span>
                           </td>
                           <td className="px-6 py-5">
                             <div className="flex justify-end gap-3">
