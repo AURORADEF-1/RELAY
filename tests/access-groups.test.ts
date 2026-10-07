@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accessGroupHome, canAccessPath, normalizeAccessGroup } from "@/lib/access-groups";
+import { accessGroupHome, canAccessPath, canUsePartsOperations, normalizeAccessGroup } from "@/lib/access-groups";
 
 describe("access groups", () => {
   it("normalizes stored groups safely", () => {
@@ -40,5 +40,11 @@ describe("access groups", () => {
     expect(accessGroupHome("workshop")).toBe("/incidents");
     expect(accessGroupHome("parts")).toBe("/admin");
     expect(accessGroupHome("fitter")).toBe("/requests");
+  });
+
+  it("allows Parts users through the Operations page-level checks", () => {
+    expect(canUsePartsOperations(false, "parts")).toBe(true);
+    expect(canUsePartsOperations(true, "admin")).toBe(true);
+    expect(canUsePartsOperations(false, "fitter")).toBe(false);
   });
 });

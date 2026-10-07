@@ -17,6 +17,7 @@ import {
   getDefaultAdminOperatorOptions,
 } from "@/lib/admin-operators";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { canUsePartsOperations } from "@/lib/access-groups";
 import {
   buildReportAnalytics,
   loadReportTicketParts,
@@ -120,7 +121,7 @@ export default function ReportsPage() {
       setErrorMessage("");
       try {
         const access = await getCurrentUserWithRole(supabase, { forceFresh: true });
-        if (!access.user || !access.isAdmin) {
+        if (!access.user || !canUsePartsOperations(access.isAdmin, access.accessGroup)) {
           if (isMounted) {
             setAccessDenied(true);
             setIsLoading(false);

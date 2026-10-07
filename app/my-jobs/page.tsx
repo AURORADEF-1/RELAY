@@ -21,6 +21,7 @@ import {
   type MyJobsColumn,
 } from "@/lib/my-jobs";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { canUsePartsOperations } from "@/lib/access-groups";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const MY_JOBS_FIELDS = [
@@ -61,8 +62,10 @@ export default function MyJobsPage() {
     else setIsRefreshing(true);
 
     try {
-      const { user, profile, isAdmin } = await getCurrentUserWithRole(supabase);
-      if (!user || !isAdmin) throw new Error("Admin access is required to open My Jobs.");
+      const { user, profile, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase);
+      if (!user || !canUsePartsOperations(isAdmin, accessGroup)) {
+        throw new Error("Operations access is required to open Assigned Jobs.");
+      }
       const displayName = profile?.display_name?.trim() || user.email?.split("@")[0] || "Administrator";
       const currentOperatorLabel = getAdminAssignmentLabel(displayName);
       if (!isReportableAdminOperatorName(currentOperatorLabel)) {
