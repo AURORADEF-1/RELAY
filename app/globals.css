@@ -1794,6 +1794,49 @@ select:focus-visible {
   text-align: center;
 }
 
+.requester-dashboard-header {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, #55d8ff 42%, transparent);
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(circle at 92% 8%, rgb(57 199 238 / 28%), transparent 38%),
+    linear-gradient(118deg, #07506d 0%, #087fa5 54%, #21a8cc 100%);
+  padding: clamp(1.1rem, 2.5vw, 2rem);
+  box-shadow: 0 16px 34px rgb(2 48 68 / 18%);
+}
+
+.requester-dashboard-kicker {
+  border: 1px solid rgb(255 255 255 / 42%);
+  background: rgb(255 255 255 / 16%);
+  color: #fff;
+  backdrop-filter: blur(6px);
+}
+
+.requester-dashboard-title {
+  color: #fff;
+  text-shadow: 0 1px 2px rgb(0 34 48 / 22%);
+}
+
+.requester-dashboard-copy {
+  color: #d8f6ff;
+}
+
+.requester-dashboard-header .request-status-summary {
+  border-color: color-mix(in srgb, var(--status-color, #fff) 68%, white 18%);
+  background: rgb(3 42 58 / 64%);
+  box-shadow: 0 8px 20px rgb(0 37 52 / 18%);
+  backdrop-filter: blur(8px);
+}
+
+.requester-dashboard-header .request-status-summary-label {
+  color: #c9f3ff !important;
+}
+
+.requester-dashboard-header .request-status-summary > p:last-child {
+  color: #fff !important;
+}
+
 .request-ticket-card {
   min-width: 0;
   max-width: 100%;

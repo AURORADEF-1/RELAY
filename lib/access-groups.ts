@@ -80,11 +80,12 @@ export function canAccessPath(group: AccessGroupId, pathname: string) {
   ));
 }
 
-export function canUsePartsOperations(
+export function canUsePage(
   isAdmin: boolean,
   accessGroup: AccessGroupId | null,
+  pathname: string,
 ) {
-  return isAdmin || accessGroup === "parts";
+  return isAdmin || Boolean(accessGroup && canAccessPath(accessGroup, pathname));
 }
 
 export function accessGroupHome(group: AccessGroupId) {

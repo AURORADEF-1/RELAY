@@ -8,7 +8,7 @@ import { ConsoleIcon } from "@/components/console/console-icon";
 import { ConsoleShell } from "@/components/console/console-shell";
 import { StatusBadge } from "@/components/status-badge";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
-import { canUsePartsOperations } from "@/lib/access-groups";
+import { canUsePage } from "@/lib/access-groups";
 import { sanitizeUserFacingError } from "@/lib/security";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -65,7 +65,7 @@ export default function CompletedPage() {
       return;
     }
 
-    if (!canUsePartsOperations(isAdmin, accessGroup)) {
+    if (!canUsePage(isAdmin, accessGroup, "/completed")) {
       router.replace("/");
       return;
     }

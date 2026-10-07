@@ -16,6 +16,7 @@ import {
   type PrePickTicket,
 } from "@/lib/pre-pick";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { canUsePage } from "@/lib/access-groups";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -58,9 +59,9 @@ export default function PrePickPage() {
     else setIsRefreshing(true);
 
     try {
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
-      if (!user || !isAdmin) {
-        throw new Error("Admin access is required to open Pre-Pick.");
+      const { user, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase);
+      if (!user || !canUsePage(isAdmin, accessGroup, "/pre-pick")) {
+        throw new Error("Parts access is required to open Pre-Pick.");
       }
 
       const { data, error } = await supabase

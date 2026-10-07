@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { canUsePage } from "@/lib/access-groups";
 import { fetchPartsLookup, type PartsLookupRecord } from "@/lib/parts-lookup";
 import { getSupabaseClient } from "@/lib/supabase";
 import { TakeuchiPartsCatalogPanel } from "@/components/takeuchi-parts-catalog-panel";
@@ -59,13 +60,13 @@ export function PartsLookupPanel() {
     setErrorMessage("");
 
     try {
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase, {
+      const { user, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase, {
         forceFresh: true,
       });
 
-      if (!user || !isAdmin) {
+      if (!user || !canUsePage(isAdmin, accessGroup, "/parts-knowledge")) {
         setRecords([]);
-        setErrorMessage("Admin access is required for parts lookup.");
+        setErrorMessage("Parts access is required for parts lookup.");
         return;
       }
 

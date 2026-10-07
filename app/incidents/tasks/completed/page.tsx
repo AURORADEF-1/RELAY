@@ -10,6 +10,7 @@ import { RelayLogo } from "@/components/relay-logo";
 import { RoleAwareRequestsLink } from "@/components/role-aware-requests-link";
 import { WorkshopIncidentsTabs } from "@/components/workshop-incidents-tabs";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { canUsePage } from "@/lib/access-groups";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   deleteUserTask,
@@ -41,10 +42,10 @@ export default function CompletedTasksPage() {
         return;
       }
 
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase);
+      const { user, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase);
 
-      if (!user || !isAdmin) {
-        setErrorMessage("Admin access is required to view completed tasks.");
+      if (!user || !canUsePage(isAdmin, accessGroup, "/incidents/tasks/completed")) {
+        setErrorMessage("Workshop access is required to view completed tasks.");
         setIsLoading(false);
         return;
       }

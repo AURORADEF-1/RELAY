@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { canUsePage } from "@/lib/access-groups";
 import {
   buildEmptyPartsQueryDraft,
   buildPartsQueryDraft,
@@ -70,15 +71,15 @@ export function PartsQueriesPanel() {
     setErrorMessage("");
 
     try {
-      const { user, isAdmin } = await getCurrentUserWithRole(supabase, {
+      const { user, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase, {
         forceFresh: true,
       });
 
-      if (!user || !isAdmin) {
+      if (!user || !canUsePage(isAdmin, accessGroup, "/admin")) {
         setQueries([]);
         setDraftsById({});
         setCurrentUserId(null);
-        setErrorMessage("Admin access is required for parts queries.");
+        setErrorMessage("Parts access is required for parts queries.");
         return;
       }
 

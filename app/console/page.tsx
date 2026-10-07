@@ -20,7 +20,7 @@ import {
   mergeLatestTicketNotes,
 } from "@/lib/console-tickets";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
-import { canUsePartsOperations } from "@/lib/access-groups";
+import { canUsePage } from "@/lib/access-groups";
 import { activeTicketStatuses } from "@/lib/statuses";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -99,7 +99,7 @@ export default function ConsolePage() {
 
     try {
       const { user, isAdmin, accessGroup } = await getCurrentUserWithRole(supabase);
-      if (!user || !canUsePartsOperations(isAdmin, accessGroup)) {
+      if (!user || !canUsePage(isAdmin, accessGroup, "/console")) {
         setErrorMessage("Operations access is required to open the live queue.");
         return;
       }

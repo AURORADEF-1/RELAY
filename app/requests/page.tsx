@@ -358,14 +358,14 @@ export default function RequestsPage() {
         <section className="console-queue-panel requester-requests-panel !mt-0 min-w-0 max-w-full p-3 sm:p-6">
           <div className="requester-dashboard-header flex min-w-0 flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
             <div className="min-w-0 max-w-3xl space-y-4 sm:space-y-5">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
+              <div className="requester-dashboard-kicker inline-flex rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em]">
                 Requester Dashboard
               </div>
-              <h1 className="break-words text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              <h1 className="requester-dashboard-title break-words text-3xl font-semibold tracking-[-0.04em] sm:text-5xl">
                 {isAdmin ? "Smart Search" : "My Requests"}
                 <NotificationBadge count={isAdmin ? adminBadgeCount : requesterUnreadCount} />
               </h1>
-              <p className="text-base leading-8 text-slate-600">
+              <p className="requester-dashboard-copy text-base leading-8">
                 Track every active parts request, see collection locations and open a
                 ticket for its latest update.
               </p>
