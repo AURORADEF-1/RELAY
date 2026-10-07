@@ -40,14 +40,30 @@ it('allows only the explicitly authorised People group for office viewers',()=>{
  const safe=requesterMachines([machine('private'),machine('operator')],groups,{allowedPeopleGroups:['Non Shared']});
  expect(safe.map(m=>[m.pin,m.assetGroup])).toEqual([['private','Non Shared']]);
 });
-it('hides Non Shared from a fitter but keeps it for office',async()=>{
- const groups=[{lookup_hash:assetGroupKeys('private')[0],cost_centre:'Non Shared',category:'People'},group('vehicle','Vehicles')];
+it('can retain every classified and unclassified asset for group-specific visibility',()=>{
+ const groups=[group('operator','People')];
+ const visible=requesterMachines([machine('operator'),machine('unclassified')],groups,{allowedPeopleGroups:'all',includeUnclassified:true});
+ expect(visible.map(m=>[m.pin,m.assetGroup])).toEqual([['operator','People'],['unclassified','Unmatched']]);
+});
+it.each([
+ ['fitter',['plant']],
+ ['workshop',['plant','operator','vehicle','unclassified']],
+ ['transport',['plant','operator','vehicle','unclassified']],
+ ['assetcare',['plant','operator','vehicle','unclassified']],
+ ['office',['plant','private','operator','vehicle','unclassified']],
+])('applies the %s Fleet Map group policy',async(accessGroup,expected)=>{
+ const groups=[
+  {lookup_hash:assetGroupKeys('private')[0],cost_centre:'Non Shared',category:'People'},
+  {lookup_hash:assetGroupKeys('operator')[0],cost_centre:'Operators',category:'People'},
+  group('plant','Plant'),group('vehicle','Vehicles'),
+ ];
  mocks.rows.mockResolvedValue(groups);
- mocks.assetcare.mockResolvedValue({machines:[machine('private'),machine('vehicle')],checkedAt:'now',stale:false});
- mocks.profile.mockResolvedValueOnce({data:{role:'requester',access_group:'fitter'},error:null});
- expect((await fleetForViewer(request)).machines.map(m=>m.equipmentId)).not.toContain('private');
- mocks.profile.mockResolvedValueOnce({data:{role:'requester',access_group:'office'},error:null});
- expect((await fleetForViewer(request)).machines.map(m=>m.equipmentId)).toContain('private');
+ mocks.jcb.mockResolvedValue({machines:[],checkedAt:'now',stale:false});
+ mocks.trackunit.mockResolvedValue({machines:[],checkedAt:'now',stale:false});
+ mocks.takeuchi.mockResolvedValue({machines:[],checkedAt:'now',stale:false});
+ mocks.assetcare.mockResolvedValue({machines:['plant','private','operator','vehicle','unclassified'].map(id=>machine(id)),checkedAt:'now',stale:false});
+ mocks.profile.mockResolvedValue({data:{role:'requester',access_group:accessGroup as string},error:null});
+ expect((await fleetForViewer(request)).machines.map(m=>m.equipmentId)).toEqual(expected);
 });
 it.each([401,403])('rejects denied authentication %s before privileged reads',async status=>{
  mocks.auth.mockResolvedValue({ok:false,status,error:'Denied'});
