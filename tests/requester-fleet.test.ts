@@ -4,7 +4,7 @@ import {requesterMachines} from '@/lib/fleet-map/requester';
 import {assetGroupKeys} from '@/lib/fleet-map/groups';
 import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 vi.mock('server-only',()=>({}));
-const mocks=vi.hoisted(()=>({auth:vi.fn(),profile:vi.fn(),rows:vi.fn(),db:vi.fn(),admin:vi.fn(),jcb:vi.fn(),trackunit:vi.fn(),takeuchi:vi.fn(),assetcare:vi.fn()}));
+const mocks=vi.hoisted(()=>({auth:vi.fn(),profile:vi.fn(),rows:vi.fn(),db:vi.fn(),admin:vi.fn(),jcb:vi.fn(),trackunit:vi.fn(),takeuchi:vi.fn(),assetcare:vi.fn(),roam:vi.fn()}));
 vi.mock('@/lib/integrations/rico/route-auth',()=>({authorizeRelayRequesterRoute:mocks.auth}));
 vi.mock('@/lib/fleet-operations/server',()=>({allRows:mocks.rows,operationsDatabase:mocks.db}));
 vi.mock('@/lib/fleet-map/server',()=>({combinedFleet:mocks.admin}));
@@ -12,6 +12,7 @@ vi.mock('@/lib/integrations/jcb/server',()=>({getLinkedFleet:mocks.jcb}));
 vi.mock('@/lib/integrations/trackunit/server',()=>({getLinkedTrackunitFleet:mocks.trackunit}));
 vi.mock('@/lib/integrations/takeuchi/server',()=>({getLinkedTakeuchiFleet:mocks.takeuchi}));
 vi.mock('@/lib/integrations/assetcare/server',()=>({getAssetCareFleet:mocks.assetcare}));
+vi.mock('@/lib/integrations/roam/hires-server',()=>({readAllRoamHires:mocks.roam}));
 import {fleetForViewer} from '@/lib/fleet-map/requester-server';
 const machine=(pin:string,source:LinkedJcbMachine['source']='assetcare'):LinkedJcbMachine=>({source,pin,equipmentId:pin,model:'Asset',position:{latitude:52,longitude:1,at:'2026-09-25T10:00:00Z'},relay:null,match:'unmatched',hours:{value:123,at:null}});
 const group=(name:string,category:string)=>({lookup_hash:assetGroupKeys(name)[0],cost_centre:category,category});
@@ -24,6 +25,7 @@ beforeEach(()=>{
  mocks.rows.mockResolvedValue([group('person','People'),group('vehicle','Vehicles')]);
  for(const p of ['JCB_LIVELINK','TRACKUNIT','TAKEUCHI','ASSETCARE'])vi.stubEnv(`${p}_ENABLED`,'true');
  for(const p of ['jcb','trackunit','takeuchi','assetcare'] as const)mocks[p].mockResolvedValue({machines:[machine(p==='assetcare'?'vehicle':p,p)],checkedAt:'2026-09-28T10:00:00Z',stale:false});
+ mocks.roam.mockResolvedValue({items:[],generatedAt:'2026-09-28T10:00:00Z'});
 });
 it('removes People, conflicting People aliases and unclassified Asset Care records before deduplication',()=>{
  const relay={id:'same',machine_number:'12345',make:'JCB',model:'X',serial_number:null};
@@ -59,6 +61,13 @@ it('provides all four feeds without fitter grants and strips People counts and c
 it('shows surviving sources on a provider outage',async()=>{
  mocks.trackunit.mockRejectedValue(new Error('private provider failure'));const result=await fleetForViewer(request);
  expect(result.sources[1]).toMatchObject({available:false,count:0,stale:true});expect(result.machines).toHaveLength(3);
+});
+it('adds matched ROAM hires and reports the source without exposing the upstream contract',async()=>{
+ mocks.roam.mockResolvedValue({generatedAt:'2026-09-28T10:00:00Z',items:[{id:'hire-1',hire_reference:'R-1',status:'on_site',machine:{fleet:'vehicle'},site:{name:'Customer site',latitude:52.1,longitude:1.1},delivery:{},collection:{}}]});
+ const result=await fleetForViewer(request),vehicle=result.machines.find(m=>m.equipmentId==='vehicle');
+ expect(vehicle?.roamHire).toMatchObject({id:'hire-1',reference:'R-1',site:'Customer site'});
+ expect(result.sources.at(-1)).toMatchObject({provider:'roam',available:true,count:1});
+ expect(JSON.stringify(result)).not.toContain('collection');
 });
 it('retains the existing admin path',async()=>{
  mocks.profile.mockResolvedValue({data:{role:'admin'},error:null});mocks.admin.mockResolvedValue({admin:true});

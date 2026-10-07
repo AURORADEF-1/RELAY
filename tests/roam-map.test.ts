@@ -4,6 +4,7 @@ import {hirePageSchema} from '@/lib/integrations/roam/hires';
 import {mergeRoamMap} from '@/lib/integrations/roam/map';
 import {filterFleet,defaults} from '@/lib/fleet-map/preferences';
 import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
+import {projectMachine} from '@/lib/integrations/jcb/normalize';
 const hire=()=>structuredClone(hirePageSchema.parse(fixture).items[0]);
 const now=Date.parse('2026-09-30T12:00:00Z');
 const tracked:LinkedJcbMachine={source:'jcb',pin:'TEST',equipmentId:'EXAMPLE-001',model:'Excavator',relay:null,match:'unmatched',position:{latitude:52,longitude:1,at:'2026-09-30T11:00:00Z'}};
@@ -14,4 +15,5 @@ describe('ROAM untracked hire map',()=>{
  it('does not mistake stale or future GPS for a recent tracker signal',()=>{for(const at of ['2026-01-01','2027-01-01']){const m=mergeRoamMap([{...tracked,position:{...tracked.position!,at}}],[hire()],now);expect(m).toHaveLength(1);expect(m[0].source).toBe('roam')}});
  it('removes scheduled hires and deduplicates overlapping on-site hire records',()=>{const h=hire();expect(mergeRoamMap([],[{...h,status:'scheduled'}],now)).toHaveLength(0);expect(mergeRoamMap([],[h,{...h,id:'another'}],now)).toHaveLength(1)});
  it('does not match partial fleet numbers or ambiguous trackers',()=>{const h=hire();h.machine.fleet='EXAMPLE-00';expect(mergeRoamMap([tracked],[h],now)).toHaveLength(2);expect(mergeRoamMap([tracked,{...tracked,pin:'OTHER'}],[hire()],now).at(-1)?.source).toBe('roam')});
+ it('keeps safe ROAM map metadata in non-admin projections',()=>{const m=mergeRoamMap([tracked],[hire()],now).find(row=>row.roamHire)!;expect(projectMachine(m,false).roamHire).toMatchObject({reference:'H-EXAMPLE-001',site:'Example construction site'});expect(projectMachine({...m,hours:{value:10,at:null}},false)).not.toHaveProperty('hours')});
 });
