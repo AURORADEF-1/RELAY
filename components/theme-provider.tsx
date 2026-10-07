@@ -15,7 +15,9 @@ type ThemeContextValue = {
   setTheme: (theme: RelayTheme) => void;
 };
 
-const THEME_STORAGE_KEY = "relay-theme";
+// Version the preference key so this release resets every existing session to
+// the new product default once. Choices made after the release remain sticky.
+const THEME_STORAGE_KEY = "relay-theme-v2";
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: "dark",

@@ -1864,12 +1864,29 @@ select:focus-visible {
   box-shadow: 0 0 0 4px rgb(55 190 220 / 18%);
 }
 
+.scan-brand-input {
+  background: #ffffff;
+  color: #082032;
+  color-scheme: light;
+}
+
+.scan-brand-input::placeholder {
+  color: #526b7d;
+  opacity: 1;
+}
+
 .scan-brand-action {
   background: linear-gradient(135deg, #087e91, #0c9f9a);
 }
 
 .scan-brand-action:not(:disabled):hover {
   background: linear-gradient(135deg, #066b7d, #087f7c);
+}
+
+.scan-brand-action:disabled {
+  background: #607d86;
+  color: #ffffff;
+  opacity: 1;
 }
 
 .scan-brand-context {
@@ -10138,6 +10155,16 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   background: var(--background-panel-strong);
   padding: clamp(1rem, 2vw, 1.5rem);
   box-shadow: 0 12px 28px rgb(2 48 68 / 10%);
+}
+
+.workshop-damage-brand-form label > span {
+  color: var(--foreground) !important;
+}
+
+.workshop-damage-brand-form label > span + input,
+.workshop-damage-brand-form label > span + select,
+.workshop-damage-brand-form label > span + textarea {
+  color-scheme: light;
 }
 
 .workshop-damage-brand-form input:focus,
