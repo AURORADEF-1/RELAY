@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import { recordAdminHealthEvent } from "@/lib/admin-health";
 import { isLocalDemoMode, isLocalRolePreviewEnabled } from "@/lib/demo-mode";
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/lib/profile-access";
 import { getSupabaseClient } from "@/lib/supabase";
 import { accessGroupHome, canAccessPath } from "@/lib/access-groups";
+import "./auth-guard.css";
 
 export function AuthGuard({
   children,
@@ -130,9 +132,14 @@ export function AuthGuard({
 
   if (isChecking) {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-white px-5 py-8 text-sm text-slate-500 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.2)]">
-        Checking session...
-      </div>
+      <section className="auth-session-loading" role="status" aria-live="polite" aria-label="Opening AssetCare Plus">
+        <div className="auth-session-loading__brand">
+          <Image src="/assetcare-plus-logo.png" alt="AssetCare+" width={300} height={72} priority />
+          <span>RELAY OPERATIONS</span>
+        </div>
+        <div className="auth-session-loading__track" aria-hidden="true"><span /></div>
+        <p>Opening your workspace…</p>
+      </section>
     );
   }
 
