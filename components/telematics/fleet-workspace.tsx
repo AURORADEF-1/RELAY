@@ -28,7 +28,8 @@ type Details={machine:LinkedJcbMachine;faults:JcbFault[];checkedAt:string;faultE
 async function api<T>(provider:string,path:string,signal?:AbortSignal,body?:unknown):Promise<T>{
  const token=await getSupabaseAccessToken();if(!token)throw new Error('Sign in to view fleet tracking.');
  const endpoint=`/api/integrations/${provider}/${path}`;
- const response=await fetch(endpoint,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal});
+ const previewAccessGroup=provider==='combined'&&path==='fleet'?window.localStorage.getItem('relay-demo-access-view'):null;
+ const response=await fetch(endpoint,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${token}`,...(previewAccessGroup&&previewAccessGroup!=='admin'?{'X-Relay-Preview-Access-Group':previewAccessGroup}:{}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal});
  const data=await response.json();if(!response.ok)throw new Error(data.error||'Fleet connection unavailable. Please retry.');return data;
 }
 const date=(at?:string|null)=>at?new Date(at).toLocaleString('en-GB'):'Time unavailable';

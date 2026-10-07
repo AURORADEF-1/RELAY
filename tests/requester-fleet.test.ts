@@ -40,6 +40,15 @@ it('allows only the explicitly authorised People group for office viewers',()=>{
  const safe=requesterMachines([machine('private'),machine('operator')],groups,{allowedPeopleGroups:['Non Shared']});
  expect(safe.map(m=>[m.pin,m.assetGroup])).toEqual([['private','Non Shared']]);
 });
+it('hides Non Shared from a fitter but keeps it for office',async()=>{
+ const groups=[{lookup_hash:assetGroupKeys('private')[0],cost_centre:'Non Shared',category:'People'},group('vehicle','Vehicles')];
+ mocks.rows.mockResolvedValue(groups);
+ mocks.assetcare.mockResolvedValue({machines:[machine('private'),machine('vehicle')],checkedAt:'now',stale:false});
+ mocks.profile.mockResolvedValueOnce({data:{role:'requester',access_group:'fitter'},error:null});
+ expect((await fleetForViewer(request)).machines.map(m=>m.equipmentId)).not.toContain('private');
+ mocks.profile.mockResolvedValueOnce({data:{role:'requester',access_group:'office'},error:null});
+ expect((await fleetForViewer(request)).machines.map(m=>m.equipmentId)).toContain('private');
+});
 it.each([401,403])('rejects denied authentication %s before privileged reads',async status=>{
  mocks.auth.mockResolvedValue({ok:false,status,error:'Denied'});
  await expect(fleetForViewer(request)).rejects.toMatchObject({status});expect(mocks.db).not.toHaveBeenCalled();
@@ -75,3 +84,10 @@ it('retains the existing admin path',async()=>{
 });
 
 it('keeps the forced requester projection even for an admin caller',async()=>{mocks.profile.mockResolvedValue({data:{role:'admin'},error:null});const r=await fleetForViewer(request,true);expect(r.admin).toBe(false);expect(mocks.admin).not.toHaveBeenCalled();});
+it('uses the selected restricted group for an admin preview',async()=>{
+ mocks.profile.mockResolvedValue({data:{role:'admin',access_group:'admin'},error:null});
+ const previewRequest=new NextRequest('https://relay.test/api/integrations/combined/fleet',{headers:{'x-relay-preview-access-group':'fitter'}});
+ const result=await fleetForViewer(previewRequest);
+ expect(result).toMatchObject({admin:false,accessGroup:'fitter',canViewNonShared:false});
+ expect(mocks.admin).not.toHaveBeenCalled();
+});
