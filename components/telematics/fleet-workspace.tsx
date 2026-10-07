@@ -51,7 +51,7 @@ const nearbyAddress=(machine:LinkedJcbMachine,machines:LinkedJcbMachine[])=>{
  return nearest?.address??null;
 };
 const batteryVoltage=(machine:LinkedJcbMachine)=>machine.batteryVoltage?`${machine.batteryVoltage.value.toFixed(2).replace(/\.00$/,'')} V`:'Not Supplied';
-const machineTitle=(machine:LinkedJcbMachine)=>machine.source==='assetcare'&&!machine.relay?titleCaseAssetLabel(machine.equipmentId):`${machine.relay?.machine_number||machine.equipmentId} · ${titleCaseAssetText(`${machineBrand(machine)}${machine.model?` ${machine.model}`:''}`)}`;
+const machineTitle=(machine:LinkedJcbMachine)=>`${machine.source==='assetcare'&&!machine.relay?titleCaseAssetLabel(machine.equipmentId):`${machine.relay?.machine_number||machine.equipmentId} · ${titleCaseAssetText(`${machineBrand(machine)}${machine.model?` ${machine.model}`:''}`)}`}${machine.hoursReview?' · ⚑ HOURS NEED REVIEW':''}`;
 const costCentres=['Hydraulic Services','Non Shared','Operators','Plant','Plant Office','Stock','Transport','Workshop','Yard'];
 function CostCentreAssignment({machine,onSaved}:{machine:LinkedJcbMachine;onSaved:()=>void}){
  const [costCentre,setCostCentre]=useState(''),[saving,setSaving]=useState(false),[error,setError]=useState('');

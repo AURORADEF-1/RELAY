@@ -10,6 +10,8 @@ import {operationsDatabase} from '@/lib/fleet-operations/server';
 import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 import {readAllRoamHires} from '@/lib/integrations/roam/hires-server';
 import {mergeRoamMap} from '@/lib/integrations/roam/map';
+import {roamHourRules} from '@/lib/integrations/roam/hours-server';
+import {applyRoamHours} from '@/lib/integrations/roam/hours';
 type VoltageSample={provider:string;pin:string;captured_at:string;payload:{batteryVoltage?:{value?:unknown;at?:unknown}|null}};
 async function restoreRecentVoltages(machines:LinkedJcbMachine[]){
  try{
@@ -41,6 +43,7 @@ export async function combinedFleet(request:NextRequest){
   machines=mergeRoamMap(machines,roam.items);
   sources.push({provider:'roam',available:true,count:roam.items.filter(h=>h.status==='on_site').length,checkedAt:roam.generatedAt,stale:false});
  }catch{sources.push({provider:'roam',available:false,count:0,checkedAt:null,stale:true});}
+ try{const rules=await roamHourRules();machines=applyRoamHours(machines,rules.readings,rules.corrections);}catch{}
  machines=await restoreRecentVoltages(machines) as typeof machines;
  let groupError=false;
  try{machines=await groupedFleet(machines) as typeof machines;}catch{groupError=true;}
