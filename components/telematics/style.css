@@ -57,7 +57,8 @@
 .fleet-view-toolbar{margin-bottom:8px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--background-panel)}
 .fleet-view-toolbar .jcb-search{max-width:620px}
 .fleet-view-toolbar .jcb-search input{min-height:36px;margin:0;padding:7px 10px;font-size:.78rem;font-weight:500}
-.fleet-view-toolbar .jcb-actions{margin:0}
+.fleet-view-toolbar .jcb-actions{flex:1;margin:0}
+.fleet-view-toolbar .jcb-actions .fleet-export-action{margin-left:auto}
 .fleet-view-toolbar .jcb-actions>button,.fleet-view-toolbar .jcb-actions>.jcb-button{display:inline-flex;min-height:36px;height:36px;align-items:center;justify-content:center;margin:0;border-radius:7px;padding:6px 10px;font-size:.72rem;font-weight:650;line-height:1;white-space:nowrap}
 .fleet-workspace-combined .fleet-map-shell:not(.fleet-map-split) .jcb-machine-list{height:calc(100vh - 210px);min-height:560px;max-height:none}
 .fleet-preferences:not([open]){margin:8px 0}
