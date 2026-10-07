@@ -119,12 +119,14 @@
 .fleet-map-shell .jcb-detail{border-color:var(--border-strong);border-radius:10px;background:var(--background-panel);padding:14px;color:var(--foreground);box-shadow:none}
 .fleet-map-shell .jcb-detail>h2{margin:0;padding:0 34px 10px 0;border-bottom:1px solid var(--border);font-size:1rem;line-height:1.25}
 .fleet-map-shell .jcb-detail>p{margin:8px 0;color:var(--foreground-muted);font-size:.72rem;line-height:1.45}
-.fleet-detail-header{display:grid;gap:10px;padding:2px 34px 12px 0;border-bottom:1px solid var(--border)}
+.fleet-detail-header{position:relative;display:grid;gap:10px;padding:2px 0 12px;border-bottom:1px solid var(--border)}
+.fleet-detail-header>div:first-child{min-width:0;padding-right:112px}
 .fleet-detail-header>div:first-child>span,.fleet-detail-section-label{display:block;margin-bottom:5px;color:var(--brand-primary);font-size:.6rem;font-weight:850;letter-spacing:.12em;text-transform:uppercase}
-.fleet-detail-header h2{margin:0;color:var(--foreground-strong);font-size:1rem;line-height:1.25}
+.fleet-detail-header h2{min-width:0;margin:0;overflow:hidden;color:var(--foreground-strong);font-size:1rem;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
+.fleet-detail-window-actions{position:absolute;top:0;right:0;z-index:4;display:flex;gap:5px;align-items:flex-start}
 .fleet-detail-primary-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .fleet-map-shell .jcb-detail .fleet-detail-primary-actions>.jcb-button{display:flex;min-height:34px;align-items:center;justify-content:center;margin:0;padding:6px 8px;text-align:center;font-size:.68rem}
-.fleet-detail-summary,.fleet-detail-location,.fleet-detail-management{margin-top:10px;border:1px solid var(--border);border-radius:9px;background:color-mix(in srgb,var(--background-panel-strong) 72%,transparent);padding:11px}
+.fleet-detail-location,.fleet-detail-management{margin-top:10px;border:1px solid var(--border);border-radius:9px;background:color-mix(in srgb,var(--background-panel-strong) 72%,transparent);padding:11px}
 .fleet-detail-summary{display:grid;gap:8px}
 .fleet-detail-summary .fleet-detail-battery{margin:0}
 .fleet-map-shell .fleet-detail-summary section[aria-label="Travel status"]{padding-top:9px;border-top:1px solid var(--border)}
@@ -136,6 +138,11 @@
 .fleet-detail-management>.asset-flag-control{margin:0!important;padding:0!important;border:0!important;background:transparent!important}
 .fleet-detail-management>.jcb-button{width:100%;min-height:32px;margin:7px 0 0!important;justify-content:center}
 .fleet-map-shell .fleet-close-detail{top:9px;right:9px;border-color:var(--border-strong)!important;background:var(--background-panel-strong)!important;color:var(--foreground)!important}
+.fleet-detail-window-actions .fleet-close-detail{position:static!important;width:30px;height:30px;min-height:30px;margin:0!important}
+.fleet-detail-window-actions .asset-flag-control-compact{position:static;display:flex;gap:5px;margin:0!important;padding:0!important;border:0!important;background:transparent!important}
+.fleet-detail-window-actions .asset-flag-control-compact>.jcb-button,.fleet-detail-window-actions .asset-flag-control-compact>.fleet-flagged-state{display:flex;min-height:30px;align-items:center;margin:0;padding:4px 7px;border-radius:7px;font-size:.61rem;line-height:1}
+.fleet-detail-window-actions .asset-flag-control-compact>.fleet-edit-name{position:static!important}
+.fleet-detail-window-actions .asset-flag-control-compact>form,.fleet-detail-window-actions .asset-flag-control-compact>.asset-flag-notice,.fleet-detail-window-actions .asset-flag-control-compact>p[role="alert"]{position:absolute;top:36px;right:0;z-index:8;width:min(300px,calc(100vw - 42px));margin:0;padding:10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--background-panel-strong);box-shadow:0 12px 30px rgb(0 0 0 / 28%)}
 .fleet-map-shell .jcb-detail h3{margin:14px 0 7px;padding-top:12px;border-top:1px solid var(--border);color:var(--foreground);font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
 .fleet-map-shell .jcb-detail section[aria-label="Travel status"] p{margin:0 0 4px;font-size:.76rem;line-height:1.45}
 .fleet-map-shell .jcb-detail section[aria-label="Travel status"] small{display:block;margin:0;color:var(--foreground-subtle);font-size:.64rem;line-height:1.5}
@@ -153,6 +160,11 @@
 .fleet-map-shell .fleet-location-views .jcb-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:8px 0}
 .fleet-map-shell .fleet-location-views .jcb-button{display:flex;min-height:34px;align-items:center;justify-content:space-between;margin:0;padding:6px 9px;border-radius:7px;background:var(--background-panel-strong);font-size:.68rem}
 .fleet-map-shell .fleet-location-views .jcb-sync{margin:7px 0 0;color:var(--foreground-subtle);font-size:.61rem;line-height:1.5}
+.fleet-map-shell .fleet-detail-location section[aria-label="Travel status"]{margin:0 0 10px;padding:0 0 10px;border-bottom:1px solid var(--border)}
+.fleet-map-shell .asset-share{margin:10px 0 0;padding:9px;border-radius:8px}
+.fleet-map-shell .asset-share h3{margin:0 0 7px;padding:0;border:0;font-size:.66rem}
+.fleet-map-shell .asset-share>.jcb-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:0}
+.fleet-map-shell .asset-share>.jcb-actions button,.fleet-map-shell .asset-share>.jcb-actions a{display:flex;min-height:28px;align-items:center;justify-content:center;padding:4px 5px;text-align:center;font-size:.58rem}
 .fleet-map-shell .jcb-detail .jcb-metrics{gap:6px}
 .fleet-map-shell .jcb-detail .jcb-metrics>div{border:1px solid var(--border);border-radius:7px;background:var(--background-panel-strong);padding:8px}
 .fleet-map-shell .jcb-detail .jcb-metrics dt{font-size:.62rem}.fleet-map-shell .jcb-detail .jcb-metrics dd{margin:2px 0;font-size:.9rem}

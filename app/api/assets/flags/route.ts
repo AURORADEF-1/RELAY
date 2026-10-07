@@ -7,10 +7,11 @@ import {getLinkedTrackunitFleet} from '@/lib/integrations/trackunit/server';
 import {getLinkedTakeuchiFleet} from '@/lib/integrations/takeuchi/server';
 import {getAssetCareFleet} from '@/lib/integrations/assetcare/server';
 import {JcbError} from '@/lib/integrations/jcb/client';
+import {accessGroupIds} from '@/lib/access-groups';
 export const maxDuration=60;
 const columns='id,asset_key,provider,pin,machine_id,label,reason,created_at,resolved_at';
 export async function GET(request:NextRequest){try{
- await authorizeAssets(request,true);
+ await authorizeAssets(request,true,[...accessGroupIds]);
  const db=operationsDatabase(),flags:AssetFlag[]=[];
  for(let offset=0;offset<=2000;offset+=500){
   const r=await db.from('fleet_asset_flags').select(columns).is('resolved_at',null).order('id').range(offset,offset+499);
@@ -22,11 +23,12 @@ export async function GET(request:NextRequest){try{
  throw new JcbError('Flag list unavailable.',503);
  }catch(e){return jcbError(e);}}
 export async function POST(request:NextRequest){try{
- const auth=await authorizeAssets(request,true);
+ const auth=await authorizeAssets(request,true,[...accessGroupIds]);
  const parsed=flagSchema.safeParse(await request.json().catch(()=>null));
  if(!parsed.success)throw new JcbError('Enter a reason of 3–500 characters and a valid machine reference.',400);
  const input=parsed.data,db=operationsDatabase();
  if(input.action==='resolve'){
+  if(!auth.admin)throw new JcbError('Only an administrator can clear a machine flag.',403);
   const r=await db.from('fleet_asset_flags').update({resolved_at:new Date().toISOString(),resolved_by:auth.user.id,resolution:input.resolution}).eq('id',input.id).is('resolved_at',null).select('id').maybeSingle();
   if(r.error)throw new JcbError('Unable to clear flag. Refresh and retry.',503);
   if(!r.data)throw new JcbError('Flag already cleared or no longer available. Refresh the list.',409);
