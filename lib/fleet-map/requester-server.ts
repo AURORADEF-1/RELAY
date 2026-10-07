@@ -6,8 +6,8 @@ import {getLinkedFleet} from '@/lib/integrations/jcb/server';
 import {getLinkedTrackunitFleet} from '@/lib/integrations/trackunit/server';
 import {getLinkedTakeuchiFleet} from '@/lib/integrations/takeuchi/server';
 import {getAssetCareFleet} from '@/lib/integrations/assetcare/server';
-import {allRows,operationsDatabase} from '@/lib/fleet-operations/server';
-import type {AssetGroup} from './groups';
+import {operationsDatabase} from '@/lib/fleet-operations/server';
+import {fleetGroups} from './group-store';
 import {combinedFleet} from './server';
 import {requesterMachines} from './requester';
 import {normalizeAccessGroup} from '@/lib/access-groups';
@@ -30,7 +30,7 @@ export async function fleetForViewer(request:NextRequest,requesterView=false){
  // Privileged reads stay inside this authenticated, read-only projection.
  // Never reuse this context for a detail, management or mutation endpoint.
  const db=operationsDatabase(),context={...auth,supabase:db,admin:false};
- const groups=await allRows<AssetGroup>(db,'fleet_asset_groups','lookup_hash,cost_centre,category','lookup_hash');
+ const groups=await fleetGroups(db);
  if(!groups.length)throw new JcbError('Fleet groups are unavailable. Please retry.',503);
  const providers=[
   {provider:'jcb' as const,enabled:process.env.JCB_LIVELINK_ENABLED,load:()=>getLinkedFleet(context)},
