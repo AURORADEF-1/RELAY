@@ -11,7 +11,7 @@ export function travelSummary(machine:LinkedJcbMachine,history:NonNullable<Linke
   const lastKnown=!t.at||age>5*60000;
   if(speed!==null||heading){
    const stopped=speed!==null&&speed<1;
-   const text=stopped?'Stationary at last report':speed!==null?`Travelling ${Math.round(speed)} mph${heading?` ${heading}`:''}`:`Heading ${heading}`;
+   const text=stopped?'Stationary at Last Report':speed!==null?`Travelling ${Math.round(speed)} mph${heading?` ${heading}`:''}`:`Heading ${heading}`;
    return {text:`${lastKnown&&!stopped?'Last recorded: ':''}${text}${t.road?` · ${t.road}`:''}`,at:t.at,estimated:false,lastKnown};
   }
  }
