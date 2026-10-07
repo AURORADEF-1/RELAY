@@ -22,6 +22,8 @@ export type LinkedJcbMachine = Pick<JcbMachine, "pin" | "equipmentId" | "model" 
   source?: "jcb" | "trackunit" | "takeuchi" | "assetcare" | "signwatch" | "roam";
   roamHire?: {id:string;reference:string;site:string;locationType:'site'|'delivery';fleet:string};
   roamMake?:string;
+  hoursProvider?: "jcb" | "trackunit" | "takeuchi" | "assetcare";
+  hoursReview?: {roam:number;provider:number;difference:number;readingAt:string};
   assetcareReadings?: import('../trackunit/normalize').Telemetry[];
   travel?: import('@/lib/assets/travel').TravelReading | null;
   ignition?: Reading<boolean> | null;
