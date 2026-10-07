@@ -13,7 +13,7 @@ it('converts vendor km/h and heading to mph and compass direction with road',()=
  expect(travelSummary(normalizeAssetCare({...raw,location:{...raw.location,age:1}},'o',now)!.machine,[],now).lastKnown).toBe(true);
 });
 it('does not imply movement when stopped or invent a road or speed',()=>{
- expect(travelSummary({...m,travel:{heading:0,speedMph:0,road:null,at}},[],now).text).toBe('Stationary at last report');
+ expect(travelSummary({...m,travel:{heading:0,speedMph:0,road:null,at}},[],now).text).toBe('Stationary at Last Report');
  expect(travelSummary({...m,travel:{heading:0,speedMph:null,road:null,at}},[],now).text).toBe('Heading North');
  expect(travelSummary({...m,travel:{heading:999,speedMph:-1,road:null,at}},[],now).text).toContain('not supplied');
  expect(travelSummary({...m,travel:{heading:0,speedMph:60,road:null,at:new Date(now+60000).toISOString()}},[],now).text).toContain('not supplied');
