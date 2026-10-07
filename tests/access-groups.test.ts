@@ -14,6 +14,7 @@ describe("access groups", () => {
     expect(canAccessPath("workshop", "/incidents/tasks/completed")).toBe(true);
     expect(canAccessPath("workshop", "/admin")).toBe(false);
     expect(canAccessPath("parts", "/parts-knowledge")).toBe(true);
+    expect(canAccessPath("parts", "/admin")).toBe(false);
     expect(canAccessPath("parts", "/submit")).toBe(true);
     expect(canAccessPath("parts", "/stores")).toBe(true);
     expect(canAccessPath("parts", "/filters")).toBe(true);
@@ -44,6 +45,7 @@ describe("access groups", () => {
 
   it("keeps page-level checks aligned with the route matrix", () => {
     expect(canUsePage(false, "parts", "/console")).toBe(true);
+    expect(canUsePage(false, "parts", "/admin")).toBe(false);
     expect(canUsePage(false, "office", "/console")).toBe(true);
     expect(canUsePage(false, "transport", "/reports")).toBe(true);
     expect(canUsePage(false, "workshop", "/reports")).toBe(true);

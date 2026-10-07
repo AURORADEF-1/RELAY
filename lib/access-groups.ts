@@ -67,7 +67,6 @@ const prefixGroupRoutes: Partial<Record<AccessGroupId, string[]>> = {
     "/stores",
     "/filters",
     "/parts-knowledge",
-    "/admin",
   ],
 };
 
