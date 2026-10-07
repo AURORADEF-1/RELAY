@@ -981,8 +981,8 @@ export function RelayAiPanel({
             <ConsoleIcon name="message" className="h-5 w-5" />
           </div>
           <div className="relay-ai-heading">
-            <p>{accessMode === "requester" ? "Fleet & request assistant" : "Operations intelligence"}</p>
-            <h2 id="relay-ai-title">RELAY AI</h2>
+            <p>{accessMode === "requester" ? "AssetCare+ · fleet assistant" : "AssetCare+ · operations intelligence"}</p>
+            <h2 id="relay-ai-title">AssetCare+ AI</h2>
           </div>
           <div className="relay-ai-header-actions">
             <button type="button" onClick={startNewChat} className="relay-ai-header-button" disabled={isThinking}>
@@ -1011,7 +1011,7 @@ export function RelayAiPanel({
                   {message.role === "assistant" ? "R" : "You"}
                 </div>
                 <div className="relay-ai-message-content">
-                  <p className="relay-ai-message-author">{message.role === "assistant" ? "RELAY AI" : "You"}</p>
+                  <p className="relay-ai-message-author">{message.role === "assistant" ? "AssetCare+ AI" : "You"}</p>
                   <div className="relay-ai-message-text">{message.text}</div>
                   {message.facts?.length ? (
                     <div className="relay-ai-facts">
@@ -1251,7 +1251,7 @@ export function RelayAiPanel({
               <article className="relay-ai-message relay-ai-message-assistant">
                 <div className="relay-ai-message-avatar" aria-hidden="true">R</div>
                 <div className="relay-ai-message-content">
-                  <p className="relay-ai-message-author">RELAY AI</p>
+                  <p className="relay-ai-message-author">AssetCare+ AI</p>
                   <div className="relay-ai-thinking"><span /><span /><span /></div>
                 </div>
               </article>

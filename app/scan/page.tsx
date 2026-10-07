@@ -121,17 +121,17 @@ export default function ScanAndIssuePage() {
         contentClassName="console-content-scan"
       >
         <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
-          <header className="rounded-3xl bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
+          <header className="scan-brand-hero rounded-3xl px-6 py-7 text-white shadow-xl sm:px-8">
             <div className="flex items-start justify-between gap-6">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">One-month pilot · soft validation</p>
+                <p className="scan-brand-kicker text-xs font-bold uppercase tracking-[0.2em]">AssetCare+ · collection validation</p>
                 <h1 className="mt-3 text-3xl font-black tracking-tight">Scan every part, then verify collection</h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                <p className="scan-brand-copy mt-3 max-w-2xl text-sm leading-6">
                   A standard Bluetooth scanner works as a keyboard. Scan each RLY label, then scan the fitter&apos;s Code 128 collection barcode. A 2D scanner can read the QR instead.
                 </p>
               </div>
-              <div className="hidden rounded-2xl bg-white/10 p-4 sm:block">
-                <ConsoleIcon name="parts" className="h-8 w-8 text-emerald-300" />
+              <div className="scan-brand-icon hidden rounded-2xl p-4 sm:block">
+                <ConsoleIcon name="parts" className="h-8 w-8 text-white" />
               </div>
             </div>
           </header>
@@ -150,13 +150,13 @@ export default function ScanAndIssuePage() {
                 }}
                 autoComplete="off"
                 placeholder="Scan barcode or QR payload"
-                className="min-w-0 flex-1 rounded-2xl border-2 border-slate-300 px-5 py-4 font-mono text-lg font-bold uppercase outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                className="scan-brand-input min-w-0 flex-1 rounded-2xl border-2 border-slate-300 px-5 py-4 font-mono text-lg font-bold uppercase outline-none transition"
               />
               <button
                 type="button"
                 onClick={() => void handleScan()}
                 disabled={isWorking || !scanValue.trim()}
-                className="rounded-2xl bg-emerald-700 px-6 py-4 text-sm font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                className="scan-brand-action rounded-2xl px-6 py-4 text-sm font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isWorking ? "Checking…" : "Verify scan"}
               </button>
@@ -170,7 +170,7 @@ export default function ScanAndIssuePage() {
             </section>
           ) : null}
 
-          <section className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-6">
+          <section className="scan-brand-context mt-5 rounded-3xl border p-6">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Active scan context</p>
             {activeJob ? (
               <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -200,8 +200,8 @@ export default function ScanAndIssuePage() {
 
 function PilotStep({ number, title, detail }: { number: string; title: string; detail: string }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 text-sm font-black text-white">{number}</span>
+    <article className="scan-brand-step rounded-2xl border bg-white p-5 shadow-sm">
+      <span className="scan-brand-step-number inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-black text-white">{number}</span>
       <h2 className="mt-4 text-base font-black text-slate-950">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-slate-600">{detail}</p>
     </article>

@@ -209,16 +209,16 @@ export default function WorkshopTasksPage() {
         </nav>
 
         <AuthGuard>
-          <section className="workshop-secondary-page rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
-            <div className="space-y-5">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-                Workshop Tasks
+          <section className="workshop-secondary-page workshop-tasks-brand rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur sm:p-10">
+            <div className="workshop-tasks-brand-hero space-y-5">
+              <div className="workshop-tasks-brand-kicker inline-flex rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em]">
+                AssetCare+ · Workshop tasks
               </div>
-              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              <h1 className="text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
                 Task Manager
               </h1>
-              <p className="max-w-3xl text-base leading-8 text-slate-600">
-                Open tasks can be reviewed, edited, reassigned, or marked complete here.
+              <p className="max-w-3xl text-base leading-8">
+                Review, assign and complete workshop tasks from one live workspace.
               </p>
             </div>
 
@@ -231,7 +231,7 @@ export default function WorkshopTasksPage() {
                 type="button"
                 onClick={() => void loadData()}
                 disabled={isLoading}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="workshop-tasks-brand-action inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? "Refreshing..." : "Refresh"}
               </button>
@@ -241,7 +241,7 @@ export default function WorkshopTasksPage() {
             {notice ? <Alert tone={notice.type} message={notice.message} /> : null}
 
             <div className="mt-8 grid gap-6 xl:grid-cols-[24rem_1fr]">
-              <section className="rounded-3xl border border-slate-200 bg-white p-5">
+              <section className="workshop-tasks-brand-panel rounded-3xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between gap-4">
                   <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Open Tasks
@@ -264,7 +264,7 @@ export default function WorkshopTasksPage() {
                         onClick={() => setSelectedTaskId(task.id)}
                         className={`w-full rounded-2xl border p-4 text-left transition ${
                           selectedTaskId === task.id
-                            ? "border-slate-950 bg-slate-950 text-white"
+                            ? "workshop-tasks-brand-selected border-transparent text-white"
                             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
                         }`}
                       >
@@ -281,7 +281,7 @@ export default function WorkshopTasksPage() {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-slate-200 bg-white p-6">
+              <section className="workshop-tasks-brand-panel rounded-3xl border border-slate-200 bg-white p-6">
                 {!selectedTask ? (
                   <PanelNote text="Select a task to edit it." />
                 ) : (
@@ -295,7 +295,7 @@ export default function WorkshopTasksPage() {
                       </div>
                       <Link
                         href="/incidents/tasks/completed"
-                        className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                        className="workshop-tasks-brand-outline rounded-xl px-4 py-2 text-sm font-semibold transition"
                       >
                         Completed Tasks
                       </Link>
@@ -370,7 +370,7 @@ export default function WorkshopTasksPage() {
                         type="button"
                         onClick={() => void handleSaveTask()}
                         disabled={isSaving}
-                        className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="workshop-tasks-brand-action inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {isSaving ? "Saving..." : "Save Task"}
                       </button>
