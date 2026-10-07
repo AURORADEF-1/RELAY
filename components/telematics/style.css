@@ -160,7 +160,7 @@
 .fleet-map-shell .fleet-location-views .jcb-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:8px 0}
 .fleet-map-shell .fleet-location-views .jcb-button{display:flex;min-height:34px;align-items:center;justify-content:space-between;margin:0;padding:6px 9px;border-radius:7px;background:var(--background-panel-strong);font-size:.68rem}
 .fleet-map-shell .fleet-location-views .jcb-sync{margin:7px 0 0;color:var(--foreground-subtle);font-size:.61rem;line-height:1.5}
-.fleet-map-shell .fleet-detail-location section[aria-label="Travel status"]{margin:0 0 10px;padding:0 0 10px;border-bottom:1px solid var(--border)}
+.fleet-map-shell .fleet-detail-location section[aria-label="Travel status"]{margin:0;padding:0;border-bottom:0}
 .fleet-map-shell .asset-share{margin:10px 0 0;padding:9px;border-radius:8px}
 .fleet-map-shell .asset-share h3{margin:0 0 7px;padding:0;border:0;font-size:.66rem}
 .fleet-map-shell .asset-share>.jcb-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:0}
