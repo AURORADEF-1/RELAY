@@ -128,7 +128,7 @@ const navigation: NavigationItem[] = [
     category: "requests",
     badge: "requester",
   },
-  { href: "/filters", label: "Filter Lookup", icon: "filter", category: "requests" },
+  { href: "/filters", label: "Fitter Lookup", icon: "filter", category: "requests" },
   { href: "/settings", label: "Settings", icon: "settings", category: "administration" },
   { href: "/staff", label: "Staff", icon: "fleet", category: "administration", adminOnly: true },
   { href: "/assets", label: "Dashboard", icon: "fleet", category: "fleet", assetOnly: true },
@@ -186,12 +186,14 @@ const navigation: NavigationItem[] = [
 ];
 
 const navigationGroups: Partial<Record<string, AccessGroupId[]>> = {
-  "/submit": ["fitter"],
+  "/submit": ["fitter", "parts"],
   "/console": ["office", "transport"],
   "/requests": ["fitter", "workshop", "transport", "office", "parts"],
   "/tasks": ["fitter", "workshop"],
   "/pre-pick": ["parts"],
   "/scan": ["parts"],
+  "/stores": ["parts"],
+  "/filters": ["parts"],
   "/parts-knowledge": ["parts"],
   "/admin": ["parts"],
   "/incidents": ["workshop"],

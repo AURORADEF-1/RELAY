@@ -14,6 +14,9 @@ describe("access groups", () => {
     expect(canAccessPath("workshop", "/incidents/tasks/completed")).toBe(true);
     expect(canAccessPath("workshop", "/admin")).toBe(false);
     expect(canAccessPath("parts", "/parts-knowledge")).toBe(true);
+    expect(canAccessPath("parts", "/submit")).toBe(true);
+    expect(canAccessPath("parts", "/stores")).toBe(true);
+    expect(canAccessPath("parts", "/filters")).toBe(true);
     expect(canAccessPath("parts", "/control")).toBe(false);
     expect(canAccessPath("transport", "/fleet/trips")).toBe(true);
     expect(canAccessPath("transport", "/console")).toBe(true);
