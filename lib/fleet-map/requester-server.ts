@@ -42,9 +42,11 @@ export async function fleetForViewer(request:NextRequest,requesterView=false){
  let raw:LinkedJcbMachine[]=results.flatMap((r,i)=>r.status==='fulfilled'?r.value.machines.map(m=>({...m,source:providers[i].provider})):[]);
  let roam:{available:boolean;count:number;checkedAt:string|null;stale:boolean}={available:false,count:0,checkedAt:null,stale:true};
  try{const current=await readAllRoamHires();raw=mergeRoamMap(raw,current.items);roam={available:true,count:current.items.filter(h=>h.status==='on_site').length,checkedAt:current.generatedAt,stale:false};}catch{}
- const canViewNonShared=accessGroup==='office';
- const machines=accessGroup
-  ? requesterMachines(raw,groups,{allowedPeopleGroups:canViewNonShared?['Non Shared']:[]}).filter(machine=>canViewNonShared||machine.assetGroup!=='Non Shared')
-  : requesterMachines(raw,groups);
+ const canViewNonShared=accessGroup==='office'||accessGroup==='admin';
+ const groupFleet=accessGroup?requesterMachines(raw,groups,{allowedPeopleGroups:'all',includeUnclassified:true}):requesterMachines(raw,groups);
+ const machines=groupFleet.filter(machine=>{
+  if(accessGroup==='fitter')return machine.assetGroup==='Plant';
+  return canViewNonShared||machine.assetGroup!=='Non Shared';
+ });
  return {machines,admin:false,accessGroup,canRenameOrAssignCostCentre:accessGroup!==null&&['transport','office','workshop'].includes(accessGroup),canViewReports:accessGroup!==null&&['transport','office','workshop'].includes(accessGroup),canViewNonShared,groupError:false,assetcareStatus:null,sources:[...results.map((r,i)=>({provider:providers[i].provider,available:r.status==='fulfilled',count:machines.filter(m=>m.source===providers[i].provider).length,checkedAt:r.status==='fulfilled'?r.value.checkedAt:null,stale:r.status==='fulfilled'?r.value.stale:true})),{provider:'roam' as const,...roam,count:machines.filter(m=>m.roamHire).length}]};
 }
