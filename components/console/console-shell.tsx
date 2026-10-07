@@ -128,7 +128,7 @@ const navigation: NavigationItem[] = [
     category: "requests",
     badge: "requester",
   },
-  { href: "/filters", label: "Fitter Lookup", icon: "filter", category: "requests" },
+  { href: "/filters", label: "Filter Lookup", icon: "filter", category: "requests" },
   { href: "/settings", label: "Settings", icon: "settings", category: "administration" },
   { href: "/staff", label: "Staff", icon: "fleet", category: "administration", adminOnly: true },
   { href: "/assets", label: "Dashboard", icon: "fleet", category: "fleet", assetOnly: true },
