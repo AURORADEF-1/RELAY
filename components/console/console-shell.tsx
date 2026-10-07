@@ -105,7 +105,7 @@ const navigation: NavigationItem[] = [
     frontCounterOnly: true,
     external: true,
   },
-  { href: "/console", label: "Live Queue", icon: "console", category: "operations", adminOnly: true, groups: ["admin", "office", "transport", "parts"] },
+  { href: "/console", label: "Live Queue", icon: "console", category: "operations", adminOnly: true, groups: ["admin", "office", "transport", "parts", "workshop"] },
   { href: "/my-jobs", label: "Assigned Jobs", icon: "clipboard", category: "operations", adminOnly: true, groups: ["admin", "parts"] },
   {
     href: "/completed",
