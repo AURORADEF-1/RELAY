@@ -471,7 +471,13 @@ export function ConsoleShell({
     pathname === item.href ||
     (item.href === "/fleet" && ["/fleet/map", "/fleet/register", "/fleet/operations"].some((path)=>pathname.startsWith(path))) ||
     (item.href === "/incidents" && pathname.startsWith("/incidents/") && !navigation.some((candidate)=>candidate.href!=="/incidents"&&pathname.startsWith(candidate.href))) ||
-    (!["/", "/fleet", "/incidents"].includes(item.href) && pathname.startsWith(`${item.href}/`)) ||
+    (!["/", "/fleet", "/incidents"].includes(item.href) &&
+      pathname.startsWith(`${item.href}/`) &&
+      !navigation.some((candidate) =>
+        candidate.href !== item.href &&
+        candidate.href.startsWith(`${item.href}/`) &&
+        (pathname === candidate.href || pathname.startsWith(`${candidate.href}/`)),
+      )) ||
     (item.href === "/console" && pathname.startsWith("/tickets/"));
   const visibleCategories = navigationCategories
     .map((category) => ({
