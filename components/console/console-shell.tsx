@@ -105,18 +105,19 @@ const navigation: NavigationItem[] = [
     frontCounterOnly: true,
     external: true,
   },
-  { href: "/console", label: "Live Queue", icon: "console", category: "operations", adminOnly: true, groups: ["admin", "office", "transport"] },
-  { href: "/my-jobs", label: "Assigned Jobs", icon: "clipboard", category: "operations", adminOnly: true },
+  { href: "/console", label: "Live Queue", icon: "console", category: "operations", adminOnly: true, groups: ["admin", "office", "transport", "parts"] },
+  { href: "/my-jobs", label: "Assigned Jobs", icon: "clipboard", category: "operations", adminOnly: true, groups: ["admin", "parts"] },
   {
     href: "/completed",
     label: "Completed Jobs",
     icon: "clipboard",
     category: "operations",
     adminOnly: true,
+    groups: ["admin", "parts"],
   },
-  { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", category: "requests", adminOnly: true },
-  { href: "/scan", label: "Scan & Issue", icon: "parts", category: "requests", adminOnly: true },
-  { href: "/reports", label: "Reports", icon: "reports", category: "operations", adminOnly: true },
+  { href: "/pre-pick", label: "Pre-Pick", icon: "prepick", category: "requests", adminOnly: true, groups: ["admin", "parts"] },
+  { href: "/scan", label: "Scan & Issue", icon: "parts", category: "requests", adminOnly: true, groups: ["admin", "parts"] },
+  { href: "/reports", label: "Reports", icon: "reports", category: "operations", adminOnly: true, groups: ["admin", "parts"] },
   { href: "/plant-wallboard", label: "Plant Wallboard", icon: "wallboard", category: "operations", adminOnly: true, external: true },
   { href: "/oversight", label: "Oversight", icon: "activity", category: "administration", oversightOnly: true },
   { href: "/submit", label: "New Request", icon: "ticket", category: "requests" },
@@ -145,6 +146,7 @@ const navigation: NavigationItem[] = [
     icon: "parts",
     category: "requests",
     adminOnly: true,
+    groups: ["admin", "parts"],
   },
   {
     href: "/admin",
@@ -152,6 +154,7 @@ const navigation: NavigationItem[] = [
     icon: "parts",
     category: "requests",
     adminOnly: true,
+    groups: ["admin", "parts"],
     badge: "admin",
   },
   { href: "/incidents", label: "Dashboard", icon: "workshop", category: "workshop", adminOnly: true },
@@ -187,7 +190,9 @@ const navigation: NavigationItem[] = [
 
 const navigationGroups: Partial<Record<string, AccessGroupId[]>> = {
   "/submit": ["fitter", "parts"],
-  "/console": ["office", "transport"],
+  "/console": ["office", "transport", "parts"],
+  "/my-jobs": ["parts"],
+  "/completed": ["parts"],
   "/requests": ["fitter", "workshop", "transport", "office", "parts"],
   "/tasks": ["fitter", "workshop"],
   "/pre-pick": ["parts"],
@@ -205,7 +210,7 @@ const navigationGroups: Partial<Record<string, AccessGroupId[]>> = {
   "/assets": ["office", "assetcare"],
   "/fleet": ["fitter", "workshop", "transport", "office", "assetcare"],
   "/fleet/trips": ["transport"],
-  "/reports": ["workshop", "transport", "office"],
+  "/reports": ["workshop", "transport", "office", "parts"],
 };
 
 export function ConsoleShell({

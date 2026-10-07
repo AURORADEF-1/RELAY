@@ -17,6 +17,10 @@ describe("access groups", () => {
     expect(canAccessPath("parts", "/submit")).toBe(true);
     expect(canAccessPath("parts", "/stores")).toBe(true);
     expect(canAccessPath("parts", "/filters")).toBe(true);
+    expect(canAccessPath("parts", "/console")).toBe(true);
+    expect(canAccessPath("parts", "/my-jobs")).toBe(true);
+    expect(canAccessPath("parts", "/completed")).toBe(true);
+    expect(canAccessPath("parts", "/reports")).toBe(true);
     expect(canAccessPath("parts", "/control")).toBe(false);
     expect(canAccessPath("transport", "/fleet/trips")).toBe(true);
     expect(canAccessPath("transport", "/console")).toBe(true);

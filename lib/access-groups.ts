@@ -34,7 +34,7 @@ export function normalizeAccessGroup(
 export const accessGroupDescriptions: Record<AccessGroupId, string> = {
   admin: "All RELAY areas and access administration.",
   front_counter: "Counter terminal and wallboard only.",
-  parts: "New Request, Requests, pre-pick, scan and issue, Stores Self-Service, Fitter Lookup, Parts Knowledge, Parts Control and RELAY AI.",
+  parts: "Live Queue, assigned jobs, completed jobs, reports, New Request, Requests, pre-pick, scan and issue, Stores Self-Service, Filter Lookup, Parts Knowledge, Parts Control and RELAY AI.",
   workshop: "Requests, workshop work, Fleet Map, reports and RELAY AI.",
   office: "Live Queue, requests, Fleet Dashboard, reports and RELAY AI.",
   transport: "Live Queue, requests, Fleet Map, Fleet Register, Trip History, reports and RELAY AI.",
@@ -55,6 +55,10 @@ const prefixGroupRoutes: Partial<Record<AccessGroupId, string[]>> = {
   fitter: ["/submit", "/requests", "/tasks", "/tickets/", "/fleet/map"],
   workshop: ["/requests", "/tickets/", "/incidents", "/fleet/map", "/reports"],
   parts: [
+    "/console",
+    "/my-jobs",
+    "/completed",
+    "/reports",
     "/submit",
     "/requests",
     "/tickets/",
