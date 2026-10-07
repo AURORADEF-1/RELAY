@@ -46,7 +46,7 @@ export function AssetOverviewDashboard(){
  </section>;
 }
 
-function providerName(value:string){return value==='assetcare'?'Asset Care+':value==='jcb'?'JCB LiveLink':value==='trackunit'?'Manitou':value==='takeuchi'?'Takeuchi':value;}
+function providerName(value:string){return value==='assetcare'?'Asset Care+':value==='jcb'?'JCB LiveLink':value==='trackunit'?'Manitou':value==='takeuchi'?'Takeuchi':value==='roam'?'ROAM hires':value;}
 function AssetRows({rows}:{rows:ReturnType<typeof buildFleetOverview>['coverage']['recent']}){return <div className="asset-mini-list">{rows.slice(0,12).map(row=><div key={row.key}><span><strong>{row.label}</strong><small>{row.model} · {row.group}</small></span>{row.id?<Link href={`/assets/${row.id}`}>Open</Link>:<Link href="/fleet/map">Map</Link>}</div>)}{!rows.length&&<p>No assets in this group.</p>}{rows.length>12&&<small>Showing 12 of {rows.length}</small>}</div>;}
 function AssetDisclosure({label,rows}:{label:string;rows:ReturnType<typeof buildFleetOverview>['coverage']['recent']}){return <details><summary><strong>{rows.length}</strong><span>{label}</span></summary><AssetRows rows={rows}/></details>;}
 function YardRows({rows,dwell=false,now}:{rows:YardItem[];dwell?:boolean;now:number}){return <div className="asset-mini-list">{rows.slice(0,12).map(row=><div key={row.id}><span><strong>{row.label}</strong><small>{row.model} · {dwell?duration(now-Date.parse(row.at)):row.kind==='yard_arrival'?'Returned':'Departed'} · {date(row.at)}</small></span><Link href={`/assets/${row.machineId}`}>Open</Link></div>)}{!rows.length&&<p>No recorded assets.</p>}</div>;}

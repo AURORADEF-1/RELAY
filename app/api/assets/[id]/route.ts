@@ -7,6 +7,8 @@ import {projectMachine} from '@/lib/integrations/jcb/normalize';
 import {movementHistory} from '@/lib/assets/events';
 import {hireState,type Snapshot} from '@/lib/fleet-operations/report';
 import {fleetReference} from '@/lib/fleet-operations/parts-requests';
+import {readAllRoamHires} from '@/lib/integrations/roam/hires-server';
+import {mergeRoamMap} from '@/lib/integrations/roam/map';
 export async function GET(request:NextRequest,{params}:{params:Promise<{id:string}>}){try{
  const mode=request.nextUrl.searchParams.get('view');
  const auth=await authorizeAssets(request,mode==='movements'),{id}=await params,db=operationsDatabase(),{registry,allowed}=await ownership(db),machine=registry.find(m=>m.id===id);
@@ -24,11 +26,18 @@ export async function GET(request:NextRequest,{params}:{params:Promise<{id:strin
  // History follows the signed-in user's existing ticket/workshop policies.
  const reference=fleetReference(machine.machine_number),safe=machine.machine_number.replace(/[,*()"\\]/g,'').trim();
  const ambiguous=registry.filter(m=>fleetReference(m.machine_number)===reference).length!==1;
+ let roamTracking=null,roamUnavailable=false;
+ try{
+  const current=await readAllRoamHires(),merged=mergeRoamMap(linked?[linked]:[],current.items,now);
+  roamTracking=merged.find(candidate=>candidate.roamHire&&(candidate.relay?.id===id||fleetReference(candidate.roamHire.fleet)===reference))??null;
+  if(roamTracking)roamTracking={...roamTracking,relay:machine,match:roamTracking.match==='unmatched'?'exact':roamTracking.match};
+ }catch{roamUnavailable=true;}
  const [tickets,incidents]=await Promise.all([
   auth.supabase.from('tickets').select('id,job_number,machine_reference,machine_number,machine_number_normalized,request_summary,status,created_at,updated_at,is_retail_sale').or(`machine_number_normalized.eq.${safe},machine_number.eq.${safe},machine_reference.eq.${safe}`).order('created_at',{ascending:false}).limit(101),
   auth.supabase.from('workshop_incidents').select('id,job_number,machine_reference,description,status,created_at,updated_at').eq('machine_reference',machine.machine_number).order('created_at',{ascending:false}).limit(101)
  ]);
- return jcbJson({machine,tracking:linked?projectMachine(linked,auth.admin):null,hire:snapshot?hireState([snapshot],now):null,checkedAt:snapshot?.captured_at??null,admin:auth.admin,
+ const currentTracking=roamTracking??linked;
+ return jcbJson({machine,tracking:currentTracking?projectMachine(currentTracking,auth.admin):null,hire:snapshot?hireState([snapshot],now):null,checkedAt:snapshot?.captured_at??null,admin:auth.admin,roamHire:roamTracking?.roamHire??null,roamUnavailable,
  tickets:ambiguous?[]:(tickets.data??[]).filter(t=>!t.is_retail_sale&&fleetReference(t.machine_number_normalized||t.machine_number||t.machine_reference)===reference).slice(0,100),
  incidents:ambiguous?[]:(incidents.data??[]).slice(0,100),historyLimited:(tickets.data?.length??0)>100||(incidents.data?.length??0)>100,historyUnavailable:!!tickets.error||!!incidents.error||ambiguous});
  }catch(e){return jcbError(e);}}

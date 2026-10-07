@@ -14,6 +14,18 @@ export function readRoamHires(cursor?:string){if(cursor&&(!/^[\w-]+$/.test(curso
 export function readRoamHire(id:string){return read('/'+encodeURIComponent(id),hireDetailSchema)}
 export function readRoamPhoto(id:string,photoId:string){return read('/'+encodeURIComponent(id)+'/photos/'+encodeURIComponent(photoId),photoLinkSchema)}
 
+export async function readAllRoamHires(){
+ const items:z.infer<typeof hireSchema>[]=[];let cursor:string|undefined,generatedAt:string|null=null;const seen=new Set<string>();
+ do{
+  const page=await readRoamHires(cursor);
+  generatedAt??=page.generated_at;items.push(...page.items);
+  if(items.length>5000)throw new JcbError('ROAM current hires exceed the safe refresh limit.',503);
+  if(page.next_cursor){if(seen.has(page.next_cursor))throw new JcbError('ROAM returned an invalid hire page.',503);seen.add(page.next_cursor);}
+  cursor=page.next_cursor??undefined;
+ }while(cursor);
+ return {items,generatedAt};
+}
+
 export async function readRoamLifecycle(){
  const schema=z.object({schema_version:z.literal(1),scope:z.literal('lifecycle'),revision:z.string(),items:z.array(hireSchema),next_offset:z.number().int().nonnegative().nullable()});
  const token=process.env.ROAM_RELAY_HIRES_TOKEN;if(!token)throw new JcbError('ROAM connection is not configured.',503);

@@ -11,6 +11,9 @@ import type {AssetGroup} from './groups';
 import {combinedFleet} from './server';
 import {requesterMachines} from './requester';
 import {normalizeAccessGroup} from '@/lib/access-groups';
+import {readAllRoamHires} from '@/lib/integrations/roam/hires-server';
+import {mergeRoamMap} from '@/lib/integrations/roam/map';
+import type {LinkedJcbMachine} from '@/lib/integrations/jcb/types';
 
 export async function fleetForViewer(request:NextRequest,requesterView=false){
  const auth=await authorizeRelayRequesterRoute(request);
@@ -33,10 +36,12 @@ export async function fleetForViewer(request:NextRequest,requesterView=false){
   {provider:'assetcare' as const,enabled:process.env.ASSETCARE_ENABLED,load:()=>getAssetCareFleet()},
  ];
  const results=await Promise.allSettled(providers.map(p=>p.enabled==='true'?p.load():Promise.reject(new Error('Disabled'))));
- const raw=results.flatMap((r,i)=>r.status==='fulfilled'?r.value.machines.map(m=>({...m,source:providers[i].provider})):[]);
+ let raw:LinkedJcbMachine[]=results.flatMap((r,i)=>r.status==='fulfilled'?r.value.machines.map(m=>({...m,source:providers[i].provider})):[]);
+ let roam:{available:boolean;count:number;checkedAt:string|null;stale:boolean}={available:false,count:0,checkedAt:null,stale:true};
+ try{const current=await readAllRoamHires();raw=mergeRoamMap(raw,current.items);roam={available:true,count:current.items.filter(h=>h.status==='on_site').length,checkedAt:current.generatedAt,stale:false};}catch{}
  const canViewNonShared=accessGroup==='office';
  const machines=accessGroup
   ? requesterMachines(raw,groups,{allowedPeopleGroups:canViewNonShared?['Non Shared']:[]}).filter(machine=>canViewNonShared||machine.assetGroup!=='Non Shared')
   : requesterMachines(raw,groups);
- return {machines,admin:false,accessGroup,canRenameOrAssignCostCentre:accessGroup!==null&&['transport','office','workshop'].includes(accessGroup),canViewReports:accessGroup!==null&&['transport','office','workshop'].includes(accessGroup),canViewNonShared,groupError:false,assetcareStatus:null,sources:results.map((r,i)=>({provider:providers[i].provider,available:r.status==='fulfilled',count:machines.filter(m=>m.source===providers[i].provider).length,checkedAt:r.status==='fulfilled'?r.value.checkedAt:null,stale:r.status==='fulfilled'?r.value.stale:true}))};
+ return {machines,admin:false,accessGroup,canRenameOrAssignCostCentre:accessGroup!==null&&['transport','office','workshop'].includes(accessGroup),canViewReports:accessGroup!==null&&['transport','office','workshop'].includes(accessGroup),canViewNonShared,groupError:false,assetcareStatus:null,sources:[...results.map((r,i)=>({provider:providers[i].provider,available:r.status==='fulfilled',count:machines.filter(m=>m.source===providers[i].provider).length,checkedAt:r.status==='fulfilled'?r.value.checkedAt:null,stale:r.status==='fulfilled'?r.value.stale:true})),{provider:'roam' as const,...roam,count:machines.filter(m=>m.roamHire).length}]};
 }
