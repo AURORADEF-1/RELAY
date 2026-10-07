@@ -134,6 +134,7 @@ const navigation: NavigationItem[] = [
   { href: "/staff", label: "Staff", icon: "fleet", category: "administration", adminOnly: true },
   { href: "/assets", label: "Dashboard", icon: "fleet", category: "fleet", assetOnly: true },
   { href: "/fleet", label: "Fleet Map", icon: "fleet", category: "fleet", fleetMemberOnly: true },
+  { href: "/fleet/register", label: "Fleet Workspace", icon: "fleet", category: "fleet", adminOnly: true, groups: ["admin", "transport", "assetcare"] },
   { href: "/fleet/trips", label: "Trip History", icon: "activity", category: "fleet", adminOnly: true },
   { href: "/fleet/scheduler", label: "Reports", icon: "fleet", category: "fleet", adminOnly: true },
   { href: "/assets/inbox", label: "Alerts", icon: "fleet", category: "fleet", adminOnly: true },
@@ -208,6 +209,7 @@ const navigationGroups: Partial<Record<string, AccessGroupId[]>> = {
   "/incidents/closed": ["workshop"],
   "/assets": ["office", "assetcare"],
   "/fleet": ["fitter", "workshop", "transport", "office", "assetcare"],
+  "/fleet/register": ["transport", "assetcare"],
   "/fleet/trips": ["transport"],
   "/reports": ["workshop", "transport", "office", "parts"],
 };
@@ -469,7 +471,7 @@ export function ConsoleShell({
   );
   const isNavigationItemActive = (item: NavigationItem) =>
     pathname === item.href ||
-    (item.href === "/fleet" && ["/fleet/map", "/fleet/register", "/fleet/operations"].some((path)=>pathname.startsWith(path))) ||
+    (item.href === "/fleet" && ["/fleet/map", "/fleet/operations"].some((path)=>pathname.startsWith(path))) ||
     (item.href === "/incidents" && pathname.startsWith("/incidents/") && !navigation.some((candidate)=>candidate.href!=="/incidents"&&pathname.startsWith(candidate.href))) ||
     (!["/", "/fleet", "/incidents"].includes(item.href) &&
       pathname.startsWith(`${item.href}/`) &&
