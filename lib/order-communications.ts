@@ -53,7 +53,7 @@ export function buildReadyOrdersMailto(
 ) {
   const subject = `Ready Orders: ${new Date().toISOString().slice(0, 10)}`;
   const lines = [
-    "Ready orders list from RELAY.",
+    "Ready orders list from AssetCare+.",
     "",
     ...orders.map((order) =>
       includeAllFields
@@ -100,7 +100,7 @@ export function buildSupplierOrderBodyLines(order: CommunicableOrder) {
   const partsRequired = order.request_summary?.trim() || order.request_details?.trim() || "-";
 
   return [
-    `Please supply the following RELAY order.`,
+    `Please supply the following AssetCare+ order.`,
     "",
     `Order Number: ${poNumber}`,
     `Parts Required: ${partsRequired}`,

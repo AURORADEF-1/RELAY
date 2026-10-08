@@ -41,7 +41,7 @@ async function dispatchRealtimeRefresh(
   );
 
   if (!response.ok) {
-    console.error("Unable to dispatch RELAY broadcast refresh", response.status);
+    console.error("Unable to dispatch AssetCare+ broadcast refresh", response.status);
   }
 
   return response.ok;
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const config = getSupabaseConfig();
     if (!config) {
       return NextResponse.json(
-        { error: "RELAY broadcast notifications are not configured." },
+        { error: "AssetCare+ broadcast notifications are not configured." },
         { status: 500 },
       );
     }

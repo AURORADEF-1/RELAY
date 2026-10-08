@@ -110,7 +110,7 @@ const RELAY_EXTERNAL_LOOKUP_EVENT = "relay:external-lookup-result";
 const STARTER_MESSAGE: RelayAiMessage = {
   id: "welcome",
   role: "assistant",
-  text: "Ask me about plant locations, yard movements, tracker issues, director summaries, jobs, suppliers or admin performance. I can prepare tickets and job assignments, but I always show a confirmation review before changing RELAY data.",
+  text: "Ask me about plant locations, yard movements, tracker issues, director summaries, jobs, suppliers or admin performance. I can prepare tickets and job assignments, but I always show a confirmation review before changing AssetCare+ data.",
 };
 
 const REQUESTER_STARTER_MESSAGE: RelayAiMessage = {
@@ -235,14 +235,14 @@ export function RelayAiPanel({
           id: `assistant-external-${Date.now()}`,
           role: "assistant",
           text: isTakeuchiExactMatch
-            ? `Takeuchi website verification\n\nThe scraper found an exact match for RELAY’s suggested catalogue part number: ${partNumber}.\n\n${candidateText}\n\nThe number is verified as present on the Takeuchi website. Confirm serial-range fitment and supersession before ordering.`
+            ? `Takeuchi website verification\n\nThe scraper found an exact match for AssetCare+’s suggested catalogue part number: ${partNumber}.\n\n${candidateText}\n\nThe number is verified as present on the Takeuchi website. Confirm serial-range fitment and supersession before ordering.`
             : `Browser lookup suggestion from ${pageTitle}\n\n${candidateText}\n\nWebsite catalogue part number: ${partNumber}\n\nThis is an unverified supplier-marketplace suggestion. Confirm the machine, serial range and part number before using it on a ticket or order.`,
           facts: isTakeuchiExactMatch
             ? ["Takeuchi exact number match", partNumber, "Fitment still requires confirmation"]
             : ["Catalogue number extracted", confidence, "Requires verification"],
           sourceNote: isTakeuchiExactMatch
             ? `Exact normalized part-number match on the user-selected Takeuchi page: ${pageUrl}. Scraper verification confirms presence, not serial-range fitment.`
-            : `User-selected visible page content from ${pageUrl}. RELAY did not access website credentials or confirm fitment.`,
+            : `User-selected visible page content from ${pageUrl}. AssetCare+ did not access website credentials or confirm fitment.`,
           copyText: [partNumber && `Part number: ${partNumber}`, candidateText, pageUrl]
             .filter(Boolean)
             .join("\n"),
@@ -261,7 +261,7 @@ export function RelayAiPanel({
 
   async function getSnapshot() {
     if (accessMode !== "full") {
-      throw new Error("Requester RELAY AI is limited to machine checks and guided ticket creation.");
+      throw new Error("Requester AssetCare+ AI is limited to machine checks and guided ticket creation.");
     }
     const cached = snapshotRef.current;
     if (
@@ -276,7 +276,7 @@ export function RelayAiPanel({
     if (!supabase) throw new Error("Supabase is not configured.");
     snapshotPromiseRef.current = (async () => {
       const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
-      if (!user || !isAdmin) throw new Error("Admin access is required for RELAY AI.");
+      if (!user || !isAdmin) throw new Error("Admin access is required for AssetCare+ AI.");
 
       const snapshot = await loadRelayAnalyticsSnapshot(supabase);
       snapshotRef.current = snapshot;
@@ -306,7 +306,7 @@ export function RelayAiPanel({
       });
     } catch (error) {
       return {
-        text: `Machine and catalogue checks are temporarily unavailable. RELAY will retain the entered machine reference and best part description for the parts team. (${error instanceof Error ? error.message : "unknown lookup error"})`,
+        text: `Machine and catalogue checks are temporarily unavailable. AssetCare+ will retain the entered machine reference and best part description for the parts team. (${error instanceof Error ? error.message : "unknown lookup error"})`,
         facts: ["Catalogue check unavailable"],
         sourceNote: "The read-only catalogue check failed. Ticket confirmation remains available and no fitment was inferred.",
       };
@@ -346,7 +346,7 @@ export function RelayAiPanel({
         {
           id: `assistant-limit-${Date.now()}`,
           role: "assistant",
-          text: `Please shorten the question to ${RELAY_AI_GUARDRAILS.maxQuestionLength} characters or fewer. This protects RELAY from accidental broad or repeated requests.`,
+          text: `Please shorten the question to ${RELAY_AI_GUARDRAILS.maxQuestionLength} characters or fewer. This protects AssetCare+ from accidental broad or repeated requests.`,
           sourceNote: "No database query was run.",
         },
       ]);
@@ -363,7 +363,7 @@ export function RelayAiPanel({
         {
           id: `assistant-rate-limit-${Date.now()}`,
           role: "assistant",
-          text: "RELAY AI has paused new questions briefly because this session reached its query guardrail. Existing answers and downloads remain available; try again in a few minutes.",
+          text: "AssetCare+ AI has paused new questions briefly because this session reached its query guardrail. Existing answers and downloads remain available; try again in a few minutes.",
           sourceNote: "No database query was run. This session allows 20 questions per five minutes.",
         },
       ]);
@@ -387,7 +387,7 @@ export function RelayAiPanel({
             {
               id: `assistant-${Date.now()}`,
               role: "assistant",
-              text: "Ticket creation cancelled. No RELAY data was changed.",
+              text: "Ticket creation cancelled. No AssetCare+ data was changed.",
               sourceNote: "The guided draft was discarded without running a database write.",
             },
           ]);
@@ -450,7 +450,7 @@ export function RelayAiPanel({
             {
               id: `assistant-${Date.now()}`,
               role: "assistant",
-              text: "Job assignment is restricted to RELAY administrators. I can help you verify a machine and prepare your own request ticket.",
+              text: "Job assignment is restricted to AssetCare+ administrators. I can help you verify a machine and prepare your own request ticket.",
               sourceNote: "No database query or write was run.",
             },
           ]);
@@ -656,7 +656,7 @@ export function RelayAiPanel({
       const supabase = getSupabaseClient();
       if (!supabase) throw new Error("Supabase is not configured.");
       const { user, isAdmin } = await getCurrentUserWithRole(supabase, { forceFresh: true });
-      if (!user) throw new Error("Sign in before using RELAY AI.");
+      if (!user) throw new Error("Sign in before using AssetCare+ AI.");
       if (accessMode !== "full" || !isAdmin) {
         setMessages((current) => [
           ...current,
@@ -708,7 +708,7 @@ export function RelayAiPanel({
         {
           id: `assistant-error-${Date.now()}`,
           role: "assistant",
-          text: error instanceof Error ? error.message : "RELAY AI could not query the live dataset.",
+          text: error instanceof Error ? error.message : "AssetCare+ AI could not query the live dataset.",
         },
       ]);
     } finally {
@@ -744,7 +744,7 @@ export function RelayAiPanel({
         {
           id: `assistant-assigned-${Date.now()}`,
           role: "assistant",
-          text: `Job ${assignmentDraft.jobNumber} is now assigned to ${assignmentDraft.assigneeLabel}. ${assignmentDraft.assigneeFullName} has been sent a closeable RELAY AI assignment notification.${result.warnings.length ? `\n\nWarnings: ${result.warnings.join(" ")}` : ""}`,
+          text: `Job ${assignmentDraft.jobNumber} is now assigned to ${assignmentDraft.assigneeLabel}. ${assignmentDraft.assigneeFullName} has been sent a closeable AssetCare+ AI assignment notification.${result.warnings.length ? `\n\nWarnings: ${result.warnings.join(" ")}` : ""}`,
           facts: ["Assignment saved", assignmentDraft.assigneeLabel, "Notification sent"],
           sourceNote: `Confirmed by ${result.actorName}. The assignment is recorded in the ticket activity chain.`,
         },
@@ -949,9 +949,9 @@ export function RelayAiPanel({
       {
         id: `assistant-browser-${Date.now()}`,
         role: "assistant",
-        text: `Browser lookup prepared for selected catalogue number ${selectedPartNumber}. Open the supplier or manufacturer page, select the RELAY Parts Lookup extension, then fill the website search and scan the results.`,
+        text: `Browser lookup prepared for selected catalogue number ${selectedPartNumber}. Open the supplier or manufacturer page, select the AssetCare+ Parts Lookup extension, then fill the website search and scan the results.`,
         facts: [selectedPartNumber, "User-selected candidate", "No automatic fitment"],
-        sourceNote: "Only machine and request context was shared with the local extension. No RELAY credentials were included.",
+        sourceNote: "Only machine and request context was shared with the local extension. No AssetCare+ credentials were included.",
       },
     ]);
   }
@@ -967,7 +967,7 @@ export function RelayAiPanel({
 
   return (
     <>
-      <button type="button" className="relay-ai-scrim" aria-label="Close RELAY AI" onClick={onClose} />
+      <button type="button" className="relay-ai-scrim" aria-label="Close AssetCare+ AI" onClick={onClose} />
       <section
         ref={panelRef}
         className="relay-ai-panel"
@@ -988,7 +988,7 @@ export function RelayAiPanel({
             <button type="button" onClick={startNewChat} className="relay-ai-header-button" disabled={isThinking}>
               New chat
             </button>
-            <button type="button" onClick={onClose} className="console-icon-button" aria-label="Close RELAY AI">
+            <button type="button" onClick={onClose} className="console-icon-button" aria-label="Close AssetCare+ AI">
               <ConsoleIcon name="close" className="h-5 w-5" />
             </button>
           </div>
@@ -1120,7 +1120,7 @@ export function RelayAiPanel({
                         <div><dt>Current assignee</dt><dd>{message.assignmentAction.draft.currentAssignee || "Unassigned"}</dd></div>
                         <div><dt>New assignee</dt><dd>{message.assignmentAction.draft.assigneeLabel} ({message.assignmentAction.draft.assigneeFullName})</dd></div>
                         <div className="relay-ai-ticket-review-wide"><dt>Request</dt><dd>{message.assignmentAction.draft.requestSummary}</dd></div>
-                        <div className="relay-ai-ticket-review-wide"><dt>Notification</dt><dd>Closeable popup: “Job {message.assignmentAction.draft.jobNumber} assigned by RELAY AI”</dd></div>
+                        <div className="relay-ai-ticket-review-wide"><dt>Notification</dt><dd>Closeable popup: “Job {message.assignmentAction.draft.jobNumber} assigned by AssetCare+ AI”</dd></div>
                       </dl>
                       {message.assignmentAction.status === "pending" ? (
                         <div className="relay-ai-ticket-review-actions">

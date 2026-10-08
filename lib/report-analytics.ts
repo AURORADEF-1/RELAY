@@ -656,7 +656,7 @@ function buildFleetHealth(
     if (key) {
       machines.set(key, {
         label: machine.machine_number,
-        fleetName: "RELAY fleet",
+        fleetName: "AssetCare+ fleet",
       });
     }
   }
@@ -679,7 +679,7 @@ function buildFleetHealth(
       allTicketsByMachine.set(reference, rows);
     }
     if (reference && !machines.has(reference)) {
-      machines.set(reference, { label: displayTicketMachineReference(ticket), fleetName: "RELAY fleet" });
+      machines.set(reference, { label: displayTicketMachineReference(ticket), fleetName: "AssetCare+ fleet" });
     }
   }
   for (const ticket of periodTickets) {

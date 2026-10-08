@@ -260,7 +260,7 @@ export function NexusStoresWorkspace() {
               Find machine-specific parts
             </h2>
             <p className="nexus-fleet-lookup-copy mt-1 max-w-2xl text-sm">
-              Enter a RELAY fleet number. NEXUS will return only parts
+              Enter a AssetCare+ fleet number. NEXUS will return only parts
               associated with the verified make and model.
             </p>
           </div>
@@ -312,12 +312,12 @@ export function NexusStoresWorkspace() {
             <div
               id={suggestionListId}
               role="listbox"
-              aria-label="Matching RELAY fleet machines"
+              aria-label="Matching AssetCare+ fleet machines"
               className="mt-2 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg"
             >
               {isSuggestionSearchBusy ? (
                 <p className="px-3 py-3 text-sm text-slate-500">
-                  Searching RELAY fleet…
+                  Searching AssetCare+ fleet…
                 </p>
               ) : fleetSuggestions.length ? (
                 fleetSuggestions.map((machine, index) => (
@@ -347,7 +347,7 @@ export function NexusStoresWorkspace() {
                 ))
               ) : hasSearchedSuggestions ? (
                 <p className="px-3 py-3 text-sm text-slate-500">
-                  No matching RELAY fleet numbers. Finish typing the exact
+                  No matching AssetCare+ fleet numbers. Finish typing the exact
                   reference and press Enter to check it.
                 </p>
               ) : null}
@@ -375,7 +375,7 @@ export function NexusStoresWorkspace() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                  RELAY fleet verified
+                  AssetCare+ fleet verified
                 </p>
                 <p className="mt-1 text-lg font-semibold text-emerald-950">
                   {result.classification.manufacturer} ·{" "}
@@ -473,7 +473,7 @@ export function NexusStoresWorkspace() {
                     className="mt-0.5 size-4 accent-emerald-700"
                   />
                   <span>
-                    Confirm creation of a RELAY ticket and immediate NEXUS stock
+                    Confirm creation of a AssetCare+ ticket and immediate NEXUS stock
                     issue. Any shortfall will be recorded for ordering.
                   </span>
                 </label>
@@ -497,7 +497,7 @@ export function NexusStoresWorkspace() {
             Stores request complete
           </p>
           <h2 className="mt-1 text-xl font-semibold text-emerald-950">
-            RELAY ticket created and NEXUS stock updated
+            AssetCare+ ticket created and NEXUS stock updated
           </h2>
           <p className="mt-2 text-sm text-emerald-900">
             {confirmation.issuedQuantity} issued ·{" "}
@@ -512,7 +512,7 @@ export function NexusStoresWorkspace() {
             href={`/tickets/${confirmation.ticketId}`}
             className="console-primary-action mt-4 inline-flex"
           >
-            Open RELAY ticket
+            Open AssetCare+ ticket
           </Link>
         </section>
       ) : null}
@@ -612,7 +612,7 @@ async function relayRequest<T>(url: string, init?: RequestInit): Promise<T> {
   };
   if (!response.ok || payload.error) {
     const ticketSuffix = payload.ticketId
-      ? ` RELAY ticket ${payload.ticketId.slice(0, 8).toUpperCase()} was created; retry this confirmation to finish allocation.`
+      ? ` AssetCare+ ticket ${payload.ticketId.slice(0, 8).toUpperCase()} was created; retry this confirmation to finish allocation.`
       : "";
     throw new Error(`${payload.error || "Request failed."}${ticketSuffix}`);
   }
@@ -629,7 +629,7 @@ function formatMoney(value: number | null) {
 }
 
 function formatVerification(value: NexusCataloguePart["verificationStatus"]) {
-  if (value === "relay_verified") return "RELAY verified";
+  if (value === "relay_verified") return "AssetCare+ verified";
   if (value === "manufacturer_verified") return "Manufacturer verified";
   if (value === "supplier_verified") return "Supplier verified";
   return "Fitment unverified";
@@ -644,7 +644,7 @@ function fleetSuggestionDescription(machine: FleetSuggestion) {
       machine.item_description,
     ]
       .filter(Boolean)
-      .join(" · ") || "Registered RELAY machine"
+      .join(" · ") || "Registered AssetCare+ machine"
   );
 }
 

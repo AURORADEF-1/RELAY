@@ -2,7 +2,7 @@ import { getSupabaseAccessToken } from "@/lib/supabase";
 
 export async function syncNexusEcommerceOrderStatus(ticketId: string) {
   const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) throw new Error("A RELAY session is required for NEXUS status sync");
+  if (!accessToken) throw new Error("A AssetCare+ session is required for NEXUS status sync");
 
   const response = await fetch("/api/integrations/nexus/orders/status", {
     method: "POST",

@@ -11,7 +11,7 @@ export function FaultCards({machine,faults,checkedAt,preview=false,now=Date.pars
       <h4>{advice.detail}</h4><p className="fh-muted">Reported severity: {f.severity} · Reported {f.at ? new Date(f.at).toLocaleString("en-GB") : "time unavailable"}</p>
       <div className="fh-action"><strong>What to do next</strong><p>{advice.action}</p></div>
       <details><summary>See original {machineBrand(machine)} report</summary><p>{f.description}</p><p>Code {f.code} · {f.severity}. Suggested checks are rule-based triage, not a confirmed diagnosis.</p></details>
-      {href && (preview ? <button className="fh-button" onClick={()=>window.alert("Preview only — in RELAY this opens a parts request with the selected machine and dated fault code attached.")}>Request parts / inspection ↗</button> : <Link className="fh-button" href={href}>Request parts / inspection ↗</Link>)}
+      {href && (preview ? <button className="fh-button" onClick={()=>window.alert("Preview only — in AssetCare+ this opens a parts request with the selected machine and dated fault code attached.")}>Request parts / inspection ↗</button> : <Link className="fh-button" href={href}>Request parts / inspection ↗</Link>)}
     </article>})}
   </section>;
 }

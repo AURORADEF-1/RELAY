@@ -34,7 +34,7 @@ export type RelayAiContext = {
 
 export function buildRelayAiInstructions() {
   return [
-    "You are RELAY Assistant for MLP, an internal parts request workflow app.",
+    "You are AssetCare+ Assistant for MLP, an internal parts request workflow app.",
     "Answer using only the selected ticket context provided in the user message.",
     "Do not invent status, ordering, readiness, assignment, dates, or stock details.",
     "If the answer is not supported by the provided ticket data, say so clearly.",
@@ -133,7 +133,7 @@ export function buildRelayAiPlaceholderResponse(
   } else if (normalized.includes("assigned") || normalized.includes("who")) {
     answer = `This ticket is currently assigned to ${assignedTo}. The current status is ${currentStatus}.`;
   } else {
-    answer = `I can only answer from this ticket's RELAY data. Right now I can confirm the current status is ${currentStatus}, assigned to ${assignedTo}, and the latest update is: ${latestUpdate}.`;
+    answer = `I can only answer from this ticket's AssetCare+ data. Right now I can confirm the current status is ${currentStatus}, assigned to ${assignedTo}, and the latest update is: ${latestUpdate}.`;
   }
 
   return `${answer} Would you like me to notify an operator or continue the chat with Stores?`;

@@ -69,7 +69,7 @@ export default function MyJobsPage() {
       const displayName = profile?.display_name?.trim() || user.email?.split("@")[0] || "Administrator";
       const currentOperatorLabel = getAdminAssignmentLabel(displayName);
       if (!isReportableAdminOperatorName(currentOperatorLabel)) {
-        throw new Error("Your RELAY admin profile needs a named operator before My Jobs can be used.");
+        throw new Error("Your AssetCare+ admin profile needs a named operator before My Jobs can be used.");
       }
       const statuses = showCompleted
         ? ["COMPLETED"]
@@ -241,7 +241,7 @@ export default function MyJobsPage() {
           </section>
         )}
 
-        <footer className="my-jobs-sync">{lastSyncedAt ? `Live · last synced ${lastSyncedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Connecting to RELAY"}</footer>
+        <footer className="my-jobs-sync">{lastSyncedAt ? `Live · last synced ${lastSyncedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Connecting to AssetCare+"}</footer>
         <MyJobStatusModal
           move={move}
           operatorLabel={operatorLabel}

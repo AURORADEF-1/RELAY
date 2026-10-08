@@ -32,13 +32,13 @@ export function normalizeAccessGroup(
 }
 
 export const accessGroupDescriptions: Record<AccessGroupId, string> = {
-  admin: "All RELAY areas and access administration.",
+  admin: "All AssetCare+ areas and access administration.",
   front_counter: "Counter terminal and wallboard only.",
-  parts: "Live Queue, assigned jobs, completed jobs, reports, New Request, Requests, pre-pick, scan and issue, Stores Self-Service, Filter Lookup, Parts Knowledge, Parts Control and RELAY AI.",
-  workshop: "Live Queue, requests, workshop work, the complete Fleet & Assets workspace, reports and RELAY AI.",
-  office: "Live Queue, requests, the complete Fleet & Assets workspace, reports and RELAY AI.",
-  transport: "Live Queue, requests, the complete Fleet & Assets workspace, reports and RELAY AI.",
-  fitter: "New requests, own requests, assigned tasks, Fleet Map and RELAY AI.",
+  parts: "Live Queue, assigned jobs, completed jobs, reports, New Request, Requests, pre-pick, scan and issue, Stores Self-Service, Filter Lookup, Parts Knowledge, Parts Control and AssetCare+ AI.",
+  workshop: "Live Queue, requests, workshop work, the complete Fleet & Assets workspace, reports and AssetCare+ AI.",
+  office: "Live Queue, requests, the complete Fleet & Assets workspace, reports and AssetCare+ AI.",
+  transport: "Live Queue, requests, the complete Fleet & Assets workspace, reports and AssetCare+ AI.",
+  fitter: "New requests, own requests, assigned tasks, Fleet Map and AssetCare+ AI.",
   assetcare: "Fleet dashboard, Fleet Map and Fleet Register.",
 };
 

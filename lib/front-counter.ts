@@ -47,7 +47,7 @@ export async function requestFrontCounterCollection(
   });
   if (error) throw new Error(error.message);
   const result = Array.isArray(data) ? data[0] : null;
-  if (!result) throw new Error("RELAY did not create a collection request.");
+  if (!result) throw new Error("AssetCare+ did not create a collection request.");
   return result as RequestedFrontCounterCollection;
 }
 
@@ -60,7 +60,7 @@ export async function completeFrontCounterCollection(
   });
   if (error) throw new Error(error.message);
   const result = Array.isArray(data) ? data[0] : null;
-  if (!result) throw new Error("RELAY did not complete this collection.");
+  if (!result) throw new Error("AssetCare+ did not complete this collection.");
   return result as CompletedFrontCounterCollection;
 }
 

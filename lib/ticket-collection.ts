@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const COLLECTION_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-const COLLECTION_QR_PREFIX = "RELAY-COLLECTION";
+const COLLECTION_QR_PREFIX = "AssetCare+-COLLECTION";
 
 export type CollectionConfirmation = {
   collected_at: string;

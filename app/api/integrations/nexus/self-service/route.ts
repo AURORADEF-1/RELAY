@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: "The verified RELAY machine is no longer available.",
+          error: "The verified AssetCare+ machine is no longer available.",
         },
         { status: 409 },
       );
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: "This RELAY machine needs a catalogue make and model.",
+          error: "This AssetCare+ machine needs a catalogue make and model.",
         },
         { status: 409 },
       );
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     );
     if (ticketError || !ticketResult)
       throw new Error(
-        ticketError?.message || "RELAY could not create the ticket.",
+        ticketError?.message || "AssetCare+ could not create the ticket.",
       );
     const ticket = ticketResult as { ticketId: string };
 
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
     if (finalError || !finalResult)
       throw new Error(
         finalError?.message ||
-          "Stock was allocated, but RELAY could not finish the ticket update.",
+          "Stock was allocated, but AssetCare+ could not finish the ticket update.",
       );
 
     return NextResponse.json({

@@ -26,7 +26,7 @@ type FrontCounterStatus = {
 };
 
 const commandLabels: Record<DeviceCommand, string> = {
-  refresh_session: "Refresh RELAY screens",
+  refresh_session: "Refresh AssetCare+ screens",
   reboot: "Restart Pi",
   shutdown: "Shut down Pi",
 };
@@ -48,7 +48,7 @@ export function FrontCounterControlPanel() {
       if (!supabase) {
         setNotice({
           tone: "error",
-          message: "RELAY connection settings are unavailable.",
+          message: "AssetCare+ connection settings are unavailable.",
         });
         setIsLoading(false);
         return;
@@ -96,7 +96,7 @@ export function FrontCounterControlPanel() {
   async function sendCommand(command: DeviceCommand) {
     if (command === "shutdown") {
       const confirmed = window.confirm(
-        "Shut down the Front Counter Pi? It cannot be powered back on through SSH or RELAY; someone must restore power physically.",
+        "Shut down the Front Counter Pi? It cannot be powered back on through SSH or AssetCare+; someone must restore power physically.",
       );
       if (!confirmed) return;
     }
@@ -159,7 +159,7 @@ export function FrontCounterControlPanel() {
             <h2 className="mt-3 aurora-heading">Front Counter Pi</h2>
             <p className="mt-3 max-w-3xl aurora-copy">
               Live device, browser and CUPS status. Commands travel through
-              RELAY&apos;s authenticated outbound connection; no SSH password or
+              AssetCare+&apos;s authenticated outbound connection; no SSH password or
               local printer port is exposed to the web.
             </p>
           </div>
@@ -200,7 +200,7 @@ export function FrontCounterControlPanel() {
             tone={status?.device_online ? "success" : "danger"}
           />
           <StatusCard
-            label="RELAY screens"
+            label="AssetCare+ screens"
             value={status?.device_online ? "Available" : "Unknown"}
             helper={
               status?.device_hostname
@@ -233,14 +233,14 @@ export function FrontCounterControlPanel() {
           <p className="aurora-kicker">Safe maintenance</p>
           <h2 className="mt-3 aurora-heading">Connection controls</h2>
           <p className="mt-3 max-w-3xl aurora-copy">
-            Refresh both RELAY Chromium windows without changing their signed-in
+            Refresh both AssetCare+ Chromium windows without changing their signed-in
             profile, restart the Pi, or shut it down cleanly.
           </p>
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-3">
           <ControlButton
-            title="Refresh RELAY screens"
+            title="Refresh AssetCare+ screens"
             detail="Relaunches the TV wallboard and touch terminal using the existing Front Counter session."
             actionLabel="Refresh screens"
             disabled={!canControl}
@@ -249,7 +249,7 @@ export function FrontCounterControlPanel() {
           />
           <ControlButton
             title="Restart Pi"
-            detail="Gracefully reboots the Raspberry Pi and automatically restores both RELAY screens."
+            detail="Gracefully reboots the Raspberry Pi and automatically restores both AssetCare+ screens."
             actionLabel="Restart Pi"
             disabled={!canControl}
             busy={activeCommand === "reboot"}
@@ -268,7 +268,7 @@ export function FrontCounterControlPanel() {
 
         <div className="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
           <strong>Power on:</strong> a Raspberry Pi cannot be turned on through
-          SSH after shutdown. RELAY can add a Power On control later if a
+          SSH after shutdown. AssetCare+ can add a Power On control later if a
           managed PoE switch or smart power relay is connected.
         </div>
       </section>

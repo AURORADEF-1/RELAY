@@ -176,7 +176,7 @@ export function FilterLookupWorkspace() {
   async function searchFleetMachine() {
     const lookup = selectedMachine?.machine_number || machineQuery.trim() || model.trim();
     if (!lookup) {
-      setError("Select a RELAY machine or enter a fleet number, serial or model.");
+      setError("Select a AssetCare+ machine or enter a fleet number, serial or model.");
       return;
     }
     setIsLoading(true);
@@ -412,7 +412,7 @@ export function FilterLookupWorkspace() {
         <div className="rico-search-panel">
           <div className="rico-machine-search">
             <label>
-              <span>RELAY machine</span>
+              <span>AssetCare+ machine</span>
               <input value={machineQuery} onChange={(event) => setMachineQuery(event.target.value)} placeholder="Plant reference, make, model or serial" />
             </label>
             {machines.length ? (
@@ -445,7 +445,7 @@ export function FilterLookupWorkspace() {
           </button>
           {selectedMachine ? (
             <div className="rico-selected-machine">
-              <strong>{selectedMachine.machine_number} verified in RELAY</strong>
+              <strong>{selectedMachine.machine_number} verified in AssetCare+</strong>
               <span>{[
                 selectedMachine.make,
                 extractRicoMachineModel(
@@ -550,7 +550,7 @@ export function FilterLookupWorkspace() {
         }}>
           <section className="rico-dialog" role="dialog" aria-modal="true" aria-labelledby="rico-ticket-dialog-title">
             <header>
-              <div><span>PROPOSED RICO PART</span><h2 id="rico-ticket-dialog-title">Add to RELAY ticket</h2></div>
+              <div><span>PROPOSED RICO PART</span><h2 id="rico-ticket-dialog-title">Add to AssetCare+ ticket</h2></div>
               <button type="button" aria-label="Close" onClick={() => setSelectedProduct(null)}>×</button>
             </header>
             <div className="rico-dialog-product"><strong>{selectedProduct.reference}</strong><span>{selectedProduct.name}</span><em>{formatMoney(selectedProduct.price)} · {stockLabel(selectedProduct.quantity)}</em></div>

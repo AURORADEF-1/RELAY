@@ -7,7 +7,7 @@ import { PartsLookupPanel } from "@/components/parts-lookup-panel";
 export default function PartsKnowledgePage() {
   return (
     <AuthGuard requiredRole="admin">
-      <ConsoleShell eyebrow="RELAY intelligence" title="Parts Knowledge">
+      <ConsoleShell eyebrow="AssetCare+ intelligence" title="Parts Knowledge">
         <div className="parts-knowledge-console">
           <PartsLookupPanel />
         </div>

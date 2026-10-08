@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) {
     return NextResponse.json(
-      { error: "RELAY order intake is not configured" },
+      { error: "AssetCare+ order intake is not configured" },
       { status: 503 },
     );
   }

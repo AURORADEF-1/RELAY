@@ -473,7 +473,7 @@ function buildTyreCompanyPrintHtml(incident: WorkshopIncidentRecord) {
   </head>
   <body>
     <h1>Tyre Breakdown Report</h1>
-    <p>Prepared from RELAY workshop incidents.</p>
+    <p>Prepared from AssetCare+ workshop incidents.</p>
     <div class="card" style="margin-top: 24px;">
       <div class="grid">
         <p><strong>PO Number</strong><br><span class="value">${escapeHtml(incident.po_number || "-")}</span></p>

@@ -29,18 +29,18 @@ export default function ControlPage() {
   return (
     <AuthGuard requiredRole="admin">
       <ConsoleShell
-        eyebrow="RELAY administration"
+        eyebrow="AssetCare+ administration"
         title="Admin control"
         contentClassName="console-content-admin"
       >
         <div className="admin-control-page">
           <PageHeader
             title="Admin Control"
-            description="Monitor operational health, maintain operator reporting, and manage active RELAY sessions from one administrative workspace."
+            description="Monitor operational health, maintain operator reporting, and manage active AssetCare+ sessions from one administrative workspace."
             meta={
               <>
                 <span className="relay-live-label"><i /> Live administration data</span>
-                <span>Restricted to RELAY administrators</span>
+                <span>Restricted to AssetCare+ administrators</span>
               </>
             }
             actions={

@@ -137,7 +137,7 @@ export function PartLabelValidationPanel({
                 }}
                 autoComplete="off"
                 placeholder="Scan RLY part label"
-                aria-label="Scan RELAY part label"
+                aria-label="Scan AssetCare+ part label"
                 className="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 font-mono text-sm font-semibold uppercase outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
               />
               <button

@@ -92,7 +92,7 @@ export function AdminSmartSearchPanel({
 
       {groupEntries.length === 0 && !isLoading && !errorMessage ? (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 px-6 py-10 text-sm text-slate-500">
-          Enter a search term to look across RELAY data.
+          Enter a search term to look across AssetCare+ data.
         </div>
       ) : null}
 

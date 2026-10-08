@@ -108,7 +108,7 @@ export default function SupportTicketsPage() {
     <div className="support-ticket-page">
       <PageHeader
         title="Support Tickets"
-        description="Report an issue or request help from the RELAY administration team. Submitted tickets are visible only to administrators."
+        description="Report an issue or request help from the AssetCare+ administration team. Submitted tickets are visible only to administrators."
         meta={<><span className="relay-live-label"><i /> Shared support desk</span><span>Administrators are notified when a ticket is raised</span></>}
       />
 
@@ -171,5 +171,5 @@ export default function SupportTicketsPage() {
     </div>
   );
 
-  return isSignedIn ? <ConsoleShell eyebrow="RELAY support" title="Support Tickets" contentClassName="console-content-support">{content}</ConsoleShell> : <main className="support-ticket-public">{content}</main>;
+  return isSignedIn ? <ConsoleShell eyebrow="AssetCare+ support" title="Support Tickets" contentClassName="console-content-support">{content}</ConsoleShell> : <main className="support-ticket-public">{content}</main>;
 }

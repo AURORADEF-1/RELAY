@@ -67,7 +67,7 @@ export function buildRequesterOfflineNotice(
       type: "info" as const,
       message:
         queueCount > 0
-          ? `${queueCount} request${queueCount === 1 ? "" : "s"} saved locally. RELAY will upload them automatically when signal returns.`
+          ? `${queueCount} request${queueCount === 1 ? "" : "s"} saved locally. AssetCare+ will upload them automatically when signal returns.`
           : "You’re offline right now. Any request you submit will be saved on this device and sent automatically when the connection returns.",
     };
   }
@@ -76,7 +76,7 @@ export function buildRequesterOfflineNotice(
     return {
       type: "info" as const,
       message:
-        `${queueCount} saved request${queueCount === 1 ? "" : "s"} waiting to sync. RELAY will retry automatically in the background.`,
+        `${queueCount} saved request${queueCount === 1 ? "" : "s"} waiting to sync. AssetCare+ will retry automatically in the background.`,
     };
   }
 

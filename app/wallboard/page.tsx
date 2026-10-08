@@ -635,7 +635,7 @@ export default function WallboardPage() {
                 />
                 <div className="space-y-2">
                   <p className="text-sm font-semibold uppercase tracking-[0.38em] text-white/55">
-                    Relay Wallboard
+                    AssetCare+ Wallboard
                   </p>
                   <h1 className="text-4xl font-semibold tracking-[0.12em] text-white xl:text-5xl">
                     {getWallboardModeLabel(currentMode)}
@@ -876,7 +876,7 @@ function PendingJobTakeover({
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.38em] text-red-100/60 2xl:text-xs">
-                Relay operations alert
+                AssetCare+ operations alert
               </p>
               <h1 className="mt-1.5 truncate text-[clamp(2rem,3.2vw,4rem)] font-black uppercase leading-none tracking-[0.035em] text-white">
                 Unassigned jobs
@@ -942,7 +942,7 @@ function PendingJobTakeover({
               <div className="mt-auto flex items-center justify-center gap-3 pt-4 text-center 2xl:pt-5">
                 <span className="h-2.5 w-2.5 rounded-full bg-red-300 shadow-[0_0_16px_rgba(248,113,113,0.9)]" />
                 <p className="text-base font-black uppercase tracking-[0.2em] text-red-100/80 2xl:text-lg">
-                  Action required — assign in RELAY
+                  Action required — assign in AssetCare+
                 </p>
               </div>
             </div>
@@ -1031,7 +1031,7 @@ function PendingBacklogTakeover({
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.42em] text-red-100/65 2xl:text-sm">
-                Relay Wallboard
+                AssetCare+ Wallboard
               </p>
               <h1 className="mt-1.5 truncate text-4xl font-black uppercase tracking-[0.045em] text-white xl:text-5xl 2xl:text-6xl">
                 Pending backlog — action required

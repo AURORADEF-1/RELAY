@@ -711,7 +711,7 @@ function FleetWorkspace() {
   return (
     <AuthGuard>
       <ConsoleShell
-        eyebrow={access?.isAdmin ? "RELAY machine intelligence" : "RELAY customer fleet"}
+        eyebrow={access?.isAdmin ? "AssetCare+ machine intelligence" : "AssetCare+ customer fleet"}
         title="Fleet"
         searchValue={searchQuery}
         searchPlaceholder="Search plant number, make, model, serial number or description"
@@ -739,8 +739,8 @@ function FleetWorkspace() {
           title={access?.fleetName ? `${access.fleetName} Fleet` : "Fleet Workspace"}
           description={
             access?.isAdmin
-              ? "Search the verified machine registry and inspect every linked RELAY request, part, order and workshop event."
-              : "Track assigned machines and the RELAY requests available to this account."
+              ? "Search the verified machine registry and inspect every linked AssetCare+ request, part, order and workshop event."
+              : "Track assigned machines and the AssetCare+ requests available to this account."
           }
           meta={
             <>
@@ -906,7 +906,7 @@ function FleetWorkspace() {
               <div className="fleet-detail-empty">
                 <ConsoleIcon name="fleet" className="h-8 w-8" />
                 <h2>Select a machine</h2>
-                <p>Choose a registry result to inspect its complete RELAY history.</p>
+                <p>Choose a registry result to inspect its complete AssetCare+ history.</p>
               </div>
             )}
           </aside>
@@ -1239,13 +1239,13 @@ function MachineOverview({
 
       <section className="fleet-detail-section">
         <div className="fleet-section-heading">
-          <h3>Latest RELAY activity</h3>
+          <h3>Latest AssetCare+ activity</h3>
           <span>{formatDateTime(machine.last_activity_at)}</span>
         </div>
         {machine.latest_ticket ? (
           <TicketListItem ticket={machine.latest_ticket} />
         ) : (
-          <FleetEmptyState message="No RELAY requests are linked to this machine." />
+          <FleetEmptyState message="No AssetCare+ requests are linked to this machine." />
         )}
       </section>
     </div>

@@ -35,9 +35,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         ok: true,
         data: {
-          text: `Machine ${parsed.data.machine} was not found in the verified RELAY machine registry. Check the plant reference before requesting filter fitment.`,
+          text: `Machine ${parsed.data.machine} was not found in the verified AssetCare+ machine registry. Check the plant reference before requesting filter fitment.`,
           facts: ["Machine not verified", "RICO not queried"],
-          sourceNote: "Exact normalized lookup against the live RELAY machine registry.",
+          sourceNote: "Exact normalized lookup against the live AssetCare+ machine registry.",
         },
       });
     }
@@ -64,8 +64,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         ok: true,
         data: {
-          text: `Machine ${machine.machine_number} is verified in RELAY as ${label}, but it was not found in RICO Fleet Manager. I cannot confirm a fitted filter from the live fleet catalogue.`,
-          facts: ["RELAY machine verified", "No RICO Fleet match"],
+          text: `Machine ${machine.machine_number} is verified in AssetCare+ as ${label}, but it was not found in RICO Fleet Manager. I cannot confirm a fitted filter from the live fleet catalogue.`,
+          facts: ["AssetCare+ machine verified", "No RICO Fleet match"],
           sourceNote: "Bounded exact fleet-number and serial lookup. No substitute machine was used.",
         },
       });

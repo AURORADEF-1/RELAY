@@ -251,7 +251,7 @@ export function PartsOrdersDashboard({
                 <tr>
                   <td colSpan={4} className="py-6 text-slate-500">
                     {availableMonths.length === 0
-                      ? "No saved monthly reports yet. Relay will generate the month list from existing order history once snapshots are available."
+                      ? "No saved monthly reports yet. AssetCare+ will generate the month list from existing order history once snapshots are available."
                       : "Select a month to view its saved supplier spend report."}
                   </td>
                 </tr>

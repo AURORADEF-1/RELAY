@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { ok: false, error: "The RELAY fleet feed is temporarily unavailable." },
+      { ok: false, error: "The AssetCare+ fleet feed is temporarily unavailable." },
       { status: 503, headers: responseHeaders },
     );
   }

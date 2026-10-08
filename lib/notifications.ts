@@ -290,7 +290,7 @@ export async function notifyUserTaskAssigned(
       ticket_id: null,
       type: "task_assigned",
       title: `New task assigned: ${payload.taskTitle}`,
-      body: payload.taskDescription?.trim() || "A new RELAY task is waiting for you.",
+      body: payload.taskDescription?.trim() || "A new AssetCare+ task is waiting for you.",
     },
   ]);
 }

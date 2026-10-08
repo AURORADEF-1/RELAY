@@ -195,7 +195,7 @@ export function DymoPrintStation() {
         p_error: errorMessage,
       });
       await updateStationHealth({ last_error: errorMessage, checkedPrinter: true });
-      console.error("RELAY automatic DYMO print failed", error);
+      console.error("AssetCare+ automatic DYMO print failed", error);
     };
 
     const processQueue = async () => {
@@ -249,14 +249,14 @@ export function DymoPrintStation() {
             }, consumableName);
             const label = framework.openLabelXml(labelXml);
             if (!label.isValidLabel()) {
-              throw new Error("RELAY generated an invalid DYMO label and stopped before printing.");
+              throw new Error("AssetCare+ generated an invalid DYMO label and stopped before printing.");
             }
             const validatedLabelXml = label.getLabelXml?.() ?? labelXml;
             const printParamsXml = framework.createLabelWriterPrintParamsXml?.({
               copies: 1,
-              jobTitle: "RELAY job label",
+              jobTitle: "AssetCare+ job label",
               printQuality: "BarcodeAndGraphics",
-            }) ?? "<LabelWriterPrintParams><Copies>1</Copies><JobTitle>RELAY job label</JobTitle><PrintQuality>BarcodeAndGraphics</PrintQuality></LabelWriterPrintParams>";
+            }) ?? "<LabelWriterPrintParams><Copies>1</Copies><JobTitle>AssetCare+ job label</JobTitle><PrintQuality>BarcodeAndGraphics</PrintQuality></LabelWriterPrintParams>";
 
             await framework.printLabelAsync(
               printer.name,
@@ -284,7 +284,7 @@ export function DymoPrintStation() {
         }
       } catch (error) {
         await updateStationHealth({ last_error: getErrorMessage(error) });
-        console.error("RELAY DYMO queue reconciliation failed", error);
+        console.error("AssetCare+ DYMO queue reconciliation failed", error);
       } finally {
         processingRef.current = false;
       }
@@ -325,7 +325,7 @@ export function DymoPrintStation() {
             if (status === "SUBSCRIBED") {
               void processQueue();
             } else if (error) {
-              console.error("RELAY DYMO Realtime channel degraded", error);
+              console.error("AssetCare+ DYMO Realtime channel degraded", error);
             }
           });
 
@@ -336,7 +336,7 @@ export function DymoPrintStation() {
         await updateStationHealth({});
         void processQueue();
       } catch (error) {
-        console.error("Unable to start the RELAY DYMO print station", error);
+        console.error("Unable to start the AssetCare+ DYMO print station", error);
       } finally {
         starting = false;
       }

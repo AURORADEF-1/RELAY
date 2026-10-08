@@ -724,7 +724,7 @@ select:focus-visible {
   }
 }
 
-/* RELAY operations console */
+/* AssetCare+ operations console */
 
 .console-shell {
   --console-sidebar-width: 16.5rem;
@@ -3007,7 +3007,7 @@ select:focus-visible {
   padding: 1rem 1.2rem;
 }
 
-/* RELAY AI operations panel */
+/* AssetCare+ AI operations panel */
 
 .relay-ai-scrim {
   position: fixed;

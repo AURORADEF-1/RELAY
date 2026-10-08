@@ -66,7 +66,7 @@ export default function TerminalPage() {
         setNotice({
           tone: "success",
           title: `Job ${result.job_number} sent to Stores`,
-          detail: `You are number ${result.queue_position} in the collection queue. Please wait at the counter while the parts team picks from bin ${result.bin_location || "shown in RELAY"}.`,
+          detail: `You are number ${result.queue_position} in the collection queue. Please wait at the counter while the parts team picks from bin ${result.bin_location || "shown in AssetCare+"}.`,
         });
       } else if (mode === "handover") {
         const result = await completeFrontCounterCollection(supabase, identifier);
@@ -84,7 +84,7 @@ export default function TerminalPage() {
       setNotice({
         tone: "error",
         title: mode === "collect" ? "Collection request not found" : "Handover not completed",
-        detail: error instanceof Error ? error.message : "RELAY could not process that scan.",
+        detail: error instanceof Error ? error.message : "AssetCare+ could not process that scan.",
       });
     } finally {
       setIsWorking(false);
@@ -98,7 +98,7 @@ export default function TerminalPage() {
         <div className="mx-auto flex min-h-[calc(100dvh-1.5rem)] max-w-7xl flex-col sm:min-h-[calc(100dvh-2rem)] md:min-h-[calc(100dvh-3rem)]">
           <header className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-black/25 px-4 py-3 backdrop-blur-xl sm:px-5 sm:py-4 md:px-7">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.32em] text-emerald-300/75">RELAY Front Counter</p>
+              <p className="text-xs font-bold uppercase tracking-[0.32em] text-emerald-300/75">AssetCare+ Front Counter</p>
               <h1 className="mt-1 text-xl font-black tracking-tight sm:text-2xl md:text-3xl">Parts Terminal</h1>
             </div>
             <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export default function TerminalPage() {
           {mode === "home" ? (
             <section className="grid flex-1 content-center gap-3 py-4 sm:gap-4 md:grid-cols-3 md:gap-5 md:py-6">
               <TerminalAction href="/submit" title="Submit a ticket" detail="Request a part for a machine or job." accent="blue" />
-              <TerminalButton title="Collect parts" detail="Scan your RELAY label, collection code or enter the job number." accent="green" onClick={() => { setMode("collect"); setNotice(null); }} />
+              <TerminalButton title="Collect parts" detail="Scan your AssetCare+ label, collection code or enter the job number." accent="green" onClick={() => { setMode("collect"); setNotice(null); }} />
               <TerminalButton title="Parts team handover" detail="Scan the job ticket after the parts have been handed over." accent="amber" onClick={() => { setMode("handover"); setNotice(null); }} />
             </section>
           ) : (

@@ -85,7 +85,7 @@ async function resolveCurrentUserWithRole(
     .maybeSingle();
 
   if (profileError) {
-    console.warn("RELAY profile lookup fallback", profileError.message);
+    console.warn("AssetCare+ profile lookup fallback", profileError.message);
   }
 
   const normalizedProfile: AppProfile = profile && !profileError

@@ -120,7 +120,7 @@ function emitAdminExtensionNotification(notification: {
       id: notification.id,
       type: notification.type,
       title: notification.title,
-      body: notification.body ?? "New RELAY admin activity.",
+      body: notification.body ?? "New AssetCare+ admin activity.",
       href: notification.ticket_id
         ? `/tickets/${notification.ticket_id}`
         : notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE
@@ -345,8 +345,8 @@ export function NotificationProvider({
 
     if (permission === "granted") {
       await showRelaySystemNotification({
-        title: "RELAY browser alerts enabled",
-        body: "Important RELAY updates will now appear while RELAY is open, even when its tab is in the background.",
+        title: "AssetCare+ browser alerts enabled",
+        body: "Important AssetCare+ updates will now appear while AssetCare+ is open, even when its tab is in the background.",
         tag: "relay-desktop-alerts-enabled",
         href: "/requests",
       });
@@ -385,7 +385,7 @@ export function NotificationProvider({
           await markNotificationsRead(supabase, [toast.notificationId]);
           knownUnreadIdsRef.current.delete(toast.notificationId);
         } catch (error) {
-          console.error("Failed to mark RELAY notification as read", error);
+          console.error("Failed to mark AssetCare+ notification as read", error);
         }
       }
     }
@@ -438,7 +438,7 @@ export function NotificationProvider({
         href: notification.href,
         tag: notification.href ?? notification.title,
       }).catch((error) => {
-        console.error("Unable to show RELAY browser notification", error);
+        console.error("Unable to show AssetCare+ browser notification", error);
       });
     },
     [],
@@ -722,7 +722,7 @@ export function NotificationProvider({
 
             pushToast({
               title: notification.title,
-              description: notification.body ?? "New RELAY activity.",
+              description: notification.body ?? "New AssetCare+ activity.",
               href:
                 notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE
                   ? "/tickets"
@@ -742,7 +742,7 @@ export function NotificationProvider({
                   : (notification.type === "jcb_health" || notification.type === "trackunit_health")
                     ? "Fleet Health · Admin"
                     : notification.type === SYSTEM_BROADCAST_TYPE
-                    ? "RELAY Announcement"
+                    ? "AssetCare+ Announcement"
                     : undefined,
               variant:
                 notification.type === "new_ticket" ||
@@ -777,7 +777,7 @@ export function NotificationProvider({
             ) {
               pushBrowserNotification({
                 title: notification.title,
-                body: notification.body ?? "New RELAY activity.",
+                body: notification.body ?? "New AssetCare+ activity.",
                 href: notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE ? "/tickets" : notification.type === "sign_watch" ? "/fleet/sign-watch" : (notification.type === "jcb_health" || notification.type === "trackunit_health") ? (notification.type === "trackunit_health" ? "/reports?tab=fleet&provider=trackunit" : "/reports?tab=fleet") : notification.ticket_id ? `/tickets/${notification.ticket_id}` : undefined,
               });
             }
@@ -805,7 +805,7 @@ export function NotificationProvider({
             const unreadTasks = await fetchUnreadTaskCount(supabase, userId);
             setTaskUnreadCount(Math.max(unreadTasks, unreadTaskNotifications.length));
           } catch (taskCountError) {
-            console.error("Failed to load RELAY unread task count", taskCountError);
+            console.error("Failed to load AssetCare+ unread task count", taskCountError);
             setTaskUnreadCount(unreadTaskNotifications.length);
           }
         }
@@ -1061,7 +1061,7 @@ export function NotificationProvider({
                 }
               } catch (presenceError) {
                 presenceFailureCountRef.current += 1;
-                console.error("Failed to update RELAY user presence", presenceError);
+                console.error("Failed to update AssetCare+ user presence", presenceError);
                 recordAdminHealthEvent("presence", "Failed to update user presence.");
               } finally {
                 if (isMounted && notificationLifecycleVersionRef.current === lifecycleVersion) {
@@ -1086,7 +1086,7 @@ export function NotificationProvider({
 
             void syncPresence().catch((presenceError) => {
               presenceFailureCountRef.current += 1;
-              console.error("Failed to update RELAY user presence", presenceError);
+              console.error("Failed to update AssetCare+ user presence", presenceError);
               recordAdminHealthEvent("presence", "Failed to update user presence.");
             });
           };
@@ -1095,7 +1095,7 @@ export function NotificationProvider({
           schedulePresenceSync();
         } catch (presenceError) {
           presenceFailureCountRef.current += 1;
-          console.error("Failed to update RELAY user presence", presenceError);
+          console.error("Failed to update AssetCare+ user presence", presenceError);
           recordAdminHealthEvent("presence", "Failed to update user presence.");
         }
         await syncUnreadNotifications(supabase, user.id, adminUser, {
@@ -1189,7 +1189,7 @@ export function NotificationProvider({
           }
 
           if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            console.error("RELAY live Realtime channel degraded", error ?? status);
+            console.error("AssetCare+ live Realtime channel degraded", error ?? status);
             recordAdminHealthEvent(
               "notifications",
               `Live notification channel ${status.toLowerCase()}.`,
@@ -1201,7 +1201,7 @@ export function NotificationProvider({
               adminUser ? refreshPendingTicketCount(adminUser) : Promise.resolve(),
               refreshUrgentTicketReminders(),
             ]).catch((syncError) => {
-              console.error("Failed to reconcile RELAY activity after Realtime error", syncError);
+              console.error("Failed to reconcile AssetCare+ activity after Realtime error", syncError);
             });
           }
         });
@@ -1239,7 +1239,7 @@ export function NotificationProvider({
                 notificationPollFailureCountRef.current = 0;
               } catch (pollError) {
                 notificationPollFailureCountRef.current += 1;
-                console.error("Failed to refresh RELAY notifications", pollError);
+                console.error("Failed to refresh AssetCare+ notifications", pollError);
                 recordAdminHealthEvent("notifications", "Failed to refresh notifications.");
               } finally {
                 if (isMounted && notificationLifecycleVersionRef.current === lifecycleVersion) {
@@ -1274,7 +1274,7 @@ export function NotificationProvider({
                   if (shouldForceLogoutUser(user, sessionControl)) {
                     await supabase.auth.signOut();
                     await clearNotificationState();
-                    window.alert("Your RELAY session was ended by an administrator.");
+                    window.alert("Your AssetCare+ session was ended by an administrator.");
                     window.location.href = "/login";
                     return;
                   }
@@ -1283,7 +1283,7 @@ export function NotificationProvider({
                 sessionControlFailureCountRef.current = 0;
               } catch (sessionControlError) {
                 sessionControlFailureCountRef.current += 1;
-                console.error("Failed to check RELAY session controls", sessionControlError);
+                console.error("Failed to check AssetCare+ session controls", sessionControlError);
                 recordAdminHealthEvent("session_control", "Failed to check session controls.");
               } finally {
                 if (isMounted && notificationLifecycleVersionRef.current === lifecycleVersion) {

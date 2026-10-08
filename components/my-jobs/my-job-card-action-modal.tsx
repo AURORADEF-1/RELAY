@@ -333,7 +333,7 @@ export function MyJobCardActionModal({
               <button type="button" onClick={() => setStage("reassign")}>
                 <span aria-hidden="true">→</span>
                 <strong>Reassign job</strong>
-                <small>Move this ticket to another RELAY admin user.</small>
+                <small>Move this ticket to another AssetCare+ admin user.</small>
               </button>
             </div>
           ) : null}
@@ -383,7 +383,7 @@ export function MyJobCardActionModal({
                 ))}
               </select>
               <small className="my-job-action-field-help">
-                The selected admin receives a RELAY notification showing that{" "}
+                The selected admin receives a AssetCare+ notification showing that{" "}
                 {operatorLabel || "the current operator"} assigned the job.
               </small>
             </label>

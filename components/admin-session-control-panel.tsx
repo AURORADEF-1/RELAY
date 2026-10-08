@@ -133,7 +133,7 @@ export function AdminSessionControlPanel() {
             Session Tools
           </h1>
           <p className="mt-3 max-w-3xl aurora-copy">
-            End active sessions for other users when RELAY becomes unhealthy or stale clients need to be cleared out.
+            End active sessions for other users when AssetCare+ becomes unhealthy or stale clients need to be cleared out.
           </p>
         </div>
         <button

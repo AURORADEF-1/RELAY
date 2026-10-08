@@ -27,7 +27,7 @@ type AnalyticsIntent =
   | "requests";
 
 const ANALYTICS_INTENTS: Array<{ intent: AnalyticsIntent; examples: string }> = [
-  { intent: "overview", examples: "Give me an operations overview. What needs attention across RELAY?" },
+  { intent: "overview", examples: "Give me an operations overview. What needs attention across AssetCare+?" },
   { intent: "customer_fleet", examples: "List Shred Station's customer fleet. Show a customer's machines and their request history." },
   { intent: "machines", examples: "Which machine reference has the most requests? Show busiest machines." },
   { intent: "suppliers", examples: "Who is our main supplier? Which supplier receives the most purchase orders?" },
@@ -227,7 +227,7 @@ async function runBudgetedQuery<T>(
     return await Promise.resolve(query(controller.signal));
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new Error(`${label} exceeded the ${RELAY_AI_GUARDRAILS.queryTimeoutMs / 1000}-second RELAY AI query limit.`);
+      throw new Error(`${label} exceeded the ${RELAY_AI_GUARDRAILS.queryTimeoutMs / 1000}-second AssetCare+ AI query limit.`);
     }
     throw error;
   } finally {
@@ -1251,7 +1251,7 @@ async function detectIntent(question: string, snapshot: RelayAnalyticsSnapshot) 
     const match = await rankBrowserSemanticIntent(question, ANALYTICS_INTENTS);
     if (match && match.score >= 0.27) return match.intent;
   } catch (error) {
-    console.warn("RELAY AI semantic router unavailable; using local analytics rules", error);
+    console.warn("AssetCare+ AI semantic router unavailable; using local analytics rules", error);
   }
   return wordIntent;
 }
@@ -1274,7 +1274,7 @@ function answerCustomerFleet(
     return {
       text: available
         ? `I could not identify which customer fleet you meant. Available customer fleets: ${available}.`
-        : "No customer fleets are configured in RELAY.",
+        : "No customer fleets are configured in AssetCare+.",
       facts: [`${formatNumber(snapshot.customerFleets.length)} customer fleets`],
       sourceNote: "Live customer fleet memberships and verified machine mappings.",
     };
@@ -1509,7 +1509,7 @@ function answerOverview(snapshot: RelayAnalyticsSnapshot): RelayConsoleAiAnswer 
   const suppliers = rankGroups(supplierRecords(snapshot));
   const machines = rankGroups(snapshot.tickets.map((ticket) => ({ label: ticket.machine_reference })));
   return {
-    text: `RELAY currently has ${formatNumber(active.length)} active tickets. ${formatNumber(urgent)} are urgent, ${formatNumber(unassigned)} are unassigned, ${formatNumber(ordered)} are ordered and ${formatNumber(ready)} are ready for collection.\n\nHighest-demand machine: ${machines[0]?.label ?? "not recorded"} (${formatNumber(machines[0]?.count ?? 0)} requests).\nMain supplier by order count: ${suppliers[0]?.label ?? "not recorded"} (${formatNumber(suppliers[0]?.count ?? 0)} orders).`,
+    text: `AssetCare+ currently has ${formatNumber(active.length)} active tickets. ${formatNumber(urgent)} are urgent, ${formatNumber(unassigned)} are unassigned, ${formatNumber(ordered)} are ordered and ${formatNumber(ready)} are ready for collection.\n\nHighest-demand machine: ${machines[0]?.label ?? "not recorded"} (${formatNumber(machines[0]?.count ?? 0)} requests).\nMain supplier by order count: ${suppliers[0]?.label ?? "not recorded"} (${formatNumber(suppliers[0]?.count ?? 0)} orders).`,
     facts: [`${formatNumber(active.length)} active`, `${formatNumber(urgent)} urgent`, `${formatNumber(ready)} ready`],
     sourceNote: "Live roll-up of all accessible tickets and purchase orders.",
   };

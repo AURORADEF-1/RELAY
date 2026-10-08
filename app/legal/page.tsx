@@ -25,10 +25,10 @@ export default function LegalPage() {
                 Legal Help
               </div>
               <h1 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
-                RELAY Terms and Data Protection
+                AssetCare+ Terms and Data Protection
               </h1>
               <p className="text-base leading-8 text-slate-600">
-                Operational use of RELAY is subject to the current terms version{" "}
+                Operational use of AssetCare+ is subject to the current terms version{" "}
                 <span className="font-semibold text-slate-800">
                   {RELAY_TERMS_VERSION}
                 </span>

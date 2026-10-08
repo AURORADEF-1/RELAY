@@ -110,7 +110,7 @@ export function CupsPrintStation() {
             last_error: error instanceof Error ? error.message : String(error),
           });
         }
-        console.error("RELAY Front Counter CUPS station", error);
+        console.error("AssetCare+ Front Counter CUPS station", error);
       } finally {
         workingRef.current = false;
       }

@@ -432,7 +432,7 @@ export function buildSupplierMailtoHref(
     return null;
   }
 
-  const subject = `RELAY supplier follow-up: ${entry.supplierName}`;
+  const subject = `AssetCare+ supplier follow-up: ${entry.supplierName}`;
   const body = buildSupplierBriefText(entry, ticket);
 
   return `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   );
   if (!parsed.success)
     return NextResponse.json(
-      { ok: false, error: "Enter a valid RELAY fleet number." },
+      { ok: false, error: "Enter a valid AssetCare+ fleet number." },
       { status: 400 },
     );
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: "No verified RELAY machine matched that fleet number.",
+          error: "No verified AssetCare+ machine matched that fleet number.",
         },
         { status: 404 },
       );
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         {
           ok: false,
           error:
-            "This RELAY machine needs both a make and model before NEXUS can match parts.",
+            "This AssetCare+ machine needs both a make and model before NEXUS can match parts.",
         },
         { status: 409 },
       );

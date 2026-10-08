@@ -126,7 +126,7 @@ export async function prepareRelayAiAssignment(
   const ticket = activeMatches[0];
   const profile = matches[0];
   const fullName = profile.full_name?.trim();
-  if (!fullName) throw new Error("That admin account has no display name and cannot be assigned by RELAY AI.");
+  if (!fullName) throw new Error("That admin account has no display name and cannot be assigned by AssetCare+ AI.");
   const assigneeLabel = operatorLabel(command.assigneeQuery, fullName);
   if (normalizeName(ticket.assigned_to) === normalizeName(assigneeLabel)) {
     throw new Error(`Job ${command.jobNumber} is already assigned to ${assigneeLabel}.`);
@@ -172,13 +172,13 @@ export async function executeRelayAiAssignment(
     .select("id, job_number, assigned_to, updated_at")
     .maybeSingle();
   if (updateError) throw new Error(updateError.message);
-  if (!updatedTicket) throw new Error("This ticket changed after the preview was prepared. Ask RELAY AI again to review the latest record.");
+  if (!updatedTicket) throw new Error("This ticket changed after the preview was prepared. Ask AssetCare+ AI again to review the latest record.");
 
   const actorName = profile?.display_name?.trim() || user.email?.split("@")[0] || "Administrator";
   const warnings: string[] = [];
   const { error: historyError } = await supabase.from("ticket_updates").insert({
     ticket_id: draft.ticketId,
-    comment: `Assigned to ${draft.assigneeLabel} by RELAY AI after confirmation by ${actorName}.`,
+    comment: `Assigned to ${draft.assigneeLabel} by AssetCare+ AI after confirmation by ${actorName}.`,
   });
   if (historyError) warnings.push(`Activity log failed: ${historyError.message}`);
 

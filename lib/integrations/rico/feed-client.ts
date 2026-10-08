@@ -32,12 +32,12 @@ export async function getRicoFleetFeedPage(query: RicoFleetFeedQuery, partnerTok
   });
 
   if (error) {
-    throw new Error("Unable to read the RELAY fleet registry.");
+    throw new Error("Unable to read the AssetCare+ fleet registry.");
   }
 
   const parsed = ricoFleetFeedPageSchema.safeParse(data);
   if (!parsed.success) {
-    throw new Error("The RELAY fleet registry returned an invalid response.");
+    throw new Error("The AssetCare+ fleet registry returned an invalid response.");
   }
 
   const rows = parsed.data.rows;

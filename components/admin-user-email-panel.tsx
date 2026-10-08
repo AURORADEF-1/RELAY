@@ -34,7 +34,7 @@ export function AdminUserEmailPanel() {
 
   return <section className="aurora-section admin-control-panel">
     <div className="aurora-kicker">Account directory</div><h2 className="mt-4 aurora-heading">Users &amp; Access</h2>
-    <p className="mt-3 aurora-copy">View every RELAY account and maintain its display name, contact email, role, access group, and interface access.</p>
+    <p className="mt-3 aurora-copy">View every AssetCare+ account and maintain its display name, contact email, role, access group, and interface access.</p>
     {notice ? <div className="mt-5 aurora-alert">{notice}</div> : null}
     <div className="mt-6 grid gap-3">{profiles.map((profile) => <div key={profile.id} className="admin-control-list-row rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-4">
       <div className="admin-user-account-grid"><label>Display name<input value={drafts[profile.id]?.fullName ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], fullName: e.target.value } })} className="aurora-input" /></label>

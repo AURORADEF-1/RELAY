@@ -190,13 +190,13 @@ export function PartsLookupPanel() {
 
       if (combined.length === 0) {
         setAssistantAnswer(
-          `No verified part number was found${model ? ` for ${model}` : ""}. Try the exact machine reference, add the serial number, or use a different part description. RELAY will not guess a part number.`,
+          `No verified part number was found${model ? ` for ${model}` : ""}. Try the exact machine reference, add the serial number, or use a different part description. AssetCare+ will not guess a part number.`,
         );
       } else if (combined[0].source === "Machine verified") {
         setAssistantAnswer("A part previously recorded against the exact machine reference was found. Confirm the evidence below before ordering.");
       } else {
         setAssistantAnswer(
-          `RELAY found ${combined.length} possible match${combined.length === 1 ? "" : "es"}. These are ranked evidence, not an automatic fitment guarantee${serial ? "" : "; add the serial number to improve confidence"}.`,
+          `AssetCare+ found ${combined.length} possible match${combined.length === 1 ? "" : "es"}. These are ranked evidence, not an automatic fitment guarantee${serial ? "" : "; add the serial number to improve confidence"}.`,
         );
       }
     } catch (error) {

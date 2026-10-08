@@ -220,7 +220,7 @@ export function ConsoleShell({
   children,
   contentClassName = "",
   shellClassName = "",
-  eyebrow = "RELAY operations",
+  eyebrow = "AssetCare+ operations",
   title,
   searchValue,
   searchPlaceholder = "Search jobs, machines or requesters",
@@ -556,7 +556,7 @@ export function ConsoleShell({
         className={`console-sidebar ${isMobileOpen ? "console-sidebar-mobile-open" : ""}`}
       >
         <div className="console-sidebar-brand">
-          <Link href={isAdmin ? "/console" : "/"} aria-label="RELAY home">
+          <Link href={isAdmin ? "/console" : "/"} aria-label="AssetCare+ home">
             <RelayLogo compact={isCollapsed && !isMobileOpen} />
           </Link>
           <button

@@ -31,7 +31,7 @@ async function authorizeRelayRoute(
     return {
       ok: false,
       status: 500,
-      error: "RELAY authentication is not configured.",
+      error: "AssetCare+ authentication is not configured.",
     };
   }
 
@@ -50,13 +50,13 @@ async function authorizeRelayRoute(
     .eq("id", user.id)
     .maybeSingle<{ role?: string | null }>();
   if (error)
-    return { ok: false, status: 500, error: "Unable to verify RELAY access." };
+    return { ok: false, status: 500, error: "Unable to verify AssetCare+ access." };
 
   if (!profile) {
     return {
       ok: false,
       status: 403,
-      error: "A RELAY requester profile is required.",
+      error: "A AssetCare+ requester profile is required.",
     };
   }
 

@@ -8,7 +8,7 @@ export default function StoresSelfServicePage() {
   return (
     <AuthGuard>
       <ConsoleShell
-        eyebrow="RELAY × NEXUS"
+        eyebrow="AssetCare+ × NEXUS"
         title="Stores Self-Service"
         contentClassName="console-content-filters"
       >

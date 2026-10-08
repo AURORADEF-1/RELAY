@@ -22,7 +22,7 @@ export function OversightAccessGate({ children }: { children: React.ReactNode })
     async function initialise() {
       const supabase = getSupabaseClient();
       if (!supabase) {
-        setMessage("RELAY authentication is not configured.");
+        setMessage("AssetCare+ authentication is not configured.");
         setState("error");
         return;
       }
@@ -63,7 +63,7 @@ export function OversightAccessGate({ children }: { children: React.ReactNode })
 
       const { data: enrollment, error } = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: "RELAY Oversight",
+        friendlyName: "AssetCare+ Oversight",
       });
       if (error || !enrollment) throw error ?? new Error("Unable to start two-factor setup.");
       setFactorId(enrollment.id);
@@ -118,7 +118,7 @@ export function OversightAccessGate({ children }: { children: React.ReactNode })
   return (
     <main className="min-h-screen bg-slate-950 px-5 py-16 text-white">
       <section className="mx-auto max-w-lg rounded-[2rem] border border-white/10 bg-white/[0.06] p-8 shadow-2xl backdrop-blur">
-        <p className="text-xs font-bold uppercase tracking-[0.3em] text-emerald-300">RELAY Oversight</p>
+        <p className="text-xs font-bold uppercase tracking-[0.3em] text-emerald-300">AssetCare+ Oversight</p>
         <h1 className="mt-3 text-3xl font-black tracking-tight">
           {state === "denied" ? "Restricted access" : "Secure verification"}
         </h1>
@@ -126,7 +126,7 @@ export function OversightAccessGate({ children }: { children: React.ReactNode })
         {state === "checking" ? <p className="mt-4 text-slate-300">Checking your secure access…</p> : null}
         {state === "denied" ? (
           <p className="mt-4 leading-7 text-slate-300">
-            Your account is not approved for Oversight. Ask a RELAY administrator to add your account.
+            Your account is not approved for Oversight. Ask a AssetCare+ administrator to add your account.
           </p>
         ) : null}
         {state === "error" ? <p className="mt-4 text-rose-300">{message}</p> : null}
@@ -136,7 +136,7 @@ export function OversightAccessGate({ children }: { children: React.ReactNode })
             <p className="leading-7 text-slate-300">
               Scan this code with Microsoft Authenticator, Google Authenticator or another authenticator app.
             </p>
-            {qrCode ? <Image src={qrCode} alt="RELAY Oversight authenticator QR code" width={208} height={208} unoptimized className="mx-auto h-52 w-52 rounded-2xl bg-white p-3" /> : null}
+            {qrCode ? <Image src={qrCode} alt="AssetCare+ Oversight authenticator QR code" width={208} height={208} unoptimized className="mx-auto h-52 w-52 rounded-2xl bg-white p-3" /> : null}
             <details className="rounded-xl bg-black/20 px-4 py-3 text-sm text-slate-300">
               <summary className="cursor-pointer font-semibold">Enter setup key manually</summary>
               <code className="mt-2 block break-all text-emerald-300">{secret}</code>

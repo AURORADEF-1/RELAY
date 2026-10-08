@@ -304,7 +304,7 @@ export function MyJobStatusModal({
           <div>
             <p>Status qualification</p>
             <h2 id={headingId}>Complete details to move JOB {ticket.job_number || ticket.id.slice(0, 8)} to {column.label.toUpperCase()}</h2>
-            <span>Add the information RELAY needs before it changes the status.</span>
+            <span>Add the information AssetCare+ needs before it changes the status.</span>
           </div>
           <button type="button" onClick={onClose} disabled={isSaving} aria-label="Close status window">×</button>
         </header>

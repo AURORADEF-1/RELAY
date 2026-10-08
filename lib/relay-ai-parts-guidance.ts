@@ -119,7 +119,7 @@ export async function buildRelayAiTicketPartsGuidance(
       isTakeuchi: false,
       catalogueAvailable: false,
       suggestions: [],
-      text: `Machine ${input.machineReference} was not found in the verified machine registry. Catalogue matching is unavailable, but RELAY can retain your best description for the parts team.`,
+      text: `Machine ${input.machineReference} was not found in the verified machine registry. Catalogue matching is unavailable, but AssetCare+ can retain your best description for the parts team.`,
       facts: ["Machine not verified", "Catalogue unavailable"],
       sourceNote: "Exact machine-reference lookup. No manufacturer catalogue query was run.",
     };
@@ -136,7 +136,7 @@ export async function buildRelayAiTicketPartsGuidance(
       isTakeuchi: takeuchi,
       catalogueAvailable: false,
       suggestions: [],
-      text: `Machine ${machine.machine_number} is verified as ${machineLabel}${machine.serial_number ? `, serial ${machine.serial_number}` : ""}.${requestDescription ? ` RELAY captured the request as “${requestDescription}”.` : ""}`,
+      text: `Machine ${machine.machine_number} is verified as ${machineLabel}${machine.serial_number ? `, serial ${machine.serial_number}` : ""}.${requestDescription ? ` AssetCare+ captured the request as “${requestDescription}”.` : ""}`,
       facts: [
         "Machine verified",
         machine.make || "Make not recorded",
@@ -153,7 +153,7 @@ export async function buildRelayAiTicketPartsGuidance(
       isTakeuchi: false,
       catalogueAvailable: false,
       suggestions: [],
-      text: `Machine ${machine.machine_number} is verified as ${[machine.make, machine.model].filter(Boolean).join(" ") || machine.item_description}. No compatible Takeuchi catalogue applies, so RELAY will retain your best description for the parts team.`,
+      text: `Machine ${machine.machine_number} is verified as ${[machine.make, machine.model].filter(Boolean).join(" ") || machine.item_description}. No compatible Takeuchi catalogue applies, so AssetCare+ will retain your best description for the parts team.`,
       facts: ["Machine verified", machine.make || "Make not recorded", "Takeuchi catalogue not applicable"],
       sourceNote: "Verified machine registry record. Manufacturer catalogue matching was not applicable.",
     };

@@ -10,9 +10,9 @@ export type RelayBroadcastDraft = {
 };
 
 const defaultBroadcastTitles: Record<RelayBroadcastKind, string> = {
-  update: "RELAY update",
+  update: "AssetCare+ update",
   maintenance: "Planned maintenance",
-  notice: "RELAY notice",
+  notice: "AssetCare+ notice",
 };
 
 export function normalizeRelayBroadcastDraft(draft: RelayBroadcastDraft) {
@@ -24,7 +24,7 @@ export function normalizeRelayBroadcastDraft(draft: RelayBroadcastDraft) {
   }
 
   if (!message) {
-    throw new Error("Enter a message to send across RELAY.");
+    throw new Error("Enter a message to send across AssetCare+.");
   }
 
   if (title.length > 120) {
@@ -45,20 +45,20 @@ export function normalizeRelayBroadcastDraft(draft: RelayBroadcastDraft) {
 export function getRelayBroadcastPreset(kind: RelayBroadcastKind) {
   if (kind === "update") {
     return {
-      title: "RELAY update",
-      message: "Offline requests are now available. RELAY will save a request on this device and submit it when the connection returns.",
+      title: "AssetCare+ update",
+      message: "Offline requests are now available. AssetCare+ will save a request on this device and submit it when the connection returns.",
     };
   }
 
   if (kind === "maintenance") {
     return {
       title: "Planned maintenance",
-      message: "RELAY maintenance is planned. Please finish any active work and follow the timing shown in this message.",
+      message: "AssetCare+ maintenance is planned. Please finish any active work and follow the timing shown in this message.",
     };
   }
 
   return {
-    title: "RELAY notice",
+    title: "AssetCare+ notice",
     message: "",
   };
 }

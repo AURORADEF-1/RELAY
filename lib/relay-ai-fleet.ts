@@ -4,7 +4,7 @@ export function directionsForPosition(position:LinkedJcbMachine['position'],now:
  return usableCoordinates(position,now)?{url:`https://www.google.com/maps/dir/?api=1&destination=${position.latitude},${position.longitude}`,label:'Get directions to this position'}:null;
 }
 export function answerRequesterFleet(question:string,fleet:{machines:LinkedJcbMachine[];sources:{available:boolean}[]},now=Date.now()){
- const sourceNote=`RELAY fleet tracking · checked ${new Date(now).toLocaleString('en-GB',{timeZone:'Europe/London'})} UK time. People excluded. Locations are last-known, not live.${fleet.sources.some(s=>!s.available)?' One or more feeds are unavailable; this view is incomplete.':''}`;
+ const sourceNote=`AssetCare+ fleet tracking · checked ${new Date(now).toLocaleString('en-GB',{timeZone:'Europe/London'})} UK time. People excluded. Locations are last-known, not live.${fleet.sources.some(s=>!s.available)?' One or more feeds are unavailable; this view is incomplete.':''}`;
  const result=(text:string,directions:ReturnType<typeof directionsForPosition>=null)=>({text,sourceNote,copyText:text,directions});
  if(/\b(assign|reassign|delete|disable|change|update)\b/i.test(question))return result('I can find assets and offer directions. Tracking changes require an administrator.');
  const refs=[...new Set(question.match(/\b\d{4,6}\b/g)??[])];
