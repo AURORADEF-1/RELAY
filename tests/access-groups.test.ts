@@ -15,6 +15,11 @@ describe("access groups", () => {
     expect(canAccessPath("fitter", "/fleet/register")).toBe(false);
     expect(canAccessPath("workshop", "/incidents/tasks/completed")).toBe(true);
     expect(canAccessPath("workshop", "/console")).toBe(true);
+    for (const route of ["/assets", "/assets/inbox", "/fleet", "/fleet/map", "/fleet/register", "/fleet/trips", "/fleet/scheduler"]) {
+      expect(canAccessPath("workshop", route)).toBe(true);
+      expect(canAccessPath("transport", route)).toBe(true);
+      expect(canAccessPath("office", route)).toBe(true);
+    }
     expect(canAccessPath("workshop", "/admin")).toBe(false);
     expect(canAccessPath("parts", "/parts-knowledge")).toBe(true);
     expect(canAccessPath("parts", "/admin")).toBe(false);
@@ -69,5 +74,8 @@ describe("access groups", () => {
       "utf8",
     );
     expect(shell).toContain('"/console": ["workshop", "office", "transport", "parts"]');
+    for (const route of ["/assets", "/fleet/register", "/fleet/trips", "/fleet/scheduler", "/assets/inbox"]) {
+      expect(shell).toContain(`"${route}": ["workshop", "transport", "office"`);
+    }
   });
 });

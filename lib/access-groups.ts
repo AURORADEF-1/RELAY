@@ -35,9 +35,9 @@ export const accessGroupDescriptions: Record<AccessGroupId, string> = {
   admin: "All RELAY areas and access administration.",
   front_counter: "Counter terminal and wallboard only.",
   parts: "Live Queue, assigned jobs, completed jobs, reports, New Request, Requests, pre-pick, scan and issue, Stores Self-Service, Filter Lookup, Parts Knowledge, Parts Control and RELAY AI.",
-  workshop: "Live Queue, requests, workshop work, Fleet Map, reports and RELAY AI.",
-  office: "Live Queue, requests, Fleet Dashboard, reports and RELAY AI.",
-  transport: "Live Queue, requests, Fleet Map, Fleet Register, Trip History, reports and RELAY AI.",
+  workshop: "Live Queue, requests, workshop work, the complete Fleet & Assets workspace, reports and RELAY AI.",
+  office: "Live Queue, requests, the complete Fleet & Assets workspace, reports and RELAY AI.",
+  transport: "Live Queue, requests, the complete Fleet & Assets workspace, reports and RELAY AI.",
   fitter: "New requests, own requests, assigned tasks, Fleet Map and RELAY AI.",
   assetcare: "Fleet dashboard, Fleet Map and Fleet Register.",
 };
@@ -45,9 +45,9 @@ export const accessGroupDescriptions: Record<AccessGroupId, string> = {
 const exactGroupRoutes: Partial<Record<AccessGroupId, string[]>> = {
   front_counter: ["/terminal", "/wallboard"],
   fitter: ["/fleet"],
-  workshop: ["/console", "/fleet"],
-  transport: ["/console", "/requests", "/fleet", "/fleet/map", "/fleet/register", "/fleet/trips", "/reports"],
-  office: ["/console", "/requests", "/assets", "/fleet", "/reports"],
+  workshop: ["/console", "/assets", "/assets/inbox", "/fleet", "/fleet/map", "/fleet/register", "/fleet/trips", "/fleet/scheduler"],
+  transport: ["/console", "/requests", "/assets", "/assets/inbox", "/fleet", "/fleet/map", "/fleet/register", "/fleet/trips", "/fleet/scheduler", "/reports"],
+  office: ["/console", "/requests", "/assets", "/assets/inbox", "/fleet", "/fleet/map", "/fleet/register", "/fleet/trips", "/fleet/scheduler", "/reports"],
   assetcare: ["/assets", "/fleet", "/fleet/map", "/fleet/register"],
 };
 
