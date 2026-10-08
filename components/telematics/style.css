@@ -79,7 +79,7 @@
 .fleet-map-split .jcb-results{display:grid;grid-template-columns:minmax(300px,var(--fleet-register-width,24rem)) minmax(0,1fr);grid-template-rows:auto minmax(528px,72vh) auto;min-height:620px;border:1px solid var(--border-strong);border-radius:12px;overflow:hidden;background:var(--background-panel)}
 .fleet-map-split .jcb-results>.jcb-actions{grid-column:2;grid-row:1;margin:0;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--background-panel-strong)}
 .fleet-map-split .jcb-results>.jcb-actions button{min-height:32px;padding:5px 9px;font-size:.68rem}
-.fleet-map-split .jcb-results>.jcb-actions .fleet-map-expand{margin-left:auto}
+.fleet-map-end-actions{display:flex;align-items:center;gap:6px;margin-left:auto}
 .fleet-map-split .jcb-results>nav.jcb-actions{grid-column:1;grid-row:3;z-index:1;align-self:stretch;justify-self:stretch;justify-content:center;align-items:center;margin:0;padding:6px 8px;border:0;border-top:1px solid var(--border);border-right:1px solid var(--border);background:var(--background-panel-strong)}
 .fleet-map-split .jcb-results>nav.fleet-pagination-top{grid-row:1;border-top:0;border-bottom:1px solid var(--border)}
 .fleet-register-search{grid-column:1;grid-row:1;z-index:2;display:flex;align-items:center;padding:7px 9px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--background-panel-strong)}
