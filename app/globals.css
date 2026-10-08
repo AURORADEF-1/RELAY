@@ -9629,7 +9629,19 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 }
 
 .admin-user-account-grid .aurora-input,
-.admin-user-account-grid .aurora-select { min-width: 0; }
+.admin-user-account-grid .aurora-select {
+  min-width: 0;
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 68%, var(--background-field));
+}
+
+.admin-user-account-grid .aurora-input:hover,
+.admin-user-account-grid .aurora-select:hover,
+.admin-user-account-grid .aurora-input:focus,
+.admin-user-account-grid .aurora-select:focus {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 88%, var(--background-field));
+}
 
 @media (max-width: 1200px) {
   .admin-user-account-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
