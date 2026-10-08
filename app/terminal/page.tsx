@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthGuard } from "@/components/auth-guard";
 import { LogoutButton } from "@/components/logout-button";
+import { useNotifications } from "@/components/notification-provider";
 import { isLocalRolePreviewEnabled } from "@/lib/demo-mode";
 import {
   completeFrontCounterCollection,
@@ -19,6 +20,7 @@ type TerminalNotice = { tone: "success" | "error" | "info"; title: string; detai
 
 export default function TerminalPage() {
   const router = useRouter();
+  const { isAdmin: authenticatedIsAdmin } = useNotifications();
   const [mode, setMode] = useState<TerminalMode>("home");
   const [identifier, setIdentifier] = useState("");
   const [queue, setQueue] = useState<FrontCounterCollectionRequest[]>([]);
@@ -100,7 +102,7 @@ export default function TerminalPage() {
               <h1 className="mt-1 text-xl font-black tracking-tight sm:text-2xl md:text-3xl">Parts Terminal</h1>
             </div>
             <div className="flex items-center gap-2">
-              {isLocalRolePreviewEnabled ? (
+              {authenticatedIsAdmin || isLocalRolePreviewEnabled ? (
                 <label className="rounded-2xl border border-emerald-300/35 bg-emerald-400/12 px-3 py-2 text-xs font-bold uppercase tracking-[0.12em] text-emerald-100">
                   <span className="sr-only">View as</span>
                   <select

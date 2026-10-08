@@ -97,6 +97,7 @@ const MAX_STORED_TOASTED_NOTIFICATION_IDS = 120;
 const JOB_ASSIGNMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const ADMIN_EXTENSION_NOTIFICATION_MESSAGE = "RELAY_ADMIN_NOTIFICATION";
 const SYSTEM_BROADCAST_TYPE = "system_broadcast";
+const SUPPORT_TICKET_NOTIFICATION_TYPE = "support_ticket";
 const RELAY_NOTIFICATION_WORKER_PATH = "/relay-notifications-sw.js";
 const REQUEST_NOTIFICATION_TYPES = new Set([
   "status_update",
@@ -122,6 +123,8 @@ function emitAdminExtensionNotification(notification: {
       body: notification.body ?? "New RELAY admin activity.",
       href: notification.ticket_id
         ? `/tickets/${notification.ticket_id}`
+        : notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE
+          ? "/tickets"
         : notification.type === "sign_watch" ? "/fleet/sign-watch" : (notification.type === "jcb_health" || notification.type === "trackunit_health")
           ? (notification.type === "trackunit_health" ? "/reports?tab=fleet&provider=trackunit" : "/reports?tab=fleet")
           : notification.type === "task_assigned"
@@ -658,6 +661,7 @@ export function NotificationProvider({
               (notification) =>
                 notification.type === "job_assigned" ||
                 notification.type === "new_ticket" ||
+                notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE ||
                 notification.type === "front_counter_collection" ||
                 (notification.type === "jcb_health" || notification.type === "trackunit_health" || notification.type === "sign_watch") ||
                 notification.type === SYSTEM_BROADCAST_TYPE,
@@ -668,6 +672,7 @@ export function NotificationProvider({
           toastableNotifications.some(
             (notification) =>
               notification.type === "job_assigned" ||
+              notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE ||
               notification.type === "front_counter_collection" ||
               (notification.type === "jcb_health" || notification.type === "trackunit_health" || notification.type === "sign_watch") ||
                 notification.type === SYSTEM_BROADCAST_TYPE,
@@ -700,6 +705,7 @@ export function NotificationProvider({
                 (
                   unreadNotificationsInitializedRef.current ||
                   notification.type === "job_assigned" ||
+                  notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE ||
                   (notification.type === "jcb_health" || notification.type === "trackunit_health" || notification.type === "sign_watch") ||
                 notification.type === SYSTEM_BROADCAST_TYPE
                 ),
@@ -718,7 +724,9 @@ export function NotificationProvider({
               title: notification.title,
               description: notification.body ?? "New RELAY activity.",
               href:
-                notification.type === "job_assigned" && notification.ticket_id
+                notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE
+                  ? "/tickets"
+                  : notification.type === "job_assigned" && notification.ticket_id
                   ? `/tickets/${notification.ticket_id}`
                   : notification.type === "sign_watch" ? "/fleet/sign-watch" : (notification.type === "jcb_health" || notification.type === "trackunit_health")
           ? (notification.type === "trackunit_health" ? "/reports?tab=fleet&provider=trackunit" : "/reports?tab=fleet")
@@ -738,6 +746,7 @@ export function NotificationProvider({
                     : undefined,
               variant:
                 notification.type === "new_ticket" ||
+                notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE ||
                 notification.type === "front_counter_collection" ||
                 (notification.type === "jcb_health" || notification.type === "trackunit_health" || notification.type === "sign_watch") ||
                 notification.type === SYSTEM_BROADCAST_TYPE
@@ -746,6 +755,7 @@ export function NotificationProvider({
               notificationId: notification.id,
               persistent:
                 notification.type === "new_ticket" ||
+                notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE ||
                 notification.type === "operator_message" ||
                 notification.type === "ready_reminder" ||
                 notification.type === "ready_for_collection" ||
@@ -756,6 +766,7 @@ export function NotificationProvider({
             });
             if (
               notification.type === "new_ticket" ||
+              notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE ||
               notification.type === "operator_message" ||
               notification.type === "ready_reminder" ||
               notification.type === "ready_for_collection" ||
@@ -767,7 +778,7 @@ export function NotificationProvider({
               pushBrowserNotification({
                 title: notification.title,
                 body: notification.body ?? "New RELAY activity.",
-                href: notification.type === "sign_watch" ? "/fleet/sign-watch" : (notification.type === "jcb_health" || notification.type === "trackunit_health") ? (notification.type === "trackunit_health" ? "/reports?tab=fleet&provider=trackunit" : "/reports?tab=fleet") : notification.ticket_id ? `/tickets/${notification.ticket_id}` : undefined,
+                href: notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE ? "/tickets" : notification.type === "sign_watch" ? "/fleet/sign-watch" : (notification.type === "jcb_health" || notification.type === "trackunit_health") ? (notification.type === "trackunit_health" ? "/reports?tab=fleet&provider=trackunit" : "/reports?tab=fleet") : notification.ticket_id ? `/tickets/${notification.ticket_id}` : undefined,
               });
             }
             playNotificationSound();
@@ -825,6 +836,7 @@ export function NotificationProvider({
           currentPath === "/incidents/closed" ||
           currentPath === "/control" ||
           currentPath === "/completed" ||
+          currentPath === "/tickets" ||
           currentPath.startsWith("/tickets/")
         : currentPath === "/tasks" ||
           currentPath.startsWith("/tickets/");
@@ -841,10 +853,13 @@ export function NotificationProvider({
         }
 
         const notificationsToMarkRead = adminUser
-          ? unreadNotifications.filter(
+          ? currentPath === "/tickets"
+            ? unreadNotifications.filter((notification) => notification.type === SUPPORT_TICKET_NOTIFICATION_TYPE)
+            : unreadNotifications.filter(
               (notification) =>
                 notification.type !== "job_assigned" &&
                 notification.type !== "sign_watch" &&
+                notification.type !== SUPPORT_TICKET_NOTIFICATION_TYPE &&
                 notification.type !== SYSTEM_BROADCAST_TYPE,
             )
           : currentPath === "/tasks"

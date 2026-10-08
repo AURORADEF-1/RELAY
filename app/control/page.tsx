@@ -21,6 +21,7 @@ const controlSections = [
   { href: "#operators", label: "Operator names" },
   { href: "#health", label: "System health" },
   { href: "#sessions", label: "Session tools" },
+  { href: "/control/users", label: "Users & Access" },
   { href: "#oversight-access", label: "Oversight access" },
 ];
 
