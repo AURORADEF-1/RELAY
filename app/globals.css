@@ -9614,7 +9614,7 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 
 .admin-user-account-grid {
   display: grid;
-  grid-template-columns: minmax(12rem, 1fr) minmax(15rem, 1.2fr) minmax(9rem, 0.65fr) minmax(10rem, 0.7fr) auto;
+  grid-template-columns: minmax(11rem, 1fr) minmax(14rem, 1.2fr) minmax(8rem, 0.65fr) minmax(9rem, 0.7fr) minmax(9rem, 0.7fr) auto;
   align-items: end;
   gap: 0.8rem;
 }
