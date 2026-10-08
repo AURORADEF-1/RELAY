@@ -49,6 +49,13 @@ export function isUserOnly(user: User | null, profile: AppProfile) {
   return getAccessLevel(user, profile) === "user";
 }
 
+export function isEffectiveAdminForPreview(
+  authenticatedIsAdmin: boolean,
+  previewAccessGroup: string | null,
+) {
+  return authenticatedIsAdmin && (!previewAccessGroup || previewAccessGroup === "admin");
+}
+
 export function clearCurrentUserWithRoleCache() {
   cachedCurrentUserWithRole = null;
   currentUserWithRoleInFlight = null;

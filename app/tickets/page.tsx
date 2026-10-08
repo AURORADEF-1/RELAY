@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ConsoleShell } from "@/components/console/console-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionCard } from "@/components/ui/section-card";
-import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { getCurrentUserWithRole, isEffectiveAdminForPreview } from "@/lib/profile-access";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
 import { getAttachmentValidationError } from "@/lib/relay-ticketing";
 import {
@@ -37,16 +37,20 @@ export default function SupportTicketsPage() {
     const supabase = getSupabaseClient();
     if (!supabase) { setLoading(false); return; }
     const session = await getCurrentUserWithRole(supabase);
+    const previewAccessGroup = session.isAdmin
+      ? window.localStorage.getItem("relay-demo-access-view")
+      : null;
+    const effectiveIsAdmin = isEffectiveAdminForPreview(session.isAdmin, previewAccessGroup);
     setIsSignedIn(Boolean(session.user));
     setCurrentUserId(session.user?.id ?? null);
-    setIsAdmin(session.isAdmin);
+    setIsAdmin(effectiveIsAdmin);
     if (session.user) {
       setForm((current) => ({
         ...current,
         requesterName: current.requesterName || session.profile?.display_name || session.user?.email?.split("@")[0] || "",
         requesterEmail: current.requesterEmail || session.user?.email || "",
       }));
-      if (session.isAdmin) {
+      if (effectiveIsAdmin) {
         const { data } = await supabase.from("support_tickets").select("*").order("created_at", { ascending: false });
         const loadedTickets = (data ?? []) as SupportTicket[];
         setTickets(loadedTickets);
