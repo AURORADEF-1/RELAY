@@ -191,7 +191,7 @@ const navigation: NavigationItem[] = [
 
 const navigationGroups: Partial<Record<string, AccessGroupId[]>> = {
   "/submit": ["fitter", "parts"],
-  "/console": ["office", "transport", "parts"],
+  "/console": ["workshop", "office", "transport", "parts"],
   "/my-jobs": ["parts"],
   "/completed": ["parts"],
   "/requests": ["fitter", "workshop", "transport", "office", "parts"],
