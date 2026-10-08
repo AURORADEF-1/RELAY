@@ -9643,6 +9643,11 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   background: color-mix(in srgb, var(--accent-soft) 88%, var(--background-field));
 }
 
+.admin-user-account-grid .aurora-select option {
+  background: #eaf7fc;
+  color: #06263a;
+}
+
 @media (max-width: 1200px) {
   .admin-user-account-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-user-account-grid > button { justify-self: start; }
