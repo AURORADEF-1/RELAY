@@ -37,7 +37,7 @@ export async function GET(request:NextRequest,{params}:{params:Promise<{id:strin
   auth.supabase.from('workshop_incidents').select('id,job_number,machine_reference,description,status,created_at,updated_at').eq('machine_reference',machine.machine_number).order('created_at',{ascending:false}).limit(101)
  ]);
  const currentTracking=roamTracking??linked;
- return jcbJson({machine,tracking:currentTracking?projectMachine(currentTracking,auth.admin):null,hire:snapshot?hireState([snapshot],now):null,checkedAt:snapshot?.captured_at??null,admin:auth.admin,roamHire:roamTracking?.roamHire??null,roamUnavailable,
+ return jcbJson({machine,tracking:currentTracking?projectMachine(currentTracking,auth.admin):null,hire:snapshot?hireState([snapshot],now):null,checkedAt:snapshot?.captured_at??null,admin:auth.admin,accessGroup:auth.accessGroup,roamHire:roamTracking?.roamHire??null,roamUnavailable,
  tickets:ambiguous?[]:(tickets.data??[]).filter(t=>!t.is_retail_sale&&fleetReference(t.machine_number_normalized||t.machine_number||t.machine_reference)===reference).slice(0,100),
  incidents:ambiguous?[]:(incidents.data??[]).slice(0,100),historyLimited:(tickets.data?.length??0)>100||(incidents.data?.length??0)>100,historyUnavailable:!!tickets.error||!!incidents.error||ambiguous});
  }catch(e){return jcbError(e);}}
