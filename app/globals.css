@@ -9649,6 +9649,49 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   gap: 0.8rem;
 }
 
+.admin-user-sort-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.admin-user-sort-bar > span {
+  margin-right: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.admin-user-sort-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--background-panel-strong);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.admin-user-sort-bar button:hover,
+.admin-user-sort-bar button.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--background-panel-strong));
+  color: var(--text);
+}
+
+.admin-user-sort-bar button b {
+  color: var(--accent);
+  font-size: 1rem;
+}
+
 .admin-user-account-grid label {
   display: grid;
   min-width: 0;
