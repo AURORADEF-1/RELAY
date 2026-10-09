@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
 
-export function LogoutButton() {
+export function LogoutButton({ className = "" }: { className?: string }) {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -30,7 +30,7 @@ export function LogoutButton() {
       type="button"
       onClick={handleLogout}
       disabled={isLoggingOut}
-      className="aurora-button-secondary rounded-full disabled:cursor-not-allowed disabled:opacity-60"
+      className={`aurora-button-secondary rounded-full disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
     >
       {isLoggingOut ? "Logging Out..." : "Logout"}
     </button>

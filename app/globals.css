@@ -864,6 +864,23 @@ select:focus-visible {
   text-transform: uppercase;
 }
 
+.console-sidebar-logout {
+  min-height: 2rem;
+  margin-left: auto;
+  padding: 0.35rem 0.65rem;
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(3, 37, 58, 0.24);
+  color: #ffffff;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.console-sidebar-logout:hover {
+  border-color: rgba(255, 255, 255, 0.62);
+  background: rgba(3, 37, 58, 0.42);
+}
+
 .console-live-dot {
   width: 0.48rem;
   height: 0.48rem;
@@ -1024,6 +1041,7 @@ select:focus-visible {
 }
 
 .console-shell-collapsed .console-sidebar-context span:last-child,
+.console-shell-collapsed .console-sidebar-logout,
 .console-shell-collapsed .console-nav-label,
 .console-shell-collapsed .console-nav-item > span:not(.console-nav-icon),
 .console-shell-collapsed .console-nav-item .inline-flex {
