@@ -586,6 +586,7 @@ export function ConsoleShell({
                   : accessGroupLabels[effectiveAccessGroup]}
             </small>
           </span>
+          <LogoutButton className="console-sidebar-logout" />
         </div>
 
         <nav className="console-navigation" aria-label="Primary navigation">
