@@ -67,7 +67,12 @@
 .fleet-control-room-combined.fleet-control-room-no-filters{grid-template-columns:minmax(0,1fr)}
 .fleet-filter-rail{min-width:0}
 .fleet-filter-rail .fleet-preferences{width:max-content;max-width:220px;height:100%;margin:0;padding:8px;border-radius:10px;box-shadow:none}
-.fleet-filter-rail .fleet-preferences summary{font-size:.75rem}
+.fleet-preferences-heading{display:flex;min-height:34px;align-items:center;justify-content:space-between;gap:8px;color:var(--foreground-strong);font-size:.75rem}
+.fleet-preferences-heading button{display:grid;width:30px;height:30px;min-height:30px;flex:0 0 auto;place-items:center;margin:0;padding:0;font-size:1rem}
+.fleet-filter-rail-collapsed{width:44px}
+.fleet-filter-pane-expand{display:flex!important;width:44px;height:100%;min-height:180px!important;align-items:center!important;justify-content:flex-start!important;gap:10px!important;flex-direction:column;padding:9px 5px!important}
+.fleet-filter-pane-expand span{font-size:1rem;line-height:1}
+.fleet-filter-pane-expand strong{font-size:.68rem;letter-spacing:.03em;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap}
 .fleet-filter-rail .fleet-filter-grid{display:flex;flex-direction:column;gap:8px}
 .fleet-filter-rail .fleet-filter-grid fieldset{padding:7px}
 .fleet-filter-rail .fleet-filter-grid label{display:grid;grid-template-columns:1fr;gap:4px;min-height:0;margin-bottom:8px}
@@ -118,8 +123,10 @@
  .fleet-workspace-combined,.fleet-control-room-combined,.fleet-filter-rail,.fleet-map-shell,.fleet-map-split>.jcb-grid,.fleet-map-split .jcb-results{width:100%;max-width:100%;min-width:0}
  .fleet-control-room-combined{display:block}
  .fleet-filter-rail .fleet-preferences{width:100%;max-width:none;height:auto;margin:0 0 8px;padding:0;overflow:hidden}
- .fleet-filter-rail .fleet-preferences summary{display:flex;min-height:48px;align-items:center;padding:0 12px;font-size:.78rem;line-height:1.2;touch-action:manipulation}
- .fleet-filter-rail .fleet-preferences[open] summary{border-bottom:1px solid var(--border)}
+ .fleet-preferences-heading{min-height:48px;padding:0 12px;border-bottom:1px solid var(--border);font-size:.78rem;line-height:1.2}
+ .fleet-filter-rail-collapsed{width:100%;margin-bottom:8px}
+ .fleet-filter-pane-expand{width:100%;height:48px;min-height:48px!important;justify-content:center!important;flex-direction:row!important;padding:0 12px!important}
+ .fleet-filter-pane-expand strong{writing-mode:horizontal-tb;transform:none}
  .fleet-filter-rail .fleet-filter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px}
  .fleet-filter-rail .fleet-preferences-footer{margin:0;padding:0 10px 10px}
  .fleet-filter-rail .fleet-preferences-footer button{min-height:44px}
