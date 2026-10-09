@@ -78,4 +78,8 @@ describe("access groups", () => {
       expect(shell).toContain(`"${route}": ["workshop", "transport", "office"`);
     }
   });
+
+  it("lets Workshop open individual machine records for reviewed InspHire context", () => {
+    expect(canAccessPath("workshop", "/assets/10000000-0000-4000-8000-000000000001")).toBe(true);
+  });
 });

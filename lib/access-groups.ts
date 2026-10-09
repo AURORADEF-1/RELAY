@@ -53,7 +53,7 @@ const exactGroupRoutes: Partial<Record<AccessGroupId, string[]>> = {
 
 const prefixGroupRoutes: Partial<Record<AccessGroupId, string[]>> = {
   fitter: ["/submit", "/requests", "/tasks", "/tickets/", "/fleet/map"],
-  workshop: ["/requests", "/tickets/", "/incidents", "/fleet/map", "/reports"],
+  workshop: ["/requests", "/tickets/", "/incidents", "/assets/", "/fleet/map", "/reports"],
   parts: [
     "/console",
     "/my-jobs",
