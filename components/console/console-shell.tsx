@@ -569,26 +569,6 @@ export function ConsoleShell({
           </button>
         </div>
 
-        <div
-          className="console-sidebar-context"
-          aria-hidden={isCollapsed && !isMobileOpen}
-        >
-          <span className="console-live-dot" />
-          <span className="console-sidebar-user" title={signedInUserName}>
-            <strong>{signedInUserName}</strong>
-            <small>
-              {isAssetCarePreview
-                ? "AssetCare+ User"
-                : effectiveIsFrontCounter
-                ? "Front Counter"
-                : isAdmin
-                  ? "Administrator"
-                  : accessGroupLabels[effectiveAccessGroup]}
-            </small>
-          </span>
-          <LogoutButton className="console-sidebar-logout" />
-        </div>
-
         <nav className="console-navigation" aria-label="Primary navigation">
           {!isAssetCarePreview ? <button
             type="button"
@@ -669,6 +649,25 @@ export function ConsoleShell({
               ) : null}
             </Link>
           ) : null}
+          <div
+            className="console-sidebar-context console-sidebar-footer-user"
+            aria-hidden={isCollapsed && !isMobileOpen}
+          >
+            <span className="console-live-dot" />
+            <span className="console-sidebar-user" title={signedInUserName}>
+              <strong>{signedInUserName}</strong>
+              <small>
+                {isAssetCarePreview
+                  ? "AssetCare+ User"
+                  : effectiveIsFrontCounter
+                  ? "Front Counter"
+                  : isAdmin
+                    ? "Administrator"
+                    : accessGroupLabels[effectiveAccessGroup]}
+              </small>
+            </span>
+            <LogoutButton className="console-sidebar-logout" />
+          </div>
           <button
             type="button"
             className="console-nav-item hidden lg:flex"
