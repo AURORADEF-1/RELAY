@@ -758,6 +758,7 @@ export function ConsoleShell({
                     const nextView = event.target.value as DemoAccessView;
                     setDemoAccessView(nextView);
                     window.localStorage.setItem("relay-demo-access-view", nextView);
+                    window.dispatchEvent(new Event("relay-demo-access-view-change"));
                     router.push(
                       nextView === "admin"
                         ? "/console"
@@ -783,7 +784,6 @@ export function ConsoleShell({
             ) : null}
             {actions}
             <ThemeToggleButton />
-            <LogoutButton />
           </div>
         </header>
 

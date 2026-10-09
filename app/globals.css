@@ -10572,3 +10572,75 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   background: linear-gradient(135deg, #087e91, #0c9f9a);
   color: #fff;
 }
+
+/* Keep the operations command bar inside compact tablet viewports. */
+@media (max-width: 1024px) {
+  .console-command-bar {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    gap: 0.5rem;
+    padding-right: max(0.65rem, env(safe-area-inset-right));
+    padding-left: max(0.65rem, env(safe-area-inset-left));
+  }
+
+  .console-command-title,
+  .console-command-title > div,
+  .console-command-actions {
+    min-width: 0;
+  }
+
+  .console-command-title {
+    flex: 1 1 12rem;
+    gap: 0.5rem;
+  }
+
+  .console-command-title > div {
+    overflow: hidden;
+  }
+
+  .console-command-title h1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .console-command-search-wrap {
+    order: 3;
+    flex: 1 0 100%;
+    width: 100%;
+    max-width: 100%;
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .console-command-actions {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    max-width: 100%;
+    gap: 0.3rem;
+  }
+
+  .console-demo-view-select {
+    width: min(7.25rem, 24vw);
+    min-width: 0;
+    padding-left: 0.25rem;
+    min-height: 2.75rem;
+  }
+
+  .console-demo-view-select select {
+    width: 100%;
+    min-width: 0;
+    padding-left: 0.4rem;
+  }
+
+  .console-command-actions .aurora-theme-toggle,
+  .console-command-actions .aurora-button-secondary {
+    flex: 0 0 2.75rem;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}

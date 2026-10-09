@@ -1,4 +1,5 @@
 import {beforeEach,expect,it,vi} from 'vitest';
+import {readFileSync} from 'node:fs';
 import {NextRequest} from 'next/server';
 import {requesterMachines} from '@/lib/fleet-map/requester';
 import {assetGroupKeys} from '@/lib/fleet-map/groups';
@@ -106,4 +107,15 @@ it('uses the selected restricted group for an admin preview',async()=>{
  const result=await fleetForViewer(previewRequest);
  expect(result).toMatchObject({admin:false,accessGroup:'fitter',canViewNonShared:false});
  expect(mocks.admin).not.toHaveBeenCalled();
+});
+it('sends the same restricted-preview header that the server reads',()=>{
+ const client=readFileSync(new URL('../components/telematics/fleet-workspace.tsx',import.meta.url),'utf8');
+ expect(client).toContain("'X-Relay-Preview-Access-Group':previewAccessGroup");
+ expect(client).not.toContain('X-AssetCare+-Preview-Access-Group');
+});
+it('removes the complete filter rail from the fitter map view',()=>{
+ const client=readFileSync(new URL('../components/telematics/fleet-workspace.tsx',import.meta.url),'utf8');
+ expect(client).toContain("const fitterView=fleet?.accessGroup==='fitter'||previewAccessGroup==='fitter'");
+ expect(client).toContain('combined&&!fitterView&&<aside className="fleet-filter-rail"');
+ expect(client).toContain("window.addEventListener('relay-demo-access-view-change',syncPreview)");
 });

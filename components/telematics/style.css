@@ -64,6 +64,7 @@
 .fleet-preferences:not([open]){margin:8px 0}
 .fleet-preferences:not([open]) summary{padding:10px 12px}
 .fleet-control-room-combined{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px;align-items:stretch}
+.fleet-control-room-combined.fleet-control-room-no-filters{grid-template-columns:minmax(0,1fr)}
 .fleet-filter-rail{min-width:0}
 .fleet-filter-rail .fleet-preferences{width:max-content;max-width:220px;height:100%;margin:0;padding:8px;border-radius:10px;box-shadow:none}
 .fleet-filter-rail .fleet-preferences summary{font-size:.75rem}
@@ -112,7 +113,32 @@
 .fleet-map-split .jcb-detail{display:none}
 .fleet-map-split.fleet-map-has-selection .jcb-detail{display:block;max-height:calc(72vh + 42px);overflow:auto}
 @media(max-width:1200px){.fleet-map-split .jcb-results{grid-template-columns:minmax(260px,min(var(--fleet-register-width,24rem),42%)) minmax(0,1fr)}}
-@media(max-width:800px){.fleet-control-room-combined{display:block}.fleet-filter-rail .fleet-preferences{height:auto;margin-bottom:8px}.fleet-map-split .jcb-results{display:flex;flex-direction:column;min-height:0}.fleet-map-split .fleet-register-search{order:1;border-right:0}.fleet-map-split .jcb-results>.jcb-actions{order:2}.fleet-map-split .jcb-results>.jcb-map{order:3;min-height:380px;height:52vh}.fleet-map-split .jcb-results>p{order:4;border-right:0}.fleet-map-split .jcb-machine-list{order:5;height:auto;max-height:42vh;border-right:0}.fleet-map-split .jcb-results>nav.jcb-actions{order:6;border-right:0}.fleet-map-split.fleet-map-has-selection>.jcb-grid{grid-template-columns:1fr}.fleet-map-split.fleet-map-has-selection .jcb-detail{max-height:none}}
+@media(max-width:1024px){
+ .console-content-fleet-map{width:100%;max-width:100%;padding:10px;overflow-x:hidden}
+ .fleet-workspace-combined,.fleet-control-room-combined,.fleet-filter-rail,.fleet-map-shell,.fleet-map-split>.jcb-grid,.fleet-map-split .jcb-results{width:100%;max-width:100%;min-width:0}
+ .fleet-control-room-combined{display:block}
+ .fleet-filter-rail .fleet-preferences{width:100%;max-width:none;height:auto;margin:0 0 8px;padding:0;overflow:hidden}
+ .fleet-filter-rail .fleet-preferences summary{display:flex;min-height:48px;align-items:center;padding:0 12px;font-size:.78rem;line-height:1.2;touch-action:manipulation}
+ .fleet-filter-rail .fleet-preferences[open] summary{border-bottom:1px solid var(--border)}
+ .fleet-filter-rail .fleet-filter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px}
+ .fleet-filter-rail .fleet-preferences-footer{margin:0;padding:0 10px 10px}
+ .fleet-filter-rail .fleet-preferences-footer button{min-height:44px}
+ .fleet-map-split .jcb-results{display:flex;flex-direction:column;min-height:0}
+ .fleet-map-split .fleet-register-search{order:1;border-right:0}
+ .fleet-map-split .jcb-results>.jcb-actions{order:2;max-width:100%;overflow-x:visible;flex-wrap:wrap}
+ .fleet-map-split .jcb-results>.jcb-actions button{min-height:44px;flex:0 0 auto}
+ .fleet-map-split .jcb-results>.jcb-actions .fleet-map-expand{margin-left:0}
+ .fleet-map-split .jcb-results>.jcb-map{order:3;min-height:420px;height:60dvh}
+ .fleet-map-split .jcb-results>p{order:4;border-right:0}
+ .fleet-map-split .jcb-machine-list{order:5;height:auto;max-height:42vh;border-right:0}
+ .fleet-map-split .jcb-results>nav.jcb-actions{order:6;border-right:0}
+ .fleet-map-split.fleet-map-has-selection>.jcb-grid{grid-template-columns:1fr}
+ .fleet-map-split.fleet-map-has-selection .jcb-detail{max-height:none}
+}
+@media(max-width:600px){
+ .fleet-filter-rail .fleet-filter-grid{grid-template-columns:1fr}
+ .fleet-map-split .jcb-results>.jcb-map{height:56dvh;min-height:360px}
+}
 .fleet-map-fullscreen .jcb-map{height:auto;flex:1}
 
 /* Treat the selected machine as part of the map chrome, rather than a
