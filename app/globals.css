@@ -4258,6 +4258,36 @@ html[data-theme="dark"] .console-demo-view-select option {
   }
 }
 
+@media (max-width: 520px) {
+  .console-queue-panel,
+  .console-ticket-card,
+  .console-ticket-card-content {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .console-status-filters {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .console-ticket-card-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .console-ticket-card-heading h3,
+  .console-ticket-card-grid dd,
+  .console-ticket-card-note p {
+    overflow-wrap: anywhere;
+  }
+
+  .console-ticket-card-status {
+    width: 100%;
+    justify-items: start;
+  }
+}
+
 /* New Request operational console */
 
 .new-request-console-content {
