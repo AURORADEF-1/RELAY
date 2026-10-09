@@ -88,6 +88,9 @@ export default function LoginPage() {
       <div className="login-content mx-auto flex min-h-screen w-full max-w-[90vw] flex-col justify-center px-4 py-5 sm:max-w-[29rem] sm:px-5 sm:py-6">
         <nav className="mb-8 flex items-center justify-end gap-4 sm:mb-10">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
+            <Link href="/tickets" className="rounded-full px-3 py-2 transition hover:bg-white/6 hover:text-white">
+              Tickets
+            </Link>
             <Link href="/legal" className="rounded-full px-3 py-2 transition hover:bg-white/6 hover:text-white">
               Legal
             </Link>

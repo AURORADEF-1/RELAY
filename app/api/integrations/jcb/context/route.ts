@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     if (!pin || pin.length > 100 || (faultCode && faultCode.length > 100)) throw new JcbError("Select a valid machine.", 400);
     const fleet = await getLinkedFleet(auth);
     const machine = fleet.machines.find(m => m.pin === pin);
-    if (!machine?.relay) throw new JcbError("This JCB machine needs linking to RELAY before a request can be prefilled.", 409);
+    if (!machine?.relay) throw new JcbError("This JCB machine needs linking to AssetCare+ before a request can be prefilled.", 409);
     const lines = [`JCB LiveLink snapshot — ${new Date().toISOString()}`, `Machine: ${machine.relay.machine_number} · ${machine.model}`, `JCB PIN: ${machine.pin}`, `Fleet data fetched: ${fleet.checkedAt}`];
     if (machine.position) lines.push(`Last-known position: ${machine.position.latitude}, ${machine.position.longitude}`, `Position reported: ${machine.position.at ?? "Time unavailable"}`);
     else lines.push("Position unavailable.");

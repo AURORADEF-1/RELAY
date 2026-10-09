@@ -249,7 +249,7 @@ export default function ReportsPage() {
   return (
     <AuthGuard>
       <ConsoleShell
-        eyebrow="RELAY intelligence"
+        eyebrow="AssetCare+ intelligence"
         title="Reports"
         contentClassName="console-content-reports"
         actions={<>
@@ -269,7 +269,7 @@ export default function ReportsPage() {
           <div>
             <p className="reports-kicker">Operational intelligence</p>
             <h1>Reports</h1>
-            <p>Measure throughput, purchasing demand, fleet pressure and requester activity using live RELAY records.</p>
+            <p>Measure throughput, purchasing demand, fleet pressure and requester activity using live AssetCare+ records.</p>
           </div>
           <div className="reports-live-state">
             <span />
@@ -281,7 +281,7 @@ export default function ReportsPage() {
           <section className="reports-state-panel" role="alert">
             <h2>Administrator access required</h2>
             <p>Reports contain operational performance and spend data and are only available to authorised administrators.</p>
-            <Link href="/">Return to RELAY</Link>
+            <Link href="/">Return to AssetCare+</Link>
           </section>
         ) : (
           <>
@@ -452,7 +452,7 @@ function MasterOverviewReport({
           <ReportHeading
             eyebrow="Management snapshot"
             title="The operation at a glance"
-            description={`${periodLabel} compared with ${analytics.previousRangeLabel.toLowerCase()}. All observations are deterministic summaries of recorded RELAY data.`}
+            description={`${periodLabel} compared with ${analytics.previousRangeLabel.toLowerCase()}. All observations are deterministic summaries of recorded AssetCare+ data.`}
           />
           <button type="button" onClick={onExport}>
             <ConsoleIcon name="file" className="h-4 w-4" />
@@ -1193,7 +1193,7 @@ function buildMasterReportCsv(
   periodLabel: string,
 ) {
   const rows: string[][] = [
-    ["RELAY operational overview", periodLabel, ""],
+    ["AssetCare+ operational overview", periodLabel, ""],
     ["Metric", "Current period", "Previous period"],
     ["Requests raised", String(analytics.totalPeriodTickets), String(analytics.previousPeriodTickets)],
     ["Jobs closed", String(analytics.closedJobs.length), String(analytics.previousClosedJobs)],

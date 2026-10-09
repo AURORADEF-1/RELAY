@@ -145,7 +145,7 @@ export default function SettingsPage() {
   return (
     <AuthGuard>
       <ConsoleShell
-        eyebrow="RELAY account"
+        eyebrow="AssetCare+ account"
         title="Settings"
         contentClassName="console-content-settings"
       >
@@ -251,10 +251,10 @@ export default function SettingsPage() {
                     Support
                   </p>
                   <p className="mt-3 text-sm leading-7 text-slate-600">
-                    Raise a support ticket by email if you need help with RELAY.
+                    Raise a support ticket by email if you need help with AssetCare+.
                   </p>
                   <a
-                    href={`mailto:george.ambrose@mervynlambert.co.uk?subject=${encodeURIComponent("RELAY Support Ticket")}&body=${encodeURIComponent("Please describe the issue you are having in RELAY:\n\nUser:\nPage:\nIssue:\n")}`}
+                    href={`mailto:george.ambrose@mervynlambert.co.uk?subject=${encodeURIComponent("AssetCare+ Support Ticket")}&body=${encodeURIComponent("Please describe the issue you are having in AssetCare+:\n\nUser:\nPage:\nIssue:\n")}`}
                     className="mt-5 inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                   >
                     Raise Support Ticket

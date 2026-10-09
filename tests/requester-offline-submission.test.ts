@@ -25,7 +25,7 @@ describe("requester offline submission helpers", () => {
 
     expect(buildRequesterOfflineNotice(2, true, false)).toMatchObject({
       type: "info",
-      message: "2 saved requests waiting to sync. RELAY will retry automatically in the background.",
+      message: "2 saved requests waiting to sync. AssetCare+ will retry automatically in the background.",
     });
 
     expect(buildRequesterOfflineNotice(1, true, true)).toMatchObject({

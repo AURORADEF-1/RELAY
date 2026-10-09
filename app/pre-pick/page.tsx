@@ -144,7 +144,7 @@ export default function PrePickPage() {
     <AuthGuard requiredRole="admin">
       <ConsoleShell
         title="Pre-Pick"
-        eyebrow="RELAY stores"
+        eyebrow="AssetCare+ stores"
         searchValue={searchQuery}
         searchPlaceholder="Search bin, job, machine, requester or assignee"
         onSearchChange={setSearchQuery}

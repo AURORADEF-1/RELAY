@@ -102,7 +102,7 @@ export async function loadYardEvents(db: SupabaseClient, to: number, signal?: Ab
 
 export function yardReportCsv(report: ReturnType<typeof buildYardReport>, label: string, period: YardPeriod, generatedAt: string) {
   const rows: unknown[][] = [
-    ['RELAY yard movements', label], ['Generated at', generatedAt], ['Time zone', 'Europe/London'],
+    ['AssetCare+ yard movements', label], ['Generated at', generatedAt], ['Time zone', 'Europe/London'],
     ['Basis', 'GPS-confirmed yard crossings; not confirmed hire contracts. Missing movements may affect totals and durations.'],
     ['Earliest stored movement', report.firstObserved ?? 'No history'],
     ['Departures', report.departures], ['Returns', report.returns],

@@ -102,7 +102,7 @@ export function buildDymoJobLabelXml(
   return `<?xml version="1.0" encoding="utf-8"?>
 <DesktopLabel Version="1">
   <DYMOLabel Version="3">
-    <Description>RELAY ready job barcode</Description>
+    <Description>AssetCare+ ready job barcode</Description>
     <Orientation>Landscape</Orientation>
     <LabelName>${safeConsumableName}</LabelName>
     <InitialLength>0</InitialLength>
@@ -117,7 +117,7 @@ export function buildDymoJobLabelXml(
     <DynamicLayoutManager>
       <RotationBehavior>ClearObjects</RotationBehavior>
       <LabelObjects>
-        ${buildAddressObject("RELAY_HEADER", "RELAY", 0.3, 0.08, 1.1, 0.18, 9, true, "Left")}
+        ${buildAddressObject("RELAY_HEADER", "AssetCare+", 0.3, 0.08, 1.1, 0.18, 9, true, "Left")}
         ${buildAddressObject("READY_HEADER", "PARTS READY", 2.2, 0.08, 0.95, 0.18, 9, true, "Right")}
         ${buildAddressObject("JOB_CAPTION", "JOB NUMBER", 0.3, 0.31, 0.9, 0.14, 7, true, "Left")}
         ${buildAddressObject("JOB_NUMBER_TEXT", safeJobNumber, 0.3, 0.44, 1.05, 0.33, 22, true, "Left")}

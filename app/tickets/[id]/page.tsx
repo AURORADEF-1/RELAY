@@ -1330,7 +1330,7 @@ export default function TicketDetailPage() {
         setErrorMessage(
           sanitizeUserFacingError(
             assignmentUpdateError,
-            "The job was reassigned, but RELAY could not record the activity entry.",
+            "The job was reassigned, but AssetCare+ could not record the activity entry.",
           ),
         );
         setIsSavingEdit(false);
@@ -1449,7 +1449,7 @@ export default function TicketDetailPage() {
 
       if (ticket.nexus_order_id) {
         void syncNexusEcommerceOrderStatus(ticket.id).catch((syncError) => {
-          console.error("Failed to mirror RELAY order status to NEXUS", syncError);
+          console.error("Failed to mirror AssetCare+ order status to NEXUS", syncError);
         });
       }
     }
@@ -3696,7 +3696,7 @@ function resolveSenderName(
   senderNameByUserId: Record<string, string>,
 ) {
   if (message.is_ai_message || message.sender_role === "ai") {
-    return "RELAY Local Assistant";
+    return "AssetCare+ Local Assistant";
   }
 
   if (message.sender_role === "requester") {

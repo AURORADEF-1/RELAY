@@ -4,6 +4,7 @@ import {
   clearCurrentUserWithRoleCache,
   getAccessLevel,
   getCurrentUserWithRole,
+  isEffectiveAdminForPreview,
 } from "@/lib/profile-access";
 
 describe("RELAY profile access", () => {
@@ -24,6 +25,14 @@ describe("RELAY profile access", () => {
         { role: "admin", interface_mode: "standard" },
       ),
     ).toBe("admin");
+  });
+
+  it("hides administrator-only content while previewing another access group", () => {
+    expect(isEffectiveAdminForPreview(true, "admin")).toBe(true);
+    expect(isEffectiveAdminForPreview(true, null)).toBe(true);
+    expect(isEffectiveAdminForPreview(true, "fitter")).toBe(false);
+    expect(isEffectiveAdminForPreview(true, "workshop")).toBe(false);
+    expect(isEffectiveAdminForPreview(false, "admin")).toBe(false);
   });
 
   it("coalesces simultaneous fresh identity lookups", async () => {

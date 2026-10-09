@@ -34,6 +34,6 @@ export function historyReport(identity:{id:string;label:string;department:string
 export type HistoryReport=ReturnType<typeof historyReport>;
 export function csvCell(value:unknown){let s=String(value??'');if(/^[\s]*[=+@-]|^[\t\r\n]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';}
 export function historyCsv(r:HistoryReport){
- const rows:unknown[][]=[['RELAY staff vehicle history'],['Current assignment',r.label],['Department',r.department],['Asset ID',r.id],['Generated (UK)',r.generated],...r.notes.map(n=>['Note',n]),[],['Daily summary'],['Day (UK)','First arrival','Last departure','Return status','Speeding alerts'],...r.daily.map(d=>[d.day,d.firstArrival,d.lastDeparture,d.returnStatus,d.speedingCount]),[],['All recorded events'],['Time (UK)','Event','Speed (km/h)','Provider threshold (km/h)','Event ID'],...r.events.map(e=>[historyTime(e.occurred_at),e.kind,e.speed_kph,e.limit_kph,e.event_id])];
+ const rows:unknown[][]=[['AssetCare+ staff vehicle history'],['Current assignment',r.label],['Department',r.department],['Asset ID',r.id],['Generated (UK)',r.generated],...r.notes.map(n=>['Note',n]),[],['Daily summary'],['Day (UK)','First arrival','Last departure','Return status','Speeding alerts'],...r.daily.map(d=>[d.day,d.firstArrival,d.lastDeparture,d.returnStatus,d.speedingCount]),[],['All recorded events'],['Time (UK)','Event','Speed (km/h)','Provider threshold (km/h)','Event ID'],...r.events.map(e=>[historyTime(e.occurred_at),e.kind,e.speed_kph,e.limit_kph,e.event_id])];
  return '\uFEFF'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n');
 }

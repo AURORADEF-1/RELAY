@@ -215,7 +215,7 @@ export default function IncidentsPage() {
       setUsers(nextUsers);
     } else {
       presenceFailureCountRef.current += 1;
-      console.error("Failed to load RELAY users", usersResult.reason);
+      console.error("Failed to load AssetCare+ users", usersResult.reason);
     }
 
     if (tasksResult.status === "fulfilled") {
@@ -231,7 +231,7 @@ export default function IncidentsPage() {
       );
     } else {
       presenceFailureCountRef.current += 1;
-      console.error("Failed to load RELAY tasks", tasksResult.reason);
+      console.error("Failed to load AssetCare+ tasks", tasksResult.reason);
       setOpenTasks([]);
     }
     if (usersResult.status === "fulfilled" && tasksResult.status === "fulfilled") {
@@ -462,7 +462,7 @@ export default function IncidentsPage() {
                       <input value={teamSearch} onChange={(event) => setTeamSearch(event.target.value)} placeholder="Search team" />
                     </label>
                     {visibleUsers.length === 0 ? (
-                      <EmptyState title="No users found" description={teamSearch ? "Try a different name or role." : "No RELAY users are available yet."} />
+                      <EmptyState title="No users found" description={teamSearch ? "Try a different name or role." : "No AssetCare+ users are available yet."} />
                   ) : (
                     <div className="relay-user-list">
                     {visibleUsers.map((user) => (

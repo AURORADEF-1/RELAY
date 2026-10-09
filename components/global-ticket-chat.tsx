@@ -185,7 +185,7 @@ export function GlobalTicketChat() {
     }
 
     void initialise().catch((error) => {
-      console.error("Failed to initialise global RELAY chat", error);
+      console.error("Failed to initialise global AssetCare+ chat", error);
     });
 
     const channel = client
@@ -208,7 +208,7 @@ export function GlobalTicketChat() {
             currentUserNameRef.current,
             isAdminRef.current,
           ).catch((error) => {
-            console.error("Failed to refresh global RELAY chat", error);
+            console.error("Failed to refresh global AssetCare+ chat", error);
           });
         },
       )
@@ -229,7 +229,7 @@ export function GlobalTicketChat() {
             currentUserNameRef.current,
             isAdminRef.current,
           ).catch((error) => {
-            console.error("Failed to refresh global RELAY chat photo", error);
+            console.error("Failed to refresh global AssetCare+ chat photo", error);
           });
         },
       )
@@ -389,7 +389,7 @@ function mapGlobalChatMessages({
     }
 
     if (!senderName && normalizedRole === "ai") {
-      senderName = "RELAY Local Assistant";
+      senderName = "AssetCare+ Local Assistant";
     }
 
     return {

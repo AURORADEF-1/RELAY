@@ -724,7 +724,7 @@ select:focus-visible {
   }
 }
 
-/* RELAY operations console */
+/* AssetCare+ operations console */
 
 .console-shell {
   --console-sidebar-width: 16.5rem;
@@ -3007,7 +3007,7 @@ select:focus-visible {
   padding: 1rem 1.2rem;
 }
 
-/* RELAY AI operations panel */
+/* AssetCare+ AI operations panel */
 
 .relay-ai-scrim {
   position: fixed;
@@ -9033,6 +9033,86 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   padding: clamp(1rem, 2vw, 2.5rem);
 }
 
+/* Shared support tickets */
+.console-content-support { max-width: 112rem; padding: clamp(1rem, 2vw, 2.5rem); }
+.support-ticket-page { display: grid; gap: 1rem; width: 100%; max-width: 100%; min-width: 0; overflow: hidden; }
+.support-ticket-page .relay-page-header {
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 11%, transparent), transparent 38%),
+    var(--background-panel);
+  padding: clamp(1rem, 2vw, 1.5rem);
+  box-shadow: var(--shadow-soft);
+}
+.support-ticket-page .relay-section-card { width: 100%; max-width: 100%; min-width: 0; border-radius: 0.8rem; }
+.support-ticket-page .relay-section-card-header { min-width: 0; }
+.support-ticket-page .relay-section-card-header > div { min-width: 0; }
+.support-ticket-page .relay-section-card-header p { overflow-wrap: anywhere; }
+.support-ticket-form { display: grid; width: 100%; max-width: 100%; min-width: 0; gap: 1rem; padding: 1.1rem; }
+.support-ticket-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.support-ticket-form-grid > *,
+.support-ticket-field { min-width: 0; }
+.support-ticket-field { display: grid; width: 100%; max-width: 100%; gap: 0.45rem; color: var(--foreground-muted); font-size: 0.82rem; font-weight: 700; }
+.support-ticket-field > span { margin-left: 0.35rem; color: var(--foreground-subtle); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+.support-ticket-field .aurora-input,
+.support-ticket-field .aurora-textarea { border-radius: 0.65rem; background: var(--background-field); color: var(--foreground-strong); font-weight: 500; }
+.support-ticket-field .aurora-input,
+.support-ticket-field .aurora-textarea { box-sizing: border-box; min-width: 0; max-width: 100%; }
+.support-ticket-field .aurora-textarea { min-height: 8.75rem; resize: vertical; }
+.support-ticket-form > .relay-button { justify-self: start; }
+.support-ticket-notice { margin: 0; }
+.support-ticket-image-field { display: grid; gap: 0.7rem; }
+.support-ticket-image-field > div:first-child { display: flex; align-items: baseline; gap: 0.65rem; color: var(--foreground-muted); font-size: 0.82rem; }
+.support-ticket-image-field > div:first-child span { color: var(--foreground-subtle); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+.support-ticket-image-field > label { width: fit-content; cursor: pointer; }
+.support-ticket-image-field input[type="file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.support-ticket-upload-disabled { cursor: not-allowed !important; opacity: 0.5; }
+.support-ticket-image-previews { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.7rem; }
+.support-ticket-image-previews figure { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 0.7rem; background: var(--background-panel-strong); }
+.support-ticket-image-previews img { display: block; width: 100%; height: 7rem; object-fit: cover; }
+.support-ticket-image-previews figcaption { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.55rem; color: var(--foreground-muted); font-size: 0.7rem; }
+.support-ticket-image-previews figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.support-ticket-image-previews button { color: var(--danger); font-weight: 700; }
+.support-ticket-list { display: grid; gap: 0.7rem; }
+.support-ticket-empty,
+.support-ticket-signin-note { color: var(--foreground-muted); font-size: 0.875rem; }
+.support-ticket-empty { border: 1px dashed var(--border-strong); border-radius: 0.65rem; background: var(--background-muted); padding: 1.25rem; text-align: center; }
+.support-ticket-signin-note { text-align: center; }
+.support-ticket-row { border: 1px solid var(--border); border-radius: 0.7rem; background: var(--background-panel-strong); padding: 1rem; box-shadow: var(--shadow-soft); }
+.support-ticket-row-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.support-ticket-row-heading h3 { margin-top: 0.35rem; color: var(--foreground-strong); font-size: 1rem; font-weight: 720; }
+.support-ticket-row-heading time,
+.support-ticket-requester { color: var(--foreground-subtle); font-size: 0.75rem; }
+.support-ticket-reference { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; color: var(--foreground-muted); font-size: 0.72rem; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; }
+.support-ticket-status { border: 1px solid var(--border); border-radius: 999px; padding: 0.2rem 0.5rem; font-size: 0.65rem; letter-spacing: 0.06em; }
+.support-ticket-status-open { border-color: color-mix(in srgb, var(--warning) 38%, var(--border)); color: var(--warning); }
+.support-ticket-status-in_progress { border-color: color-mix(in srgb, var(--accent) 38%, var(--border)); color: var(--accent); }
+.support-ticket-status-resolved { border-color: color-mix(in srgb, var(--success) 38%, var(--border)); color: var(--success); }
+.support-ticket-description { margin-top: 0.8rem; color: var(--foreground-muted); font-size: 0.875rem; line-height: 1.65; white-space: pre-wrap; }
+.support-ticket-requester { margin-top: 0.75rem; }
+.support-ticket-row-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(8rem, 11rem)); gap: 0.6rem; margin-top: 0.8rem; }
+.support-ticket-row-images a { overflow: hidden; border: 1px solid var(--border); border-radius: 0.6rem; background: var(--background-muted); }
+.support-ticket-row-images img { display: block; width: 100%; height: 7rem; object-fit: cover; transition: transform 160ms ease; }
+.support-ticket-row-images a:hover img { transform: scale(1.03); }
+.support-ticket-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border); }
+.support-ticket-actions .relay-button:disabled { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); opacity: 1; }
+.support-ticket-public { min-height: 100vh; background: var(--background); color: var(--foreground); padding: clamp(1rem, 4vw, 3rem); }
+.support-ticket-public .support-ticket-page { max-width: 72rem; margin: 0 auto; }
+
+@media (max-width: 1100px) {
+  .support-ticket-form-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .console-content-support { padding: 0.75rem; }
+  .support-ticket-form { padding: 0.85rem; }
+  .support-ticket-page .relay-section-card-header { flex-direction: column; padding: 0.85rem; }
+  .support-ticket-page .relay-section-card-header > .relay-button { width: 100%; }
+  .support-ticket-row-heading { flex-direction: column; }
+  .support-ticket-page .relay-page-header { padding: 0.9rem; }
+}
+
 /* RICO Filter Lookup */
 .console-content-filters {
   max-width: 118.75rem;
@@ -9530,6 +9610,52 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   min-height: 2.65rem;
   border-radius: 0.65rem;
   font-size: 0.875rem;
+}
+
+.admin-user-account-grid {
+  display: grid;
+  grid-template-columns: minmax(11rem, 1fr) minmax(14rem, 1.2fr) minmax(8rem, 0.65fr) minmax(9rem, 0.7fr) minmax(9rem, 0.7fr) auto;
+  align-items: end;
+  gap: 0.8rem;
+}
+
+.admin-user-account-grid label {
+  display: grid;
+  min-width: 0;
+  gap: 0.45rem;
+  color: var(--foreground-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.admin-user-account-grid .aurora-input,
+.admin-user-account-grid .aurora-select {
+  min-width: 0;
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 68%, var(--background-field));
+}
+
+.admin-user-account-grid .aurora-input:hover,
+.admin-user-account-grid .aurora-select:hover,
+.admin-user-account-grid .aurora-input:focus,
+.admin-user-account-grid .aurora-select:focus {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 88%, var(--background-field));
+}
+
+.admin-user-account-grid .aurora-select option {
+  background: #eaf7fc;
+  color: #06263a;
+}
+
+@media (max-width: 1200px) {
+  .admin-user-account-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-user-account-grid > button { justify-self: start; }
+}
+
+@media (max-width: 640px) {
+  .admin-user-account-grid { grid-template-columns: minmax(0, 1fr); }
+  .admin-user-account-grid > button { width: 100%; }
 }
 
 .admin-control-page .aurora-subpanel,
@@ -10445,4 +10571,76 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 .relay-ai-composer > button {
   background: linear-gradient(135deg, #087e91, #0c9f9a);
   color: #fff;
+}
+
+/* Keep the operations command bar inside compact tablet viewports. */
+@media (max-width: 1024px) {
+  .console-command-bar {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    gap: 0.5rem;
+    padding-right: max(0.65rem, env(safe-area-inset-right));
+    padding-left: max(0.65rem, env(safe-area-inset-left));
+  }
+
+  .console-command-title,
+  .console-command-title > div,
+  .console-command-actions {
+    min-width: 0;
+  }
+
+  .console-command-title {
+    flex: 1 1 12rem;
+    gap: 0.5rem;
+  }
+
+  .console-command-title > div {
+    overflow: hidden;
+  }
+
+  .console-command-title h1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .console-command-search-wrap {
+    order: 3;
+    flex: 1 0 100%;
+    width: 100%;
+    max-width: 100%;
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .console-command-actions {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    max-width: 100%;
+    gap: 0.3rem;
+  }
+
+  .console-demo-view-select {
+    width: min(7.25rem, 24vw);
+    min-width: 0;
+    padding-left: 0.25rem;
+    min-height: 2.75rem;
+  }
+
+  .console-demo-view-select select {
+    width: 100%;
+    min-width: 0;
+    padding-left: 0.4rem;
+  }
+
+  .console-command-actions .aurora-theme-toggle,
+  .console-command-actions .aurora-button-secondary {
+    flex: 0 0 2.75rem;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
 }

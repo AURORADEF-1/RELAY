@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         if (result.error) throw new JcbError("Unable to remove the link.", 409);
       } else {
         const registry = await getRegistry(auth);
-        if (!registry.some(m => m.id === change.machineId && (m.make??"").toUpperCase().startsWith("TAKEUCHI"))) throw new JcbError("RELAY machine not found.", 404);
+        if (!registry.some(m => m.id === change.machineId && (m.make??"").toUpperCase().startsWith("TAKEUCHI"))) throw new JcbError("AssetCare+ machine not found.", 404);
         const result = await auth.supabase.from("takeuchi_mappings").upsert({ pin: change.pin, machine_id: change.machineId, updated_by: auth.user.id, updated_at: new Date().toISOString() });
         if (result.error) throw new JcbError("Unable to link this machine. It may already be linked to another Takeuchi PIN.", 409);
       }

@@ -11,20 +11,20 @@ export default function FrontCounterControlPage() {
   return (
     <AuthGuard requiredRole="admin">
       <ConsoleShell
-        eyebrow="RELAY administration"
+        eyebrow="AssetCare+ administration"
         title="Front Counter"
         contentClassName="console-content-admin"
       >
         <div className="admin-control-page">
           <PageHeader
             title="Front Counter"
-            description="Monitor and safely maintain the Raspberry Pi, dual RELAY displays and CUPS label station."
+            description="Monitor and safely maintain the Raspberry Pi, dual AssetCare+ displays and CUPS label station."
             meta={
               <>
                 <span className="relay-live-label">
                   <i /> Live device connection
                 </span>
-                <span>Restricted to RELAY administrators</span>
+                <span>Restricted to AssetCare+ administrators</span>
               </>
             }
             actions={

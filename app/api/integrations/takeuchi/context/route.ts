@@ -7,7 +7,7 @@ import { JcbError } from "@/lib/integrations/jcb/client";
 export const maxDuration=60;
 export async function GET(request:NextRequest){
  try {const auth=await authorizeTakeuchi(request);const pin=request.nextUrl.searchParams.get('pin'),code=request.nextUrl.searchParams.get('fault');if(!pin||pin.length>100||(code&&code.length>100))throw new JcbError('Select a valid machine.',400);
- const fleet=await getLinkedTakeuchiFleet(auth);const m=fleet.machines.find(m=>m.pin===pin);if(!m?.relay)throw new JcbError('Link this Takeuchi machine to RELAY before raising a request.',409);
+ const fleet=await getLinkedTakeuchiFleet(auth);const m=fleet.machines.find(m=>m.pin===pin);if(!m?.relay)throw new JcbError('Link this Takeuchi machine to AssetCare+ before raising a request.',409);
  const lines=[`Takeuchi Track snapshot — ${new Date().toISOString()}`,`Machine: ${m.relay.machine_number} · ${m.model}`,`Machine reference: ${m.pin}`,`Fleet fetched: ${fleet.checkedAt}`];
  if(m.position)lines.push(`Last-known position: ${m.position.latitude}, ${m.position.longitude}`,`Position reported: ${m.position.at??'Time unavailable'}`);
  if(code){const details=await getTakeuchiDetails(pin);if(details.faultError)throw new JcbError('Fault records unavailable. Review the machine again.',503);const faults=latestFaults(details.faults).filter(f=>f.code===code);if(!faults.length)throw new JcbError('The selected fault is no longer in the returned records.',409);lines.push('Reported faults — confirm current state on the machine:',...faults.map(f=>`${f.code}: ${f.description} · Reported ${f.at??'Time unavailable'}`));}

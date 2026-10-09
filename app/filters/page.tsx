@@ -8,7 +8,7 @@ export default function FilterLookupPage() {
   return (
     <AuthGuard>
       <ConsoleShell
-        eyebrow="RELAY parts intelligence"
+        eyebrow="AssetCare+ parts intelligence"
         title="Filter Lookup"
         contentClassName="console-content-filters"
       >

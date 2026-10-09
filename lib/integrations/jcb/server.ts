@@ -26,11 +26,11 @@ export async function getRegistry(auth: JcbAccess) {
   const registry: RegistryMachine[] = [];
   for (let offset = 0; offset < 50_000; offset += 500) {
     const result = await auth.supabase.from("machines").select("id,machine_number,serial_number,make,model").order("id").range(offset, offset + 499);
-    if (result.error) throw new JcbError("Unable to read the RELAY machine register.", 503);
+    if (result.error) throw new JcbError("Unable to read the AssetCare+ machine register.", 503);
     registry.push(...(result.data ?? []));
     if (!result.data || result.data.length < 500) return registry;
   }
-  throw new JcbError("The RELAY machine register exceeded the supported page limit.");
+  throw new JcbError("The AssetCare+ machine register exceeded the supported page limit.");
 }
 export async function getLinkedFleet(auth: JcbAccess) {
   const [fleet, registry, mappings] = await Promise.all([
@@ -44,5 +44,5 @@ export function jcbJson(data: unknown, status = 200) {
   return NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store", Vary: "Authorization" } });
 }
 export function jcbError(error: unknown) {
-  return jcbJson({ error: error instanceof JcbError ? error.message : "JCB LiveLink is temporarily unavailable. Existing RELAY requests are unaffected." }, error instanceof JcbError ? error.status : 503);
+  return jcbJson({ error: error instanceof JcbError ? error.message : "JCB LiveLink is temporarily unavailable. Existing AssetCare+ requests are unaffected." }, error instanceof JcbError ? error.status : 503);
 }

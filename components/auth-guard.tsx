@@ -135,7 +135,7 @@ export function AuthGuard({
       <section className="auth-session-loading" role="status" aria-live="polite" aria-label="Opening AssetCare Plus">
         <div className="auth-session-loading__brand">
           <Image src="/assetcare-plus-logo.png" alt="AssetCare+" width={300} height={72} priority />
-          <span>RELAY OPERATIONS</span>
+          <span>AssetCare+ OPERATIONS</span>
         </div>
         <div className="auth-session-loading__track" aria-hidden="true"><span /></div>
         <p>Opening your workspace…</p>

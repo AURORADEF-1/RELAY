@@ -301,7 +301,7 @@ export default function SubmitPage() {
             });
             setOfflineStatusMessage({
               type: "info",
-              message: "A saved request is still waiting for a stronger connection. RELAY will retry automatically.",
+              message: "A saved request is still waiting for a stronger connection. AssetCare+ will retry automatically.",
             });
             break;
           }
@@ -702,7 +702,7 @@ export default function SubmitPage() {
       setOfflineQueueCount(await countRequesterOfflineSubmissions().catch(() => 1));
       setOfflineStatusMessage({ type: "info", message: reasonMessage });
       setSuccessMessage(
-        `Saved locally. RELAY will upload ${values.jobNumber || "this request"} when the connection returns.`,
+        `Saved locally. AssetCare+ will upload ${values.jobNumber || "this request"} when the connection returns.`,
       );
       triggerActionFeedback();
       setValues({ ...initialValues, requesterName: values.requesterName.trim() });
@@ -845,7 +845,7 @@ export default function SubmitPage() {
       if (isLikelyRequesterOfflineError(submitError, navigator.onLine)) {
         try {
           await saveSubmissionForLater(
-            "The connection dropped before RELAY could finish. The request was saved locally and will retry automatically.",
+            "The connection dropped before AssetCare+ could finish. The request was saved locally and will retry automatically.",
           );
           return;
         } catch (queueError) {
@@ -875,7 +875,7 @@ export default function SubmitPage() {
       <ConsoleShell
         shellClassName="console-shell-requester"
         contentClassName="new-request-console-content"
-        eyebrow="RELAY intake"
+        eyebrow="AssetCare+ intake"
         title="New request"
         actions={
           <Link href="/requests" className="console-command-action">

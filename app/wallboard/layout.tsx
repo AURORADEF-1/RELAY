@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "RELAY Wallboard",
+  title: "AssetCare+ Wallboard",
 };
 
 export default function WallboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {

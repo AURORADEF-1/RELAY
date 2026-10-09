@@ -14,7 +14,7 @@ export default function WorkshopLayout({ children }: { children: React.ReactNode
   return (
     <AuthGuard requiredRole="admin">
       <ConsoleShell
-        eyebrow="RELAY workshop"
+        eyebrow="AssetCare+ workshop"
         title={getWorkshopTitle(pathname)}
         contentClassName="console-content-workshop"
       >

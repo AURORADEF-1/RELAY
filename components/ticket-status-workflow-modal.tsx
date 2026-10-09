@@ -328,7 +328,7 @@ export function TicketStatusWorkflowModal({
                         <option value="whatsapp">Open WhatsApp in new window</option>
                       </select>
                       <p className="text-xs leading-5 text-[color:var(--foreground-muted)]">
-                        The supplier draft can be opened after saving. WhatsApp opens in a new window so Relay stays open.
+                        The supplier draft can be opened after saving. WhatsApp opens in a new window so AssetCare+ stays open.
                       </p>
                     </label>
                   </div>

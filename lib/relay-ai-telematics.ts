@@ -10,7 +10,7 @@ const uk=(at:string|number)=>new Date(at).toLocaleString('en-GB',{timeZone:'Euro
 type Snapshot=Awaited<ReturnType<typeof loadPlantSnapshot>>;
 export function answerTelematics(question:string,snapshot:Snapshot){
  const {data,positions,machines,events,now}=snapshot;
- const sourceNote=`Saved RELAY plant tracking · checked ${uk(data.checkedAt)} UK time. Active owned linked plant only. Last-known location is not proof of current hire or availability.${data.warning?' '+data.warning:''}`;
+ const sourceNote=`Saved AssetCare+ plant tracking · checked ${uk(data.checkedAt)} UK time. Active owned linked plant only. Last-known location is not proof of current hire or availability.${data.warning?' '+data.warning:''}`;
  const result=(text:string,facts:string[]=[],directions:ReturnType<typeof directionsForPosition>=null)=>({text:directions?`${text}\n\nNeed directions? Use the button below to open this last-known position in Google Maps.`:text,facts,sourceNote,copyText:text,directions});
  if(/\b(assign|reassign|delete|disable|move|change|update)\b/i.test(question))return result('Tracking questions are read-only. I can show the saved position, yard movements and tracking gaps; I cannot assign trackers or alter asset records.');
  if(/\b(yesterday|last week|last month|last year|20\d{2}-\d{2}-\d{2})\b/i.test(question))return result('I can report today, this week or this month here. Use Reports → Yard movements for another date range.');

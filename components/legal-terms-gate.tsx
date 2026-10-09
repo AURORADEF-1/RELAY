@@ -39,10 +39,10 @@ export function LegalTermsGate() {
               Legal Notice
             </p>
             <h2 className="text-3xl font-semibold tracking-[-0.04em] text-slate-950">
-              RELAY Terms and Data Protection
+              AssetCare+ Terms and Data Protection
             </h2>
             <p className="text-sm leading-7 text-slate-600">
-              Please review and accept the current RELAY terms before using the
+              Please review and accept the current AssetCare+ terms before using the
               system. This prompt appears once per terms version.
             </p>
           </div>

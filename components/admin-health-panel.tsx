@@ -73,7 +73,7 @@ export function AdminHealthPanel() {
             System Watch
           </h2>
           <p className="mt-3 max-w-3xl aurora-copy">
-            Early warning based on active RELAY sessions and recent backend-facing client failures seen by this admin browser.
+            Early warning based on active AssetCare+ sessions and recent backend-facing client failures seen by this admin browser.
           </p>
         </div>
         <button
@@ -97,7 +97,7 @@ export function AdminHealthPanel() {
           label="Active Users"
           value={String(activeUsersCount)}
           tone={activeUsersCount >= 12 ? "high_risk" : activeUsersCount >= 8 ? "watch" : "normal"}
-          helper="Recently active sessions visible to RELAY."
+          helper="Recently active sessions visible to AssetCare+."
         />
         <HealthMetricCard
           label="Recent Warnings"

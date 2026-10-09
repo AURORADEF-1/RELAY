@@ -40,7 +40,7 @@ export function AdminBroadcastPanel() {
     try {
       const draft = normalizeRelayBroadcastDraft({ kind, title, message });
       const accessToken = await getSupabaseAccessToken();
-      if (!accessToken) throw new Error("Your RELAY session has expired. Sign in again.");
+      if (!accessToken) throw new Error("Your AssetCare+ session has expired. Sign in again.");
 
       const response = await fetch("/api/notifications/broadcast", {
         method: "POST",
@@ -76,7 +76,7 @@ export function AdminBroadcastPanel() {
 
       setNotice({
         tone: "success",
-        message: `Announcement sent to ${payload.recipients ?? 0} RELAY user${payload.recipients === 1 ? "" : "s"}.`,
+        message: `Announcement sent to ${payload.recipients ?? 0} AssetCare+ user${payload.recipients === 1 ? "" : "s"}.`,
       });
     } catch (error) {
       setNotice({
@@ -93,8 +93,8 @@ export function AdminBroadcastPanel() {
       <div className="admin-broadcast-heading">
         <div>
           <p>All-user message</p>
-          <h2 id="broadcast-heading">Broadcast across RELAY</h2>
-          <span>Show a dismissible pop-up to every RELAY user on every app view.</span>
+          <h2 id="broadcast-heading">Broadcast across AssetCare+</h2>
+          <span>Show a dismissible pop-up to every AssetCare+ user on every app view.</span>
         </div>
         <ConsoleIcon name="message" className="h-5 w-5" />
       </div>
@@ -118,7 +118,7 @@ export function AdminBroadcastPanel() {
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           maxLength={120}
-          placeholder="RELAY update"
+          placeholder="AssetCare+ update"
         />
       </label>
 

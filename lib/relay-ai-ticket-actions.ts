@@ -220,7 +220,7 @@ export async function createRelayAiTicket(
   const { error: updateError } = await supabase.from("ticket_updates").insert({
     ticket_id: ticket.id,
     status: "PENDING",
-    comment: `Ticket created through RELAY AI after confirmation by ${requesterName}.`,
+    comment: `Ticket created through AssetCare+ AI after confirmation by ${requesterName}.`,
   });
   if (updateError) warnings.push(`Activity log failed: ${updateError.message}`);
 

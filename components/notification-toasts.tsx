@@ -70,7 +70,7 @@ export function NotificationToasts() {
         <div className="pointer-events-auto w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-[color:var(--brand-primary)] bg-[color:var(--brand-bright)] px-4 py-3 shadow-[var(--shadow-panel)] backdrop-blur">
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-semibold text-[#06263a]">
-              Enable RELAY desktop alerts
+              Enable AssetCare+ desktop alerts
             </p>
             <button
               type="button"
@@ -83,8 +83,8 @@ export function NotificationToasts() {
           </div>
           <p className="mt-1 text-sm leading-6 text-[#164b66]">
             {desktopNotificationPermission === "denied"
-              ? "Desktop alerts are blocked. Allow notifications for this site in your browser settings, then reload RELAY."
-              : "Get Chrome alerts for ticket updates, collection readiness, assigned tasks and RELAY announcements—even while the tab is in the background."}
+              ? "Desktop alerts are blocked. Allow notifications for this site in your browser settings, then reload AssetCare+."
+              : "Get Chrome alerts for ticket updates, collection readiness, assigned tasks and AssetCare+ announcements—even while the tab is in the background."}
           </p>
           {desktopNotificationPermission === "default" ? (
             <button

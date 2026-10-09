@@ -9,7 +9,7 @@ export async function hireUsage(h:RoamHire):Promise<HireUsage>{
  if(direct.source==='driver'||!direct.deliveryAt)return direct;
  const db=operationsDatabase(),owners=await ownership(db);
  const matches=owners.registry.filter(m=>typeof h.machine.relay_id==='string'?m.id===h.machine.relay_id:m.machine_number.trim().toUpperCase()===String(h.machine.fleet??'').trim().toUpperCase());
- if(matches.length!==1||!owners.allowed.has(matches[0].id))return {hours:null,source:null,reason:'This hire needs a unique active RELAY asset match.'};
+ if(matches.length!==1||!owners.allowed.has(matches[0].id))return {hours:null,source:null,reason:'This hire needs a unique active AssetCare+ asset match.'};
  const id=matches[0].id,delivery=Date.parse(direct.deliveryAt);
  const [assets,samples]=await Promise.all([
   db.from('assetcare_assets').select('asset_id,machine').limit(2000),

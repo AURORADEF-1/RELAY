@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
   if (ticketError) {
     return NextResponse.json(
-      { ok: false, error: "RELAY could not verify this ticket." },
+      { ok: false, error: "AssetCare+ could not verify this ticket." },
       { status: 500 },
     );
   }

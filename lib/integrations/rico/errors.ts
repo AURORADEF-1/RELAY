@@ -38,7 +38,7 @@ export function getRicoUserMessage(error: unknown) {
   }
   if (error.code === "AUTHENTICATION") return "RICO authentication failed. Ask an administrator to check the integration.";
   if (error.code === "INVALID_RESPONSE") {
-    return "RICO returned data in a format RELAY could not read. Ask an administrator to review the integration.";
+    return "RICO returned data in a format AssetCare+ could not read. Ask an administrator to review the integration.";
   }
   return "RICO returned an unexpected response. Retry the search.";
 }

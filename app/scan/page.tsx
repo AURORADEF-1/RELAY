@@ -65,7 +65,7 @@ export default function ScanAndIssuePage() {
     if (!rawValue || isWorking) return;
     const supabase = getSupabaseClient();
     if (!supabase) {
-      setNotice({ tone: "red", title: "RELAY is not connected", detail: "Supabase environment variables are not configured." });
+      setNotice({ tone: "red", title: "AssetCare+ is not connected", detail: "Supabase environment variables are not configured." });
       return;
     }
 
@@ -93,11 +93,11 @@ export default function ScanAndIssuePage() {
         });
       } else if (/^[A-Z0-9]{6}$/i.test(rawValue)) {
         if (!activeJob) {
-          throw new Error("Scan a RELAY part label first so the collection code can be matched to its job.");
+          throw new Error("Scan a AssetCare+ part label first so the collection code can be matched to its job.");
         }
         await confirmCollection(activeJob.ticketId, rawValue.toUpperCase(), "code");
       } else {
-        throw new Error("Barcode not recognised. Scan an RLY part label, collection barcode or RELAY QR code.");
+        throw new Error("Barcode not recognised. Scan an RLY part label, collection barcode or AssetCare+ QR code.");
       }
 
       setScanValue("");
@@ -117,7 +117,7 @@ export default function ScanAndIssuePage() {
     <AuthGuard requiredRole="admin">
       <ConsoleShell
         title="Scan & Issue"
-        eyebrow="RELAY validation pilot"
+        eyebrow="AssetCare+ validation pilot"
         contentClassName="console-content-scan"
       >
         <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">

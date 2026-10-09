@@ -85,7 +85,7 @@ export async function verifyPartLabel(
 ) {
   const token = normalizePartLabelToken(rawToken);
   if (!/^RLY-[A-Z0-9]{8,32}$/.test(token)) {
-    throw new Error("Scan a RELAY part label beginning RLY-.");
+    throw new Error("Scan a AssetCare+ part label beginning RLY-.");
   }
 
   const { data, error } = await supabase.rpc("verify_part_label", {
@@ -94,7 +94,7 @@ export async function verifyPartLabel(
   if (error) throw new Error(error.message);
 
   const result = Array.isArray(data) ? data[0] : null;
-  if (!result) throw new Error("This RELAY part label was not found.");
+  if (!result) throw new Error("This AssetCare+ part label was not found.");
   return result as VerifiedPartLabel;
 }
 

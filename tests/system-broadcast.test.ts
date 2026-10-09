@@ -10,7 +10,7 @@ import {
 describe("RELAY system broadcasts", () => {
   it("provides a ready-to-send offline update preset", () => {
     const preset = getRelayBroadcastPreset("update");
-    expect(preset.title).toBe("RELAY update");
+    expect(preset.title).toBe("AssetCare+ update");
     expect(preset.message).toContain("Offline requests");
   });
 
@@ -105,7 +105,7 @@ describe("RELAY system broadcasts", () => {
     expect(provider).toContain("Notification.requestPermission()");
     expect(provider).not.toContain('Notification.permission === "default"');
     expect(provider).not.toContain("relay-browser-notification-prompt");
-    expect(toasts).toContain("Enable RELAY desktop alerts");
+    expect(toasts).toContain("Enable AssetCare+ desktop alerts");
     expect(toasts).toContain("onClick={() => void requestDesktopNotifications()}");
     expect(toasts).not.toContain("isAdmin &&");
     expect(provider).toContain("readyRegistration.showNotification");

@@ -2195,7 +2195,7 @@ export default function AdminPage() {
 
     if (currentTicket.nexus_order_id) {
       void syncNexusEcommerceOrderStatus(ticketId).catch((syncError) => {
-        console.error("Failed to mirror RELAY order status to NEXUS", syncError);
+        console.error("Failed to mirror AssetCare+ order status to NEXUS", syncError);
       });
     }
 
@@ -5398,7 +5398,7 @@ function resolveSenderName(
   senderNameByUserId: Record<string, string>,
 ) {
   if (message.is_ai_message || message.sender_role === "ai") {
-    return "RELAY Local Assistant";
+    return "AssetCare+ Local Assistant";
   }
 
   if (message.sender_role === "requester") {

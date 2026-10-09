@@ -173,7 +173,7 @@ const navigation: NavigationItem[] = [
   },
   { href: "/tasks", label: "Tasks", icon: "activity", category: "operations", badge: "tasks" },
   {
-    href: "/control",
+    href: "/control/users",
     label: "Users & Access",
     icon: "settings",
     category: "administration",
@@ -220,7 +220,7 @@ export function ConsoleShell({
   children,
   contentClassName = "",
   shellClassName = "",
-  eyebrow = "RELAY operations",
+  eyebrow = "AssetCare+ operations",
   title,
   searchValue,
   searchPlaceholder = "Search jobs, machines or requesters",
@@ -245,6 +245,7 @@ export function ConsoleShell({
   const [hasLiveLinkAccess, setHasLiveLinkAccess] = useState(false);
   const [hasOversightAccess, setHasOversightAccess] = useState(false);
   const [isFrontCounter, setIsFrontCounter] = useState(false);
+  const [openSupportTicketCount, setOpenSupportTicketCount] = useState(0);
   const [assignedAccessGroup, setAssignedAccessGroup] = useState<AccessGroupId | null>(null);
   const [demoAccessView, setDemoAccessView] = useState<DemoAccessView>("admin");
   const [commandMachineResults, setCommandMachineResults] = useState<
@@ -333,6 +334,41 @@ export function ConsoleShell({
 
     return () => window.clearTimeout(timeoutId);
   }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !isAdmin) {
+      setOpenSupportTicketCount(0);
+      return;
+    }
+
+    let isMounted = true;
+    const loadOpenTicketCount = async () => {
+      const { count, error } = await supabase
+        .from("support_tickets")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["OPEN", "IN_PROGRESS"]);
+      if (isMounted && !error) setOpenSupportTicketCount(count ?? 0);
+    };
+
+    void loadOpenTicketCount();
+    const channel = supabase
+      .channel("console-support-ticket-count")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "support_tickets" },
+        () => void loadOpenTicketCount(),
+      )
+      .subscribe();
+    const refreshOnFocus = () => void loadOpenTicketCount();
+    window.addEventListener("focus", refreshOnFocus);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("focus", refreshOnFocus);
+      void supabase.removeChannel(channel);
+    };
+  }, [isAdmin]);
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -475,6 +511,7 @@ export function ConsoleShell({
     pathname === item.href ||
     (item.href === "/fleet" && ["/fleet/map", "/fleet/operations"].some((path)=>pathname.startsWith(path))) ||
     (item.href === "/incidents" && pathname.startsWith("/incidents/") && !navigation.some((candidate)=>candidate.href!=="/incidents"&&pathname.startsWith(candidate.href))) ||
+    (item.href === "/control/users" && pathname === "/control") ||
     (!["/", "/fleet", "/incidents"].includes(item.href) &&
       pathname.startsWith(`${item.href}/`) &&
       !navigation.some((candidate) =>
@@ -519,7 +556,7 @@ export function ConsoleShell({
         className={`console-sidebar ${isMobileOpen ? "console-sidebar-mobile-open" : ""}`}
       >
         <div className="console-sidebar-brand">
-          <Link href={isAdmin ? "/console" : "/"} aria-label="RELAY home">
+          <Link href={isAdmin ? "/console" : "/"} aria-label="AssetCare+ home">
             <RelayLogo compact={isCollapsed && !isMobileOpen} />
           </Link>
           <button
@@ -612,6 +649,25 @@ export function ConsoleShell({
         </nav>
 
         <div className="console-sidebar-footer">
+          {!isAssetCarePreview ? (
+            <Link
+              href="/tickets"
+              onClick={() => setIsMobileOpen(false)}
+              className={`console-nav-item ${pathname === "/tickets" ? "console-nav-item-active" : ""}`}
+              title={isCollapsed && !isMobileOpen ? "Support Ticket" : undefined}
+            >
+              <ConsoleIcon name="ticket" className="console-nav-icon" />
+              <span className="console-nav-label">Support Ticket</span>
+              {isAdmin && openSupportTicketCount > 0 ? (
+                <span
+                  aria-label={`${openSupportTicketCount} open support ${openSupportTicketCount === 1 ? "ticket" : "tickets"}`}
+                  className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[11px] font-bold leading-none text-white shadow-sm"
+                >
+                  {openSupportTicketCount > 99 ? "99+" : openSupportTicketCount}
+                </span>
+              ) : null}
+            </Link>
+          ) : null}
           <button
             type="button"
             className="console-nav-item hidden lg:flex"
@@ -702,6 +758,7 @@ export function ConsoleShell({
                     const nextView = event.target.value as DemoAccessView;
                     setDemoAccessView(nextView);
                     window.localStorage.setItem("relay-demo-access-view", nextView);
+                    window.dispatchEvent(new Event("relay-demo-access-view-change"));
                     router.push(
                       nextView === "admin"
                         ? "/console"
@@ -727,7 +784,6 @@ export function ConsoleShell({
             ) : null}
             {actions}
             <ThemeToggleButton />
-            <LogoutButton />
           </div>
         </header>
 

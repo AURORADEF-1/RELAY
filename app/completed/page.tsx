@@ -338,7 +338,7 @@ export default function CompletedPage() {
   return (
     <AuthGuard requiredRole="admin">
       <ConsoleShell
-        eyebrow="RELAY archive"
+        eyebrow="AssetCare+ archive"
         title="Completed Jobs"
         contentClassName="console-content-completed"
         searchValue={searchQuery}

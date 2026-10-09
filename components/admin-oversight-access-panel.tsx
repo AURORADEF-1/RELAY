@@ -14,7 +14,7 @@ export function AdminOversightAccessPanel() {
     if (!normalizedEmail) return;
     const supabase = getSupabaseClient();
     if (!supabase) {
-      setError("RELAY authentication is not configured.");
+      setError("AssetCare+ authentication is not configured.");
       return;
     }
 
@@ -35,10 +35,10 @@ export function AdminOversightAccessPanel() {
       <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">Secure access</p>
       <h2 className="mt-2 text-2xl font-black text-slate-950">Oversight users</h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-        Approve an existing RELAY account by email. Oversight remains locked until that user signs in with their password and completes authenticator-app two-factor verification.
+        Approve an existing AssetCare+ account by email. Oversight remains locked until that user signs in with their password and completes authenticator-app two-factor verification.
       </p>
       <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-        <label className="sr-only" htmlFor="oversight-user-email">RELAY account email</label>
+        <label className="sr-only" htmlFor="oversight-user-email">AssetCare+ account email</label>
         <input
           id="oversight-user-email"
           type="email"

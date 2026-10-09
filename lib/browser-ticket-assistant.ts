@@ -296,7 +296,7 @@ export async function answerTicketQuestionInBrowser(
       return answerForIntent(match.intent, context);
     }
   } catch (error) {
-    console.warn("RELAY browser assistant model unavailable; using local rules", error);
+    console.warn("AssetCare+ browser assistant model unavailable; using local rules", error);
   }
 
   return answerForIntent(detectTicketIntentFromWords(question), context);

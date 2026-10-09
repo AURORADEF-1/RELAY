@@ -323,7 +323,7 @@ export default function RequestsPage() {
       <ConsoleShell
         shellClassName="console-shell-requester"
         contentClassName="requester-requests-content"
-        eyebrow={isAdmin ? "RELAY operations" : "RELAY requester"}
+        eyebrow={isAdmin ? "AssetCare+ operations" : "AssetCare+ requester"}
         title={isAdmin ? "Request search" : "My requests"}
         searchValue={searchQuery}
         searchPlaceholder="Search jobs, machines or parts"

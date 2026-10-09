@@ -130,7 +130,7 @@ export function TakeuchiPartSuggestions({
         setHistory(historyResult.value);
       } else {
         setHistory([]);
-        failures.push(`RELAY history unavailable: ${formatSuggestionError(historyResult.reason)}`);
+        failures.push(`AssetCare+ history unavailable: ${formatSuggestionError(historyResult.reason)}`);
       }
 
       if (catalogResult.status === "fulfilled") {
@@ -225,13 +225,13 @@ export function TakeuchiPartSuggestions({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-800">
-            RELAY parts suggestions
+            AssetCare+ parts suggestions
           </p>
           <h4 className="mt-1 text-lg font-semibold text-slate-950">
             Ranked evidence for this verified machine
           </h4>
           <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-700">
-            RELAY checks prior parts used on this fleet number, verified machines with the same make and model,
+            AssetCare+ checks prior parts used on this fleet number, verified machines with the same make and model,
             serial-family proximity and the ticket description. Catalogue suggestions remain separate and are never automatically verified.
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
@@ -283,12 +283,12 @@ export function TakeuchiPartSuggestions({
         </div>
       ) : suggestionCount === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed border-sky-200 bg-white px-4 py-6 text-sm text-slate-500">
-          No sufficiently close historical or catalogue evidence was found. Try a clearer part description; RELAY will not guess a part number.
+          No sufficiently close historical or catalogue evidence was found. Try a clearer part description; AssetCare+ will not guess a part number.
         </div>
       ) : (
         <div className="mt-4 grid gap-4">
           {historicalSuggestions.length > 0 ? (
-            <SuggestionGroup title="Recorded RELAY history" count={historicalSuggestions.length}>
+            <SuggestionGroup title="Recorded AssetCare+ history" count={historicalSuggestions.length}>
               {historicalSuggestions.map((part) => (
                 <HistoricalSuggestionCard key={part.id} part={part} onApplySuggestion={onApplySuggestion} />
               ))}

@@ -60,7 +60,7 @@ export function linkMachines(machines: JcbMachine[], registry: RegistryMachine[]
       (identity(machine.equipmentId) !== "" && identity(r.machine_number) === identity(machine.equipmentId))
     ));
     const relay = candidates.length === 1 ? candidates[0] : null;
-    // Do not auto-link two upstream assets to the same RELAY machine.
+    // Do not auto-link two upstream assets to the same AssetCare+ machine.
     const collision = relay && machines.filter(m => identity(m.pin) === identity(relay.serial_number) ||
       (identity(m.equipmentId) !== "" && identity(m.equipmentId) === identity(relay.machine_number))).length > 1;
     return { ...machine, relay: collision ? null : relay, match: collision || candidates.length > 1 ? "ambiguous" : relay ? "exact" : "unmatched" };

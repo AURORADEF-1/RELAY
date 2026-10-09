@@ -261,7 +261,7 @@ export function OversightDashboard() {
       <header className="border-b border-white/10 bg-[#0a1714]/95 px-6 py-5">
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-emerald-300">RELAY secure operations</p>
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-emerald-300">AssetCare+ secure operations</p>
             <h1 className="mt-1 text-3xl font-black tracking-tight">Oversight</h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -270,7 +270,7 @@ export function OversightDashboard() {
               <input type="date" value={selectedDate} max={getLocalDateValue()} onChange={(event) => setSelectedDate(event.target.value)} className="rounded-md bg-slate-900 px-2 py-1 text-white" />
             </label>
             <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-200">● Live</span>
-            <Link href="/console" className="rounded-xl border border-white/15 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-white/10">Back to RELAY</Link>
+            <Link href="/console" className="rounded-xl border border-white/15 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-white/10">Back to AssetCare+</Link>
           </div>
         </div>
       </header>
@@ -295,7 +295,7 @@ export function OversightDashboard() {
                 <div className="border-b border-white/10 p-5 lg:border-b-0 lg:border-r">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h2 className="text-xl font-black">{row.profile?.full_name || "RELAY user"}</h2>
+                      <h2 className="text-xl font-black">{row.profile?.full_name || "AssetCare+ user"}</h2>
                       <p className="mt-1 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">{row.profile?.role || "user"}</p>
                     </div>
                     <span className={`rounded-full px-3 py-1 text-xs font-black ${row.active ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-slate-400"}`}>

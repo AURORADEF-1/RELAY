@@ -213,7 +213,7 @@ export function TicketChatPanel({
               <p className="mt-0.5 truncate text-xs text-slate-300">
                 {assignedTo?.trim()
                   ? `With ${assignedTo.trim()}`
-                  : "Connected to RELAY Stores"}
+                  : "Connected to AssetCare+ Stores"}
               </p>
             </div>
           </div>
@@ -379,7 +379,7 @@ export function TicketChatPanel({
             placeholder={
               mode === "operator"
                 ? "Reply to the requester…"
-                : "Message RELAY Stores…"
+                : "Message AssetCare+ Stores…"
             }
             className="w-full resize-none bg-transparent px-2 py-1.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
             aria-label={`Message about job ${conversationLabel}`}

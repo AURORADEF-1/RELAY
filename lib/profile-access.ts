@@ -49,6 +49,13 @@ export function isUserOnly(user: User | null, profile: AppProfile) {
   return getAccessLevel(user, profile) === "user";
 }
 
+export function isEffectiveAdminForPreview(
+  authenticatedIsAdmin: boolean,
+  previewAccessGroup: string | null,
+) {
+  return authenticatedIsAdmin && (!previewAccessGroup || previewAccessGroup === "admin");
+}
+
 export function clearCurrentUserWithRoleCache() {
   cachedCurrentUserWithRole = null;
   currentUserWithRoleInFlight = null;
@@ -85,7 +92,7 @@ async function resolveCurrentUserWithRole(
     .maybeSingle();
 
   if (profileError) {
-    console.warn("RELAY profile lookup fallback", profileError.message);
+    console.warn("AssetCare+ profile lookup fallback", profileError.message);
   }
 
   const normalizedProfile: AppProfile = profile && !profileError

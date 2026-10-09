@@ -10,7 +10,7 @@ function nexusConfig() {
     process.env.NEXUS_API_URL ?? "https://mlp-parts.vercel.app"
   ).replace(/\/$/, "");
   const apiKey = process.env.NEXUS_RELAY_API_KEY;
-  if (!apiKey) throw new Error("NEXUS RELAY API key is not configured.");
+  if (!apiKey) throw new Error("NEXUS AssetCare+ API key is not configured.");
   return { baseUrl, apiKey };
 }
 

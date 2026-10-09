@@ -596,7 +596,7 @@ export function AdminOperationsOverview() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="aurora-kicker">
-            Relay Command Surface
+            AssetCare+ Command Surface
           </div>
           <h2 className="mt-4 aurora-heading">
             Live Operations Summary
