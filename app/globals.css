@@ -9704,25 +9704,24 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 .admin-user-last-login {
   display: grid;
   min-width: 0;
+  gap: 0.45rem;
+}
+
+.admin-user-last-login span {
+  color: var(--foreground-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.admin-user-last-login strong {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
   min-height: 2.65rem;
-  align-content: center;
-  gap: 0.3rem;
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
   border-radius: 0.65rem;
   background: var(--background-muted);
   padding: 0.45rem 0.7rem;
-}
-
-.admin-user-last-login span {
-  color: var(--foreground-subtle);
-  font-size: 0.65rem;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.admin-user-last-login strong {
-  overflow: hidden;
   color: var(--foreground-strong);
   font-size: 0.78rem;
   font-weight: 700;
