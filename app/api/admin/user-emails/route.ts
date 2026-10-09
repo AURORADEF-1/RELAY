@@ -19,29 +19,9 @@ export async function GET(request: NextRequest) {
   try {
     const access = await requireAdmin(request);
     if ("error" in access) return access.error;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!serviceRoleKey) return NextResponse.json({ error: "Last-login reporting is not configured." }, { status: 503 });
-
-    const { data: profiles, error: profilesError } = await access.supabase
-      .from("profiles")
-      .select("id, full_name, role, email, interface_mode, access_group")
-      .order("full_name");
+    const { data: profiles, error: profilesError } = await access.supabase.rpc("admin_list_user_accounts_with_last_login");
     if (profilesError) throw new Error(profilesError.message);
-
-    const adminClient = createClient(access.url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-    const lastSignInById = new Map<string, string | null>();
-    let page = 1;
-    while (true) {
-      const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
-      if (error) throw new Error(error.message);
-      data.users.forEach((user) => lastSignInById.set(user.id, user.last_sign_in_at ?? null));
-      if (data.users.length < 1000) break;
-      page += 1;
-    }
-
-    return NextResponse.json({
-      profiles: (profiles ?? []).map((profile) => ({ ...profile, last_sign_in_at: lastSignInById.get(profile.id) ?? null })),
-    });
+    return NextResponse.json({ profiles: profiles ?? [] });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to load user accounts." }, { status: 400 });
   }
