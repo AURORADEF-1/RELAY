@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { accessGroupIds, accessGroupLabels } from "@/lib/access-groups";
-import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
+import { getSupabaseAccessToken } from "@/lib/supabase";
 
-type Profile = { id: string; full_name: string | null; role: string | null; email: string | null; interface_mode: string | null; access_group: string | null };
+type Profile = { id: string; full_name: string | null; role: string | null; email: string | null; interface_mode: string | null; access_group: string | null; last_sign_in_at: string | null };
 type Draft = { fullName: string; email: string; role: string; interfaceMode: string; accessGroup: string };
 
 export function AdminUserEmailPanel() {
@@ -13,10 +13,13 @@ export function AdminUserEmailPanel() {
   const [saving, setSaving] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const load = useCallback(async () => {
-    const supabase = getSupabaseClient(); if (!supabase) return;
-    const { data, error } = await supabase.from("profiles").select("id, full_name, role, email, interface_mode, access_group").order("full_name");
-    if (error) { setNotice(error.message); return; }
-    const rows = (data ?? []) as Profile[]; setProfiles(rows); setDrafts(Object.fromEntries(rows.map((row) => [row.id, { fullName: row.full_name ?? "", email: row.email ?? "", role: row.role ?? "requester", interfaceMode: row.interface_mode ?? "standard", accessGroup: accessGroupIds.includes(row.access_group as (typeof accessGroupIds)[number]) ? row.access_group ?? "" : "" }])));
+    try {
+      const token = await getSupabaseAccessToken();
+      const response = await fetch("/api/admin/user-emails", { headers: { Authorization: `Bearer ${token}` } });
+      const result = await response.json() as { profiles?: Profile[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Unable to load user accounts.");
+      const rows = result.profiles ?? []; setProfiles(rows); setDrafts(Object.fromEntries(rows.map((row) => [row.id, { fullName: row.full_name ?? "", email: row.email ?? "", role: row.role ?? "requester", interfaceMode: row.interface_mode ?? "standard", accessGroup: accessGroupIds.includes(row.access_group as (typeof accessGroupIds)[number]) ? row.access_group ?? "" : "" }])));
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to load user accounts."); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -42,7 +45,15 @@ export function AdminUserEmailPanel() {
       <label>Role<select value={drafts[profile.id]?.role ?? "requester"} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], role: e.target.value } })} className="aurora-select"><option value="requester">Requester</option><option value="user">User</option><option value="customer">Customer</option><option value="admin">Administrator</option></select></label>
       <label>Access group<select value={drafts[profile.id]?.accessGroup ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], accessGroup: e.target.value } })} className="aurora-select"><option value="">Unassigned</option>{accessGroupIds.map((group) => <option key={group} value={group}>{accessGroupLabels[group]}</option>)}</select></label>
       <label>Interface<select value={drafts[profile.id]?.interfaceMode ?? "standard"} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], interfaceMode: e.target.value } })} className="aurora-select"><option value="standard">Standard</option><option value="front_counter">Front Counter</option></select></label>
+      <div className="admin-user-last-login"><span>Last login</span><strong>{formatLastLogin(profile.last_sign_in_at)}</strong></div>
       <button onClick={() => void save(profile.id)} disabled={saving === profile.id} className="aurora-button-primary disabled:opacity-60">{saving === profile.id ? "Saving…" : "Save changes"}</button></div>
     </div>)}</div>
   </section>;
+}
+
+function formatLastLogin(value: string | null) {
+  if (!value) return "Never";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
