@@ -116,6 +116,6 @@ it('sends the same restricted-preview header that the server reads',()=>{
 it('removes the complete filter rail from the fitter map view',()=>{
  const client=readFileSync(new URL('../components/telematics/fleet-workspace.tsx',import.meta.url),'utf8');
  expect(client).toContain("const fitterView=fleet?.accessGroup==='fitter'||previewAccessGroup==='fitter'");
- expect(client).toContain('combined&&!fitterView&&<aside className="fleet-filter-rail"');
+ expect(client).toContain("combined&&!fitterView&&<aside className={`fleet-filter-rail${filtersCollapsed?' fleet-filter-rail-collapsed':''}`}");
  expect(client).toContain("window.addEventListener('relay-demo-access-view-change',syncPreview)");
 });
