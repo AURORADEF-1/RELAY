@@ -234,6 +234,12 @@ type RequesterAccountOption = {
   full_name: string | null;
 };
 
+type AdminTicketSortKey = "requester" | "job_number" | "request_summary" | "status";
+type AdminTicketSort = {
+  key: AdminTicketSortKey;
+  direction: "asc" | "desc";
+} | null;
+
 type StatusExportFieldKey =
   | "job_number"
   | "status"
@@ -399,6 +405,7 @@ export default function AdminPage() {
   );
   const [departmentFilter, setDepartmentFilter] = useState<"ALL" | "Onsite" | "Yard">("ALL");
   const [statusFilter, setStatusFilter] = useState<ActiveTicketStatusFilter>("ALL");
+  const [ticketSort, setTicketSort] = useState<AdminTicketSort>(null);
   const [statusExportMenu, setStatusExportMenu] = useState<StatusExportMenuState | null>(null);
   const [ticketExportMenu, setTicketExportMenu] = useState<TicketExportMenuState | null>(null);
   const [ticketSupplierExportMenu, setTicketSupplierExportMenu] = useState<TicketSupplierExportMenuState | null>(null);
@@ -1234,8 +1241,31 @@ export default function AdminPage() {
 
       return true;
       })
-      .sort(compareTicketsByPriority);
-  }, [assignedUserFilter, dateFilter, departmentFilter, statusFilter, tickets]);
+      .sort((left, right) => {
+        if (!ticketSort) {
+          return compareTicketsByPriority(left, right);
+        }
+
+        const direction = ticketSort.direction === "asc" ? 1 : -1;
+        const comparison = getAdminTicketSortValue(left, ticketSort.key).localeCompare(
+          getAdminTicketSortValue(right, ticketSort.key),
+          undefined,
+          { numeric: true, sensitivity: "base" },
+        );
+
+        return comparison !== 0
+          ? comparison * direction
+          : compareTicketsByPriority(left, right);
+      });
+  }, [assignedUserFilter, dateFilter, departmentFilter, statusFilter, ticketSort, tickets]);
+
+  const toggleTicketSort = useCallback((key: AdminTicketSortKey) => {
+    setTicketSort((current) => ({
+      key,
+      direction: current?.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+    setCurrentPage(1);
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -4070,10 +4100,50 @@ export default function AdminPage() {
                   <thead className="bg-slate-50">
                     <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                       <th className="px-6 py-4">Request</th>
-                      <th className="px-6 py-4">Requester</th>
-                      <th className="px-6 py-4">Job Number</th>
-                      <th className="px-6 py-4">Request Summary</th>
-                      <th className="px-6 py-4">Status</th>
+                      <th
+                        className="px-6 py-4"
+                        aria-sort={ticketSort?.key === "requester" ? (ticketSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                      >
+                        <SortableTicketHeading
+                          label="Requester"
+                          active={ticketSort?.key === "requester"}
+                          direction={ticketSort?.key === "requester" ? ticketSort.direction : null}
+                          onClick={() => toggleTicketSort("requester")}
+                        />
+                      </th>
+                      <th
+                        className="px-6 py-4"
+                        aria-sort={ticketSort?.key === "job_number" ? (ticketSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                      >
+                        <SortableTicketHeading
+                          label="Job Number"
+                          active={ticketSort?.key === "job_number"}
+                          direction={ticketSort?.key === "job_number" ? ticketSort.direction : null}
+                          onClick={() => toggleTicketSort("job_number")}
+                        />
+                      </th>
+                      <th
+                        className="px-6 py-4"
+                        aria-sort={ticketSort?.key === "request_summary" ? (ticketSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                      >
+                        <SortableTicketHeading
+                          label="Request Summary"
+                          active={ticketSort?.key === "request_summary"}
+                          direction={ticketSort?.key === "request_summary" ? ticketSort.direction : null}
+                          onClick={() => toggleTicketSort("request_summary")}
+                        />
+                      </th>
+                      <th
+                        className="px-6 py-4"
+                        aria-sort={ticketSort?.key === "status" ? (ticketSort.direction === "asc" ? "ascending" : "descending") : "none"}
+                      >
+                        <SortableTicketHeading
+                          label="Status"
+                          active={ticketSort?.key === "status"}
+                          direction={ticketSort?.key === "status" ? ticketSort.direction : null}
+                          onClick={() => toggleTicketSort("status")}
+                        />
+                      </th>
                       <th className="px-6 py-4">Assigned User</th>
                       <th className="px-6 py-4">Notes</th>
                       <th className="px-6 py-4">Actions</th>
@@ -4480,6 +4550,48 @@ export default function AdminPage() {
         </AuthGuard>
       </div>
     </main>
+  );
+}
+
+function getAdminTicketSortValue(ticket: Ticket, key: AdminTicketSortKey) {
+  switch (key) {
+    case "requester":
+      return ticket.requester_name?.trim() ?? "";
+    case "job_number":
+      return ticket.job_number?.trim() ?? "";
+    case "request_summary":
+      return ticket.request_summary?.trim() || ticket.request_details?.trim() || "";
+    case "status":
+      return ticket.status ?? "";
+  }
+}
+
+function SortableTicketHeading({
+  label,
+  active,
+  direction,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  direction: "asc" | "desc" | null;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group inline-flex items-center gap-2 text-left transition hover:text-slate-900 focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-500"
+      aria-label={`Sort by ${label}${active ? `, currently ${direction === "asc" ? "ascending" : "descending"}` : ""}`}
+    >
+      <span>{label}</span>
+      <span
+        aria-hidden="true"
+        className={`text-[10px] ${active ? "text-sky-700" : "text-slate-400 group-hover:text-slate-600"}`}
+      >
+        {active ? (direction === "asc" ? "▲" : "▼") : "↕"}
+      </span>
+    </button>
   );
 }
 
