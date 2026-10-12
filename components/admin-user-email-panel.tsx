@@ -6,14 +6,12 @@ import { getSupabaseAccessToken } from "@/lib/supabase";
 
 type Profile = { id: string; full_name: string | null; role: string | null; email: string | null; interface_mode: string | null; access_group: string | null; last_sign_in_at: string | null };
 type Draft = { fullName: string; email: string; role: string; interfaceMode: string; accessGroup: string };
-type SortKey = "fullName" | "email" | "role" | "accessGroup" | "interfaceMode" | "lastLogin";
+type SortKey = "fullName" | "email" | "accessGroup" | "lastLogin";
 
 const sortOptions: { key: SortKey; label: string }[] = [
   { key: "fullName", label: "Display name" },
   { key: "email", label: "Contact email" },
-  { key: "role", label: "Role" },
   { key: "accessGroup", label: "Access group" },
-  { key: "interfaceMode", label: "Interface" },
   { key: "lastLogin", label: "Last login" },
 ];
 
@@ -67,15 +65,13 @@ export function AdminUserEmailPanel() {
 
   return <section className="aurora-section admin-control-panel">
     <div className="aurora-kicker">Account directory</div><h2 className="mt-4 aurora-heading">Users &amp; Access</h2>
-    <p className="mt-3 aurora-copy">View every AssetCare+ account and maintain its display name, contact email, role, access group, and interface access.</p>
+    <p className="mt-3 aurora-copy">View every AssetCare+ account and maintain its display name, contact email and access group. The access group is the source of truth for permissions and interface access.</p>
     {notice ? <div className="mt-5 aurora-alert">{notice}</div> : null}
     <div className="admin-user-sort-bar" aria-label="Sort user accounts"><span>Sort by</span>{sortOptions.map((option) => <button key={option.key} type="button" onClick={() => changeSort(option.key)} className={sortKey === option.key ? "is-active" : ""} aria-pressed={sortKey === option.key}>{option.label}{sortKey === option.key ? <b aria-hidden="true">{sortDirection === "asc" ? "↑" : "↓"}</b> : null}</button>)}</div>
     <div className="mt-3 grid gap-3">{sortedProfiles.map((profile) => <div key={profile.id} className="admin-control-list-row rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-4">
       <div className="admin-user-account-grid"><label>Display name<input value={drafts[profile.id]?.fullName ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], fullName: e.target.value } })} className="aurora-input" /></label>
       <label>Contact email<input type="email" value={drafts[profile.id]?.email ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], email: e.target.value } })} placeholder="name@company.co.uk" className="aurora-input" /></label>
-      <label>Role<select value={drafts[profile.id]?.role ?? "requester"} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], role: e.target.value } })} className="aurora-select"><option value="requester">Requester</option><option value="user">User</option><option value="customer">Customer</option><option value="admin">Administrator</option></select></label>
-      <label>Access group<select value={drafts[profile.id]?.accessGroup ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], accessGroup: e.target.value } })} className="aurora-select"><option value="">Unassigned</option>{accessGroupIds.map((group) => <option key={group} value={group}>{accessGroupLabels[group]}</option>)}</select></label>
-      <label>Interface<select value={drafts[profile.id]?.interfaceMode ?? "standard"} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], interfaceMode: e.target.value } })} className="aurora-select"><option value="standard">Standard</option><option value="front_counter">Front Counter</option></select></label>
+      <label>Access group<select value={drafts[profile.id]?.accessGroup ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], accessGroup: e.target.value } })} className="aurora-select"><option value="">Legacy access (unassigned)</option>{accessGroupIds.map((group) => <option key={group} value={group}>{accessGroupLabels[group]}</option>)}</select></label>
       <div className="admin-user-last-login"><span>Last login</span><strong>{formatLastLogin(profile.last_sign_in_at)}</strong></div>
       <button onClick={() => void save(profile.id)} disabled={saving === profile.id} className="aurora-button-primary disabled:opacity-60">{saving === profile.id ? "Saving…" : "Save changes"}</button></div>
     </div>)}</div>

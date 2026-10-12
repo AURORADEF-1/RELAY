@@ -55,6 +55,7 @@ const prefixGroupRoutes: Partial<Record<AccessGroupId, string[]>> = {
   fitter: ["/submit", "/requests", "/tasks", "/tickets/", "/fleet/map"],
   workshop: ["/requests", "/tickets/", "/incidents", "/assets/", "/fleet/map", "/reports"],
   parts: [
+    "/admin",
     "/console",
     "/my-jobs",
     "/completed",
@@ -84,7 +85,10 @@ export function canUsePage(
   accessGroup: AccessGroupId | null,
   pathname: string,
 ) {
-  return isAdmin || Boolean(accessGroup && canAccessPath(accessGroup, pathname));
+  // Once a group has been assigned it is the permissions authority. The
+  // legacy profile role remains a fallback only for accounts which have not
+  // yet been assigned to a group.
+  return accessGroup ? canAccessPath(accessGroup, pathname) : isAdmin;
 }
 
 export function accessGroupHome(group: AccessGroupId) {

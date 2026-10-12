@@ -18,7 +18,7 @@ import type { SmartSearchResult } from "@/lib/admin-smart-search";
 import { isLocalRolePreviewEnabled } from "@/lib/demo-mode";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
 import { getSupabaseAccessToken, getSupabaseClient } from "@/lib/supabase";
-import { accessGroupLabels, type AccessGroupId } from "@/lib/access-groups";
+import { accessGroupLabels, canAccessPath, type AccessGroupId } from "@/lib/access-groups";
 
 type ConsoleShellProps = {
   children: React.ReactNode;
@@ -155,7 +155,7 @@ const navigation: NavigationItem[] = [
     icon: "parts",
     category: "requests",
     adminOnly: true,
-    groups: ["admin"],
+    groups: ["admin", "parts"],
     badge: "admin",
   },
   { href: "/incidents", label: "Dashboard", icon: "workshop", category: "workshop", adminOnly: true },
@@ -188,33 +188,6 @@ const navigation: NavigationItem[] = [
     external: true,
   },
 ];
-
-const navigationGroups: Partial<Record<string, AccessGroupId[]>> = {
-  "/submit": ["fitter", "parts"],
-  "/console": ["workshop", "office", "transport", "parts"],
-  "/my-jobs": ["parts"],
-  "/completed": ["parts"],
-  "/requests": ["fitter", "workshop", "transport", "office", "parts"],
-  "/tasks": ["fitter", "workshop"],
-  "/pre-pick": ["parts"],
-  "/scan": ["parts"],
-  "/stores": ["parts"],
-  "/filters": ["parts"],
-  "/parts-knowledge": ["parts"],
-  "/incidents": ["workshop"],
-  "/incidents/damage/new": ["workshop"],
-  "/incidents/tyres/new": ["workshop"],
-  "/incidents/tasks": ["workshop"],
-  "/incidents/tasks/completed": ["workshop"],
-  "/incidents/closed": ["workshop"],
-  "/assets": ["workshop", "transport", "office", "assetcare"],
-  "/fleet": ["fitter", "workshop", "transport", "office", "assetcare"],
-  "/fleet/register": ["workshop", "transport", "office", "assetcare"],
-  "/fleet/trips": ["workshop", "transport", "office"],
-  "/fleet/scheduler": ["workshop", "transport", "office"],
-  "/assets/inbox": ["workshop", "transport", "office"],
-  "/reports": ["workshop", "transport", "office", "parts"],
-};
 
 export function ConsoleShell({
   children,
@@ -486,8 +459,7 @@ export function ConsoleShell({
         (hasAssignedAccessGroup || canPreviewRole || (!authenticatedIsAdmin && !effectiveIsFrontCounter)) &&
         effectiveAccessGroup !== "admin"
       ) {
-        const allowedGroups = navigationGroups[item.href];
-        return Boolean(allowedGroups?.includes(effectiveAccessGroup));
+        return canAccessPath(effectiveAccessGroup, item.href);
       }
 
       if (item.groups && !item.groups.includes(effectiveAccessGroup)) {

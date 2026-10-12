@@ -10,8 +10,10 @@ async function requireAdmin(request: NextRequest) {
   const actor = await getRelaySessionUserFromRequest(request);
   if (!actor?.id) return { error: NextResponse.json({ error: "Authentication is required." }, { status: 401 }) };
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: request.headers.get("authorization") ?? "" } } });
-  const { data: actorProfile } = await supabase.from("profiles").select("role").eq("id", actor.id).maybeSingle();
-  if (actorProfile?.role !== "admin") return { error: NextResponse.json({ error: "Administrator access is required." }, { status: 403 }) };
+  const { data: actorProfile } = await supabase.from("profiles").select("role,access_group").eq("id", actor.id).maybeSingle();
+  const isGroupAdmin = actorProfile?.access_group === "admin";
+  const isUnassignedLegacyAdmin = actorProfile?.access_group == null && actorProfile?.role === "admin";
+  if (!isGroupAdmin && !isUnassignedLegacyAdmin) return { error: NextResponse.json({ error: "Administrator access is required." }, { status: 403 }) };
   return { url, supabase };
 }
 
