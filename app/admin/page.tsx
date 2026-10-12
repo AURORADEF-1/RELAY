@@ -4149,7 +4149,7 @@ export default function AdminPage() {
                       <th className="px-6 py-4">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y-2 divide-slate-300 bg-white">
+                  <tbody className="divide-y-[10px] divide-slate-100 bg-white">
                     {isLoading ? (
                       <tr>
                         <td
