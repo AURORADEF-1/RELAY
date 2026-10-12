@@ -12,6 +12,7 @@
   --background-panel-strong: #ffffff;
   --background-muted: rgba(211, 236, 247, 0.72);
   --background-field: rgba(245, 251, 254, 0.96);
+  --parts-job-break: #dcecf4;
   --foreground: #102b3a;
   --foreground-strong: #06263a;
   --foreground-muted: #456575;
@@ -48,6 +49,7 @@ html[data-theme="dark"] {
   --background-panel-strong: rgba(8, 40, 58, 0.98);
   --background-muted: rgba(12, 55, 77, 0.86);
   --background-field: rgba(8, 39, 56, 0.94);
+  --parts-job-break: var(--background-panel);
   --foreground: #e7f5fb;
   --foreground-strong: #f5fbfe;
   --foreground-muted: #afd1df;

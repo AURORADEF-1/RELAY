@@ -4149,7 +4149,7 @@ export default function AdminPage() {
                       <th className="px-6 py-4">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-[color:var(--background-panel)]">
+                  <tbody className="bg-[color:var(--parts-job-break)]">
                     {isLoading ? (
                       <tr>
                         <td
@@ -4174,7 +4174,7 @@ export default function AdminPage() {
                           <tr aria-hidden="true">
                             <td
                               colSpan={8}
-                              className="h-2.5 bg-[color:var(--background-panel)] p-0"
+                              className="h-2.5 bg-[color:var(--parts-job-break)] p-0"
                             />
                           </tr>
                           <AdminTicketTableRow
