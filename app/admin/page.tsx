@@ -3273,9 +3273,9 @@ export default function AdminPage() {
             />
           ) : null}
 
-          <section className="aurora-section sm:p-10">
-            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl space-y-5">
+          <section className="aurora-section parts-control-hero sm:p-10">
+            <div className="parts-control-hero-layout">
+              <div className="parts-control-hero-copy">
                 <div className="aurora-kicker">
                   Parts Control
                 </div>
@@ -3289,11 +3289,10 @@ export default function AdminPage() {
               </div>
 
               {resourceTab === "operations" ? (
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                <label className="text-sm font-medium text-[color:var(--foreground-muted)]">
-                  Filter by status
-                </label>
-                <select
+              <div className="parts-control-toolbar" aria-label="Parts Control filters">
+                <label className="parts-control-filter-field">
+                  <span>Status</span>
+                  <select
                   value={statusFilter}
                   onChange={(event) =>
                     setStatusFilter(event.target.value as ActiveTicketStatusFilter)
@@ -3305,14 +3304,20 @@ export default function AdminPage() {
                       {status}
                     </option>
                   ))}
-                </select>
-                <input
+                  </select>
+                </label>
+                <label className="parts-control-filter-field">
+                  <span>Assigned user</span>
+                  <input
                   value={assignedUserFilter}
                   onChange={(event) => setAssignedUserFilter(event.target.value)}
-                  placeholder="Filter by user"
+                  placeholder="All users"
                   className="aurora-input"
-                />
-                <select
+                  />
+                </label>
+                <label className="parts-control-filter-field">
+                  <span>Department</span>
+                  <select
                   value={departmentFilter}
                   onChange={(event) =>
                     setDepartmentFilter(
@@ -3324,8 +3329,11 @@ export default function AdminPage() {
                   <option value="ALL">All Departments</option>
                   <option value="Onsite">Onsite</option>
                   <option value="Yard">Yard</option>
-                </select>
-                <select
+                  </select>
+                </label>
+                <label className="parts-control-filter-field">
+                  <span>Updated</span>
+                  <select
                   value={dateFilter}
                   onChange={(event) =>
                     setDateFilter(
@@ -3342,8 +3350,11 @@ export default function AdminPage() {
                   <option value="TODAY">Today</option>
                   <option value="LAST_7_DAYS">Last 7 Days</option>
                   <option value="LAST_30_DAYS">Last 30 Days</option>
-                </select>
-                <select
+                  </select>
+                </label>
+                <label className="parts-control-filter-field">
+                  <span>Layout</span>
+                  <select
                   value={viewMode}
                   onChange={(event) => {
                     const nextMode = event.target.value as "table" | "compact" | "dynamic";
@@ -3358,24 +3369,28 @@ export default function AdminPage() {
                   <option value="table">Table View</option>
                   <option value="compact">Compact Summary</option>
                   <option value="dynamic">Dynamic View</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={() => void exportJobStatusWorkbook()}
-                  disabled={isJobStatusExporting || isLoading}
-                  className="aurora-button-primary disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isJobStatusExporting ? "Preparing Excel…" : "Export Job Status"}
-                </button>
-                {statusFilter !== "ALL" ? (
+                  </select>
+                </label>
+                <div className="parts-control-toolbar-actions">
                   <button
                     type="button"
-                    onClick={() => setStatusFilter("ALL")}
-                    className="aurora-button-secondary"
+                    onClick={() => void exportJobStatusWorkbook()}
+                    disabled={isJobStatusExporting || isLoading}
+                    className="aurora-button parts-control-export disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Show All
+                    <span aria-hidden="true">↓</span>
+                    {isJobStatusExporting ? "Preparing Excel…" : "Export Job Status"}
                   </button>
-                ) : null}
+                  {statusFilter !== "ALL" ? (
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter("ALL")}
+                      className="aurora-button-secondary"
+                    >
+                      Clear status filter
+                    </button>
+                  ) : null}
+                </div>
               </div>
               ) : null}
             </div>
