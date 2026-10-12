@@ -11038,3 +11038,29 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
     min-height: 2.75rem;
   }
 }
+
+
+html[data-theme="light"] .parts-control-page .parts-overdue-notice {
+  border-color: #f5c58b;
+  background: #fff7ed;
+  box-shadow: 0 16px 36px -30px rgba(124, 45, 18, 0.5);
+}
+
+html[data-theme="light"] .parts-control-page .parts-overdue-notice > div > span {
+  background: #f59e0b;
+  color: #3b1d00;
+}
+
+html[data-theme="light"] .parts-control-page .parts-overdue-notice strong {
+  color: #7c2d12;
+}
+
+html[data-theme="light"] .parts-control-page .parts-overdue-notice p {
+  color: #9a3412;
+}
+
+html[data-theme="light"] .parts-control-page .parts-overdue-notice .aurora-button-secondary {
+  border-color: #f5c58b;
+  background: #ffffff;
+  color: #7c2d12;
+}
