@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AdminOversightInbox, type AdminOversightItem } from "@/components/admin-oversight-inbox";
 import { AuthGuard } from "@/components/auth-guard";
@@ -4149,7 +4149,7 @@ export default function AdminPage() {
                       <th className="px-6 py-4">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y-[10px] divide-[color:var(--background-panel)] bg-white">
+                  <tbody className="bg-[color:var(--background-panel)]">
                     {isLoading ? (
                       <tr>
                         <td
@@ -4169,20 +4169,29 @@ export default function AdminPage() {
                         </td>
                       </tr>
                     ) : (
-                      pagedFilteredTickets.map((ticket) => (
-                        <AdminTicketTableRow
-                          key={ticket.id}
-                          ticket={ticket}
-                          draft={drafts[ticket.id]}
-                          isCollected={collectedTicketIds.has(ticket.id)}
-                          returnedReason={returnedTicketReasonById[ticket.id]}
-                          isUpdating={updatingTicketId === ticket.id}
-                          adminOperatorNames={adminOperatorNames}
-                          requesterAccounts={requesterAccounts}
-                          onDraftChange={updateTicketDraft}
-                          onStatusChange={handleStatusChange}
-                          onSave={handleTicketSave}
-                        />
+                      pagedFilteredTickets.map((ticket, index) => (
+                        <Fragment key={ticket.id}>
+                          {index > 0 ? (
+                            <tr aria-hidden="true">
+                              <td
+                                colSpan={8}
+                                className="h-2.5 bg-[color:var(--background-panel)] p-0"
+                              />
+                            </tr>
+                          ) : null}
+                          <AdminTicketTableRow
+                            ticket={ticket}
+                            draft={drafts[ticket.id]}
+                            isCollected={collectedTicketIds.has(ticket.id)}
+                            returnedReason={returnedTicketReasonById[ticket.id]}
+                            isUpdating={updatingTicketId === ticket.id}
+                            adminOperatorNames={adminOperatorNames}
+                            requesterAccounts={requesterAccounts}
+                            onDraftChange={updateTicketDraft}
+                            onStatusChange={handleStatusChange}
+                            onSave={handleTicketSave}
+                          />
+                        </Fragment>
                       ))
                     )}
                   </tbody>
@@ -4619,7 +4628,7 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
   onSave: (ticketId: string) => void;
 }) {
   return (
-    <tr className="align-top">
+    <tr className="align-top [&>td]:bg-white [&>td:first-child]:rounded-l-2xl [&>td:last-child]:rounded-r-2xl">
       <td className="px-6 py-5 text-sm font-semibold text-slate-900">
         <Link
           href={`/tickets/${ticket.id}`}
