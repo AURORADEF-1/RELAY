@@ -40,8 +40,8 @@ export function PartsControlTabs({
   onTabChange?: (tab: PartsControlInlineTab) => void;
 }) {
   return (
-    <div className="aurora-pill-group w-full">
-      <div className="flex flex-wrap gap-2">
+    <div className="aurora-pill-group parts-control-tabs w-full">
+      <div className="parts-control-tabs-list flex flex-wrap gap-2">
         {tabs.map((tab) => (
           <Link
             key={tab.key}

@@ -31,12 +31,12 @@ export function AdminOversightInbox({
 
   return (
     <>
-      <div className="fixed right-5 top-24 z-[72] flex items-start gap-3">
+      <div className="admin-oversight-trigger fixed right-5 top-24 z-[72] flex items-start gap-3">
         {primaryItem ? (
           <button
             type="button"
             onClick={() => setIsOpen(true)}
-            className="hidden rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-3 text-left shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] backdrop-blur transition hover:border-amber-300 hover:bg-amber-50 lg:block"
+            className="admin-oversight-preview hidden rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-3 text-left shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] backdrop-blur transition hover:border-amber-300 hover:bg-amber-50 lg:block"
           >
             <div className="flex items-start gap-3">
               <span className="mt-0.5 inline-flex h-10 min-w-10 items-center justify-center rounded-2xl bg-slate-950 px-3 text-sm font-semibold text-white">
@@ -58,7 +58,7 @@ export function AdminOversightInbox({
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="relative inline-flex h-12 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] transition hover:border-slate-400 hover:bg-slate-50"
+          className="admin-oversight-button relative inline-flex h-12 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] transition hover:border-slate-400 hover:bg-slate-50"
         >
           Inbox
           <span className="ml-3 inline-flex min-w-8 items-center justify-center rounded-full bg-rose-600 px-2 py-1 text-xs font-semibold text-white">

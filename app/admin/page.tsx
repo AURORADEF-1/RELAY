@@ -2991,8 +2991,8 @@ export default function AdminPage() {
 
   return (
     <main className="aurora-shell">
-      <div className="aurora-shell-inner max-w-7xl space-y-8">
-        <nav className="aurora-nav">
+      <div className="aurora-shell-inner parts-control-page max-w-[1480px] space-y-5">
+        <nav className="aurora-nav parts-control-nav">
           <RelayLogo />
           <div className="aurora-nav-links text-sm font-medium">
             <Link href="/" className="aurora-link">
@@ -3294,7 +3294,7 @@ export default function AdminPage() {
             </section>
           ) : null}
 
-          <section className="aurora-section parts-control-hero sm:p-10">
+          <section className="aurora-section parts-control-hero">
             <div className="parts-control-hero-layout">
               <div className="parts-control-hero-copy">
                 <div className="aurora-kicker">
@@ -3416,7 +3416,7 @@ export default function AdminPage() {
               ) : null}
             </div>
 
-            <div className="mt-8">
+            <div className="parts-control-tabs-row">
               <PartsControlTabs activeTab={resourceTab} onTabChange={setResourceTab} />
             </div>
 
@@ -3488,7 +3488,7 @@ export default function AdminPage() {
             ) : null}
 
             {resourceTab === "operations" ? (
-              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <div className="parts-control-context-note">
                 Parts Control is active below. Use live workflow views, filters, chats, and queue tools to manage operational demand.
               </div>
             ) : null}
@@ -5017,7 +5017,7 @@ function PendingRequestBanner({
   onDismiss: (id: string) => void;
 }) {
   return (
-    <section className="aurora-section border-amber-200 bg-amber-50/90 p-5 shadow-[0_20px_60px_-42px_rgba(15,23,42,0.45)] sm:p-6">
+    <section className="aurora-section parts-pending-banner">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-800">
