@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
 
 type OverdueTicketReminder = {
   id: string;
@@ -14,31 +13,26 @@ type OverdueOrderedRemindersModalProps = {
   tickets: OverdueTicketReminder[];
   dismissingTicketId?: string | null;
   onDismissTicket: (ticketId: string) => void;
+  onClose: () => void;
 };
 
 export function OverdueOrderedRemindersModal({
   tickets,
   dismissingTicketId,
   onDismissTicket,
+  onClose,
 }: OverdueOrderedRemindersModalProps) {
-  const [dismissedSignature, setDismissedSignature] = useState<string | null>(null);
-  const signature = useMemo(() => tickets.map((ticket) => ticket.id).join("|"), [tickets]);
-
   if (tickets.length === 0) {
-    return null;
-  }
-
-  if (dismissedSignature === signature) {
     return null;
   }
 
   return (
     <div
       className="fixed inset-0 z-[75] flex items-center justify-center bg-black/76 px-4 py-6 backdrop-blur-sm"
-      onClick={() => setDismissedSignature(signature)}
+      onClick={onClose}
     >
       <div
-        className="relative w-full max-w-3xl rounded-[1.9rem] border border-[color:var(--border-strong)] bg-[color:var(--background-panel)] p-5 shadow-[0_40px_110px_-48px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:p-6"
+        className="relative flex max-h-[min(52rem,calc(100vh-3rem))] w-full max-w-3xl flex-col overflow-hidden rounded-[1.9rem] border border-[color:var(--border-strong)] bg-[color:var(--background-panel)] p-5 shadow-[0_40px_110px_-48px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:p-6"
         role="dialog"
         aria-modal="true"
         aria-label="Overdue ordered parts reminders"
@@ -46,12 +40,12 @@ export function OverdueOrderedRemindersModal({
       >
         <button
           type="button"
-          onClick={() => setDismissedSignature(signature)}
+          onClick={onClose}
           aria-label="Close overdue orders reminder"
           className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--background-panel)] text-[color:var(--foreground-muted)] transition hover:border-[color:var(--foreground-subtle)] hover:text-[color:var(--foreground-strong)]"
         >
           <span aria-hidden="true" className="text-lg leading-none">
-            →
+            ×
           </span>
         </button>
         <div className="space-y-2">
@@ -66,7 +60,7 @@ export function OverdueOrderedRemindersModal({
           </p>
         </div>
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-5 space-y-3 overflow-y-auto pr-1">
           {tickets.map((ticket) => (
             <article
               key={ticket.id}

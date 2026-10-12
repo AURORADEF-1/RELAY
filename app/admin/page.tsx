@@ -407,6 +407,7 @@ export default function AdminPage() {
     message: string;
   } | null>(null);
   const [isJobStatusExporting, setIsJobStatusExporting] = useState(false);
+  const [isOverdueReminderOpen, setIsOverdueReminderOpen] = useState(false);
   const [pageSize, setPageSize] = useState<(typeof ADMIN_PAGE_SIZE_OPTIONS)[number]>(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"table" | "compact" | "dynamic">(() => {
@@ -3055,7 +3056,7 @@ export default function AdminPage() {
 
         <AuthGuard requiredRole="admin">
           <>
-          {overdueOrderedTickets.length > 0 ? (
+          {isOverdueReminderOpen && overdueOrderedTickets.length > 0 ? (
             <OverdueOrderedRemindersModal
               tickets={overdueOrderedTickets.map((ticket) => ({
                 id: ticket.id,
@@ -3065,6 +3066,7 @@ export default function AdminPage() {
               }))}
               dismissingTicketId={dismissingOverdueTicketId}
               onDismissTicket={(ticketId) => void dismissOverdueReminder(ticketId)}
+              onClose={() => setIsOverdueReminderOpen(false)}
             />
           ) : null}
 
@@ -3271,6 +3273,25 @@ export default function AdminPage() {
               item={pendingRequestBannerItem}
               onDismiss={dismissOversightItem}
             />
+          ) : null}
+
+          {resourceTab === "operations" && overdueOrderedTickets.length > 0 ? (
+            <section className="parts-overdue-notice" aria-label="Overdue parts orders">
+              <div>
+                <span>{overdueOrderedTickets.length}</span>
+                <div>
+                  <strong>Overdue parts orders need review</strong>
+                  <p>Supplier follow-up reminders are available without interrupting Parts Control.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="aurora-button-secondary"
+                onClick={() => setIsOverdueReminderOpen(true)}
+              >
+                Review overdue orders
+              </button>
+            </section>
           ) : null}
 
           <section className="aurora-section parts-control-hero sm:p-10">
