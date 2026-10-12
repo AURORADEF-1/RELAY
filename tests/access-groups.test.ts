@@ -22,7 +22,7 @@ describe("access groups", () => {
     }
     expect(canAccessPath("workshop", "/admin")).toBe(false);
     expect(canAccessPath("parts", "/parts-knowledge")).toBe(true);
-    expect(canAccessPath("parts", "/admin")).toBe(false);
+    expect(canAccessPath("parts", "/admin")).toBe(true);
     expect(canAccessPath("parts", "/submit")).toBe(true);
     expect(canAccessPath("parts", "/stores")).toBe(true);
     expect(canAccessPath("parts", "/filters")).toBe(true);
@@ -53,7 +53,7 @@ describe("access groups", () => {
 
   it("keeps page-level checks aligned with the route matrix", () => {
     expect(canUsePage(false, "parts", "/console")).toBe(true);
-    expect(canUsePage(false, "parts", "/admin")).toBe(false);
+    expect(canUsePage(false, "parts", "/admin")).toBe(true);
     expect(canUsePage(false, "office", "/console")).toBe(true);
     expect(canUsePage(false, "transport", "/reports")).toBe(true);
     expect(canUsePage(false, "workshop", "/reports")).toBe(true);
@@ -73,10 +73,15 @@ describe("access groups", () => {
       resolve(process.cwd(), "components/console/console-shell.tsx"),
       "utf8",
     );
-    expect(shell).toContain('"/console": ["workshop", "office", "transport", "parts"]');
-    for (const route of ["/assets", "/fleet/register", "/fleet/trips", "/fleet/scheduler", "/assets/inbox"]) {
-      expect(shell).toContain(`"${route}": ["workshop", "transport", "office"`);
-    }
+    expect(shell).toContain("canAccessPath(effectiveAccessGroup, item.href)");
+    expect(shell).not.toContain("const navigationGroups");
+  });
+
+  it("uses an assigned group instead of a conflicting legacy admin role", () => {
+    expect(canUsePage(true, "parts", "/admin")).toBe(true);
+    expect(canUsePage(true, "parts", "/control/users")).toBe(false);
+    expect(canUsePage(true, "fitter", "/control/users")).toBe(false);
+    expect(canUsePage(true, null, "/control/users")).toBe(true);
   });
 
   it("lets Workshop open individual machine records for reviewed InspHire context", () => {
