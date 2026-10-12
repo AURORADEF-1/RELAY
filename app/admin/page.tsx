@@ -4096,7 +4096,7 @@ export default function AdminPage() {
             {viewMode === "table" ? (
               <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200">
               <div className="hidden overflow-x-auto xl:block">
-                <table className="min-w-full divide-y divide-slate-200">
+                <table className="min-w-full border-separate border-spacing-0 [&_th]:border-b [&_th]:border-slate-200">
                   <thead className="bg-slate-50">
                     <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                       <th className="px-6 py-4">Request</th>
@@ -4169,16 +4169,14 @@ export default function AdminPage() {
                         </td>
                       </tr>
                     ) : (
-                      pagedFilteredTickets.map((ticket, index) => (
+                      pagedFilteredTickets.map((ticket) => (
                         <Fragment key={ticket.id}>
-                          {index > 0 ? (
-                            <tr aria-hidden="true">
-                              <td
-                                colSpan={8}
-                                className="h-2.5 bg-[color:var(--background-panel)] p-0"
-                              />
-                            </tr>
-                          ) : null}
+                          <tr aria-hidden="true">
+                            <td
+                              colSpan={8}
+                              className="h-2.5 bg-[color:var(--background-panel)] p-0"
+                            />
+                          </tr>
                           <AdminTicketTableRow
                             ticket={ticket}
                             draft={drafts[ticket.id]}
