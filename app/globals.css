@@ -510,6 +510,85 @@ select:focus-visible {
   color: var(--foreground-subtle);
 }
 
+.parts-control-hero-layout {
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.8fr) minmax(30rem, 1.2fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 5rem);
+}
+
+.parts-control-hero-copy {
+  display: grid;
+  gap: 1.25rem;
+  align-content: center;
+}
+
+.parts-control-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--background-panel-strong) 72%, transparent);
+  padding: 1rem;
+}
+
+.parts-control-filter-field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.parts-control-filter-field > span {
+  color: var(--foreground-subtle);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.parts-control-filter-field .aurora-input,
+.parts-control-filter-field .aurora-select {
+  min-height: 2.7rem;
+  border-radius: 0.75rem;
+}
+
+.parts-control-toolbar-actions {
+  display: flex;
+  grid-column: 2;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.parts-control-export {
+  gap: 0.5rem;
+  min-height: 2.7rem;
+  border-radius: 0.75rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .parts-control-hero-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .parts-control-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .parts-control-toolbar-actions {
+    grid-column: 1;
+    justify-content: stretch;
+  }
+
+  .parts-control-toolbar-actions > * {
+    flex: 1;
+  }
+}
+
 .aurora-pill-group {
   display: inline-flex;
   flex-wrap: wrap;
