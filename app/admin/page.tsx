@@ -111,6 +111,7 @@ import { triggerActionFeedback } from "@/lib/action-feedback";
 import { getSupabaseClient } from "@/lib/supabase";
 import { getSupabaseAccessToken } from "@/lib/supabase";
 import { syncNexusEcommerceOrderStatus } from "@/lib/nexus-ecommerce";
+import { buildPartsJobReportRows } from "@/lib/parts-job-report";
 
 const ADMIN_CHAT_READ_STORAGE_KEY = "relay-admin-chat-last-opened";
 const ADMIN_DASHBOARD_VIEW_STORAGE_KEY = "relay-admin-dashboard-view-mode";
@@ -405,6 +406,7 @@ export default function AdminPage() {
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const [isJobStatusExporting, setIsJobStatusExporting] = useState(false);
   const [pageSize, setPageSize] = useState<(typeof ADMIN_PAGE_SIZE_OPTIONS)[number]>(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"table" | "compact" | "dynamic">(() => {
@@ -1571,8 +1573,12 @@ export default function AdminPage() {
     const anchor = document.createElement("a");
     anchor.href = downloadUrl;
     anchor.download = `relay-supplier-spend-${selectedSpendMonth}.csv`;
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(downloadUrl);
+    window.setTimeout(() => {
+      anchor.remove();
+      URL.revokeObjectURL(downloadUrl);
+    }, 1000);
 
     setOrdersNotice({
       type: "success",
@@ -1595,14 +1601,49 @@ export default function AdminPage() {
     const anchor = document.createElement("a");
     anchor.href = downloadUrl;
     anchor.download = `relay-ready-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(downloadUrl);
+    window.setTimeout(() => {
+      anchor.remove();
+      URL.revokeObjectURL(downloadUrl);
+    }, 1000);
 
     setOrdersNotice({
       type: "success",
       message: `Exported ${readyOrders.length} ready order${readyOrders.length === 1 ? "" : "s"}${includeAllFields ? " with all fields" : ""}.`,
     });
   }, [readyOrders]);
+
+  const exportJobStatusWorkbook = useCallback(async () => {
+    if (tickets.length === 0) {
+      setStatusExportNotice({type: "error", message: "There are no active jobs to export."});
+      return;
+    }
+
+    setIsJobStatusExporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const rows = buildPartsJobReportRows(tickets);
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      worksheet["!autofilter"] = {ref: worksheet["!ref"] ?? "A1:S1"};
+      worksheet["!cols"] = [
+        {wch: 16}, {wch: 14}, {wch: 11}, {wch: 14}, {wch: 22}, {wch: 14}, {wch: 18},
+        {wch: 20}, {wch: 15}, {wch: 28}, {wch: 42}, {wch: 24}, {wch: 18}, {wch: 18},
+        {wch: 22}, {wch: 22}, {wch: 14}, {wch: 22}, {wch: 22},
+      ];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Active Job Status");
+      XLSX.writeFile(workbook, `RELAY-job-status-${new Date().toISOString().slice(0, 10)}.xlsx`, {compression: true});
+      setStatusExportNotice({
+        type: "success",
+        message: `Exported ${rows.length} active job${rows.length === 1 ? "" : "s"} to Excel, including age and ready-bin information.`,
+      });
+    } catch {
+      setStatusExportNotice({type: "error", message: "The Excel report could not be created. Please try again."});
+    } finally {
+      setIsJobStatusExporting(false);
+    }
+  }, [tickets]);
 
   const exportStatusJobsCsv = useCallback(
     (status: ActiveTicketStatus, selectedFields = DEFAULT_STATUS_EXPORT_FIELDS) => {
@@ -1652,8 +1693,12 @@ export default function AdminPage() {
       const anchor = document.createElement("a");
       anchor.href = downloadUrl;
       anchor.download = `relay-${status.toLowerCase()}-jobs-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(anchor);
       anchor.click();
-      URL.revokeObjectURL(downloadUrl);
+      window.setTimeout(() => {
+        anchor.remove();
+        URL.revokeObjectURL(downloadUrl);
+      }, 1000);
 
       setStatusExportNotice({
         type: "success",
@@ -3314,6 +3359,14 @@ export default function AdminPage() {
                   <option value="compact">Compact Summary</option>
                   <option value="dynamic">Dynamic View</option>
                 </select>
+                <button
+                  type="button"
+                  onClick={() => void exportJobStatusWorkbook()}
+                  disabled={isJobStatusExporting || isLoading}
+                  className="aurora-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isJobStatusExporting ? "Preparing Excel…" : "Export Job Status"}
+                </button>
                 {statusFilter !== "ALL" ? (
                   <button
                     type="button"
