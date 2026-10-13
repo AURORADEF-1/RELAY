@@ -3594,7 +3594,7 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="mt-8 flex items-center justify-between gap-4">
+            <div className="mt-8 flex min-w-0 flex-wrap items-center justify-between gap-4">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
                 KPI Overview
               </p>
@@ -3609,11 +3609,11 @@ export default function AdminPage() {
 
             {!isKpiMinimized ? (
               <>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
+              <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-3 xl:grid-cols-7">
                 {activeTicketStatuses.map((status) => (
                   <div
                     key={status}
-                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                    className={`min-w-0 rounded-2xl border px-4 py-3 text-left transition ${
                       statusFilter === status
                         ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.65)]"
                         : "border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] hover:border-slate-400 hover:bg-white"
@@ -4146,7 +4146,9 @@ export default function AdminPage() {
                       </th>
                       <th className="px-6 py-4">Assigned User</th>
                       <th className="px-6 py-4">Notes</th>
-                      <th className="px-6 py-4">Actions</th>
+                      <th className="sticky right-0 z-20 bg-slate-50 px-4 py-4 shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.55)]">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-[color:var(--parts-job-break)]">
@@ -4761,7 +4763,7 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
           className="w-56 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
         />
       </td>
-      <td className="px-6 py-5">
+      <td className="sticky right-0 z-10 bg-white px-4 py-5 shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.55)]">
         <div className="space-y-3">
           {isCollected ? (
             <CollectedBadge />
