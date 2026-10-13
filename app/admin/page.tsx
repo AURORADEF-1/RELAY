@@ -3583,28 +3583,27 @@ export default function AdminPage() {
 
             {resourceTab === "operations" ? (
               <>
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={() => void loadTickets()}
-                disabled={isLoading}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isLoading ? "Refreshing..." : "Refresh"}
-              </button>
-            </div>
-
             <div className="mt-8 flex min-w-0 flex-wrap items-center justify-between gap-4">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
                 KPI Overview
               </p>
-              <button
-                type="button"
-                onClick={() => setIsKpiMinimized((current) => !current)}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                {isKpiMinimized ? "Show KPIs" : "Minimise KPIs"}
-              </button>
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => void loadTickets()}
+                  disabled={isLoading}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isLoading ? "Refreshing..." : "Refresh"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsKpiMinimized((current) => !current)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  {isKpiMinimized ? "Show KPIs" : "Minimise KPIs"}
+                </button>
+              </div>
             </div>
 
             {!isKpiMinimized ? (
