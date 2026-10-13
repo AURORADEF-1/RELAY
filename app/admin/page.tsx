@@ -4145,7 +4145,7 @@ export default function AdminPage() {
                         />
                       </th>
                       <th className="px-6 py-4">Assigned User</th>
-                      <th className="px-6 py-4">Notes</th>
+                      <th className="min-w-[30rem] px-6 py-4 pr-56">Notes</th>
                       <th className="sticky right-0 z-20 w-48 min-w-48 border-l border-slate-200 bg-slate-50 px-4 py-4">
                         Actions
                       </th>
@@ -4751,7 +4751,7 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
           </label>
         </div>
       </td>
-      <td className="px-6 py-5">
+      <td className="min-w-[30rem] px-6 py-5 pr-56">
         <textarea
           rows={3}
           value={draft?.notes ?? ""}
