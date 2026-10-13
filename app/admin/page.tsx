@@ -4677,7 +4677,13 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
       </td>
       <td className="px-6 py-5">
         <div className="space-y-2">
-          <StatusBadge status={ticket.status ?? "PENDING"} />
+          <StatusSelect
+            ticketId={ticket.id}
+            value={ticket.status ?? "PENDING"}
+            onChange={onStatusChange}
+            disabled={isUpdating}
+            badgeStyle
+          />
           {isUrgentTicket(ticket) ? (
             <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-700">
               Urgent
@@ -4770,12 +4776,6 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
           {returnedReason ? (
             <ReturnedBadge reason={returnedReason} />
           ) : null}
-          <StatusSelect
-            ticketId={ticket.id}
-            value={ticket.status ?? "PENDING"}
-            onChange={onStatusChange}
-            disabled={isUpdating}
-          />
           <button
             type="button"
             onClick={() => onSave(ticket.id)}
@@ -5646,28 +5646,48 @@ function StatusSelect({
   value,
   onChange,
   disabled = false,
+  badgeStyle = false,
 }: {
   ticketId: string;
   value: TicketStatus;
   onChange: (ticketId: string, nextStatus: TicketStatus) => void;
   disabled?: boolean;
+  badgeStyle?: boolean;
 }) {
-  return (
+  const select = (
     <select
+      aria-label={`Update ticket ${ticketId} status`}
       value={value}
       disabled={disabled}
       onChange={(event) =>
         onChange(ticketId, event.target.value as TicketStatus)
       }
-      className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+      className={
+        badgeStyle
+          ? "status-select-badge-control"
+          : "h-10 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+      }
     >
       {activeTicketStatuses.map((status) => (
         <option key={status} value={status}>
-          {status}
+          {status.replaceAll("_", " ")}
         </option>
       ))}
       <option value="COMPLETED">COMPLETED</option>
     </select>
+  );
+
+  if (badgeStyle) {
+    return (
+      <span className="status-select-badge" data-status={value}>
+        <span className="status-badge-dot" aria-hidden="true" />
+        {select}
+      </span>
+    );
+  }
+
+  return (
+    select
   );
 }
 

@@ -951,6 +951,52 @@ select:focus-visible {
   text-transform: uppercase;
 }
 
+.status-select-badge {
+  position: relative;
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--status-border, var(--border-strong));
+  border-radius: 999px;
+  background: var(--status-background, var(--background-muted));
+  padding: 0.42rem 0.65rem 0.42rem 0.72rem;
+  color: var(--status-color, var(--foreground-muted));
+}
+
+.status-select-badge::after {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  content: "";
+  pointer-events: none;
+  transform: translateY(-0.1rem) rotate(45deg);
+}
+
+.status-select-badge-control {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  line-height: 1;
+  outline: none;
+  text-transform: uppercase;
+}
+
+.status-select-badge-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.status-select-badge:focus-within {
+  box-shadow: 0 0 0 3px var(--status-background, var(--background-muted));
+}
+
 .status-badge-dot,
 .console-status-filter-dot {
   width: 0.55rem;
