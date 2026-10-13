@@ -565,6 +565,9 @@ select:focus-visible {
 
 .parts-control-page {
   gap: 1.25rem;
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 .parts-control-page .parts-control-nav {
