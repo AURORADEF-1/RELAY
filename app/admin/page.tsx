@@ -4146,7 +4146,7 @@ export default function AdminPage() {
                       </th>
                       <th className="px-6 py-4">Assigned User</th>
                       <th className="px-6 py-4">Notes</th>
-                      <th className="sticky right-0 z-20 bg-slate-50 px-4 py-4 shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.55)]">
+                      <th className="sticky right-0 z-20 w-48 min-w-48 border-l border-slate-200 bg-slate-50 px-4 py-4">
                         Actions
                       </th>
                     </tr>
@@ -4763,7 +4763,7 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
           className="w-56 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
         />
       </td>
-      <td className="sticky right-0 z-10 bg-white px-4 py-5 shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.55)]">
+      <td className="sticky right-0 z-10 w-48 min-w-48 border-l border-slate-200 bg-white px-4 py-5">
         <div className="space-y-3">
           {isCollected ? (
             <CollectedBadge />
@@ -4781,7 +4781,7 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
             type="button"
             onClick={() => onSave(ticket.id)}
             disabled={isUpdating}
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Save
           </button>
