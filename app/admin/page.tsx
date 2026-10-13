@@ -4144,17 +4144,14 @@ export default function AdminPage() {
                         />
                       </th>
                       <th className="px-6 py-4">Assigned User</th>
-                      <th className="min-w-[30rem] px-6 py-4 pr-56">Notes</th>
-                      <th className="sticky right-0 z-20 w-48 min-w-48 border-l border-slate-200 bg-slate-50 px-4 py-4">
-                        Actions
-                      </th>
+                      <th className="min-w-[22rem] px-6 py-4">Notes</th>
                     </tr>
                   </thead>
                   <tbody className="bg-[color:var(--parts-job-break)]">
                     {isLoading ? (
                       <tr>
                         <td
-                          colSpan={8}
+                          colSpan={7}
                           className="px-6 py-10 text-center text-sm text-slate-500"
                         >
                           Loading tickets...
@@ -4163,7 +4160,7 @@ export default function AdminPage() {
                     ) : pagedFilteredTickets.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={8}
+                          colSpan={7}
                           className="px-6 py-10 text-center text-sm text-slate-500"
                         >
                           No tickets match the current status filter.
@@ -4174,7 +4171,7 @@ export default function AdminPage() {
                         <Fragment key={ticket.id}>
                           <tr aria-hidden="true">
                             <td
-                              colSpan={8}
+                              colSpan={7}
                               className="h-2.5 bg-[color:var(--parts-job-break)] p-0"
                             />
                           </tr>
@@ -4756,33 +4753,28 @@ const AdminTicketTableRow = memo(function AdminTicketTableRow({
           </label>
         </div>
       </td>
-      <td className="min-w-[30rem] px-6 py-5 pr-56">
-        <textarea
-          rows={3}
-          value={draft?.notes ?? ""}
-          onChange={(event) =>
-            onDraftChange(ticket.id, {
-              notes: event.target.value,
-            })
-          }
-          className="w-56 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-        />
-      </td>
-      <td className="sticky right-0 z-10 w-48 min-w-48 border-l border-slate-200 bg-white px-4 py-5">
+      <td className="min-w-[22rem] px-6 py-5">
         <div className="space-y-3">
+          <textarea
+            rows={3}
+            value={draft?.notes ?? ""}
+            onChange={(event) =>
+              onDraftChange(ticket.id, {
+                notes: event.target.value,
+              })
+            }
+            className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+          />
           {isCollected ? (
             <CollectedBadge />
-          ) : null}
-          {returnedReason ? (
-            <ReturnedBadge reason={returnedReason} />
           ) : null}
           <button
             type="button"
             onClick={() => onSave(ticket.id)}
             disabled={isUpdating}
-            className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Save
+            Save Changes
           </button>
         </div>
       </td>
