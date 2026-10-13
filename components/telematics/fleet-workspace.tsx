@@ -7,7 +7,7 @@ import {CollectionHealth} from './collection-health';
 import {ShareAssetLocation} from '@/components/assets/share-location';
 import {LocationViews} from '@/components/telematics/location-views';
 import {MapPreferences} from './map-preferences';
-import {defaults,readPreferences,filterFleet,type Preferences} from '@/lib/fleet-map/preferences';
+import {defaults,preferencesForMapEntry,filterFleet,type Preferences} from '@/lib/fleet-map/preferences';
 import {costCentreColour} from '@/lib/fleet-map/cost-centre-colours';
 import dynamic from "next/dynamic";
 import {useFleetStatuses,FleetStatus} from "@/components/assets/fleet-status";
@@ -77,8 +77,8 @@ export function TrackingWorkspace({combined=false,request=api,provider="trackuni
  const [filtersCollapsed,setFiltersCollapsed]=useState(false);
  const [resolvedAddresses,setResolvedAddresses]=useState<Record<string,string|null>>({});
  const attemptedAddresses=useRef(new Set<string>());
- useEffect(()=>{const id=setTimeout(()=>{try{const saved=localStorage.getItem('relay:fleet-map:v3')??localStorage.getItem('relay:fleet-map:v2');const preferences=readPreferences(saved);setPreferences({...preferences,group:preferences.group.filter(group=>group!=='Stock'),freshness:'all',yard:true,labels:true,providers:[...defaults.providers]});}catch{}},0);return()=>clearTimeout(id);},[]);
- function updatePreferences(p:Preferences){const next={...p,group:p.group.filter(group=>group!=='Stock'),freshness:'all' as const,yard:true,labels:true,providers:[...defaults.providers]};setPreferences(next);setPage(0);try{localStorage.setItem('relay:fleet-map:v3',JSON.stringify(next));}catch{}}
+ useEffect(()=>{const id=setTimeout(()=>{try{const saved=localStorage.getItem('relay:fleet-map:v3')??localStorage.getItem('relay:fleet-map:v2');const preferences=preferencesForMapEntry(saved);setPreferences({...preferences,group:preferences.group.filter(group=>group!=='Stock'),freshness:'all',yard:true,labels:true,providers:[...defaults.providers]});}catch{}},0);return()=>clearTimeout(id);},[]);
+ function updatePreferences(p:Preferences){const next={...p,group:p.group.filter(group=>group!=='Stock'),freshness:'all' as const,yard:true,labels:true,providers:[...defaults.providers]};setPreferences(next);setPage(0);try{localStorage.setItem('relay:fleet-map:v3',JSON.stringify({...next,area:'all'}));}catch{}}
  useEffect(()=>{if(!combined)return;const openAsset=()=>{if(window.location.hash==='#signwatch:sign-watch-test'){setSelected('signwatch:sign-watch-test');setPreferences({...defaults,labels:true});setQuery('');setView('map');}};openAsset();window.addEventListener('hashchange',openAsset);return()=>window.removeEventListener('hashchange',openAsset);},[combined]);
  useEffect(()=>{
   if(!combined)return;
