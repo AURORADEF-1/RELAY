@@ -2078,6 +2078,7 @@ select:focus-visible {
 .console-ticket-card-heading {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
@@ -2085,7 +2086,7 @@ select:focus-visible {
 
 .console-ticket-card-heading > :first-child {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 28rem;
 }
 
 .console-ticket-card-reference {
@@ -2127,8 +2128,10 @@ select:focus-visible {
 
 .console-ticket-card-status {
   display: grid;
+  max-width: 100%;
   flex: 0 0 auto;
   justify-items: end;
+  margin-left: auto;
   gap: 0.4rem;
 }
 
