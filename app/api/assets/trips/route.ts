@@ -29,8 +29,7 @@ async function archivedTrips(db:ReturnType<typeof operationsDatabase>,owner:stri
  for(let day=archiveStart;day<archiveEnd;day+=86400000){const dayEnd=Math.min(day+86400000,archiveEnd);windows.push((async()=>{
   const found:{items:unknown;received_at:string}[]=[];
   for(let offset=0;offset<30000;offset+=500){
-   let query=db.from('assetcare_batches').select('items,received_at').gte('received_at',new Date(day).toISOString()).lt('received_at',new Date(dayEnd).toISOString());
-   if(assetIds.length===1)query=query.contains('items',[{asset:{id:assetIds[0]}}]);
+   const query=db.from('assetcare_batches').select('items,received_at').gte('received_at',new Date(day).toISOString()).lt('received_at',new Date(dayEnd).toISOString());
    const page=await query.order('received_at',{ascending:false}).range(offset,offset+499);
    if(page.error)throw new JcbError('Trip history is unavailable. Please retry.',503);
    const batch=(page.data??[]) as {items:unknown;received_at:string}[];found.push(...batch);if(batch.length<500)return found;
@@ -53,6 +52,23 @@ async function archivedTrips(db:ReturnType<typeof operationsDatabase>,owner:stri
  return {trips:sorted.slice(0,2001),archive_start:rows.at(-1)?.received_at??null,latest_saved:rows[0]?.received_at??null};
 }
 
+async function searchedTrips(db:ReturnType<typeof operationsDatabase>,owner:string,start:number,end:number,search:string){
+ const assets=await db.from('assetcare_assets').select('asset_id,name').limit(10000);
+ if(assets.error)throw new JcbError('Trip history is unavailable. Please retry.',503);
+ const matches=((assets.data??[]) as {asset_id:string;name:string}[]).filter(item=>`${item.asset_id} ${item.name}`.toLowerCase().includes(search)).slice(0,20);
+ if(!matches.length)return {trips:[],archive_start:null,latest_saved:null};
+ const results=await Promise.all(matches.map(item=>db.rpc('assetcare_trip_history',{p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString(),p_asset:item.asset_id})));
+ if(results.some(result=>result.error||!result.data||!Array.isArray(result.data.trips)))return archivedTrips(db,owner,start,end,null,search);
+ const trips=new Map<string,JsonRecord>();let archiveStart:string|null=null,latestSaved:string|null=null;
+ for(let index=0;index<results.length;index++){
+  const data=results[index].data as {trips:JsonRecord[];archive_start?:string|null;latest_saved?:string|null},match=matches[index];
+  for(const trip of data.trips){const id=text(trip.id);if(id&&!trips.has(id))trips.set(id,{...trip,asset_name:match.name||text(trip.asset_name)||match.asset_id});}
+  if(data.archive_start&&(!archiveStart||data.archive_start<archiveStart))archiveStart=data.archive_start;
+  if(data.latest_saved&&(!latestSaved||data.latest_saved>latestSaved))latestSaved=data.latest_saved;
+ }
+ return {trips:[...trips.values()].sort((a,b)=>String(b.ended_at).localeCompare(String(a.ended_at))),archive_start:archiveStart,latest_saved:latestSaved};
+}
+
 export async function GET(request:NextRequest){try{
  await authorizeAssets(request,true);
  const q=request.nextUrl.searchParams,now=Date.now();
@@ -66,7 +82,7 @@ export async function GET(request:NextRequest){try{
  const search=q.get('search')?.trim().toLowerCase()||null;
  if(asset&&asset.length>200||search&&search.length>200)throw new JcbError('Invalid asset reference.',400);
  const db=operationsDatabase(),result=search?null:await db.rpc('assetcare_trip_history',{p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString(),p_asset:asset});
- const data=result&&!result.error&&result.data&&Array.isArray(result.data.trips)?result.data:await archivedTrips(db,owner,start,end,asset,search);
+ const data=search?await searchedTrips(db,owner,start,end,search):result&&!result.error&&result.data&&Array.isArray(result.data.trips)?result.data:await archivedTrips(db,owner,start,end,asset,search);
  if(search&&Array.isArray(data.trips))data.trips=data.trips.filter((trip:JsonRecord)=>`${text(trip.asset_id)??''} ${text(trip.asset_name)??''}`.toLowerCase().includes(search));
  if(data.trips.length>2000)throw new JcbError('Too many trips. Choose a shorter date range.',422);
  return Response.json(data,{headers:{'Cache-Control':'private, no-store','Vary':'Authorization'}});
