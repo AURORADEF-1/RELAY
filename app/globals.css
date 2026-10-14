@@ -1900,6 +1900,9 @@ select:focus-visible {
 }
 
 .console-queue-panel {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin-top: 1.1rem;
   border: 1px solid var(--border);
   border-radius: 0.55rem;
@@ -2063,6 +2066,10 @@ select:focus-visible {
 }
 
 .console-ticket-card-content {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   padding: 1.05rem 1.25rem;
   text-align: left;
   pointer-events: none;
@@ -2070,9 +2077,15 @@ select:focus-visible {
 
 .console-ticket-card-heading {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.console-ticket-card-heading > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .console-ticket-card-reference {
