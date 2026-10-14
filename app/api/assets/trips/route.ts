@@ -21,8 +21,8 @@ async function archivedTrips(db:ReturnType<typeof operationsDatabase>,owner:stri
   assetIds=matches.map(item=>item.asset_id);for(const item of matches)assetNames.set(item.asset_id,item.name);
   if(!assetIds.length)return {trips:[],archive_start:null,latest_saved:null};
  }
- const archiveStart=start-2*86400000,windows:Promise<{items:unknown;received_at:string}[]>[]=[];
- for(let day=archiveStart;day<end;day+=86400000){const dayEnd=Math.min(day+86400000,end);windows.push((async()=>{
+ const archiveStart=start-2*86400000,archiveEnd=Math.min(end+2*86400000,Date.now()+1000),windows:Promise<{items:unknown;received_at:string}[]>[]=[];
+ for(let day=archiveStart;day<archiveEnd;day+=86400000){const dayEnd=Math.min(day+86400000,archiveEnd);windows.push((async()=>{
   const found:{items:unknown;received_at:string}[]=[];
   for(let offset=0;offset<2000;offset+=500){
    const page=await db.from('assetcare_batches').select('items,received_at').gte('received_at',new Date(day).toISOString()).lt('received_at',new Date(dayEnd).toISOString()).order('received_at',{ascending:false}).range(offset,offset+499);
