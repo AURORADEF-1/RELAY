@@ -11,9 +11,18 @@ beforeEach(()=>{vi.clearAllMocks();process.env.ASSETCARE_OWNER_ID='owner-1';mock
 afterEach(()=>{if(previousOwner===undefined)delete process.env.ASSETCARE_OWNER_ID;else process.env.ASSETCARE_OWNER_ID=previousOwner;});
 
 it('rebuilds trip history from archived batches when the database projection is unavailable',async()=>{
- const query={gte:()=>query,order:()=>query,range:vi.fn().mockResolvedValue({data:[{received_at:'2026-10-14T09:00:00.000Z',items:[{id:'trip-1',type:'trip',owner:{id:'owner-1'},asset:{id:'asset-1',name:'Machine 1'},dateStart:'2026-10-14T08:00:00.000Z',dateEnd:'2026-10-14T08:30:00.000Z',start:{lat:'51.1',lon:'-1.1',gc:{rt:'Yard'}},end:{lat:51.2,lon:-1.2,gc:{rd:'Site'}},counters:{distance:'12.5'}}]}],error:null})};
- mocks.db.mockReturnValue({rpc:vi.fn().mockResolvedValue({data:null,error:{message:'function unavailable'}}),from:vi.fn().mockReturnValue({select:()=>query})});
- const response=await GET(new NextRequest('https://relay.test/api/assets/trips?from=2026-10-14T00:00:00.000Z&to=2026-10-15T00:00:00.000Z'));
+ const batches={gte:()=>batches,order:()=>batches,contains:()=>batches,range:vi.fn().mockResolvedValue({data:[{received_at:'2026-10-14T09:00:00.000Z',items:[{id:'trip-1',type:'trip',owner:{id:'owner-1'},asset:{id:'asset-1',name:'Machine 1'},dateStart:'2026-10-14T08:00:00.000Z',dateEnd:'2026-10-14T08:30:00.000Z',start:{lat:'51.1',lon:'-1.1',gc:{rt:'Yard'}},end:{lat:51.2,lon:-1.2,gc:{rd:'Site'}},counters:{distance:'12.5'}}]}],error:null})};
+ const assets={limit:vi.fn().mockResolvedValue({data:[{asset_id:'asset-1',name:'Machine 1'}],error:null})};
+ mocks.db.mockReturnValue({rpc:vi.fn().mockResolvedValue({data:null,error:{message:'function unavailable'}}),from:vi.fn((table:string)=>({select:()=>table==='assetcare_assets'?assets:batches}))});
+ const response=await GET(new NextRequest('https://relay.test/api/assets/trips?from=2026-10-14T00:00:00.000Z&to=2026-10-15T00:00:00.000Z&search=Machine%201'));
  expect(response.status).toBe(200);
  expect(await response.json()).toMatchObject({trips:[{id:'trip-1',asset_id:'asset-1',asset_name:'Machine 1',start_address:'Yard',end_address:'Site',distance:12.5}]});
+});
+
+it('filters projected trips by machine before enforcing the result limit',async()=>{
+ const unrelated=Array.from({length:2001},(_,index)=>({id:`other-${index}`,asset_id:`other-${index}`,asset_name:'Other machine'}));
+ mocks.db.mockReturnValue({rpc:vi.fn().mockResolvedValue({data:{trips:[...unrelated,{id:'wanted',asset_id:'asset-24102',asset_name:'24102'}],archive_start:null,latest_saved:null},error:null})});
+ const response=await GET(new NextRequest('https://relay.test/api/assets/trips?from=2026-10-14T00:00:00.000Z&to=2026-10-15T00:00:00.000Z&search=24102'));
+ expect(response.status).toBe(200);
+ expect(await response.json()).toMatchObject({trips:[{id:'wanted',asset_id:'asset-24102',asset_name:'24102'}]});
 });
