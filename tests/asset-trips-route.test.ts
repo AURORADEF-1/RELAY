@@ -12,7 +12,7 @@ afterEach(()=>{vi.useRealTimers();if(previousOwner===undefined)delete process.en
 
 it('rebuilds trip history from archived batches when the database projection is unavailable',async()=>{
  vi.useFakeTimers();vi.setSystemTime('2026-10-14T12:00:00.000Z');const lt=vi.fn();
- const batches={gte:()=>batches,lt:(...args:[string,string])=>{lt(...args);return batches;},order:()=>batches,range:vi.fn().mockResolvedValue({data:[{received_at:'2026-10-14T09:00:00.000Z',items:[{id:'trip-1',type:'trip',owner:{id:'owner-1'},asset:{id:'asset-1',name:'Provider label'},dateStart:'2026-10-13T08:00:00.000Z',dateEnd:'2026-10-13T08:30:00.000Z',start:{lat:'51.1',lon:'-1.1',gc:{rt:'Yard'}},end:{lat:51.2,lon:-1.2,gc:{rd:'Site'}},counters:{distance:'12.5'}}]}],error:null})};
+ const batches={gte:()=>batches,lt:(...args:[string,string])=>{lt(...args);return batches;},contains:()=>batches,order:()=>batches,range:vi.fn().mockResolvedValue({data:[{received_at:'2026-10-14T09:00:00.000Z',items:[{id:'trip-1',type:'trip',owner:{id:'owner-1'},asset:{id:'asset-1',name:'Provider label'},dateStart:'2026-10-13T08:00:00.000Z',dateEnd:'2026-10-13T08:30:00.000Z',start:{lat:'51.1',lon:'-1.1',gc:{rt:'Yard'}},end:{lat:51.2,lon:-1.2,gc:{rd:'Site'}},counters:{distance:'12.5'}}]}],error:null})};
  const assets={limit:vi.fn().mockResolvedValue({data:[{asset_id:'asset-1',name:'Machine 1'}],error:null})};
  mocks.db.mockReturnValue({rpc:vi.fn().mockResolvedValue({data:null,error:{message:'function unavailable'}}),from:vi.fn((table:string)=>({select:()=>table==='assetcare_assets'?assets:batches}))});
  const response=await GET(new NextRequest('https://relay.test/api/assets/trips?from=2026-10-13T00:00:00.000Z&to=2026-10-14T00:00:00.000Z&search=Machine%201'));
@@ -21,15 +21,19 @@ it('rebuilds trip history from archived batches when the database projection is 
  expect(lt).toHaveBeenCalledWith('received_at','2026-10-14T12:00:01.000Z');
 });
 
-it('resolves machine searches before the global trip projection limit',async()=>{
+it('resolves machine searches and filters archive batches before pagination',async()=>{
  const rpc=vi.fn();
- const batches={gte:()=>batches,lt:()=>batches,order:()=>batches,range:vi.fn().mockResolvedValue({data:[{received_at:'2026-10-14T10:00:00.000Z',items:[{id:'wanted',type:'trip',owner:{id:'owner-1'},asset:{id:'asset-24102'},dateStart:'2026-10-14T08:00:00.000Z',dateEnd:'2026-10-14T08:30:00.000Z'}]}],error:null})};
+ const contains=vi.fn();
+ const range=vi.fn().mockImplementation(async(offset:number)=>({data:offset<2000?Array.from({length:500},(_,index)=>({received_at:`2026-10-14T${String(23-Math.floor(index/60)).padStart(2,'0')}:00:00.000Z`,items:[]})):[{received_at:'2026-10-14T10:00:00.000Z',items:[{id:'wanted',type:'trip',owner:{id:'owner-1'},asset:{id:'asset-24102'},dateStart:'2026-10-14T08:00:00.000Z',dateEnd:'2026-10-14T08:30:00.000Z'}]}],error:null}));
+ const batches={gte:()=>batches,lt:()=>batches,contains:(...args:[string,unknown])=>{contains(...args);return batches;},order:()=>batches,range};
  const assets={limit:vi.fn().mockResolvedValue({data:[{asset_id:'asset-24102',name:'24102'}],error:null})};
  mocks.db.mockReturnValue({rpc,from:vi.fn((table:string)=>({select:()=>table==='assetcare_assets'?assets:batches}))});
  const response=await GET(new NextRequest('https://relay.test/api/assets/trips?from=2026-10-14T00:00:00.000Z&to=2026-10-15T00:00:00.000Z&search=24102'));
  expect(response.status).toBe(200);
  expect(await response.json()).toMatchObject({trips:[{id:'wanted',asset_id:'asset-24102',asset_name:'24102'}]});
  expect(rpc).not.toHaveBeenCalled();
+ expect(contains).toHaveBeenCalledWith('items',[{asset:{id:'asset-24102'}}]);
+ expect(range).toHaveBeenCalledWith(2000,2499);
 });
 
 it('uses inclusive Europe/London boundaries for date-only ranges',async()=>{
