@@ -2073,15 +2073,17 @@ select:focus-visible {
 }
 
 .console-ticket-card-heading {
-  display: grid;
+  display: flex;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr);
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 0.65rem;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .console-ticket-card-heading > :first-child {
   min-width: 0;
+  flex: 1 1 28rem;
 }
 
 .console-ticket-card-reference {
@@ -2124,8 +2126,10 @@ select:focus-visible {
 .console-ticket-card-status {
   display: grid;
   max-width: 100%;
-  justify-items: start;
-  margin-left: 0;
+  flex: 0 0 auto;
+  justify-items: end;
+  margin-right: 1rem;
+  margin-left: auto;
   gap: 0.4rem;
 }
 
@@ -4639,6 +4643,8 @@ html[data-theme="dark"] .console-demo-view-select option {
   .console-ticket-card-status {
     width: 100%;
     justify-items: start;
+    margin-right: 0;
+    margin-left: 0;
   }
 }
 
