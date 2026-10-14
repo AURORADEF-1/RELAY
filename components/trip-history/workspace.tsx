@@ -11,12 +11,23 @@ type Result={trips:Trip[];archive_start:string|null;latest_saved:string|null};
 const isoDay=(date:Date)=>date.toISOString().slice(0,10);
 const when=(value:string|null)=>value?new Date(value).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}):'Not supplied';
 const place=(address:string|null,lat:number|null,lon:number|null)=>address||lat!==null&&lon!==null?address||`${lat!.toFixed(5)}, ${lon!.toFixed(5)}`:'Position not supplied';
+const tripResponse=async(response:Response)=>{
+ const raw=await response.text();let body:unknown={};
+ try{body=raw?JSON.parse(raw):{};}catch{
+  if(response.status===504||response.status===408)throw new Error('Trip history is taking too long. Please retry.');
+  throw new Error('Trip history is unavailable. Please retry.');
+ }
+ const result=(body&&typeof body==='object'?body:{}) as Partial<Result>&{error?:unknown};
+ if(!response.ok)throw new Error(typeof result.error==='string'&&result.error.trim()?result.error:response.status===504?'Trip history is taking too long. Please retry.':'Trip history is unavailable. Please retry.');
+ if(!Array.isArray(result.trips))throw new Error('Trip history is unavailable. Please retry.');
+ return result as Result;
+};
 
 export function TripHistoryWorkspace(){
  const [today]=useState(()=>new Date());
  const [from,setFrom]=useState(()=>isoDay(new Date(today.getTime()-6*86400000))),[to,setTo]=useState(()=>isoDay(today)),[query,setQuery]=useState(''),[data,setData]=useState<Result|null>(null),[selected,setSelected]=useState<string|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),[version,setVersion]=useState(0);
  const setQuickRange=(days:number)=>{const end=new Date(today),start=new Date(today);if(days===1){start.setDate(start.getDate()-1);end.setDate(end.getDate()-1);}else start.setDate(start.getDate()-(days-1));setFrom(isoDay(start));setTo(isoDay(end));};
- useEffect(()=>{const search=query.trim();if(!search)return;const c=new AbortController();const timer=window.setTimeout(()=>{setLoading(true);setError('');void getSupabaseAccessToken().then(token=>{if(!token)throw new Error('Sign in to view trip history.');return fetch(`/api/assets/trips?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&search=${encodeURIComponent(search)}`,{headers:{Authorization:`Bearer ${token}`},signal:c.signal});}).then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error||'Trip history unavailable.');return body as Result;}).then(body=>{if(!c.signal.aborted){setData(body);setSelected(current=>body.trips.some(t=>t.id===current)?current:body.trips[0]?.id??null);}}).catch(e=>{if(!c.signal.aborted)setError(e instanceof Error?e.message:'Trip history unavailable.');}).finally(()=>{if(!c.signal.aborted)setLoading(false);});},300);return()=>{window.clearTimeout(timer);c.abort();};},[from,to,query,version]);
+ useEffect(()=>{const search=query.trim();if(!search)return;const c=new AbortController();const timer=window.setTimeout(()=>{setLoading(true);setError('');void getSupabaseAccessToken().then(token=>{if(!token)throw new Error('Sign in to view trip history.');return fetch(`/api/assets/trips?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&search=${encodeURIComponent(search)}`,{headers:{Authorization:`Bearer ${token}`},signal:c.signal});}).then(tripResponse).then(body=>{if(!c.signal.aborted){setData(body);setSelected(current=>body.trips.some(t=>t.id===current)?current:body.trips[0]?.id??null);}}).catch(e=>{if(!c.signal.aborted)setError(e instanceof Error?e.message:'Trip history unavailable.');}).finally(()=>{if(!c.signal.aborted)setLoading(false);});},300);return()=>{window.clearTimeout(timer);c.abort();};},[from,to,query,version]);
  const trips=useMemo(()=>{const q=query.trim().toLowerCase();return !q?data?.trips??[]:(data?.trips??[]).filter(t=>`${t.asset_name} ${t.asset_id}`.toLowerCase().includes(q));},[data,query]);
  const chosen=trips.find(t=>t.id===selected)??trips[0]??null;
  const assets=new Set(trips.map(t=>t.asset_id)).size;
