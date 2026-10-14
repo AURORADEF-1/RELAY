@@ -28,12 +28,14 @@ async function archivedTrips(db:ReturnType<typeof operationsDatabase>,owner:stri
  const archiveStart=start-2*86400000,archiveEnd=Math.min(end+2*86400000,Date.now()+1000),windows:Promise<{items:unknown;received_at:string}[]>[]=[];
  for(let day=archiveStart;day<archiveEnd;day+=86400000){const dayEnd=Math.min(day+86400000,archiveEnd);windows.push((async()=>{
   const found:{items:unknown;received_at:string}[]=[];
-  for(let offset=0;offset<2000;offset+=500){
-   const page=await db.from('assetcare_batches').select('items,received_at').gte('received_at',new Date(day).toISOString()).lt('received_at',new Date(dayEnd).toISOString()).order('received_at',{ascending:false}).range(offset,offset+499);
+  for(let offset=0;offset<30000;offset+=500){
+   let query=db.from('assetcare_batches').select('items,received_at').gte('received_at',new Date(day).toISOString()).lt('received_at',new Date(dayEnd).toISOString());
+   if(assetIds.length===1)query=query.contains('items',[{asset:{id:assetIds[0]}}]);
+   const page=await query.order('received_at',{ascending:false}).range(offset,offset+499);
    if(page.error)throw new JcbError('Trip history is unavailable. Please retry.',503);
-   const batch=(page.data??[]) as {items:unknown;received_at:string}[];found.push(...batch);if(batch.length<500)break;
+   const batch=(page.data??[]) as {items:unknown;received_at:string}[];found.push(...batch);if(batch.length<500)return found;
   }
-  return found;
+  throw new JcbError('Trip archive is too large to read safely. Choose a shorter date range.',422);
  })());}
  const rows=(await Promise.all(windows)).flat().sort((a,b)=>b.received_at.localeCompare(a.received_at));
  const trips=new Map<string,JsonRecord>();
