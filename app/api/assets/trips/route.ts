@@ -13,25 +13,30 @@ const date=(value:unknown)=>{const parsed=text(value),time=parsed?Date.parse(par
 
 async function archivedTrips(db:ReturnType<typeof operationsDatabase>,owner:string,start:number,end:number,asset:string|null,search:string|null){
  let assetIds=asset?[asset]:[];
+ const assetNames=new Map<string,string>();
  if(!asset&&search){
   const assets=await db.from('assetcare_assets').select('asset_id,name').limit(10000);
   if(assets.error)throw new JcbError('Trip history is unavailable. Please retry.',503);
-  assetIds=((assets.data??[]) as {asset_id:string;name:string}[]).filter(item=>`${item.asset_id} ${item.name}`.toLowerCase().includes(search)).slice(0,20).map(item=>item.asset_id);
+  const matches=((assets.data??[]) as {asset_id:string;name:string}[]).filter(item=>`${item.asset_id} ${item.name}`.toLowerCase().includes(search)).slice(0,20);
+  assetIds=matches.map(item=>item.asset_id);for(const item of matches)assetNames.set(item.asset_id,item.name);
   if(!assetIds.length)return {trips:[],archive_start:null,latest_saved:null};
  }
- const rows:{items:unknown;received_at:string}[]=[];
- for(let offset=0;offset<10000;offset+=500){
-  let query=db.from('assetcare_batches').select('items,received_at').gte('received_at',new Date(start-2*86400000).toISOString()).order('received_at',{ascending:false});
-  if(assetIds.length===1)query=query.contains('items',[{asset:{id:assetIds[0]}}]);
-  const page=await query.range(offset,offset+499);
-  if(page.error)throw new JcbError('Trip history is unavailable. Please retry.',503);
-  const batch=(page.data??[]) as {items:unknown;received_at:string}[];rows.push(...batch);if(batch.length<500)break;
- }
+ const archiveStart=start-2*86400000,windows:Promise<{items:unknown;received_at:string}[]>[]=[];
+ for(let day=archiveStart;day<end;day+=86400000){const dayEnd=Math.min(day+86400000,end);windows.push((async()=>{
+  const found:{items:unknown;received_at:string}[]=[];
+  for(let offset=0;offset<2000;offset+=500){
+   const page=await db.from('assetcare_batches').select('items,received_at').gte('received_at',new Date(day).toISOString()).lt('received_at',new Date(dayEnd).toISOString()).order('received_at',{ascending:false}).range(offset,offset+499);
+   if(page.error)throw new JcbError('Trip history is unavailable. Please retry.',503);
+   const batch=(page.data??[]) as {items:unknown;received_at:string}[];found.push(...batch);if(batch.length<500)break;
+  }
+  return found;
+ })());}
+ const rows=(await Promise.all(windows)).flat().sort((a,b)=>b.received_at.localeCompare(a.received_at));
  const trips=new Map<string,JsonRecord>();
  for(const row of rows)for(const value of Array.isArray(row.items)?row.items:[]){
   const item=record(value),itemAsset=record(item.asset),itemOwner=record(item.owner);
   if(item.type!=='trip'||text(itemOwner.id)!==owner)continue;
-  const assetId=text(itemAsset.id),assetName=text(itemAsset.name)??assetId;if(!assetId||(asset&&assetId!==asset)||(search&&!`${assetId} ${assetName}`.toLowerCase().includes(search)))continue;
+  const assetId=text(itemAsset.id),assetName=assetId?(assetNames.get(assetId)??text(itemAsset.name)??assetId):null;if(!assetId||(asset&&assetId!==asset)||(search&&!assetIds.includes(assetId)&&!`${assetId} ${assetName}`.toLowerCase().includes(search)))continue;
   const endedAt=date(item.dateEnd??item.endDate),ended=endedAt?Date.parse(endedAt):NaN;
   if(!Number.isFinite(ended)||ended<start||ended>=end||ended>Date.now())continue;
   const startedAt=date(item.dateStart??item.startDate),tripStart=record(item.start),tripEnd=record(item.end),counters=record(item.counters),telemetry=record(item.telemetry);
