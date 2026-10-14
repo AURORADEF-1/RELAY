@@ -2073,17 +2073,15 @@ select:focus-visible {
 }
 
 .console-ticket-card-heading {
-  display: flex;
+  display: grid;
   min-width: 0;
-  flex-wrap: wrap;
+  grid-template-columns: minmax(0, 1fr);
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.65rem;
 }
 
 .console-ticket-card-heading > :first-child {
   min-width: 0;
-  flex: 1 1 28rem;
 }
 
 .console-ticket-card-reference {
@@ -2126,9 +2124,8 @@ select:focus-visible {
 .console-ticket-card-status {
   display: grid;
   max-width: 100%;
-  flex: 0 0 auto;
-  justify-items: end;
-  margin-left: auto;
+  justify-items: start;
+  margin-left: 0;
   gap: 0.4rem;
 }
 
