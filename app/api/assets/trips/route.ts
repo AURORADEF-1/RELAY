@@ -3,6 +3,7 @@ import {authorizeAssets} from '@/lib/assets/access';
 import {operationsDatabase} from '@/lib/fleet-operations/server';
 import {JcbError} from '@/lib/integrations/jcb/client';
 import {jcbError} from '@/lib/integrations/jcb/server';
+import {ukMidnight} from '@/lib/plant-wallboard/model';
 
 export const maxDuration=60;
 type JsonRecord=Record<string,unknown>;
@@ -10,6 +11,9 @@ const record=(value:unknown):JsonRecord=>value&&typeof value==='object'&&!Array.
 const text=(value:unknown)=>typeof value==='string'&&value.trim()?value.trim():null;
 const number=(value:unknown)=>{const parsed=typeof value==='number'?value:typeof value==='string'&&value.trim()?Number(value):NaN;return Number.isFinite(parsed)?parsed:null;};
 const date=(value:unknown)=>{const parsed=text(value),time=parsed?Date.parse(parsed):NaN;return Number.isFinite(time)?new Date(time).toISOString():null;};
+const dayPattern=/^\d{4}-\d{2}-\d{2}$/;
+const nextDay=(day:string)=>new Date(Date.parse(`${day}T12:00:00Z`)+86400000).toISOString().slice(0,10);
+const boundary=(value:string|null,end:boolean,otherwise:number)=>value&&dayPattern.test(value)?ukMidnight(end?nextDay(value):value):value?Date.parse(value):otherwise;
 
 async function archivedTrips(db:ReturnType<typeof operationsDatabase>,owner:string,start:number,end:number,asset:string|null,search:string|null){
  let assetIds=asset?[asset]:[];
@@ -51,16 +55,16 @@ export async function GET(request:NextRequest){try{
  await authorizeAssets(request,true);
  const q=request.nextUrl.searchParams,now=Date.now();
  const endValue=q.get('to'),startValue=q.get('from');
- const end=endValue?Date.parse(endValue):now+1;
- const start=startValue?Date.parse(startValue):now-7*86400000;
+ const end=boundary(endValue,true,now+1);
+ const start=boundary(startValue,false,now-7*86400000);
  if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start||end-start>32*86400000||end>now+86400000)throw new JcbError('Choose a valid date range of up to 32 days.',400);
  const owner=process.env.ASSETCARE_OWNER_ID;
  if(!owner)throw new JcbError('AssetCare+ trip history is not configured.',503);
  const asset=q.get('asset')?.trim()||null;
  const search=q.get('search')?.trim().toLowerCase()||null;
  if(asset&&asset.length>200||search&&search.length>200)throw new JcbError('Invalid asset reference.',400);
- const db=operationsDatabase(),result=await db.rpc('assetcare_trip_history',{p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString(),p_asset:asset});
- const data=!result.error&&result.data&&Array.isArray(result.data.trips)?result.data:await archivedTrips(db,owner,start,end,asset,search);
+ const db=operationsDatabase(),result=search?null:await db.rpc('assetcare_trip_history',{p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString(),p_asset:asset});
+ const data=result&&!result.error&&result.data&&Array.isArray(result.data.trips)?result.data:await archivedTrips(db,owner,start,end,asset,search);
  if(search&&Array.isArray(data.trips))data.trips=data.trips.filter((trip:JsonRecord)=>`${text(trip.asset_id)??''} ${text(trip.asset_name)??''}`.toLowerCase().includes(search));
  if(data.trips.length>2000)throw new JcbError('Too many trips. Choose a shorter date range.',422);
  return Response.json(data,{headers:{'Cache-Control':'private, no-store','Vary':'Authorization'}});
