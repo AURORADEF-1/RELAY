@@ -1900,9 +1900,7 @@ select:focus-visible {
 }
 
 .console-queue-panel {
-  width: 100%;
   min-width: 0;
-  max-width: 100%;
   margin-top: 1.1rem;
   border: 1px solid var(--border);
   border-radius: 0.55rem;
@@ -2066,9 +2064,8 @@ select:focus-visible {
 }
 
 .console-ticket-card-content {
-  width: 100%;
+  box-sizing: border-box;
   min-width: 0;
-  max-width: 100%;
   overflow: hidden;
   padding: 1.05rem 1.25rem;
   text-align: left;
