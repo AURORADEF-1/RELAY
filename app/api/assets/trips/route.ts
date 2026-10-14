@@ -12,6 +12,7 @@ const text=(value:unknown)=>typeof value==='string'&&value.trim()?value.trim():n
 const number=(value:unknown)=>{const parsed=typeof value==='number'?value:typeof value==='string'&&value.trim()?Number(value):NaN;return Number.isFinite(parsed)?parsed:null;};
 const date=(value:unknown)=>{const parsed=text(value),time=parsed?Date.parse(parsed):NaN;return Number.isFinite(time)?new Date(time).toISOString():null;};
 const dayPattern=/^\d{4}-\d{2}-\d{2}$/;
+const minimumTripDistanceKm=.03*1.609344;
 const nextDay=(day:string)=>new Date(Date.parse(`${day}T12:00:00Z`)+86400000).toISOString().slice(0,10);
 const boundary=(value:string|null,end:boolean,otherwise:number)=>value&&dayPattern.test(value)?ukMidnight(end?nextDay(value):value):value?Date.parse(value):otherwise;
 
@@ -44,9 +45,9 @@ async function archivedTrips(db:ReturnType<typeof operationsDatabase>,owner:stri
   const assetId=text(itemAsset.id),assetName=assetId?(assetNames.get(assetId)??text(itemAsset.name)??assetId):null;if(!assetId||(asset&&assetId!==asset)||(search&&!assetIds.includes(assetId)&&!`${assetId} ${assetName}`.toLowerCase().includes(search)))continue;
   const endedAt=date(item.dateEnd??item.endDate),ended=endedAt?Date.parse(endedAt):NaN;
   if(!Number.isFinite(ended)||ended<start||ended>=end||ended>Date.now())continue;
-  const startedAt=date(item.dateStart??item.startDate),tripStart=record(item.start),tripEnd=record(item.end),counters=record(item.counters),telemetry=record(item.telemetry);
+  const startedAt=date(item.dateStart??item.startDate),tripStart=record(item.start),tripEnd=record(item.end),counters=record(item.counters),telemetry=record(item.telemetry),stats=record(item.stats),maxes=record(item.maxes),endCounters=record(tripEnd.counters);
   const id=text(item.id)??`${assetId}:${startedAt??''}:${endedAt}`;
-  if(!trips.has(id))trips.set(id,{id,asset_id:assetId,asset_name:assetName,started_at:startedAt,ended_at:endedAt,start_latitude:number(tripStart.lat),start_longitude:number(tripStart.lon),start_address:text(record(tripStart.gc).rt)??text(record(tripStart.gc).rd),end_latitude:number(tripEnd.lat),end_longitude:number(tripEnd.lon),end_address:text(record(tripEnd.gc).rt)??text(record(tripEnd.gc).rd),distance:number(counters.distance??item.distance),odometer:number(counters.odometer??telemetry.odometer),speed_kph:number(tripEnd.speed??telemetry.speed)});
+  if(!trips.has(id))trips.set(id,{id,asset_id:assetId,asset_name:assetName,started_at:startedAt,ended_at:endedAt,start_latitude:number(tripStart.lat),start_longitude:number(tripStart.lon),start_address:text(tripStart.address)??text(record(tripStart.gc).rt)??text(record(tripStart.gc).rd),end_latitude:number(tripEnd.lat),end_longitude:number(tripEnd.lon),end_address:text(tripEnd.address)??text(record(tripEnd.gc).rt)??text(record(tripEnd.gc).rd),distance:number(stats.distance??counters.distance??item.distance),odometer:number(endCounters.odometer??counters.odometer??telemetry.odometer),speed_kph:number(maxes.speed??tripEnd.speed??telemetry.speed)});
  }
  const sorted=[...trips.values()].sort((a,b)=>String(b.ended_at).localeCompare(String(a.ended_at)));
  return {trips:sorted.slice(0,2001),archive_start:rows.at(-1)?.received_at??null,latest_saved:rows[0]?.received_at??null};
@@ -83,7 +84,10 @@ export async function GET(request:NextRequest){try{
  if(asset&&asset.length>200||search&&search.length>200)throw new JcbError('Invalid asset reference.',400);
  const db=operationsDatabase(),result=search?null:await db.rpc('assetcare_trip_history',{p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString(),p_asset:asset});
  const data=search?await searchedTrips(db,owner,start,end,search):result&&!result.error&&result.data&&Array.isArray(result.data.trips)?result.data:await archivedTrips(db,owner,start,end,asset,search);
- if(search&&Array.isArray(data.trips))data.trips=data.trips.filter((trip:JsonRecord)=>`${text(trip.asset_id)??''} ${text(trip.asset_name)??''}`.toLowerCase().includes(search));
+ if(Array.isArray(data.trips))data.trips=data.trips.filter((trip:JsonRecord)=>{
+  const distance=number(trip.distance);
+  return distance!==null&&distance>=minimumTripDistanceKm&&(!search||`${text(trip.asset_id)??''} ${text(trip.asset_name)??''}`.toLowerCase().includes(search));
+ });
  if(data.trips.length>2000)throw new JcbError('Too many trips. Choose a shorter date range.',422);
  return Response.json(data,{headers:{'Cache-Control':'private, no-store','Vary':'Authorization'}});
  }catch(error){return jcbError(error);}}
