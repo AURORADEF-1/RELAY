@@ -22,7 +22,7 @@ it('rebuilds trip history from archived batches when the database projection is 
 });
 
 it('resolves machine searches and uses the trip projection for each matching asset',async()=>{
- const rpc=vi.fn().mockResolvedValue({data:{trips:[{id:'wanted',asset_id:'asset-24102',asset_name:'Provider label',ended_at:'2026-10-14T08:30:00.000Z'}],archive_start:'2026-09-25T00:00:00.000Z',latest_saved:'2026-10-14T10:00:00.000Z'},error:null});
+ const rpc=vi.fn().mockResolvedValue({data:{trips:[{id:'wanted',asset_id:'asset-24102',asset_name:'Provider label',ended_at:'2026-10-14T08:30:00.000Z',distance:.05},{id:'short',asset_id:'asset-24102',asset_name:'Provider label',ended_at:'2026-10-14T08:20:00.000Z',distance:.04},{id:'missing',asset_id:'asset-24102',asset_name:'Provider label',ended_at:'2026-10-14T08:10:00.000Z',distance:null}],archive_start:'2026-09-25T00:00:00.000Z',latest_saved:'2026-10-14T10:00:00.000Z'},error:null});
  const assets={limit:vi.fn().mockResolvedValue({data:[{asset_id:'asset-24102',name:'24102'}],error:null})};
  mocks.db.mockReturnValue({rpc,from:vi.fn(()=>({select:()=>assets}))});
  const response=await GET(new NextRequest('https://relay.test/api/assets/trips?from=2026-10-14T00:00:00.000Z&to=2026-10-15T00:00:00.000Z&search=24102'));
