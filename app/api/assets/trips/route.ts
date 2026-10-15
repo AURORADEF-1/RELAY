@@ -75,6 +75,24 @@ async function searchedTrips(db:ReturnType<typeof operationsDatabase>,owner:stri
  return {trips:[...trips.values()].sort((a,b)=>String(b.ended_at).localeCompare(String(a.ended_at))),archive_start:archiveStart,latest_saved:latestSaved};
 }
 
+async function addSpeedingEvents(db:ReturnType<typeof operationsDatabase>,owner:string,asset:string,start:number,end:number,data:{trips?:unknown}){
+ if(!Array.isArray(data.trips)||!data.trips.length)return;
+ const result=await db.rpc('staff_history_events',{p_id:asset,p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString()});
+ if(result.error||!result.data||typeof result.data!=='object')return;
+ const events=Array.isArray((result.data as {events?:unknown}).events)?(result.data as {events:unknown[]}).events:[];
+ for(const rawEvent of events){
+  const event=record(rawEvent),occurredAt=date(event.occurred_at),speedKph=number(event.speed_kph),limitKph=number(event.limit_kph);
+  if(event.kind!=='speeding'||!occurredAt||speedKph===null||limitKph===null||speedKph<=limitKph)continue;
+  const eventTime=Date.parse(occurredAt);
+  const trip=data.trips.map(record).find(candidate=>{const from=Date.parse(String(candidate.started_at??'')),to=Date.parse(String(candidate.ended_at??''));return Number.isFinite(from)&&Number.isFinite(to)&&eventTime>=from&&eventTime<=to;});
+  if(!trip||!Array.isArray(trip.route_points)||!trip.route_points.length)continue;
+  let nearest:JsonRecord|null=null,nearestGap=Number.POSITIVE_INFINITY;
+  for(const rawPoint of trip.route_points){const point=record(rawPoint),pointTime=Date.parse(String(point.at??'')),gap=Math.abs(pointTime-eventTime);if(Number.isFinite(pointTime)&&gap<nearestGap){nearest=point;nearestGap=gap;}}
+  if(!nearest||nearestGap>5*60_000)continue;
+  nearest.speeding=true;nearest.speed_kph=speedKph;nearest.speed_limit_kph=limitKph;nearest.speeding_event_at=occurredAt;
+ }
+}
+
 export async function GET(request:NextRequest){try{
  const q=request.nextUrl.searchParams,now=Date.now();
  const endValue=q.get('to'),startValue=q.get('from');
@@ -94,6 +112,7 @@ export async function GET(request:NextRequest){try{
   const distance=number(trip.distance);
   return distance!==null&&distance>=minimumTripDistanceKm&&(!search||`${text(trip.asset_id)??''} ${text(trip.asset_name)??''}`.toLowerCase().includes(search));
  }).sort((a:JsonRecord,b:JsonRecord)=>String(a.started_at??a.ended_at).localeCompare(String(b.started_at??b.ended_at)));
+ if(asset)await addSpeedingEvents(db,owner,asset,start,end,data);
  if(data.trips.length>2000)throw new JcbError('Too many trips. Choose a shorter date range.',422);
  return Response.json(data,{headers:{'Cache-Control':'private, no-store','Vary':'Authorization'}});
  }catch(error){return jcbError(error);}}

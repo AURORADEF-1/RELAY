@@ -5,7 +5,7 @@ import {getSupabaseAccessToken} from '@/lib/supabase';
 import './style.css';
 
 const TripMap=dynamic(()=>import('./trip-map'),{ssr:false,loading:()=> <div className="trip-map trip-map-loading">Loading trip map…</div>});
-export type TripPoint={at:string;latitude:number;longitude:number;speed_kph:number|null;ignition:boolean|null;power_voltage:number|null;tracker_battery_voltage:number|null};
+export type TripPoint={at:string;latitude:number;longitude:number;speed_kph:number|null;ignition:boolean|null;power_voltage:number|null;tracker_battery_voltage:number|null;speeding?:boolean;speed_limit_kph?:number|null;speeding_event_at?:string};
 export type Trip={id:string;asset_id:string;asset_name:string;started_at:string|null;ended_at:string;start_latitude:number|null;start_longitude:number|null;start_address:string|null;end_latitude:number|null;end_longitude:number|null;end_address:string|null;distance:number|null;odometer:number|null;speed_kph:number|null;route_points:TripPoint[]};
 type Result={trips:Trip[];archive_start:string|null;latest_saved:string|null};
 type TripMachine={id:string;name:string;group:string};
