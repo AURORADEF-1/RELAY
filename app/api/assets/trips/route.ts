@@ -1,9 +1,9 @@
 import type {NextRequest} from 'next/server';
-import {authorizeAssets} from '@/lib/assets/access';
 import {operationsDatabase} from '@/lib/fleet-operations/server';
 import {JcbError} from '@/lib/integrations/jcb/client';
 import {jcbError} from '@/lib/integrations/jcb/server';
 import {ukMidnight} from '@/lib/plant-wallboard/model';
+import {tripMachinesForViewer,type TripMachine} from '@/lib/trip-history/machines';
 
 export const maxDuration=60;
 type JsonRecord=Record<string,unknown>;
@@ -40,10 +40,10 @@ async function archivedTrips(db:ReturnType<typeof operationsDatabase>,owner:stri
  const rows=(await Promise.all(windows)).flat().sort((a,b)=>b.received_at.localeCompare(a.received_at));
  const routePoints=new Map<string,Map<string,JsonRecord>>();
  for(const row of rows)for(const value of Array.isArray(row.items)?row.items:[]){
-  const item=record(value),itemAsset=record(item.asset),itemOwner=record(item.owner),location=record(item.location),at=date(item.date),assetId=text(itemAsset.id),latitude=number(location.lat),longitude=number(location.lon);
+  const item=record(value),itemAsset=record(item.asset),itemOwner=record(item.owner),location=record(item.location),telemetry=record(item.telemetry),io=record(item.io),battery=record(io.battery),at=date(item.date),assetId=text(itemAsset.id),latitude=number(location.lat),longitude=number(location.lon);
   if(item.type!=='telemetry'||text(itemOwner.id)!==owner||!assetId||!at||latitude===null||longitude===null||Math.abs(latitude)>90||Math.abs(longitude)>180||(latitude===0&&longitude===0))continue;
   const points=routePoints.get(assetId)??new Map<string,JsonRecord>();
-  if(!points.has(at))points.set(at,{at,latitude,longitude,speed_kph:number(location.speed??record(item.telemetry).speed)});
+  if(!points.has(at))points.set(at,{at,latitude,longitude,speed_kph:number(location.speed??telemetry.speed),ignition:telemetry.ignition===1||telemetry.ignition===true?true:telemetry.ignition===0||telemetry.ignition===false?false:null,power_voltage:number(telemetry.power_voltage),tracker_battery_voltage:number(telemetry.battery_voltage??battery.value)});
   routePoints.set(assetId,points);
  }
  const trips=new Map<string,JsonRecord>();
@@ -61,17 +61,14 @@ async function archivedTrips(db:ReturnType<typeof operationsDatabase>,owner:stri
  return {trips:sorted.slice(0,2001),archive_start:rows.at(-1)?.received_at??null,latest_saved:rows[0]?.received_at??null};
 }
 
-async function searchedTrips(db:ReturnType<typeof operationsDatabase>,owner:string,start:number,end:number,search:string){
- const assets=await db.from('assetcare_assets').select('asset_id,name').limit(10000);
- if(assets.error)throw new JcbError('Trip history is unavailable. Please retry.',503);
- const matches=((assets.data??[]) as {asset_id:string;name:string}[]).filter(item=>`${item.asset_id} ${item.name}`.toLowerCase().includes(search)).slice(0,20);
+async function searchedTrips(db:ReturnType<typeof operationsDatabase>,owner:string,start:number,end:number,matches:TripMachine[]){
  if(!matches.length)return {trips:[],archive_start:null,latest_saved:null};
- const results=await Promise.all(matches.map(item=>db.rpc('assetcare_trip_history',{p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString(),p_asset:item.asset_id})));
- if(results.some(result=>result.error||!result.data||!Array.isArray(result.data.trips)))return archivedTrips(db,owner,start,end,null,search);
+ const results=await Promise.all(matches.map(item=>db.rpc('assetcare_trip_history',{p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString(),p_asset:item.id})));
+ if(results.some(result=>result.error||!result.data||!Array.isArray(result.data.trips))){const fallback=await Promise.all(matches.map(item=>archivedTrips(db,owner,start,end,item.id,null)));return {trips:fallback.flatMap((result,index)=>result.trips.map(trip=>({...trip,asset_name:matches[index].name}))),archive_start:fallback.map(result=>result.archive_start).filter(Boolean).sort()[0]??null,latest_saved:fallback.map(result=>result.latest_saved).filter(Boolean).sort().at(-1)??null};}
  const trips=new Map<string,JsonRecord>();let archiveStart:string|null=null,latestSaved:string|null=null;
  for(let index=0;index<results.length;index++){
   const data=results[index].data as {trips:JsonRecord[];archive_start?:string|null;latest_saved?:string|null},match=matches[index];
-  for(const trip of data.trips){const id=text(trip.id);if(id&&!trips.has(id))trips.set(id,{...trip,asset_name:match.name||text(trip.asset_name)||match.asset_id});}
+  for(const trip of data.trips){const id=text(trip.id);if(id&&!trips.has(id))trips.set(id,{...trip,asset_name:match.name||text(trip.asset_name)||match.id});}
   if(data.archive_start&&(!archiveStart||data.archive_start<archiveStart))archiveStart=data.archive_start;
   if(data.latest_saved&&(!latestSaved||data.latest_saved>latestSaved))latestSaved=data.latest_saved;
  }
@@ -79,7 +76,6 @@ async function searchedTrips(db:ReturnType<typeof operationsDatabase>,owner:stri
 }
 
 export async function GET(request:NextRequest){try{
- await authorizeAssets(request,true);
  const q=request.nextUrl.searchParams,now=Date.now();
  const endValue=q.get('to'),startValue=q.get('from');
  const end=boundary(endValue,true,now+1);
@@ -90,8 +86,10 @@ export async function GET(request:NextRequest){try{
  const asset=q.get('asset')?.trim()||null;
  const search=q.get('search')?.trim().toLowerCase()||null;
  if(asset&&asset.length>200||search&&search.length>200)throw new JcbError('Invalid asset reference.',400);
+ const visible=await tripMachinesForViewer(request),allowed=new Map(visible.map(machine=>[machine.id,machine])),matches=search?visible.filter(machine=>`${machine.name} ${machine.id} ${machine.group}`.toLowerCase().includes(search)).slice(0,20):[];
+ if(asset&&!allowed.has(asset))throw new JcbError('This machine is not available to your access group.',403);
  const db=operationsDatabase(),result=search?null:await db.rpc('assetcare_trip_history',{p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString(),p_asset:asset});
- const data=search?await searchedTrips(db,owner,start,end,search):result&&!result.error&&result.data&&Array.isArray(result.data.trips)?result.data:await archivedTrips(db,owner,start,end,asset,search);
+ const data=search?await searchedTrips(db,owner,start,end,matches):result&&!result.error&&result.data&&Array.isArray(result.data.trips)?result.data:await archivedTrips(db,owner,start,end,asset,search);
  if(Array.isArray(data.trips))data.trips=data.trips.filter((trip:JsonRecord)=>{
   const distance=number(trip.distance);
   return distance!==null&&distance>=minimumTripDistanceKm&&(!search||`${text(trip.asset_id)??''} ${text(trip.asset_name)??''}`.toLowerCase().includes(search));
