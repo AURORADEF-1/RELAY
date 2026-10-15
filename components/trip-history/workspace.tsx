@@ -6,7 +6,8 @@ import {getSupabaseAccessToken} from '@/lib/supabase';
 import './style.css';
 
 const TripMap=dynamic(()=>import('./trip-map'),{ssr:false,loading:()=> <div className="trip-map trip-map-loading">Loading trip map…</div>});
-export type Trip={id:string;asset_id:string;asset_name:string;started_at:string|null;ended_at:string;start_latitude:number|null;start_longitude:number|null;start_address:string|null;end_latitude:number|null;end_longitude:number|null;end_address:string|null;distance:number|null;odometer:number|null;speed_kph:number|null};
+export type TripPoint={at:string;latitude:number;longitude:number;speed_kph:number|null};
+export type Trip={id:string;asset_id:string;asset_name:string;started_at:string|null;ended_at:string;start_latitude:number|null;start_longitude:number|null;start_address:string|null;end_latitude:number|null;end_longitude:number|null;end_address:string|null;distance:number|null;odometer:number|null;speed_kph:number|null;route_points:TripPoint[]};
 type Result={trips:Trip[];archive_start:string|null;latest_saved:string|null};
 const isoDay=(date:Date)=>date.toISOString().slice(0,10);
 const when=(value:string|null)=>value?new Date(value).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}):'Not supplied';
