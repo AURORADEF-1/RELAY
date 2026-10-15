@@ -23,10 +23,11 @@ export async function tripMachinesForViewer(request:NextRequest):Promise<TripMac
  const accessGroup=requested&&allowed.includes(requested)?requested:assigned;
  if(accessGroup&&!allowed.includes(accessGroup))throw new JcbError('Fleet access is not enabled for this group.',403);
  const source=await getAssetCareFleet(),raw=source.machines.map(machine=>({...machine,source:'assetcare' as const}));
- let machines:LinkedJcbMachine[]=raw;
- if(!(profile.data.role==='admin'&&(!accessGroup||accessGroup==='admin'))){
-  const groups=await fleetGroups(operationsDatabase());
-  if(!groups.length)throw new JcbError('Fleet groups are unavailable. Please retry.',503);
+ const groups=await fleetGroups(operationsDatabase());
+ if(!groups.length)throw new JcbError('Fleet groups are unavailable. Please retry.',503);
+ const unrestrictedAdmin=profile.data.role==='admin'&&(!accessGroup||accessGroup==='admin');
+ let machines:LinkedJcbMachine[]=unrestrictedAdmin?requesterMachines(raw,groups,{allowedPeopleGroups:'all',includeUnclassified:true}):requesterMachines(raw,groups);
+ if(!unrestrictedAdmin){
   const canViewNonShared=accessGroup==='office'||accessGroup==='admin';
   machines=(accessGroup?requesterMachines(raw,groups,{allowedPeopleGroups:'all',includeUnclassified:true}):requesterMachines(raw,groups)).filter(machine=>accessGroup==='fitter'?machine.assetGroup==='Plant':canViewNonShared||machine.assetGroup!=='Non Shared');
  }
