@@ -11,6 +11,18 @@ import {authorizeRelayRequesterRoute} from '@/lib/integrations/rico/route-auth';
 
 export type TripMachine={id:string;name:string;group:string};
 
+const MACHINE_INDEX_TTL_MS=60_000;
+let machineIndexCache:{expiresAt:number;value:Promise<{raw:LinkedJcbMachine[];groups:Awaited<ReturnType<typeof fleetGroups>>}>}|null=null;
+
+function machineIndex(){
+ const now=Date.now();
+ if(machineIndexCache&&machineIndexCache.expiresAt>now)return machineIndexCache.value;
+ const value=Promise.all([getAssetCareFleet(),fleetGroups(operationsDatabase())]).then(([source,groups])=>({raw:source.machines.map(machine=>({...machine,source:'assetcare' as const})),groups}));
+ machineIndexCache={expiresAt:now+MACHINE_INDEX_TTL_MS,value};
+ void value.catch(()=>{if(machineIndexCache?.value===value)machineIndexCache=null;});
+ return value;
+}
+
 export async function tripMachinesForViewer(request:NextRequest):Promise<TripMachine[]>{
  const auth=await authorizeRelayRequesterRoute(request);
  if(!auth.ok)throw new JcbError(auth.error,auth.status);
@@ -22,8 +34,7 @@ export async function tripMachinesForViewer(request:NextRequest):Promise<TripMac
  const requested=profile.data.role==='admin'&&preview?normalizeAccessGroup(preview):null;
  const accessGroup=requested&&allowed.includes(requested)?requested:assigned;
  if(accessGroup&&!allowed.includes(accessGroup))throw new JcbError('Fleet access is not enabled for this group.',403);
- const source=await getAssetCareFleet(),raw=source.machines.map(machine=>({...machine,source:'assetcare' as const}));
- const groups=await fleetGroups(operationsDatabase());
+ const {raw,groups}=await machineIndex();
  if(!groups.length)throw new JcbError('Fleet groups are unavailable. Please retry.',503);
  const unrestrictedAdmin=profile.data.role==='admin'&&(!accessGroup||accessGroup==='admin');
  let machines:LinkedJcbMachine[]=unrestrictedAdmin?requesterMachines(raw,groups,{allowedPeopleGroups:'all',includeUnclassified:true}):requesterMachines(raw,groups);
