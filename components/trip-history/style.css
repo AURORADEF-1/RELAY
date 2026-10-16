@@ -57,10 +57,13 @@
 .trip-map{width:100%;height:100%;min-height:310px;z-index:0}
 .trip-map-loading{display:grid;place-items:center}
 .trip-direction-icon{border:0!important;background:transparent!important}
-.trip-direction-icon>span{display:grid;width:18px;height:18px;place-items:center;border:2px solid #708777;border-radius:50%;background:#fff;color:#55705c;box-shadow:0 1px 3px #00131f66;transform:rotate(var(--trip-bearing));transform-origin:center}
-.trip-direction-icon svg{display:block;width:14px;height:14px;overflow:visible}
+.trip-direction-icon>span{position:relative;display:grid;width:22px;height:22px;place-items:center;border:2px solid #fff;border-radius:50%;background:linear-gradient(145deg,#f7fdff 15%,#bfe9f7);color:#096a91;box-shadow:0 0 0 1px #287a9466,0 3px 7px #00131f70;transform:rotate(var(--trip-bearing));transform-origin:center}
+.trip-direction-icon>span:after{content:"";position:absolute;inset:3px;border:1px solid #36a8cf55;border-radius:50%;pointer-events:none}
+.trip-direction-icon svg{position:relative;z-index:1;display:block;width:15px;height:15px;overflow:visible;filter:drop-shadow(0 1px 0 #fff)}
 .trip-direction-icon path{fill:currentColor;stroke:none}
-.trip-direction-icon>span.is-speeding{border-color:#7f1d1d;background:#ef4444;color:#fff;box-shadow:0 0 0 2px #fff,0 2px 7px #7f1d1daa}
+.trip-direction-icon>span.is-speeding{border-color:#fff;background:linear-gradient(145deg,#ff6b6b,#c9172d);color:#fff;box-shadow:0 0 0 2px #a70d20,0 3px 9px #7f1d1dcc}
+.trip-direction-icon>span.is-speeding:after{border-color:#ffffff70}
+.trip-direction-icon>span.is-speeding svg{filter:drop-shadow(0 1px 1px #7f1d1d)}
 .trip-check-in{display:grid;gap:3px;min-width:150px;font-size:.75rem;line-height:1.35}
 .trip-check-in>strong{margin-bottom:2px}
 .trip-map .trip-endpoint-popup .leaflet-popup-content-wrapper,.trip-map .trip-telemetry-popup .leaflet-popup-content-wrapper{border:1px solid color-mix(in srgb,var(--brand-primary) 60%,var(--border-strong));border-radius:12px;background:var(--background-panel);color:var(--foreground);box-shadow:0 12px 30px #00131fcc}
