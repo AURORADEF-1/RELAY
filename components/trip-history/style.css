@@ -64,6 +64,9 @@
 .trip-direction-icon>span.is-speeding{border-color:#fff;background:linear-gradient(145deg,#ff6b6b,#c9172d);color:#fff;box-shadow:0 0 0 2px #a70d20,0 3px 9px #7f1d1dcc}
 .trip-direction-icon>span.is-speeding:after{border-color:#ffffff70}
 .trip-direction-icon>span.is-speeding svg{filter:drop-shadow(0 1px 1px #7f1d1d)}
+.trip-stop-icon{border:0!important;background:transparent!important}
+.trip-stop-icon>span{display:grid;width:24px;height:24px;place-items:center;border:2px solid #fff;border-radius:50%;background:linear-gradient(145deg,#f8fff4,#cde7c4);color:#55705c;font-size:.72rem;font-weight:900;line-height:1;box-shadow:0 0 0 1px #6f8969,0 3px 8px #00131f70}
+.trip-stop-popup>strong{color:#698260}
 .trip-check-in{display:grid;gap:3px;min-width:150px;font-size:.75rem;line-height:1.35}
 .trip-check-in>strong{margin-bottom:2px}
 .trip-map .trip-endpoint-popup .leaflet-popup-content-wrapper,.trip-map .trip-telemetry-popup .leaflet-popup-content-wrapper{border:1px solid color-mix(in srgb,var(--brand-primary) 60%,var(--border-strong));border-radius:12px;background:var(--background-panel);color:var(--foreground);box-shadow:0 12px 30px #00131fcc}
