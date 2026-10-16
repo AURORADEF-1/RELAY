@@ -63,7 +63,9 @@
 .trip-direction-icon>span:after{content:"";position:absolute;inset:3px;border:1px solid #36a8cf55;border-radius:50%;pointer-events:none}
 .trip-direction-icon svg{position:relative;z-index:1;display:block;width:15px;height:15px;overflow:visible;filter:drop-shadow(0 1px 0 #fff)}
 .trip-direction-icon path{fill:currentColor;stroke:none}
-.trip-direction-icon>span.is-speeding{border-color:#fff;background:linear-gradient(145deg,#ff6b6b,#c9172d);color:#fff;box-shadow:0 0 0 2px #a70d20,0 3px 9px #7f1d1dcc}
+.trip-direction-icon>span.is-speeding{border-color:#fff;color:#fff}
+.trip-direction-icon>span.is-speeding.is-amber{background:linear-gradient(145deg,#fbbf24,#d97706);box-shadow:0 0 0 2px #a65308,0 3px 9px #78350fcc}
+.trip-direction-icon>span.is-speeding.is-red{background:linear-gradient(145deg,#ff6b6b,#c9172d);box-shadow:0 0 0 2px #a70d20,0 3px 9px #7f1d1dcc}
 .trip-direction-icon>span.is-speeding:after{border-color:#ffffff70}
 .trip-direction-icon>span.is-speeding svg{filter:drop-shadow(0 1px 1px #7f1d1d)}
 .trip-stop-icon{border:0!important;background:transparent!important}
