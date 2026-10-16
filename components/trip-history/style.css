@@ -100,11 +100,17 @@
 .trip-telemetry-card>header span{color:var(--foreground-muted);font-size:.61rem}
 .trip-statistics dl{padding:3px 9px 7px}
 .trip-statistics dl div{padding:4px 0;font-size:.65rem}
+.trip-chart-plot{position:relative}
 .trip-chart svg{display:block;width:100%;height:92px;padding:5px 4px 0;overflow:visible}
 .trip-chart-grid{fill:none;stroke:color-mix(in srgb,var(--foreground) 11%,transparent);stroke-width:1;vector-effect:non-scaling-stroke}
 .trip-chart-area{fill:color-mix(in srgb,var(--brand-primary) 24%,transparent)}
 .trip-chart-line{fill:none;stroke:#4fc3f7;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
-.trip-chart-speeding{fill:#ef4444;stroke:#fff;stroke-width:1.3;vector-effect:non-scaling-stroke}
+.trip-chart-speeding{fill:#ef4444;stroke:#fff;stroke-width:1.3;vector-effect:non-scaling-stroke;cursor:pointer;outline:none}
+.trip-chart-speeding:hover,.trip-chart-speeding:focus{fill:#ff6b6b;stroke-width:2}
+.trip-chart-tooltip{position:absolute;z-index:2;display:grid;gap:1px;min-width:62px;translate:-50% calc(-100% - 7px);border:1px solid #ef4444;border-radius:6px;background:var(--background-panel);padding:4px 7px;color:var(--foreground);text-align:center;box-shadow:0 5px 14px #00131f88;pointer-events:none}
+.trip-chart-tooltip b{font-size:.68rem}.trip-chart-tooltip small{color:var(--foreground-muted);font-size:.58rem}
+.trip-speed-tooltip{border:1px solid #ef4444!important;border-radius:6px!important;background:var(--background-panel)!important;color:var(--foreground)!important;font-family:inherit!important;font-size:.7rem!important;font-weight:800!important;box-shadow:0 5px 14px #00131f88!important}
+.trip-speed-tooltip:before{border-top-color:#ef4444!important}
 .trip-chart>footer{display:flex;justify-content:space-between;padding:0 9px 7px;color:var(--foreground-muted);font-size:.6rem}
 .trip-chart-empty{display:grid;height:114px;place-items:center;color:var(--foreground-muted);font-size:.68rem}
 .trip-history>footer{padding:8px 2px;color:var(--foreground-muted);font-size:.66rem}

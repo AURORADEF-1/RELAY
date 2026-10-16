@@ -1,3 +1,5 @@
+'use client';
+import {useState} from 'react';
 import type {Trip,TripPoint} from './workspace';
 
 type Sample={at:string;value:number;speeding?:boolean};
@@ -10,11 +12,13 @@ const speedSamples=(points:TripPoint[]):Sample[]=>points.flatMap(point=>finite(p
 const voltageSamples=(points:TripPoint[],field:'power_voltage'|'tracker_battery_voltage'):Sample[]=>points.flatMap(point=>finite(point[field])?[{at:point.at,value:point[field]}]:[]);
 
 function MiniChart({title,samples,unit,decimals=1,highlightSpeeding=false}:{title:string;samples:Sample[];unit:string;decimals?:number;highlightSpeeding?:boolean}){
+ const [hovered,setHovered]=useState<string|null>(null),[selected,setSelected]=useState<string|null>(null);
  if(!samples.length)return <section className="trip-telemetry-card trip-chart"><header><strong>{title}</strong></header><div className="trip-chart-empty">No readings supplied</div></section>;
  const values=samples.map(sample=>sample.value),rawMin=Math.min(...values),rawMax=Math.max(...values),padding=Math.max((rawMax-rawMin)*.12,.2),min=Math.max(0,rawMin-padding),max=rawMax+padding,range=max-min||1;
  const coords=samples.map((sample,index)=>({x:samples.length===1?120:6+(index/(samples.length-1))*228,y:78-((sample.value-min)/range)*68,...sample}));
  const line=coords.map((point,index)=>`${index?'L':'M'}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' '),area=`${line} L${coords.at(-1)?.x.toFixed(1)} 78 L${coords[0].x.toFixed(1)} 78 Z`;
- return <section className="trip-telemetry-card trip-chart"><header><strong>{title}</strong><span>{rawMin.toFixed(decimals)}–{rawMax.toFixed(decimals)} {unit}</span></header><svg viewBox="0 0 240 84" preserveAspectRatio="none" role="img" aria-label={`${title}, from ${rawMin.toFixed(decimals)} to ${rawMax.toFixed(decimals)} ${unit}`}><path className="trip-chart-grid" d="M5 20H235M5 49H235M5 78H235"/><path className="trip-chart-area" d={area}/><path className="trip-chart-line" d={line}/>{highlightSpeeding&&coords.filter(point=>point.speeding).map((point,index)=><circle key={`${point.at}-${index}`} className="trip-chart-speeding" cx={point.x} cy={point.y} r="3.2"/>)}</svg><footer><span>{clock(samples[0].at)}</span><span>{clock(samples.at(-1)?.at??null)}</span></footer></section>;
+ const speeding=coords.filter(point=>point.speeding).map((point,index)=>({...point,key:`${point.at}-${index}`})),active=speeding.find(point=>point.key===(hovered??selected));
+ return <section className="trip-telemetry-card trip-chart"><header><strong>{title}</strong><span>{rawMin.toFixed(decimals)}–{rawMax.toFixed(decimals)} {unit}</span></header><div className="trip-chart-plot"><svg viewBox="0 0 240 84" preserveAspectRatio="none" role="img" aria-label={`${title}, from ${rawMin.toFixed(decimals)} to ${rawMax.toFixed(decimals)} ${unit}`}><path className="trip-chart-grid" d="M5 20H235M5 49H235M5 78H235"/><path className="trip-chart-area" d={area}/><path className="trip-chart-line" d={line}/>{highlightSpeeding&&speeding.map(point=><circle key={point.key} tabIndex={0} role="button" aria-label={`Speeding at ${clock(point.at)}, ${point.value.toFixed(1)} mph`} className="trip-chart-speeding" cx={point.x} cy={point.y} r="3.2" onMouseEnter={()=>setHovered(point.key)} onMouseLeave={()=>setHovered(null)} onFocus={()=>setHovered(point.key)} onBlur={()=>setHovered(null)} onClick={()=>setSelected(value=>value===point.key?null:point.key)}/>)}</svg>{active&&<span className="trip-chart-tooltip" style={{left:`${(active.x/240)*100}%`,top:`${(active.y/84)*100}%`}}><b>{active.value.toFixed(1)} mph</b><small>{clock(active.at)}</small></span>}</div><footer><span>{clock(samples[0].at)}</span><span>{clock(samples.at(-1)?.at??null)}</span></footer></section>;
 }
 
 export function TripTelemetryPanel({trip}:{trip:Trip}){
