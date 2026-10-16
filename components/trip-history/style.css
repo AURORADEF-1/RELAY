@@ -57,6 +57,11 @@
 .trip-assets{position:absolute;z-index:600;inset:0 auto 0 0;display:grid;width:31%;min-width:280px;grid-template-rows:auto minmax(0,1fr);min-height:0;overflow:hidden;border-right:1px solid color-mix(in srgb,var(--brand-primary) 24%,var(--border));background:color-mix(in srgb,var(--background-panel) 78%,transparent);box-shadow:5px 0 16px #00131f38;backdrop-filter:blur(7px) saturate(120%);-webkit-backdrop-filter:blur(7px) saturate(120%)}
 .trip-assets>strong{padding:12px;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase}
 .trip-assets>div{min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;touch-action:pan-y}
+.trip-assets.is-empty{display:grid;grid-template-rows:1fr;background:color-mix(in srgb,var(--background-panel) 70%,transparent)}
+.trip-assets>.trip-no-results{display:grid;align-content:center;justify-items:center;gap:9px;overflow:hidden;padding:28px;text-align:center}
+.trip-no-results>span{display:grid;width:52px;height:52px;place-items:center;border:1px solid color-mix(in srgb,var(--brand-primary) 50%,var(--border));border-radius:15px;background:color-mix(in srgb,var(--brand-primary) 13%,var(--background-panel-strong));color:var(--brand-primary);box-shadow:0 8px 24px #00131f55}
+.trip-no-results svg{width:28px;height:28px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.trip-no-results>strong{font-size:.86rem;letter-spacing:.05em;text-transform:uppercase}.trip-no-results>p{max-width:250px;margin:0;color:var(--foreground);font-size:.72rem;line-height:1.5}.trip-no-results>small{color:var(--foreground-muted);font-size:.66rem}
 .trip-asset-row{display:contents}
 .trip-day-heading{position:sticky;z-index:2;top:0;border-top:1px solid var(--border);border-bottom:1px solid var(--border-strong);background:color-mix(in srgb,var(--brand-primary) 12%,var(--background-panel));padding:7px 12px;color:var(--brand-primary);font-size:.67rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase;box-shadow:0 2px 6px #00131f50}
 .trip-assets button{display:grid;width:100%;gap:3px;border:0;border-top:1px solid var(--border);background:transparent;padding:10px 12px;color:var(--foreground);text-align:left;cursor:pointer}
