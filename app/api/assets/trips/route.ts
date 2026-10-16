@@ -4,6 +4,7 @@ import {JcbError} from '@/lib/integrations/jcb/client';
 import {jcbError} from '@/lib/integrations/jcb/server';
 import {ukMidnight} from '@/lib/plant-wallboard/model';
 import {tripMachinesForViewer,type TripMachine} from '@/lib/trip-history/machines';
+import {tripCache,tripCacheScope} from '@/lib/trip-history/cache';
 
 export const maxDuration=60;
 type JsonRecord=Record<string,unknown>;
@@ -121,14 +122,16 @@ export async function GET(request:NextRequest){try{
  if(asset&&asset.length>200||search&&search.length>200)throw new JcbError('Invalid asset reference.',400);
  const visible=await tripMachinesForViewer(request),allowed=new Map(visible.map(machine=>[machine.id,machine])),matches=search?visible.filter(machine=>`${machine.name} ${machine.id} ${machine.group}`.toLowerCase().includes(search)).slice(0,20):[];
  if(asset&&!allowed.has(asset))throw new JcbError('This machine is not available to your access group.',403);
- const db=operationsDatabase(),result=search?null:await db.rpc('assetcare_trip_history',{p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString(),p_asset:asset});
- const data=search?await searchedTrips(db,owner,start,end,matches):result&&!result.error&&result.data&&Array.isArray(result.data.trips)?result.data:await archivedTrips(db,owner,start,end,asset,search);
- if(Array.isArray(data.trips))data.trips=data.trips.filter((trip:JsonRecord)=>{
-  const distance=number(trip.distance);
-  return distance!==null&&distance>=minimumTripDistanceKm&&(!search||`${text(trip.asset_id)??''} ${text(trip.asset_name)??''}`.toLowerCase().includes(search));
- }).sort((a:JsonRecord,b:JsonRecord)=>String(a.started_at??a.ended_at).localeCompare(String(b.started_at??b.ended_at)));
+ const db=operationsDatabase(),scope=tripCacheScope(visible.map(machine=>machine.id)),bypass=q.get('refresh')==='1',current=end>now,ttl=current?45_000:15*60_000;
+ const cached=await tripCache(`trips:${scope}:${owner}:${start}:${end}:${asset??''}:${search??''}`,ttl,async()=>{
+  const result=search?null:await db.rpc('assetcare_trip_history',{p_owner:owner,p_start:new Date(start).toISOString(),p_end:new Date(end).toISOString(),p_asset:asset});
+  const base=search?await searchedTrips(db,owner,start,end,matches):result&&!result.error&&result.data&&Array.isArray(result.data.trips)?result.data:await archivedTrips(db,owner,start,end,asset,search);
+  if(Array.isArray(base.trips))base.trips=base.trips.filter((trip:JsonRecord)=>{const distance=number(trip.distance);return distance!==null&&distance>=minimumTripDistanceKm&&(!search||`${text(trip.asset_id)??''} ${text(trip.asset_name)??''}`.toLowerCase().includes(search));}).sort((a:JsonRecord,b:JsonRecord)=>String(a.started_at??a.ended_at).localeCompare(String(b.started_at??b.ended_at)));
+  if(asset)await addSpeedingEvents(db,owner,asset,start,end,base);
+  return base;
+ },bypass);
+ const data=structuredClone(cached.value) as {trips:JsonRecord[];archive_start?:string|null;latest_saved?:string|null};
  if(asset)await addOpenJourney(db,owner,asset,start,end,data);
- if(asset)await addSpeedingEvents(db,owner,asset,start,end,data);
  if(data.trips.length>2000)throw new JcbError('Too many trips. Choose a shorter date range.',422);
- return Response.json(data,{headers:{'Cache-Control':'private, no-store','Vary':'Authorization'}});
+ return Response.json(data,{headers:{'Cache-Control':'private, no-store','Vary':'Authorization, x-relay-preview-access-group','X-Relay-Cache':cached.status}});
  }catch(error){return jcbError(error);}}

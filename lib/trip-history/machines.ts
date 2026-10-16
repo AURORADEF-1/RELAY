@@ -11,7 +11,7 @@ import {authorizeRelayRequesterRoute} from '@/lib/integrations/rico/route-auth';
 
 export type TripMachine={id:string;name:string;group:string};
 
-const MACHINE_INDEX_TTL_MS=60_000;
+const MACHINE_INDEX_TTL_MS=2*60_000;
 let machineIndexCache:{expiresAt:number;value:Promise<{raw:LinkedJcbMachine[];groups:Awaited<ReturnType<typeof fleetGroups>>}>}|null=null;
 
 function machineIndex(){

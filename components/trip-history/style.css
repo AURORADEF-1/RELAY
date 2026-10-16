@@ -27,6 +27,7 @@
 .trip-date-picker:hover{background:color-mix(in srgb,var(--brand-primary) 10%,transparent);color:var(--brand-primary)}
 .trip-toolbar .trip-date-picker input{position:absolute;inset:0;width:100%;height:100%;margin:0;border:0;padding:0;opacity:0;cursor:pointer}
 .trip-export{position:relative}
+.trip-actions{display:flex;align-items:end;gap:5px}
 .trip-export>summary{display:grid;min-height:36px;place-items:center;border:1px solid var(--border-strong);border-radius:7px;background:var(--background-panel-strong);padding:6px 13px;color:var(--foreground);font-family:inherit;font-size:.72rem;font-weight:750;list-style:none;cursor:pointer}
 .trip-export>summary::-webkit-details-marker{display:none}.trip-export>summary:hover,.trip-export[open]>summary{border-color:var(--brand-primary);background:color-mix(in srgb,var(--brand-primary) 12%,var(--background-panel-strong))}
 .trip-export>div{position:absolute;z-index:1100;top:calc(100% + 5px);right:0;display:grid;width:118px;gap:5px;border:1px solid var(--border-strong);border-radius:8px;background:var(--background-panel);padding:7px;box-shadow:0 10px 25px #00131f88}
