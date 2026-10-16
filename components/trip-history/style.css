@@ -20,6 +20,7 @@
 .trip-day-nav{display:grid;grid-template-columns:34px minmax(120px,max-content) 34px;align-items:center;height:36px;border:1px solid var(--border-strong);border-radius:7px;overflow:hidden;background:var(--background-field)}
 .trip-single-date>.trip-day-nav{margin-top:4px}
 .trip-day-nav button{height:100%;border:0;border-radius:0;padding:0;background:var(--background-panel-strong);color:var(--foreground);font-size:1.4rem;cursor:pointer}
+.trip-day-nav button svg{display:block;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .trip-day-nav button:hover:not(:disabled){background:color-mix(in srgb,var(--brand-primary) 15%,var(--background-panel-strong));color:var(--brand-primary)}
 .trip-day-nav button:disabled{cursor:not-allowed;opacity:.4}
 .trip-date-picker{position:relative;display:grid;height:100%;place-items:center;padding:0 10px;text-align:center;white-space:nowrap;text-transform:none!important;cursor:pointer}
