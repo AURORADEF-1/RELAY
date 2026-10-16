@@ -82,6 +82,7 @@
 .trip-endpoint-card small{color:var(--foreground-muted);font-size:.68rem}
 .trip-end-popup .trip-endpoint-card span{color:#10b981}
 .trip-detail{position:absolute;z-index:500;inset:auto 0 0;display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px;height:42%;overflow:auto;border-top:1px solid color-mix(in srgb,#8ddcff 55%,var(--border));background:transparent;padding:14px 16px;text-shadow:0 1px 3px var(--background),0 0 8px var(--background)}
+.trip-detail>section,.trip-detail>dl{align-self:start;border:1px solid color-mix(in srgb,var(--brand-primary) 24%,var(--border));border-radius:9px;background:color-mix(in srgb,var(--background-panel) 78%,transparent);padding:10px 12px;box-shadow:0 5px 16px #00131f38;backdrop-filter:blur(7px) saturate(120%);-webkit-backdrop-filter:blur(7px) saturate(120%)}
 .trip-eyebrow{color:var(--brand-primary);font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
 .trip-detail h2{margin:3px 0;font-size:1.05rem}
 .trip-detail p{margin:4px 0 10px;font-size:.72rem;color:var(--foreground-muted)}
@@ -94,7 +95,7 @@
 .trip-detail dt{color:var(--foreground-muted)}
 .trip-detail dd{margin:0;font-weight:750}
 .trip-telemetry{grid-column:1/-1;display:grid;grid-template-columns:185px repeat(3,minmax(190px,1fr));gap:10px;padding-top:12px;border-top:1px solid var(--border)}
-.trip-telemetry-heading{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.trip-telemetry-heading{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-radius:7px;background:color-mix(in srgb,var(--background-panel) 78%,transparent);padding:6px 9px;box-shadow:0 4px 14px #00131f30;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
 .trip-telemetry-heading>strong{font-size:.78rem}
 .trip-telemetry-card{min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:8px;background:var(--background-panel-strong)}
 .trip-telemetry-card>header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border-bottom:1px solid var(--border)}
