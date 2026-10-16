@@ -3,10 +3,10 @@
 .trip-toolbar label,.trip-presets>span{font-size:.68rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
 .trip-toolbar input,.trip-toolbar button,.trip-toolbar a,.trip-day-nav strong{font-family:inherit;font-size:.72rem;font-weight:600;line-height:1.2}
 .trip-toolbar input{display:block;width:100%;height:36px;margin-top:4px;border:1px solid var(--border-strong);border-radius:7px;background:var(--background-field);padding:6px 9px;color:var(--foreground)}
-.trip-search{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:end}
+.trip-search{position:relative;display:block}
 .trip-search>label{min-width:0}
-.trip-search>button{min-width:76px;cursor:pointer}
-.trip-search>button:disabled{cursor:not-allowed;opacity:.5}
+.trip-search input[aria-busy=true]{background-image:linear-gradient(90deg,transparent,color-mix(in srgb,var(--brand-primary) 16%,transparent),transparent);background-size:200% 100%;animation:trip-searching 1.1s linear infinite}
+@keyframes trip-searching{to{background-position:-200% 0}}
 .trip-machine-options{position:absolute;z-index:1000;top:100%;left:0;right:0;max-height:280px;overflow:auto;border:1px solid var(--border-strong);border-radius:0 0 8px 8px;background:var(--background-panel);box-shadow:0 12px 30px #0005}
 .trip-machine-options button{display:flex!important;justify-content:space-between;gap:12px;width:100%;min-height:42px!important;border:0!important;border-bottom:1px solid var(--border)!important;border-radius:0!important;padding:8px 10px!important;text-align:left;cursor:pointer}
 .trip-machine-options button:hover,.trip-machine-options button[aria-selected="true"]{background:color-mix(in srgb,var(--brand-primary) 15%,var(--background-panel-strong))!important}
