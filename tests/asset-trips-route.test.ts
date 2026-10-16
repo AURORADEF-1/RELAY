@@ -45,3 +45,17 @@ it('rejects an asset outside the viewer fleet projection before reading its trip
  expect(response.status).toBe(403);
  expect(rpc).not.toHaveBeenCalled();
 });
+
+it('builds an in-progress journey from the compact recent-point buffer',async()=>{
+ vi.useFakeTimers();vi.setSystemTime('2026-10-16T12:00:00.000Z');
+ const recent={eq:()=>recent,gte:()=>recent,lte:()=>recent,order:()=>recent,limit:vi.fn().mockResolvedValue({data:[
+  {asset_name:'Darby',observed_at:'2026-10-16T10:31:00.000Z',latitude:52.1,longitude:1.1,speed_kph:20,ignition:true,power_voltage:13.8,tracker_battery_voltage:4.05},
+  {asset_name:'Darby',observed_at:'2026-10-16T10:36:00.000Z',latitude:52.11,longitude:1.12,speed_kph:30,ignition:true,power_voltage:14.1,tracker_battery_voltage:4.05}
+ ],error:null})};
+ const db={rpc:vi.fn().mockImplementation((name:string)=>Promise.resolve(name==='assetcare_trip_history'?{data:{trips:[],archive_start:null,latest_saved:null},error:null}:{data:{events:[]},error:null})),from:vi.fn(()=>({select:()=>recent}))};
+ mocks.db.mockReturnValue(db);
+ const response=await GET(new NextRequest('https://relay.test/api/assets/trips?from=2026-10-16&to=2026-10-16&asset=darby'));
+ expect(response.status).toBe(200);
+ expect(await response.json()).toMatchObject({trips:[{id:'open:darby:2026-10-16T10:31:00.000Z',asset_id:'darby',asset_name:'Darby',in_progress:true,route_points:[{power_voltage:13.8},{power_voltage:14.1}]}]});
+ expect(db.from).toHaveBeenCalledWith('assetcare_trip_points_recent');
+});
