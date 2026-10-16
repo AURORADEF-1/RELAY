@@ -102,7 +102,7 @@
 .trip-endpoint-card strong{font-size:.84rem;line-height:1.3}
 .trip-endpoint-card small{color:var(--foreground-muted);font-size:.68rem}
 .trip-end-popup .trip-endpoint-card span{color:#10b981}
-.trip-detail{position:absolute;z-index:500;inset:0;display:grid;grid-template-columns:minmax(280px,31%) minmax(0,1fr) 250px;grid-template-rows:max-content minmax(0,1fr);gap:10px;overflow:hidden;background:transparent;padding:14px 16px;text-shadow:0 1px 3px var(--background),0 0 8px var(--background);pointer-events:none}
+.trip-detail{position:absolute;z-index:500;inset:0;display:grid;grid-template-columns:minmax(264px,calc(31% - 16px)) minmax(0,1fr) 250px;grid-template-rows:max-content minmax(0,1fr);gap:10px;overflow:hidden;background:transparent;padding:14px 16px;text-shadow:0 1px 3px var(--background),0 0 8px var(--background);pointer-events:none}
 .trip-detail>section:not(.trip-telemetry){box-sizing:border-box;grid-column:2;grid-row:1/-1;align-self:end;border:1px solid color-mix(in srgb,var(--brand-primary) 24%,var(--border));border-radius:9px;background:color-mix(in srgb,var(--background-panel) 78%,transparent);padding:10px 12px;box-shadow:0 5px 16px #00131f38;backdrop-filter:blur(7px) saturate(120%);-webkit-backdrop-filter:blur(7px) saturate(120%);pointer-events:auto}
 .trip-eyebrow{color:var(--brand-primary);font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
 .trip-detail h2{margin:3px 0;font-size:1.05rem}
