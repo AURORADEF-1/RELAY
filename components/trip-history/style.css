@@ -46,7 +46,7 @@
 @media(max-width:700px){.trip-loading{min-height:calc(100dvh - 150px)}.trip-loading-radar{width:82vw}.trip-loading-copy{margin-top:48vh}.trip-loading-steps{font-size:8px}}
 @media(prefers-reduced-motion:reduce){.trip-loading *{animation-duration:.001ms!important;animation-iteration-count:1!important}}
 .trip-layout{display:grid;grid-template-columns:minmax(280px,31%) minmax(0,69%);height:calc(100dvh - 205px);min-height:600px;overflow:hidden;border:1px solid var(--border-strong);border-radius:12px;background:var(--background-panel)}
-.trip-assets{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;overflow:hidden;border-right:1px solid var(--border)}
+.trip-assets{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;overflow:hidden;border-right:1px solid var(--border);background:color-mix(in srgb,var(--background-panel-strong) 96%,#00131f)}
 .trip-assets>strong{padding:12px;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase}
 .trip-assets>div{min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;touch-action:pan-y}
 .trip-asset-row{display:contents}
