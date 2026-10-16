@@ -81,9 +81,7 @@
 .trip-endpoint-card strong{font-size:.84rem;line-height:1.3}
 .trip-endpoint-card small{color:var(--foreground-muted);font-size:.68rem}
 .trip-end-popup .trip-endpoint-card span{color:#10b981}
-.trip-detail{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px;overflow:auto;border-top:1px solid color-mix(in srgb,#8ddcff 38%,var(--border));background:linear-gradient(135deg,color-mix(in srgb,#ffffff 6%,transparent),transparent 42%),color-mix(in srgb,var(--background-panel) 72%,transparent);padding:14px 16px;box-shadow:inset 0 1px 0 #ffffff12,inset 0 18px 38px color-mix(in srgb,var(--brand-primary) 5%,transparent);backdrop-filter:blur(18px) saturate(135%);-webkit-backdrop-filter:blur(18px) saturate(135%)}
-.trip-detail:before{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(105deg,#ffffff08,transparent 28%,transparent 72%,#35c4ff08);pointer-events:none}
-.trip-detail>*,.trip-detail .trip-telemetry{position:relative;z-index:1}
+.trip-detail{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px;overflow:auto;border-top:1px solid var(--border);background:transparent;padding:14px 16px}
 .trip-eyebrow{color:var(--brand-primary);font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
 .trip-detail h2{margin:3px 0;font-size:1.05rem}
 .trip-detail p{margin:4px 0 10px;font-size:.72rem;color:var(--foreground-muted)}
