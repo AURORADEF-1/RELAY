@@ -15,6 +15,8 @@ const dayPattern=/^\d{4}-\d{2}-\d{2}$/;
 const minimumTripDistanceKm=.03*1.609344;
 const nextDay=(day:string)=>new Date(Date.parse(`${day}T12:00:00Z`)+86400000).toISOString().slice(0,10);
 const boundary=(value:string|null,end:boolean,otherwise:number)=>value&&dayPattern.test(value)?ukMidnight(end?nextDay(value):value):value?Date.parse(value):otherwise;
+const radians=(value:number)=>value*Math.PI/180;
+const segmentKm=(a:JsonRecord,b:JsonRecord)=>{const lat1=number(a.latitude),lon1=number(a.longitude),lat2=number(b.latitude),lon2=number(b.longitude);if(lat1===null||lon1===null||lat2===null||lon2===null)return 0;const dLat=radians(lat2-lat1),dLon=radians(lon2-lon1),h=Math.sin(dLat/2)**2+Math.cos(radians(lat1))*Math.cos(radians(lat2))*Math.sin(dLon/2)**2;return 6371*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));};
 
 async function archivedTrips(db:ReturnType<typeof operationsDatabase>,owner:string,start:number,end:number,asset:string|null,search:string|null){
  let assetIds=asset?[asset]:[];
@@ -93,6 +95,18 @@ async function addSpeedingEvents(db:ReturnType<typeof operationsDatabase>,owner:
  }
 }
 
+async function addOpenJourney(db:ReturnType<typeof operationsDatabase>,owner:string,asset:string,start:number,end:number,data:{trips?:unknown}){
+ if(!Array.isArray(data.trips)||end<Date.now()-24*60*60_000)return;
+ const completed=data.trips.map(record),latestCompleted=Math.max(start,...completed.map(trip=>Date.parse(String(trip.ended_at??''))).filter(Number.isFinite));
+ const scanStart=Math.max(start,latestCompleted+1000,Date.now()-24*60*60_000),rows:{items:unknown;received_at:string}[]=[];
+ for(let offset=0;offset<3000;offset+=500){const page=await db.from('assetcare_batches').select('items,received_at').gte('received_at',new Date(scanStart-10*60_000).toISOString()).lte('received_at',new Date(Math.min(end,Date.now()+60_000)).toISOString()).order('received_at',{ascending:true}).range(offset,offset+499);if(page.error)return;rows.push(...page.data as {items:unknown;received_at:string}[]);if((page.data?.length??0)<500)break;}
+ const unique=new Map<string,JsonRecord>();let assetName=asset;
+ for(const row of rows)for(const raw of Array.isArray(row.items)?row.items:[]){const item=record(raw),itemAsset=record(item.asset),location=record(item.location),telemetry=record(item.telemetry),io=record(item.io),battery=record(io.battery),at=date(item.date),assetId=text(itemAsset.id),latitude=number(location.lat),longitude=number(location.lon);if(item.type!=='telemetry'||text(record(item.owner).id)!==owner||assetId!==asset||!at||Date.parse(at)<=latestCompleted||latitude===null||longitude===null||Math.abs(latitude)>90||Math.abs(longitude)>180||(latitude===0&&longitude===0))continue;assetName=text(itemAsset.name)??assetName;if(!unique.has(at))unique.set(at,{at,latitude,longitude,speed_kph:number(location.speed??telemetry.speed),ignition:telemetry.ignition===1||telemetry.ignition===true?true:telemetry.ignition===0||telemetry.ignition===false?false:null,power_voltage:number(telemetry.power_voltage),tracker_battery_voltage:number(telemetry.battery_voltage??battery.value)});}
+ const points=[...unique.values()].sort((a,b)=>String(a.at).localeCompare(String(b.at)));if(points.length<2)return;
+ const distance=points.slice(1).reduce((sum,point,index)=>sum+segmentKm(points[index],point),0);if(distance<minimumTripDistanceKm)return;
+ const first=points[0],last=points.at(-1)!;data.trips.push({id:`open:${asset}:${first.at}`,asset_id:asset,asset_name:assetName,started_at:first.at,ended_at:last.at,start_latitude:first.latitude,start_longitude:first.longitude,start_address:null,end_latitude:last.latitude,end_longitude:last.longitude,end_address:null,distance,odometer:null,speed_kph:last.speed_kph,route_points:points,in_progress:true});
+}
+
 export async function GET(request:NextRequest){try{
  const q=request.nextUrl.searchParams,now=Date.now();
  const endValue=q.get('to'),startValue=q.get('from');
@@ -112,6 +126,7 @@ export async function GET(request:NextRequest){try{
   const distance=number(trip.distance);
   return distance!==null&&distance>=minimumTripDistanceKm&&(!search||`${text(trip.asset_id)??''} ${text(trip.asset_name)??''}`.toLowerCase().includes(search));
  }).sort((a:JsonRecord,b:JsonRecord)=>String(a.started_at??a.ended_at).localeCompare(String(b.started_at??b.ended_at)));
+ if(asset)await addOpenJourney(db,owner,asset,start,end,data);
  if(asset)await addSpeedingEvents(db,owner,asset,start,end,data);
  if(data.trips.length>2000)throw new JcbError('Too many trips. Choose a shorter date range.',422);
  return Response.json(data,{headers:{'Cache-Control':'private, no-store','Vary':'Authorization'}});
