@@ -1,6 +1,6 @@
 import {PDFDocument,StandardFonts,rgb} from 'pdf-lib';
 
-export type ExportTrip={id:string;started_at:string|null;ended_at:string;start_address:string|null;end_address:string|null;distance:number|null;odometer:number|null;speed_kph:number|null;in_progress?:boolean;route_points:Array<{speed_kph:number|null;speeding?:boolean;speed_limit_kph?:number|null}>};
+export type ExportTrip={id:string;started_at:string|null;ended_at:string;start_address:string|null;end_address:string|null;distance:number|null;odometer:number|null;speed_kph:number|null;in_progress?:boolean;route_points:Array<{at:string;latitude:number;longitude:number;speed_kph:number|null;ignition:boolean|null;power_voltage:number|null;tracker_battery_voltage:number|null;speeding?:boolean;speed_limit_kph?:number|null;address?:string|null}>};
 type ExportInput={machine:string;from:string;to:string;trips:ExportTrip[]};
 const finite=(value:unknown):value is number=>typeof value==='number'&&Number.isFinite(value);
 const miles=(km:number|null)=>finite(km)?km/1.609344:null;
@@ -14,8 +14,11 @@ const place=(value:string|null)=>value?.trim()||'Position not supplied';
 const csvCell=(value:unknown)=>`"${String(value??'').replace(/^[=+@\-\t\r]/,"'$&").replace(/"/g,'""')}"`;
 
 export function tripHistoryCsv({machine,from,to,trips}:ExportInput){
- const rows:unknown[][]=[['Machine','Selected from','Selected to','Journey status','Start date/time','End date/time','Start location','End location','Duration (minutes)','Distance (miles)','Odometer (miles)','End speed (mph)','Maximum recorded speed (mph)','Speeding check-ins']];
- for(const trip of trips)rows.push([machine,from,to,trip.in_progress?'In progress':'Completed',clock(trip.started_at),clock(trip.ended_at),place(trip.start_address),place(trip.end_address),durationMinutes(trip),miles(trip.distance)?.toFixed(2)??'',miles(trip.odometer)?.toFixed(1)??'',mph(trip.speed_kph)?.toFixed(1)??'',mph(maximumSpeed(trip))?.toFixed(1)??'',speedings(trip)]);
+ const rows:unknown[][]=[['Machine','Selected from','Selected to','Journey ID','Journey status','Journey start','Journey end','Journey from','Journey to','Journey duration (minutes)','Journey distance (miles)','Odometer (miles)','Pin number','Pin date/time','Road / location','Latitude','Longitude','Speed (mph)','Speed limit (mph)','Amount over limit (mph)','Speed status','Ignition','Power voltage (V)','Tracker battery (V)']];
+ for(const trip of trips){
+  const points=trip.route_points.length?trip.route_points:[{at:trip.ended_at,latitude:NaN,longitude:NaN,speed_kph:trip.speed_kph,ignition:null,power_voltage:null,tracker_battery_voltage:null,address:trip.end_address}];
+  points.forEach((point,index)=>{const speed=mph(point.speed_kph),limit=mph(point.speed_limit_kph??null),over=finite(speed)&&finite(limit)?Math.max(0,speed-limit):null,status=point.speeding?(finite(point.speed_kph)&&finite(point.speed_limit_kph)&&point.speed_kph<=point.speed_limit_kph*1.1?'Speeding - amber':'Speeding - red'):'Within limit',coordinates=finite(point.latitude)&&finite(point.longitude)?`${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`:'';rows.push([machine,from,to,trip.id,trip.in_progress?'In progress':'Completed',clock(trip.started_at),clock(trip.ended_at),place(trip.start_address),place(trip.end_address),durationMinutes(trip),miles(trip.distance)?.toFixed(2)??'',miles(trip.odometer)?.toFixed(1)??'',index+1,clock(point.at),point.address?.trim()||coordinates||'Position not supplied',finite(point.latitude)?point.latitude.toFixed(6):'',finite(point.longitude)?point.longitude.toFixed(6):'',speed?.toFixed(1)??'',limit?.toFixed(0)??'',over?.toFixed(1)??'',status,typeof point.ignition==='boolean'?(point.ignition?'On':'Off'):'',finite(point.power_voltage)?point.power_voltage.toFixed(2):'',finite(point.tracker_battery_voltage)?point.tracker_battery_voltage.toFixed(2):'']);});
+ }
  return '\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n');
 }
 
