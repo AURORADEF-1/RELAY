@@ -58,7 +58,7 @@ export function AdminUserEmailPanel() {
       const response = await fetch("/api/admin/user-emails", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ userId, ...drafts[userId] }) });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error || "Unable to save the email.");
-      setNotice("User account updated."); await load();
+      setNotice("User Account Updated."); await load();
     } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to save the email."); }
     finally { setSaving(null); }
   }
