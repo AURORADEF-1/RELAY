@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { accessGroupIds, accessGroupLabels } from "@/lib/access-groups";
 import { getSupabaseAccessToken } from "@/lib/supabase";
 
-type Profile = { id: string; full_name: string | null; role: string | null; email: string | null; interface_mode: string | null; access_group: string | null; last_sign_in_at: string | null };
+type Profile = { id: string; username: string | null; full_name: string | null; role: string | null; email: string | null; interface_mode: string | null; access_group: string | null; last_sign_in_at: string | null };
 type Draft = { fullName: string; email: string; role: string; interfaceMode: string; accessGroup: string };
 type SortKey = "fullName" | "email" | "accessGroup" | "lastLogin";
 
@@ -69,10 +69,11 @@ export function AdminUserEmailPanel() {
     {notice ? <div className="mt-5 aurora-alert">{notice}</div> : null}
     <div className="admin-user-sort-bar" aria-label="Sort user accounts"><span>Sort by</span>{sortOptions.map((option) => <button key={option.key} type="button" onClick={() => changeSort(option.key)} className={sortKey === option.key ? "is-active" : ""} aria-pressed={sortKey === option.key}>{option.label}{sortKey === option.key ? <b aria-hidden="true">{sortDirection === "asc" ? "↑" : "↓"}</b> : null}</button>)}</div>
     <div className="mt-3 grid gap-3">{sortedProfiles.map((profile) => <div key={profile.id} className="admin-control-list-row rounded-[1.25rem] border border-[color:var(--border)] bg-[color:var(--background-panel-strong)] p-4">
-      <div className="admin-user-account-grid"><label>Display name<input value={drafts[profile.id]?.fullName ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], fullName: e.target.value } })} className="aurora-input" /></label>
+      <div className="admin-user-account-grid"><div className="admin-user-readonly"><span>Username</span><strong>{profile.username || "Unavailable"}</strong></div>
+      <label>Display name<input value={drafts[profile.id]?.fullName ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], fullName: e.target.value } })} className="aurora-input" /></label>
       <label>Contact email<input type="email" value={drafts[profile.id]?.email ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], email: e.target.value } })} placeholder="name@company.co.uk" className="aurora-input" /></label>
       <label>Access group<select value={drafts[profile.id]?.accessGroup ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], accessGroup: e.target.value } })} className="aurora-select"><option value="">Legacy access (unassigned)</option>{accessGroupIds.map((group) => <option key={group} value={group}>{accessGroupLabels[group]}</option>)}</select></label>
-      <div className="admin-user-last-login"><span>Last login</span><strong>{formatLastLogin(profile.last_sign_in_at)}</strong></div>
+      <div className="admin-user-readonly"><span>Last login</span><strong>{formatLastLogin(profile.last_sign_in_at)}</strong></div>
       <button onClick={() => void save(profile.id)} disabled={saving === profile.id} className="aurora-button-primary disabled:opacity-60">{saving === profile.id ? "Saving…" : "Save changes"}</button></div>
     </div>)}</div>
   </section>;
