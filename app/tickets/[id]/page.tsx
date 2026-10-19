@@ -22,6 +22,7 @@ import {
 } from "@/components/ticket-chat-panel";
 import { StatusBadge } from "@/components/status-badge";
 import { MachineReferenceIndicator } from "@/components/machine-reference-indicator";
+import { formatEnteredTitle } from "@/lib/text-format";
 import { AdminCollectionConfirmation } from "@/components/admin-collection-confirmation";
 import { PartLabelValidationPanel } from "@/components/part-label-validation-panel";
 import { RequesterCollectionCode } from "@/components/requester-collection-code";
@@ -2365,7 +2366,7 @@ export default function TicketDetailPage() {
                         <p className="ticket-overview-title">
                           {isAdmin
                             ? `Job ${ticket.job_number?.trim() || "not assigned"}`
-                            : ticket.request_summary?.trim() || ticket.request_details?.trim() || "Parts request"}
+                            : formatEnteredTitle(ticket.request_summary?.trim() || ticket.request_details?.trim() || "Parts request")}
                         </p>
                         {isAdmin ? (
                           <p className="ticket-overview-reference">

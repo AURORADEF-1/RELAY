@@ -31,6 +31,7 @@ import { uploadTicketAttachments } from "@/lib/relay-ticketing";
 import { getSupabaseClient } from "@/lib/supabase";
 import { LiveLinkRequestContext } from "@/components/jcb/request-context";
 import { restoreLiveLinkRequestDraft } from "@/lib/integrations/jcb/request-draft";
+import { formatEnteredTitle } from "@/lib/text-format";
 
 const departmentOptions = ["Onsite", "Yard"] as const;
 
@@ -1573,7 +1574,7 @@ function buildTicketInsertPayload(
     machine_verified_by: isRetailSale ? null : machineSnapshot?.machine_verified_by ?? null,
     job_number: isRetailSale ? null : jobNumber,
     request_details: requestDetails,
-    request_summary: requestDetails,
+    request_summary: formatEnteredTitle(requestDetails),
     status: "PENDING",
     is_retail_sale: isRetailSale,
     ...retailFields,

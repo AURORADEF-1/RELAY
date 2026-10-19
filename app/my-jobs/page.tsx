@@ -10,6 +10,7 @@ import { MyJobCardActionModal } from "@/components/my-jobs/my-job-card-action-mo
 import { getAdminAssignmentLabel } from "@/lib/admin-assignees";
 import { isReportableAdminOperatorName } from "@/lib/admin-operators";
 import { formatConsoleCurrency } from "@/lib/console-tickets";
+import { formatEnteredTitle } from "@/lib/text-format";
 import {
   formatTimeInStatus,
   getMyJobsEdgeScrollDelta,
@@ -295,7 +296,7 @@ function MyJobCard({
           {onOpenActions ? <button type="button" onClick={onOpenActions} aria-label={`Actions for job ${ticket.job_number || ticket.id.slice(0, 8)}`}>•••</button> : null}
         </div>
       </div>
-      <h3>{ticket.request_summary?.trim() || ticket.request_details?.trim() || "Request details not recorded"}</h3>
+      <h3>{formatEnteredTitle(ticket.request_summary?.trim() || ticket.request_details?.trim() || "Request details not recorded")}</h3>
       <dl>
         <div><dt>Machine</dt><dd>{ticket.machine_reference || ticket.machine_number || "Not recorded"}</dd></div>
         {!compact ? <div><dt>Requester</dt><dd>{ticket.requester_name || "Not recorded"}</dd></div> : null}

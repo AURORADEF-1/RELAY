@@ -10,6 +10,7 @@ import {
   formatConsoleDate,
   formatConsoleDateTime,
 } from "@/lib/console-tickets";
+import { formatEnteredTitle } from "@/lib/text-format";
 import {
   groupTicketsByBin,
   normalizePrePickSearch,
@@ -242,7 +243,7 @@ export default function PrePickPage() {
                         <strong>JOB {ticket.job_number?.trim() || "—"}</strong>
                         <StatusBadge status={ticket.status ?? "PENDING"} />
                       </div>
-                      <p>{ticket.request_summary?.trim() || ticket.request_details?.trim() || "Request details not recorded"}</p>
+                      <p>{formatEnteredTitle(ticket.request_summary?.trim() || ticket.request_details?.trim() || "Request details not recorded")}</p>
                       <dl>
                         <div>
                           <dt>Machine</dt>

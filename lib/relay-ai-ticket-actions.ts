@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildMachineSnapshot, lookupMachineRegistryRecord } from "@/lib/machine-registry";
 import { notifyAdminsOfNewTicket } from "@/lib/notifications";
 import { getCurrentUserWithRole } from "@/lib/profile-access";
+import { formatEnteredTitle } from "@/lib/text-format";
 
 export type RelayAiTicketDepartment = "Onsite" | "Yard";
 
@@ -200,7 +201,7 @@ export async function createRelayAiTicket(
     machine_verified_by: machineSnapshot?.machine_verified_by ?? null,
     job_number: draft.jobNumber.trim(),
     request_details: requestDetails,
-    request_summary: requestDetails,
+    request_summary: formatEnteredTitle(requestDetails),
     status: "PENDING",
     is_retail_sale: false,
     location_lat: draft.location?.confirmed ? draft.location.lat : null,

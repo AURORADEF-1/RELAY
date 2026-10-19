@@ -12,6 +12,7 @@ import {
   formatConsoleDate,
   formatConsoleDateTime,
 } from "@/lib/console-tickets";
+import { formatEnteredTitle } from "@/lib/text-format";
 
 export function ConsoleTicketDrawer({
   ticket,
@@ -43,7 +44,7 @@ export function ConsoleTicketDrawer({
     return null;
   }
 
-  const summary = ticket.request_summary?.trim() || ticket.request_details?.trim() || "Untitled request";
+  const summary = formatEnteredTitle(ticket.request_summary?.trim() || ticket.request_details?.trim() || "Untitled request");
 
   return (
     <>

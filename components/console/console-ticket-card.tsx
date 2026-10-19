@@ -7,6 +7,7 @@ import { MachineReferenceIndicator } from "@/components/machine-reference-indica
 import { RequesterProfileLink } from "@/components/requester-profile-link";
 import type { ConsoleTicket } from "@/lib/console-tickets";
 import { formatConsoleCurrency, formatConsoleDate } from "@/lib/console-tickets";
+import { formatEnteredTitle } from "@/lib/text-format";
 
 export function ConsoleTicketCard({
   ticket,
@@ -17,7 +18,7 @@ export function ConsoleTicketCard({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const summary = ticket.request_summary?.trim() || ticket.request_details?.trim() || "Untitled request";
+  const summary = formatEnteredTitle(ticket.request_summary?.trim() || ticket.request_details?.trim() || "Untitled request");
   const status = ticket.status?.trim().toUpperCase() || "PENDING";
 
   return (

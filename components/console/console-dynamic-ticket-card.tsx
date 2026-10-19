@@ -7,6 +7,7 @@ import { RequesterProfileLink } from "@/components/requester-profile-link";
 import { StatusBadge } from "@/components/status-badge";
 import type { ConsoleTicket } from "@/lib/console-tickets";
 import { formatConsoleCurrency, formatConsoleDate } from "@/lib/console-tickets";
+import { formatEnteredTitle } from "@/lib/text-format";
 
 export function ConsoleDynamicTicketCard({
   ticket,
@@ -22,7 +23,7 @@ export function ConsoleDynamicTicketCard({
   onChangeStatus: () => void;
 }) {
   const status = ticket.status?.trim().toUpperCase() || "PENDING";
-  const summary = ticket.request_summary?.trim() || ticket.request_details?.trim() || "Untitled request";
+  const summary = formatEnteredTitle(ticket.request_summary?.trim() || ticket.request_details?.trim() || "Untitled request");
 
   return (
     <article
