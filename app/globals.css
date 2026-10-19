@@ -10112,8 +10112,17 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 }
 
 .admin-user-account-grid .aurora-select option {
-  background: #eaf7fc;
-  color: #06263a;
+  background: #082b3d;
+  color: #f1fbff;
+}
+
+.admin-user-account-grid .aurora-select option:checked {
+  background: #0b82b4;
+  color: #ffffff;
+}
+
+.admin-user-account-grid .aurora-select {
+  color-scheme: dark;
 }
 
 @media (max-width: 1200px) {
