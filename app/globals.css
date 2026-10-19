@@ -10568,6 +10568,96 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
   border-radius: 0.4rem;
 }
 
+.ticket-overview-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding-bottom: 1.15rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.ticket-overview-eyebrow {
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.ticket-overview-title {
+  margin-top: 0.38rem;
+  color: var(--foreground-strong);
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-weight: 720;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.ticket-overview-reference {
+  margin-top: 0.45rem;
+  color: var(--foreground-subtle);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.ticket-overview-reference span {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.ticket-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.ticket-overview-grid > div {
+  min-width: 0;
+  min-height: 5.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: var(--background-panel-strong);
+  padding: 0.85rem 0.9rem;
+}
+
+.ticket-overview-grid dt {
+  color: var(--foreground-subtle) !important;
+  font-size: 0.62rem !important;
+  letter-spacing: 0.15em !important;
+}
+
+.ticket-overview-grid dd {
+  margin-top: 0.45rem !important;
+  color: var(--foreground-strong) !important;
+  font-size: 0.86rem !important;
+  font-weight: 650;
+  line-height: 1.45 !important;
+  overflow-wrap: anywhere;
+}
+
+.ticket-overview-grid dd a {
+  color: var(--accent);
+}
+
+.ticket-overview-details {
+  margin-top: 0.7rem;
+}
+
+.ticket-overview-details > div > p:first-child {
+  color: var(--foreground-subtle) !important;
+  font-size: 0.62rem;
+}
+
+.ticket-overview-details > div > p:last-child {
+  margin-top: 0.45rem;
+  border-color: var(--border);
+  border-radius: 0.45rem;
+  background: var(--background-panel-strong);
+  color: var(--foreground-muted);
+}
+
 .ticket-edit-drawer-scrim {
   position: fixed;
   inset: 0;
@@ -10688,6 +10778,14 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
     padding: 0.85rem;
   }
 
+  .ticket-overview-heading {
+    gap: 0.8rem;
+  }
+
+  .ticket-overview-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .ticket-edit-drawer {
     width: 100vw;
   }
@@ -10700,6 +10798,12 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
     bottom: -0.9rem;
     margin: 1rem -0.9rem -0.9rem;
     padding: 0.8rem 0.9rem;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1100px) {
+  .ticket-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

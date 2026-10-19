@@ -2357,16 +2357,21 @@ export default function TicketDetailPage() {
                         : "hidden"
                     }
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="ticket-overview-heading">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          {isAdmin ? "Ticket ID" : "Request status"}
+                        <p className="ticket-overview-eyebrow">
+                          {isAdmin ? "Request overview" : "Request status"}
                         </p>
-                        <p className={`mt-2 font-semibold text-slate-950 ${isAdmin ? "break-all text-2xl" : "text-xl"}`}>
+                        <p className="ticket-overview-title">
                           {isAdmin
-                            ? ticket.id
+                            ? `Job ${ticket.job_number?.trim() || "not assigned"}`
                             : ticket.request_summary?.trim() || ticket.request_details?.trim() || "Parts request"}
                         </p>
+                        {isAdmin ? (
+                          <p className="ticket-overview-reference">
+                            Ticket <span>{ticket.id}</span>
+                          </p>
+                        ) : null}
                       </div>
                       <StatusBadge status={ticket.status ?? "PENDING"} />
                     </div>
@@ -2772,7 +2777,7 @@ export default function TicketDetailPage() {
                       <>
                         <div className={activeWorkspaceTab === "overview" ? "" : "hidden"}>
                           {isAdmin ? (
-                          <dl className="mt-6 grid gap-5 sm:grid-cols-2">
+                          <dl className="ticket-overview-grid">
                           {!ticket.is_retail_sale ? (
                             <>
                               <DetailItem label="Requester">
@@ -2869,7 +2874,7 @@ export default function TicketDetailPage() {
                           </div>
                         ) : null}
 
-                        {isAdmin ? <div className="mt-6 space-y-4">
+                        {isAdmin ? <div className="ticket-overview-details">
                           <DetailBlock
                             label="Request Details"
                             value={ticket.request_details ?? ticket.request_summary}
