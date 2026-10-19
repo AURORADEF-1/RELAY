@@ -78,7 +78,14 @@ export default function LoginPage() {
     }
 
     clearCurrentUserWithRoleCache();
-    const { isFrontCounter } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+    const { isFrontCounter, isAccountDisabled } = await getCurrentUserWithRole(supabase, { forceFresh: true });
+    if (isAccountDisabled) {
+      await supabase.auth.signOut();
+      clearCurrentUserWithRoleCache();
+      setErrorMessage("This account has been disabled. Contact an administrator.");
+      setIsSubmitting(false);
+      return;
+    }
     router.push(isFrontCounter ? "/terminal" : nextPath);
     router.refresh();
   }

@@ -1,5 +1,6 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { normalizeAccessGroup, type AccessGroupId } from "@/lib/access-groups";
+import { isDailySessionExpired } from "@/lib/account-session-policy";
 
 export type AppProfileRole = string | null;
 export type AppProfile = {
@@ -7,6 +8,7 @@ export type AppProfile = {
   display_name?: string | null;
   interface_mode?: "standard" | "front_counter" | null;
   access_group?: AccessGroupId | null;
+  account_status?: "active" | "disabled" | null;
 } | null;
 
 export type AccessLevel = "admin" | "user";
@@ -18,6 +20,8 @@ type CurrentUserWithRoleResult = {
   isAdmin: boolean;
   isFrontCounter: boolean;
   accessGroup: AccessGroupId | null;
+  isAccountDisabled: boolean;
+  isSessionExpired: boolean;
 };
 
 const USER_ROLE_CACHE_TTL_MS = 5_000;
@@ -82,12 +86,14 @@ async function resolveCurrentUserWithRole(
       isAdmin: false,
       isFrontCounter: false,
       accessGroup: null,
+      isAccountDisabled: false,
+      isSessionExpired: false,
     };
   }
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role, full_name, interface_mode, access_group")
+    .select("role, full_name, interface_mode, access_group, account_status")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -105,6 +111,7 @@ async function resolveCurrentUserWithRole(
         access_group: typeof profile.access_group === "string"
           ? normalizeAccessGroup(profile.access_group)
           : null,
+        account_status: profile.account_status === "disabled" ? "disabled" : "active",
       }
     : null;
 
@@ -115,11 +122,14 @@ async function resolveCurrentUserWithRole(
         display_name: null,
         interface_mode: "standard",
         access_group: null,
+        account_status: "active",
       };
 
   const accessLevel = getAccessLevel(user, resolvedProfile);
   const isFrontCounter = resolvedProfile?.interface_mode === "front_counter";
   const accessGroup = resolvedProfile?.access_group ?? null;
+  const isAccountDisabled = resolvedProfile?.account_status === "disabled";
+  const isSessionExpired = isDailySessionExpired(user.last_sign_in_at);
 
   return {
     user,
@@ -129,6 +139,8 @@ async function resolveCurrentUserWithRole(
     isAdmin: accessLevel === "admin",
     isFrontCounter,
     accessGroup,
+    isAccountDisabled,
+    isSessionExpired,
   };
 }
 

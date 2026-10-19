@@ -10011,7 +10011,7 @@ html[data-theme="dark"] .workshop-map-status-quote { color: #d8b4fe; }
 
 .admin-user-account-grid {
   display: grid;
-  grid-template-columns: minmax(9rem, 0.8fr) minmax(11rem, 1fr) minmax(14rem, 1.2fr) minmax(8rem, 0.65fr) minmax(10rem, 0.8fr) auto;
+  grid-template-columns: minmax(8rem, 0.75fr) minmax(10rem, 0.9fr) minmax(13rem, 1.15fr) minmax(8rem, 0.65fr) minmax(8rem, 0.65fr) minmax(10rem, 0.8fr) auto;
   align-items: end;
   gap: 0.8rem;
 }

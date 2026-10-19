@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { accessGroupIds, accessGroupLabels } from "@/lib/access-groups";
 import { getSupabaseAccessToken } from "@/lib/supabase";
 
-type Profile = { id: string; username: string | null; full_name: string | null; role: string | null; email: string | null; interface_mode: string | null; access_group: string | null; last_sign_in_at: string | null };
-type Draft = { fullName: string; email: string; role: string; interfaceMode: string; accessGroup: string };
+type Profile = { id: string; username: string | null; full_name: string | null; role: string | null; email: string | null; interface_mode: string | null; access_group: string | null; account_status: string | null; last_sign_in_at: string | null };
+type Draft = { fullName: string; email: string; role: string; interfaceMode: string; accessGroup: string; accountStatus: "active" | "disabled" };
 type SortKey = "fullName" | "email" | "accessGroup" | "lastLogin";
 
 const sortOptions: { key: SortKey; label: string }[] = [
@@ -28,7 +28,7 @@ export function AdminUserEmailPanel() {
       const response = await fetch("/api/admin/user-emails", { headers: { Authorization: `Bearer ${token}` } });
       const result = await response.json() as { profiles?: Profile[]; error?: string };
       if (!response.ok) throw new Error(result.error || "Unable to load user accounts.");
-      const rows = result.profiles ?? []; setProfiles(rows); setDrafts(Object.fromEntries(rows.map((row) => [row.id, { fullName: row.full_name ?? "", email: row.email ?? "", role: row.role ?? "requester", interfaceMode: row.interface_mode ?? "standard", accessGroup: accessGroupIds.includes(row.access_group as (typeof accessGroupIds)[number]) ? row.access_group ?? "" : "" }])));
+      const rows = result.profiles ?? []; setProfiles(rows); setDrafts(Object.fromEntries(rows.map((row) => [row.id, { fullName: row.full_name ?? "", email: row.email ?? "", role: row.role ?? "requester", interfaceMode: row.interface_mode ?? "standard", accessGroup: accessGroupIds.includes(row.access_group as (typeof accessGroupIds)[number]) ? row.access_group ?? "" : "", accountStatus: row.account_status === "disabled" ? "disabled" : "active" }])));
     } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to load user accounts."); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -73,6 +73,7 @@ export function AdminUserEmailPanel() {
       <label>Display name<input value={drafts[profile.id]?.fullName ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], fullName: e.target.value } })} className="aurora-input" /></label>
       <label>Contact email<input type="email" value={drafts[profile.id]?.email ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], email: e.target.value } })} placeholder="name@company.co.uk" className="aurora-input" /></label>
       <label>Access group<select value={drafts[profile.id]?.accessGroup ?? ""} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], accessGroup: e.target.value } })} className="aurora-select"><option value="">Legacy access (unassigned)</option>{accessGroupIds.map((group) => <option key={group} value={group}>{accessGroupLabels[group]}</option>)}</select></label>
+      <label>Account status<select value={drafts[profile.id]?.accountStatus ?? "active"} onChange={(e) => setDrafts({ ...drafts, [profile.id]: { ...drafts[profile.id], accountStatus: e.target.value as "active" | "disabled" } })} className="aurora-select"><option value="active">Active</option><option value="disabled">Disabled</option></select></label>
       <div className="admin-user-readonly"><span>Last login</span><strong>{formatLastLogin(profile.last_sign_in_at)}</strong></div>
       <button onClick={() => void save(profile.id)} disabled={saving === profile.id} className="aurora-button-primary disabled:opacity-60">{saving === profile.id ? "Saving…" : "Save changes"}</button></div>
     </div>)}</div>

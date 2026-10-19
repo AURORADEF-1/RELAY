@@ -48,7 +48,7 @@ export function AuthGuard({
       }
 
       try {
-        const { user, isAdmin, isFrontCounter, accessGroup } = await getCurrentUserWithRole(supabase, {
+        const { user, isAdmin, isFrontCounter, accessGroup, isAccountDisabled, isSessionExpired } = await getCurrentUserWithRole(supabase, {
           forceFresh: true,
         });
 
@@ -59,6 +59,13 @@ export function AuthGuard({
         if (!user) {
           clearCurrentUserWithRoleCache();
           router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+          return;
+        }
+
+        if (isAccountDisabled || isSessionExpired) {
+          await supabase.auth.signOut();
+          clearCurrentUserWithRoleCache();
+          router.replace(`/login?next=${encodeURIComponent(pathname)}&reason=${isAccountDisabled ? "disabled" : "daily"}`);
           return;
         }
 
